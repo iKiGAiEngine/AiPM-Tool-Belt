@@ -59,10 +59,14 @@ export default function ReviewPage() {
   });
 
   useEffect(() => {
-    if (sections.length > 0 && selectedIds.size === 0) {
+    setSelectedIds(new Set());
+  }, [sessionId]);
+
+  useEffect(() => {
+    if (sections.length > 0) {
       setSelectedIds(new Set(sections.map(s => s.id)));
     }
-  }, [sections]);
+  }, [sections.length]);
 
   const handleSelectionChange = (ids: Set<string>) => {
     setSelectedIds(ids);
