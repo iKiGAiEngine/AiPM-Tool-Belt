@@ -1,9 +1,23 @@
-import { createRequire } from "module";
-const require = createRequire(import.meta.url);
-const pdfParse = require("pdf-parse");
+import * as pdfjsLib from "pdfjs-dist/legacy/build/pdf.mjs";
 
 async function pdf(buffer: Buffer): Promise<{ text: string; numpages: number }> {
-  return pdfParse(buffer);
+  const data = new Uint8Array(buffer);
+  const loadingTask = pdfjsLib.getDocument({ data });
+  const pdfDoc = await loadingTask.promise;
+  const numPages = pdfDoc.numPages;
+  
+  let fullText = "";
+  
+  for (let i = 1; i <= numPages; i++) {
+    const page = await pdfDoc.getPage(i);
+    const textContent = await page.getTextContent();
+    const pageText = textContent.items
+      .map((item: any) => item.str)
+      .join(" ");
+    fullText += pageText + "\n\f";
+  }
+  
+  return { text: fullText, numpages: numPages };
 }
 import type { ExtractedSection, AccessoryMatch, InsertSection, InsertAccessoryMatch } from "@shared/schema";
 import { DEFAULT_SCOPES, ACCESSORY_SCOPES } from "@shared/schema";
