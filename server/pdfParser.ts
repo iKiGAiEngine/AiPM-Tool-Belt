@@ -1,5 +1,10 @@
-import * as pdfParse from "pdf-parse";
-const pdf = (pdfParse as any).default || pdfParse;
+import { createRequire } from "module";
+const require = createRequire(import.meta.url);
+const pdfParse = require("pdf-parse");
+
+async function pdf(buffer: Buffer): Promise<{ text: string; numpages: number }> {
+  return pdfParse(buffer);
+}
 import type { ExtractedSection, AccessoryMatch, InsertSection, InsertAccessoryMatch } from "@shared/schema";
 import { DEFAULT_SCOPES, ACCESSORY_SCOPES } from "@shared/schema";
 
