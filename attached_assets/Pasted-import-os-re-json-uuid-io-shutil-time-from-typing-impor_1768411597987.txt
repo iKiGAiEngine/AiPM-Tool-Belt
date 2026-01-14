@@ -1,0 +1,1792 @@
+import os, re, json, uuid, io, shutil, time
+from typing import List, Dict, Tuple
+from fastapi import FastAPI, UploadFile, File, Form, Request, BackgroundTasks
+from fastapi.responses import HTMLResponse, RedirectResponse, FileResponse, JSONResponse
+from fastapi.staticfiles import StaticFiles
+from fastapi.templating import Jinja2Templates
+import fitz  # PyMuPDF
+
+# --- App setup ---
+app = FastAPI(title="Division 10 Spec Extractor")
+app.mount("/static", StaticFiles(directory="static"), name="static")
+templates = Jinja2Templates(directory="templates")
+
+BASE_OUT = "./data/specs"
+SESSIONS = "./data/sessions"
+ACCESSORY_SEARCH = "./data/accessory_search"
+os.makedirs(BASE_OUT, exist_ok=True)
+os.makedirs(SESSIONS, exist_ok=True)
+os.makedirs(ACCESSORY_SEARCH, exist_ok=True)
+
+# Processing status tracking
+processing_status = {}  # {session_id: {"status": "processing|complete|error", "progress": 0-100, "message": "..."}}
+
+# --- Regex / parsing helpers ---
+# Enhanced SEC_RE finds Division 10 section numbers - supports 4-digit and 6-digit formats (with or without separators)
+SEC_RE = re.compile(r"\b10[\s\-\._]*(?:\d{2}[\s\-\._]*\d{2}(?:[\s\-\._]*\d{2})?|\d{4,6})\b")  # 10 XX XX, 10XXXX, or 101400
+# Enhanced Header regex - supports both formats 
+HDR_RE = re.compile(r"^(?:SECTION|Section|SPEC|Spec)?\s*(10[\s\-\._]*(?:\d{2}[\s\-\._]*\d{2}(?:[\s\-\._]*\d{2})?|\d{4,6}))\s*[–—\-:]*\s*(.+)$", re.IGNORECASE)
+# Additional pattern for section numbers at start of line
+SECTION_NUMBER_RE = re.compile(r"(?:^|\n)\s*(?:SECTION\s+)?(10[\s\-\._]*(?:\d{2}[\s\-\._]*\d{2}(?:[\s\-\._]*\d{2})?|\d{4,6}))\b", re.IGNORECASE | re.MULTILINE)
+
+def canonize(sec: str) -> str:
+    # normalize "101473", "10 14 73", "10-14-73", "10.14.73", "102113.17", "10 2800", "102800"
+    # PRESERVE ORIGINAL for dash detection - don't strip dashes in the input
+    original_sec = sec.strip()
+    
+    # If input has dash-digit pattern (like "10 1400-11"), it's likely a reference, not a section
+    if re.search(r'10\s*\d{4}-\d+', original_sec):
+        print(f"DEBUG: Canonize rejecting reference pattern: {original_sec}")
+        return original_sec  # Return as-is to be filtered out later
+    
+    sec = original_sec
+    if "." in sec:
+        main, sub = sec.split(".", 1)
+    else:
+        main, sub = sec, ""
+    digits = re.sub(r"[^\d]", "", main)
+    
+    # Handle both 4-digit (10 2800) and 6-digit (10 14 73) formats
+    if len(digits) == 6:
+        dv, p1, p2 = digits[:2], digits[2:4], digits[4:6]
+        return f"{dv} {p1} {p2}" + (f".{sub}" if sub else "")
+    elif len(digits) == 4 and digits.startswith("10"):
+        # 4-digit format like "10 2800" -> keep as "10 28 00"
+        dv, p1p2 = digits[:2], digits[2:4]
+        return f"{dv} {p1p2} 00" + (f".{sub}" if sub else "")
+    else:
+        return sec
+
+def parent_key(canon: str) -> str:
+    # For "10 26 05", return "10 26"
+    # For "10 26 05.01", return "10 26"
+    # For "10 26", return "10 26"
+    parts = canon.split(".", 1)[0]  # Remove subsections (.01, .02, etc)
+    digits = parts.split()
+    if len(digits) >= 2:
+        return f"{digits[0]} {digits[1]}"  # Return first two groups (10 26)
+    return canon
+
+# Accessory scope definitions (NON-Division 10 items)
+# division_scope: which divisions to search ([6,7] for structural, [11,12] for equipment/furnishings)
+ACCESSORY_SCOPES = [
+    {"name": "Bike Racks", "keywords": ["bike rack", "bicycle rack", "bicycle parking"], "section_hint": "12 93 43", "division_scope": [11, 12]},
+    {"name": "Expansion Joints", "keywords": ["expansion joint", "control joint"], "section_hint": "07 95 13", "division_scope": [6, 7]},
+    {"name": "Window Shades", "keywords": ["window shade", "roller shade", "blind"], "section_hint": "12 24 13", "division_scope": [11, 12]},
+    {"name": "Site Furnishings", "keywords": ["site furnishing", "bench", "picnic table"], "section_hint": "12 93 00", "division_scope": [11, 12]},
+    {"name": "Exterior Sun Screens", "keywords": ["sun screen", "exterior screen", "solar screen"], "section_hint": "10 71 00", "division_scope": [11, 12]},
+    {"name": "Entrance Mats/Grilles", "keywords": ["entrance mat", "entrance grille", "walk-off mat"], "section_hint": "12 48 13", "division_scope": [11, 12]},
+    {"name": "Flagpoles", "keywords": ["flagpole", "flag pole"], "section_hint": "12 93 23", "division_scope": [11, 12]},
+    {"name": "Display Cases", "keywords": ["display case", "trophy case", "exhibit case"], "section_hint": "11 11 13", "division_scope": [11, 12]},
+    {"name": "Protective Covers/Canopies", "keywords": ["protective cover", "canopy", "awning"], "section_hint": "12 93 33", "division_scope": [11, 12]},
+    {"name": "Operable Partitions", "keywords": ["operable partition", "movable partition", "folding partition"], "section_hint": "10 22 26", "division_scope": [11, 12]},
+    {"name": "Wardrobe Closets/Shelving", "keywords": ["wardrobe", "closet shelving", "wire shelving"], "section_hint": "10 56 00", "division_scope": [11, 12]}
+]
+
+# Minimal scope map (editable at runtime on review screen)
+DEFAULT_SCOPES = {
+    "10 11 00": "Visual Display Units",
+    "10 14 00": "Signage",
+      "10 14 19": "Dimensional Letter Signage",
+      "10 14 73": "Painted Signage",
+    "10 21 13": "Toilet Compartments",
+    "10 21 23": "Cubicle Curtains and Track",
+    "10 22 39": "Folding Panel Partitions",
+    "10 26 00": "Wall Protection",
+    "10 26 01": "Wall Protection",
+    "10 28 00": "Toilet, Bath, and Laundry Accessories",
+    "10 41 16": "Emergency Key Cabinets",
+    "10 44 00": "Fire Protection Specialties",
+    "10 44 13": "Fire Protection Cabinets",
+    "10 44 16": "Fire Extinguishers",
+    "10 51 00": "Lockers",
+    "10 51 13": "Metal Lockers",
+    "10 82 00": "Grilles and Screens"
+}
+
+def clean_section_title(title: str) -> str:
+    """Remove section content markers from title (e.g., 'PART 1', 'PART 2', etc.)"""
+    import re
+    # Remove "SECTION XXXXXX" pattern from end or middle
+    title = re.sub(r'\s*SECTION\s+\d+.*$', '', title, flags=re.IGNORECASE)
+    # Remove PART X and everything after it
+    title = re.sub(r'\s*PART\s+\d+.*$', '', title, flags=re.IGNORECASE)
+    # Remove other content markers and everything after
+    content_markers = ['GENERAL', 'SUMMARY', 'PRODUCTS', 'EXECUTION', 'REQUIREMENTS']
+    for marker in content_markers:
+        # Only remove if it appears at word boundary (not in middle of title)
+        title = re.sub(rf'\s+{marker}.*$', '', title, flags=re.IGNORECASE)
+    return title.strip()
+
+def parse_headers_from_page_text(text: str) -> List[Tuple[str, str]]:
+    hits = []
+    
+    # Enhanced patterns to find section headers with titles
+    enhanced_patterns = [
+        # "SECTION 10 1400 - SIGNAGE" or "SECTION 10 14 00 - SIGNAGE" or "SECTION 101400 - SIGNAGE"
+        r'SECTION\s+(10[\s\-\._]*(?:\d{2}[\s\-\._]*\d{2}(?:[\s\-\._]*\d{2})?|\d{4,6}))\s*[\-–—:]\s*([A-Z][A-Z\s,&/\-]+)',
+        # "10 1400 - SIGNAGE" or "10 14 00 - SIGNAGE" or "101400 - SIGNAGE"
+        r'^(10[\s\-\._]*(?:\d{2}[\s\-\._]*\d{2}(?:[\s\-\._]*\d{2})?|\d{4,6}))\s*[\-–—:]\s*([A-Z][A-Z\s,&/\-]+)',
+        # "SECTION 10 1400 SIGNAGE" or "SECTION 101400 SIGNAGE" (no dash)
+        r'SECTION\s+(10[\s\-\._]*(?:\d{2}[\s\-\._]*\d{2}(?:[\s\-\._]*\d{2})?|\d{4,6}))\s+([A-Z][A-Z\s,&/\-]{10,})',
+        # Just section number followed by title on same line
+        r'\b(10[\s\-\._]*(?:\d{2}[\s\-\._]*\d{2}(?:[\s\-\._]*\d{2})?|\d{4,6}))\s+([A-Z][A-Z\s,&/\-]{15,})'
+    ]
+    
+    # Special handling for section + title on separate lines (like "SECTION 10 2600" followed by "WALL AND CORNER GUARDS")
+    lines = text.splitlines()
+    for i, line in enumerate(lines):
+        line = line.strip()
+        
+        # First check for SECTION + TITLE on SAME line (e.g., "SECTION 10 22 39 FOLDING PANEL PARTITIONS" or "SECTION 102239 FOLDING PANEL PARTITIONS")
+        same_line_match = re.match(r'SECTION\s+(10[\s\-\._]*(?:\d{2}[\s\-\._]*\d{2}(?:[\s\-\._]*\d{2})?|\d{4,6}))\s+([A-Z][A-Z\s,&/\-]{5,})', line, re.IGNORECASE)
+        if same_line_match:
+            sec_raw, title_raw = same_line_match.groups()
+            
+            # IMMEDIATELY REJECT equipment references with dashes
+            if '-' in sec_raw:
+                print(f"DEBUG: Same-line parsing rejecting equipment reference: {sec_raw}")
+                continue
+                
+            canon = canonize(sec_raw)
+            if canon.startswith("10 ") and '-' not in canon:
+                clean_title = clean_section_title(title_raw.strip())
+                if not any(h[0] == canon for h in hits):
+                    hits.append((canon, clean_title))
+                    print(f"DEBUG: Same-line parsing found: {canon} - {clean_title}")
+            continue  # Move to next line
+        
+        # Look for "SECTION 10 XXXX" or "SECTION 101400" on one line - ONLY accept clean section headers
+        section_only_match = re.match(r'SECTION\s+(10[\s\-\._]*(?:\d{2}[\s\-\._]*\d{2}(?:[\s\-\._]*\d{2})?|\d{4,6}))\s*$', line, re.IGNORECASE)
+        if section_only_match:
+            sec_raw = section_only_match.group(1)
+            
+            # IMMEDIATELY REJECT equipment references with dashes
+            if '-' in sec_raw:
+                print(f"DEBUG: Multi-line parsing rejecting equipment reference: {sec_raw}")
+                continue
+                
+            canon = canonize(sec_raw)
+            if canon.startswith("10 ") and '-' not in canon:  # Double check no dashes
+                # Look for title on next line - ONLY take the first valid title line
+                title_found = None
+                for j in range(i + 1, min(i + 3, len(lines))):  # Check next 2 lines only
+                    next_line = lines[j].strip()
+                    if next_line and len(next_line) > 3:
+                        # Only accept ALL CAPS titles (standard spec format)
+                        # Must be 5+ chars, all uppercase letters with spaces/punctuation
+                        is_all_caps_title = bool(re.match(r'^[A-Z][A-Z\s,&/\-]{4,}$', next_line))
+                        
+                        if is_all_caps_title:
+                            title_found = next_line
+                            print(f"DEBUG: Found title line: '{next_line}'")
+                            break  # STOP after first valid title - don't grab more lines
+                        elif next_line.startswith(('PART', '1.', 'A.', 'GENERAL', 'SUMMARY')):
+                            print(f"DEBUG: Hit section content, stopping title search: '{next_line}'")
+                            break  # Hit content, stop looking
+                        else:
+                            print(f"DEBUG: Skipping non-title line: '{next_line}'")
+                
+                if title_found:
+                    clean_title = clean_section_title(title_found)
+                    if not any(h[0] == canon for h in hits):
+                        hits.append((canon, clean_title))
+                        print(f"DEBUG: Multi-line parsing found: {canon} - {clean_title}")
+                else:
+                    # Just section number, create generic title
+                    if not any(h[0] == canon for h in hits):
+                        hits.append((canon, f"SECTION {sec_raw}"))
+                        print(f"DEBUG: Section-only parsing found: {canon} - SECTION {sec_raw}")
+    
+    # If we found multi-line headers, use those
+    if hits:
+        return hits
+    
+    # Try enhanced pattern matching first - but REJECT equipment references immediately
+    for pattern in enhanced_patterns:
+        for match in re.finditer(pattern, text, re.IGNORECASE | re.MULTILINE):
+            sec_raw, title = match.groups()
+            
+            # IMMEDIATELY REJECT equipment references with dashes
+            if '-' in sec_raw:
+                print(f"DEBUG: Enhanced parsing rejecting equipment reference: {sec_raw}")
+                continue
+                
+            canon = canonize(sec_raw)
+            if canon.startswith("10 ") and '-' not in canon:  # Double check no dashes
+                # Clean up the title
+                clean_title = clean_section_title(title.strip())
+                clean_title = re.sub(r'\s+', ' ', clean_title)
+                clean_title = clean_title[:100]  # Limit length
+                
+                # REJECT equipment item titles immediately
+                equipment_titles = ['paper towel dispenser', 'toilet paper dispenser', 'soap dispenser', 'hand dryer']
+                if any(equip in clean_title.lower() for equip in equipment_titles):
+                    print(f"DEBUG: Enhanced parsing rejecting equipment title: {canon} - {clean_title}")
+                    continue
+                
+                # Make sure it's a reasonable title
+                if len(clean_title) > 5 and not clean_title.isdigit():
+                    # Avoid duplicates
+                    if not any(h[0] == canon for h in hits):
+                        hits.append((canon, clean_title))
+                        print(f"DEBUG: Enhanced parsing found: {canon} - {clean_title}")
+    
+    # DISABLED fallback methods - they were causing false positives
+    # Only use the enhanced multi-line parsing above
+    print("DEBUG: Using only multi-line parsing, fallback methods disabled to prevent false positives")
+    
+    return hits
+
+def is_proper_section_header(page_text: str, section: str, title: str) -> bool:
+    """Validate that this is actually a proper section header, not a cross-reference"""
+    lines = page_text.splitlines()
+    
+    for i, line in enumerate(lines):
+        line_stripped = line.strip()
+        
+        # Find the line containing our section header
+        if HDR_RE.match(line_stripped) and section in line_stripped:
+            # Check context - proper section headers usually:
+            # 1. Appear near the top of pages or after significant whitespace
+            # 2. Are not buried in paragraph text or lists
+            # 3. Often have the section number appear in a large/bold format
+            
+            # Look at surrounding context
+            context_before = []
+            context_after = []
+            
+            # Get 3 lines before and after for context
+            for j in range(max(0, i-3), i):
+                if j < len(lines):
+                    context_before.append(lines[j].strip())
+            for j in range(i+1, min(len(lines), i+4)):
+                context_after.append(lines[j].strip())
+            
+            # Red flags that indicate this is likely a cross-reference:
+            red_flags = [
+                # Check if it appears in a list or under "Related Requirements"
+                any("related requirements" in ctx.lower() for ctx in context_before[-2:]),
+                any("section includes" in ctx.lower() for ctx in context_before[-2:]),
+                any("product data" in ctx.lower() for ctx in context_after[:2]),
+                any("action submittals" in ctx.lower() for ctx in context_after[:2]),
+                # Check if it's indented (likely a list item)
+                line.startswith("    ") or line.startswith("\t"),
+                # Check if preceded by a number or letter (list item)
+                any(ctx.strip().endswith(('.', ')')) and len(ctx.strip()) <= 3 for ctx in context_before[-1:]),
+            ]
+            
+            # If we find red flags, this is likely a cross-reference
+            if any(red_flags):
+                return False
+            
+            # Green flags that indicate this is likely a proper section header:
+            green_flags = [
+                # Appears at/near top of page
+                i <= 5,
+                # Has proper section formatting with page header info
+                any("part " in ctx.lower() for ctx in context_after[:3]),
+                any("general" in ctx.lower() for ctx in context_after[:3]),
+                any("summary" in ctx.lower() for ctx in context_after[:3]),
+                # Section title is substantial (not just a number)
+                len(title.strip()) > 15,
+                # No indentation
+                not (line.startswith("    ") or line.startswith("\t")),
+            ]
+            
+            # Require at least one green flag for proper section headers
+            return any(green_flags)
+    
+    return False
+
+def extract_title_from_context(text: str, section: str, start_pos: int, end_pos: int) -> str:
+    """Extract a reasonable title from the context around a section number"""
+    lines = text.splitlines()
+    section_line = None
+    
+    # Find which line contains our section number
+    char_count = 0
+    for i, line in enumerate(lines):
+        if char_count <= start_pos <= char_count + len(line):
+            section_line = i
+            break
+        char_count += len(line) + 1  # +1 for newline
+    
+    if section_line is not None:
+        # Look for title on same line after dash or colon
+        line = lines[section_line].strip()
+        title_match = re.search(rf'{re.escape(section)}\s*[\-:–—]\s*(.{{10,}})', line, re.IGNORECASE)
+        if title_match:
+            return title_match.group(1).strip()[:120]
+        
+        # Look for title on next line
+        if section_line + 1 < len(lines):
+            next_line = lines[section_line + 1].strip()
+            if len(next_line) > 10 and not next_line.startswith(('A.', 'B.', 'C.', '1.', '2.', '3.')):
+                return next_line[:120]
+    
+    # Fallback to a generic title
+    return f"Division 10 Section {section}"
+
+def is_legitimate_section(text: str, section: str, title: str) -> bool:
+    """Determine if this is a legitimate Division 10 specification section using full page context"""
+    text_lower = text.lower()
+    title_lower = title.lower()
+    
+    # IMMEDIATELY REJECT: Equipment references with dashes
+    if '-' in section:
+        print(f"DEBUG: Rejecting equipment reference with dash: {section}")
+        return False
+    
+    # IMMEDIATELY REJECT: Text fragments that are clearly not section headers
+    text_fragment_patterns = [
+        r'called out in', r'pass eye-level', r'shown on', r'indicated on',
+        r'specified in', r'requirements of', r'in accordance with',
+        r'shall be', r'to be', r'of the', r'by the', r'for the',
+        r'as shown', r'as indicated', r'refer to', r'see drawing'
+    ]
+    
+    for pattern in text_fragment_patterns:
+        if re.search(pattern, title_lower):
+            print(f"DEBUG: Rejecting text fragment: {section} - {title}")
+            return False
+    
+    # CONTEXT ANALYSIS: Look at full page content to determine if this is a proper section header
+    
+    # Check if this appears to be an equipment schedule page (be more specific)
+    equipment_schedule_indicators = [
+        'toilet and bath accessories 10 2800-', 'accessories schedule', 'equipment schedule',
+        # Only reject if multiple equipment indicators present
+        ('type 1', 'type 2', 'qty'),  # Need multiple indicators
+        ('model', 'quantity', 'hand sanitizer'),
+        ('paper towel dispenser', 'soap dispenser', 'grab bar')
+    ]
+    
+    # Count how many indicators are present
+    indicator_count = 0
+    for indicator in equipment_schedule_indicators:
+        if isinstance(indicator, tuple):
+            # Need all parts of tuple to be present
+            if all(part in text_lower for part in indicator):
+                indicator_count += 2  # Higher weight for multiple indicators
+        else:
+            if indicator in text_lower:
+                indicator_count += 1
+    
+    # Only reject if multiple equipment indicators (likely schedule page)
+    if indicator_count >= 2:
+        print(f"DEBUG: Rejecting - appears to be equipment schedule: {section} (indicators: {indicator_count})")
+        return False
+    
+    # REQUIRE proper section header context (more lenient for legitimate sections)
+    proper_header_indicators = [
+        # Must appear near "SECTION" keyword
+        f'section {section.replace(" ", "")}' in text_lower,
+        f'section {section.replace(" ", " ")}' in text_lower,
+        # OR have specification language nearby
+        'part 1' in text_lower,
+        'general' in text_lower,
+        'submittals' in text_lower,
+        'quality assurance' in text_lower,
+        # OR be a recognized section title format (all caps, reasonable length)
+        title.isupper() and len(title) > 8 and not title.isdigit(),
+        # OR contain specification keywords
+        any(spec_word in title_lower for spec_word in ['protection', 'compartments', 'specialties', 'accessories', 'signage'])
+    ]
+    
+    if not any(proper_header_indicators):
+        print(f"DEBUG: Rejecting - no proper header context: {section} - {title}")
+        return False
+    
+    # REJECT individual equipment items by title
+    equipment_item_titles = [
+        'paper towel dispenser', 'toilet paper dispenser', 'soap dispenser',
+        'hand dryer', 'grab bar', 'towel bar', 'hook', 'mirror',
+        'waste receptacle', 'partition', 'accessory rail',
+        'baby changing station', 'feminine napkin disposal',
+        'seat cover dispenser', 'napkin dispenser'
+    ]
+    
+    for equipment_item in equipment_item_titles:
+        if equipment_item in title_lower:
+            print(f"DEBUG: Rejecting equipment item: {section} - {title}")
+            return False
+    
+    # Immediate rejects - these are definitely not real sections
+    immediate_rejects = [
+        # Room numbers or tags
+        "~" in title,
+        title.isdigit(),
+        len(title) < 5,
+        # Cross-references to other divisions (sections starting with 09, 08, etc)
+        section.startswith(("10 00", "10 01", "10 02", "10 03", "10 04", "10 05", "10 06", "10 07", "10 08", "10 09")),
+        # Equipment tags or drawing references  
+        title.startswith(("to produce", "called out", "pass eye-level", "PART 3", "END OF")),
+        # General information that's not a spec
+        "general information" in title_lower and len(title) < 25,
+        # Drawing references or page fragments
+        title.count("–") > 2,  # Too many dashes suggests a reference list
+        title.endswith(("...", "…")),  # Truncated text
+    ]
+    
+    if any(immediate_rejects):
+        return False
+    
+    # Strong positive indicators of a real specification section
+    positive_indicators = [
+        # Has proper section header format
+        f"section {section}" in text_lower,
+        # Contains typical spec language
+        "part 1" in text_lower and "general" in text_lower,
+        "part 2" in text_lower and "products" in text_lower,
+        "part 3" in text_lower and "execution" in text_lower,
+        # Contains spec-typical content
+        "submittals" in text_lower,
+        "quality assurance" in text_lower,
+        "warranty" in text_lower,
+        # Title looks like a proper specification title
+        any(word in title_lower for word in [
+            "display", "signage", "compartments", "accessories", "lockers", 
+            "protection", "cabinets", "extinguishers", "partitions", "guards",
+            "surfaces", "specialties", "screens", "grilles", "track", "hardware"
+        ]),
+        # Has substantial content (not just a fragment)
+        len(title) > 15 and not title.endswith("..."),
+        "end of section" in text_lower,
+        # Proper MasterFormat numbering (XX XX XX format)
+        len(section.split()) == 3 and all(part.isdigit() and len(part) == 2 for part in section.split())
+    ]
+    
+    # Needs at least 2 positive indicators for small titles, 1 for substantial ones
+    required_indicators = 1 if len(title) > 20 else 2
+    return sum(positive_indicators) >= required_indicators
+
+def detect_division_boundaries(doc: fitz.Document) -> Dict[int, Tuple[int, int]]:
+    """
+    Detect where specific divisions start and end in the PDF.
+    Returns dict mapping division number to (start_page, end_page) tuple.
+    
+    Focuses on Divisions 6, 7, 11, and 12 for accessory search scoping.
+    Also detects table of contents to exclude it from searches.
+    """
+    division_ranges = {}
+    toc_end_page = -1  # -1 means no TOC found, so division scan starts at page 0
+    
+    # Regex patterns for division headers
+    # Match patterns like "DIVISION 06", "DIVISION 6", "DIV 06", "DIV. 6"
+    division_pattern = re.compile(r'DIVISION\s+0?([6-9]|1[0-2])\b', re.IGNORECASE)
+    # Also match section-style headers like "SECTION 06000" or "06 00 00"
+    section_division_pattern = re.compile(r'\b0?([6-9]|1[0-2])\s*00\s*00\b')
+    
+    # Scan PDF for division markers
+    division_first_pages = {}  # Dict mapping division_num -> first page where it appears
+    target_divisions = {6, 7, 11, 12}  # Divisions we need to find
+    
+    print(f"DEBUG: Scanning PDF for division boundaries (target divisions: {target_divisions})...")
+    
+    # STEP 1: Find TOC end first to avoid detecting division listings in TOC
+    toc_start_page = -1
+    for page_num in range(min(100, len(doc))):  # TOC usually in first 100 pages
+        try:
+            page = doc.load_page(page_num)
+            text = page.get_text()
+            lines = text.splitlines()
+            
+            for line in lines[:20]:  # Check first 20 lines
+                if re.search(r'TABLE\s+OF\s+CONTENTS', line, re.IGNORECASE):
+                    print(f"DEBUG: Found TABLE OF CONTENTS starting on page {page_num}")
+                    toc_start_page = page_num
+                    break
+            
+            if toc_start_page >= 0:
+                break
+        except Exception as e:
+            continue
+    
+    # If TOC found, scan forward to find where it ends
+    if toc_start_page >= 0:
+        print(f"DEBUG: Scanning forward from page {toc_start_page} to find TOC end...")
+        # TOC patterns: dot leaders (...), page numbers at end, section/division listings
+        toc_pattern = re.compile(r'\.{3,}|(?:DIVISION|SECTION)\s+\d+.*\d+\s*$', re.IGNORECASE)
+        last_toc_page = toc_start_page  # Track the last page that had TOC content
+        
+        for page_num in range(toc_start_page, min(toc_start_page + 200, len(doc))):
+            try:
+                page = doc.load_page(page_num)
+                text = page.get_text()
+                lines = text.splitlines()
+                
+                # Count lines that look like TOC entries
+                toc_line_count = 0
+                for line in lines:
+                    if toc_pattern.search(line):
+                        toc_line_count += 1
+                
+                # If 5 or more TOC-style lines on this page, it's part of TOC
+                if toc_line_count >= 5:
+                    last_toc_page = page_num  # Update last known TOC page
+                else:
+                    # Found first page without significant TOC content
+                    # TOC ends at the last page that HAD TOC content
+                    toc_end_page = last_toc_page
+                    print(f"DEBUG: TOC ends at page {toc_end_page} (last page with TOC content)")
+                    break
+            except Exception as e:
+                continue
+        
+        # If we scanned all 200 pages and still finding TOC, assume TOC ends at last scanned page
+        if toc_end_page < 0:
+            toc_end_page = last_toc_page
+            print(f"DEBUG: TOC scan limit reached, assuming TOC ends at page {toc_end_page}")
+    
+    print(f"DEBUG: Starting division scan after page {toc_end_page} (exclusive) to skip TOC...")
+    
+    # STEP 2: Scan for divisions AFTER TOC ends
+    # Start scanning after TOC to avoid detecting division listings in the TOC
+    # If no TOC found (toc_end_page = -1), start at page 0
+    # If TOC found, start at toc_end_page + 1 (exclusive boundary)
+    start_scan_page = max(toc_end_page + 1, 0)
+    print(f"DEBUG: Division scan starting at page {start_scan_page}")
+    for page_num in range(start_scan_page, len(doc)):
+        try:
+            page = doc.load_page(page_num)
+            text = page.get_text()
+            lines = text.splitlines()
+            
+            # Look for division headers in first 30 lines (headers usually at top)
+            for line in lines[:30]:
+                line_stripped = line.strip()
+                
+                # Check for DIVISION XX pattern
+                div_match = division_pattern.search(line_stripped)
+                if div_match:
+                    div_num = int(div_match.group(1))
+                    # Only track divisions we care about: 6, 7, 11, 12
+                    # IMPORTANT: Only keep FIRST occurrence of each division (after TOC)
+                    if div_num in target_divisions and div_num not in division_first_pages:
+                        division_first_pages[div_num] = page_num
+                        print(f"DEBUG: Found DIVISION {div_num:02d} starting on page {page_num}: {line_stripped[:80]}")
+                
+                # Check for section-style division markers like "06 00 00"
+                sec_div_match = section_division_pattern.search(line_stripped)
+                if sec_div_match:
+                    div_num = int(sec_div_match.group(1))
+                    # IMPORTANT: Only keep FIRST occurrence of each division (after TOC)
+                    if div_num in target_divisions and div_num not in division_first_pages:
+                        # Make sure this looks like a division header (has substantial text)
+                        if len(line_stripped) > 10:
+                            division_first_pages[div_num] = page_num
+                            print(f"DEBUG: Found DIV {div_num:02d} section marker starting on page {page_num}: {line_stripped[:80]}")
+        
+            # Early exit if we found all target divisions AND we're past page 500
+            # This optimizes for large PDFs while ensuring we find all divisions
+            if set(division_first_pages.keys()) == target_divisions and page_num > 500:
+                print(f"DEBUG: Found all target divisions {target_divisions}, stopping scan at page {page_num}")
+                break
+        
+        except Exception as e:
+            print(f"DEBUG: Error scanning page {page_num}: {e}")
+            continue
+    
+    # Convert dict to sorted list of (page_num, div_num) for range creation
+    division_pages = [(page_num, div_num) for div_num, page_num in division_first_pages.items()]
+    division_pages.sort(key=lambda x: x[0])  # Sort by page number
+    
+    # Report which divisions were found
+    found_divisions = set(division_first_pages.keys())
+    print(f"DEBUG: Division scan complete. Found divisions: {found_divisions}")
+    if found_divisions != target_divisions:
+        missing = target_divisions - found_divisions
+        print(f"WARNING: Missing divisions: {missing} - accessory search may have limited results")
+    
+    # Create ranges for each division
+    for i, (page_num, div_num) in enumerate(division_pages):
+        # Find where this division ends (next division starts)
+        if i + 1 < len(division_pages):
+            end_page = division_pages[i + 1][0] - 1
+        else:
+            # Last division goes to end of document
+            end_page = len(doc) - 1
+        
+        division_ranges[div_num] = (page_num, end_page)
+        print(f"DEBUG: Division {div_num:02d} spans pages {page_num} to {end_page} ({end_page - page_num + 1} pages)")
+    
+    # Store TOC range (if TOC was found)
+    if toc_end_page >= 0:
+        division_ranges['toc'] = (0, toc_end_page)
+        print(f"DEBUG: Table of Contents spans pages 0 to {toc_end_page}")
+    else:
+        print(f"DEBUG: No Table of Contents detected")
+    
+    return division_ranges
+
+def search_keyword_ranges(doc: fitz.Document, keywords: List[str], buffer_pages: int = 1, division_scope: List[int] = None, division_boundaries: Dict = None) -> List[Dict]:
+    """
+    Search for keywords in PDF and return page ranges where they appear.
+    Merges contiguous page hits into ranges with optional buffer pages.
+    
+    Args:
+        doc: PyMuPDF document
+        keywords: List of keywords to search for
+        buffer_pages: Number of pages to include before/after hits
+        division_scope: List of division numbers to search within (e.g., [11, 12] or [6, 7])
+        division_boundaries: Dict from detect_division_boundaries with division ranges
+    
+    Returns:
+        List of dicts with {start, end, matches} where matches is per-range keyword hit count
+    """
+    # Determine which pages to search based on division scope
+    searchable_pages = set()
+    toc_pages = set()
+    
+    if division_boundaries and 'toc' in division_boundaries:
+        toc_start, toc_end = division_boundaries['toc']
+        toc_pages = set(range(toc_start, toc_end + 1))
+        print(f"DEBUG: Excluding TOC pages {toc_start} to {toc_end} from search")
+    
+    if division_scope and division_boundaries:
+        # Search only within specified divisions
+        for div_num in division_scope:
+            if div_num in division_boundaries:
+                div_start, div_end = division_boundaries[div_num]
+                searchable_pages.update(range(div_start, div_end + 1))
+                print(f"DEBUG: Including Division {div_num} pages {div_start} to {div_end} in search")
+        
+        # Remove TOC pages from searchable pages
+        searchable_pages -= toc_pages
+        
+        if not searchable_pages:
+            print(f"DEBUG: No searchable pages found for divisions {division_scope}")
+            return []
+    else:
+        # Search entire document except TOC
+        searchable_pages = set(range(len(doc))) - toc_pages
+    
+    print(f"DEBUG: Searching {len(searchable_pages)} pages for keywords: {keywords}")
+    
+    # Cache page text to avoid repeated extraction (performance optimization)
+    # Only cache pages we'll actually search
+    page_texts = {}
+    for page_num in searchable_pages:
+        page_texts[page_num] = doc[page_num].get_text().lower()
+    
+    # Track which pages have hits and count per page
+    page_hits = {}  # page_num -> match_count
+    
+    # Search each keyword
+    for keyword in keywords:
+        keyword_lower = keyword.lower()
+        for page_num, text in page_texts.items():
+            if keyword_lower in text:
+                page_hits[page_num] = page_hits.get(page_num, 0) + 1
+    
+    if not page_hits:
+        return []
+    
+    # Sort pages and merge into contiguous ranges
+    sorted_pages = sorted(page_hits.keys())
+    ranges = []
+    current_start = sorted_pages[0]
+    current_end = sorted_pages[0]
+    current_matches = page_hits[sorted_pages[0]]
+    
+    for page_num in sorted_pages[1:]:
+        # Check if page is within buffer distance of current range
+        if page_num <= current_end + buffer_pages + 1:
+            current_end = page_num
+            current_matches += page_hits[page_num]
+        else:
+            # Save current range and start new one
+            ranges.append({
+                "start": max(0, current_start - buffer_pages),
+                "end": min(len(doc) - 1, current_end + buffer_pages),
+                "matches": current_matches
+            })
+            current_start = page_num
+            current_end = page_num
+            current_matches = page_hits[page_num]
+    
+    # Add final range
+    ranges.append({
+        "start": max(0, current_start - buffer_pages),
+        "end": min(len(doc) - 1, current_end + buffer_pages),
+        "matches": current_matches
+    })
+    
+    return ranges
+
+def is_likely_cross_reference(page_text: str, section: str) -> bool:
+    """Check if a Division 10 section number appears to be a cross-reference rather than a section header"""
+    lines = page_text.splitlines()
+    page_lower = page_text.lower()
+    
+    # Strong indicators this is NOT a Division 10 section
+    non_div10_keywords = [
+        "communications systems", "pathways for communications", "cable tray", "cable trays",
+        "electrical systems", "fire alarm", "security systems", "audio visual", 
+        "telecommunications", "data systems", "network", "fiber optic",
+        "conduit", "raceway", "electrical", "wiring", "circuits"
+    ]
+    
+    # If the page contains non-Division 10 content, it's likely a false positive
+    if any(keyword in page_lower for keyword in non_div10_keywords):
+        return True
+    
+    for i, line in enumerate(lines):
+        if section.replace(" ", "") in line.replace(" ", ""):  # Find line containing section number
+            line_lower = line.lower()
+            
+            # Strong indicators this is a cross-reference:
+            cross_ref_indicators = [
+                "related requirements" in line_lower,
+                "section includes" in line_lower,
+                line.strip().startswith(("1.", "2.", "3.", "A.", "B.", "C.")),  # List items
+                "for " in line_lower and " assemblies" in line_lower,  # "for visual display board assemblies"
+                line.count("'") >= 2,  # Quoted section titles like 'Visual Display Units'
+            ]
+            
+            # Check surrounding context
+            context_lines = []
+            for j in range(max(0, i-2), min(len(lines), i+3)):
+                context_lines.append(lines[j].lower())
+            
+            context_text = " ".join(context_lines)
+            context_indicators = [
+                "related requirements" in context_text,
+                "action submittals" in context_text,
+                "product data" in context_text,
+            ]
+            
+            return any(cross_ref_indicators) or any(context_indicators)
+    
+    return False
+
+def find_div10_headers(doc) -> List[Dict]:
+    headers = []
+    print(f"DEBUG: Scanning {len(doc)} pages for Division 10 sections...")
+    
+    for pno in range(len(doc)):
+        try:
+            txt = doc.load_page(pno).get_text()
+            
+            # Focus detection on page zones - top 15 lines and bottom 15 lines
+            lines = txt.splitlines()
+            top_zone = "\n".join(lines[:15])  # First 15 lines (headers)
+            bottom_zone = "\n".join(lines[-15:]) if len(lines) > 15 else ""  # Last 15 lines (footers)
+            
+            # Check for ANY Division 10 number mentions in focused zones
+            import re
+            div10_mentions = re.findall(r'10[\s\-\._]*(?:\d{2}[\s\-\._]*\d{2}(?:[\s\-\._]*\d{2})?|\d{4,6})', top_zone + " " + bottom_zone)
+            if div10_mentions:
+                print(f"DEBUG: Page {pno} contains Division 10 mentions in top/bottom zones: {div10_mentions}")
+            
+            # Try enhanced header parsing on TOP ZONE ONLY
+            strict = parse_headers_from_page_text(top_zone)
+            if strict:
+                print(f"DEBUG: Page {pno} - Found headers in top zone: {strict}")
+                for canon, title in strict:
+                    # STRICT validation - reject equipment references 
+                    if canon.startswith("10 ") and len(title) > 5 and '-' not in canon:  # No dashes allowed
+                        # Check if we already have this section to avoid duplicates
+                        already_found = any(h["section"] == canon for h in headers)
+                        if not already_found:
+                            # Additional validation with full page context
+                            if is_legitimate_section(txt, canon, title):
+                                # Look backwards to find the actual section start page
+                                actual_start_page = find_section_start_page(doc, pno, canon)
+                                print(f"DEBUG: Section {canon} detected on page {pno}, actual start page: {actual_start_page}")
+                                headers.append({"page": actual_start_page, "section": canon, "title": title})
+                            else:
+                                print(f"DEBUG: Page {pno} - Section {canon} failed legitimacy check (title: '{title}')")
+                        else:
+                            print(f"DEBUG: Page {pno} - Section {canon} already found, skipping duplicate")
+                    else:
+                        print(f"DEBUG: Page {pno} - Section {canon} basic validation failed (title: '{title}')")
+            
+            # ONLY look for proper section headers in TOP ZONE - be very conservative
+            # Look for "SECTION 10 XXXX" or "SECTION 101400" patterns only, not scattered numbers
+            section_header_patterns = [
+                r'SECTION\s+(10[\s\-\._]*(?:\d{2}[\s\-\._]*\d{2}(?:[\s\-\._]*\d{2})?|\d{4,6}))',
+                r'^(10[\s\-\._]*(?:\d{2}[\s\-\._]*\d{2}(?:[\s\-\._]*\d{2})?|\d{4,6}))\s*$'  # Section number alone on line
+            ]
+            
+            for pattern in section_header_patterns:
+                for match in re.finditer(pattern, top_zone, re.IGNORECASE | re.MULTILINE):
+                    sec_raw = match.group(1)
+                    sec = canonize(sec_raw)
+                    print(f"DEBUG: Page {pno} - Found potential section header: {sec}")
+                    
+                    if sec.startswith("10 "):
+                        # Check if we already have this section
+                        already_found = any(h["section"] == sec for h in headers)
+                        if not already_found:
+                            # Create title from context
+                            title = extract_title_from_context(top_zone, sec, match.start(), match.end())
+                            
+                            # Use VERY strict validation with full page context
+                            if is_legitimate_section(txt, sec, title):  # Check full page for validation
+                                # Look backwards to find the actual section start page
+                                actual_start_page = find_section_start_page(doc, pno, sec)
+                                print(f"DEBUG: Section {sec} accepted on page {pno}, actual start page: {actual_start_page}")
+                                headers.append({"page": actual_start_page, "section": sec, "title": title})
+                            else:
+                                print(f"DEBUG: Page {pno} - Section {sec} rejected (title: '{title}')")
+                        
+        except Exception as e:
+            print(f"DEBUG: Error processing page {pno}: {e}")
+            continue
+    # de-dup same page/sec - keep first occurrence (already cleaned)
+    seen, unique = {}, []
+    for h in headers:
+        key = h["section"]  # Just dedupe by section, not page
+        if key not in seen:
+            seen[key] = h
+            unique.append(h)
+        # If duplicate found, ignore it - keep the first (already cleaned) version
+    
+    print(f"DEBUG: Final headers after deduplication: {[(h['section'], h['title']) for h in unique]}")
+    # ensure sorted by page
+    sorted_headers = sorted(unique, key=lambda x: x["page"])
+    
+    # Show page gaps to help debug range calculation issues
+    for i in range(len(sorted_headers) - 1):
+        current_page = sorted_headers[i]["page"]
+        next_page = sorted_headers[i + 1]["page"]
+        gap = next_page - current_page
+        if gap > 50:  # Large gap might indicate missing sections
+            print(f"DEBUG: Large gap detected - {sorted_headers[i]['section']} (page {current_page}) to {sorted_headers[i+1]['section']} (page {next_page}) = {gap} pages")
+    
+    return sorted_headers
+
+def find_section_start_page(doc, detected_page: int, section: str) -> int:
+    """
+    Find the actual start page of a section by looking backwards from the detected page.
+    Sections often start with "SECTION X X X - TITLE" at the top
+    """
+    import re
+    print(f"DEBUG: Looking for section start for {section}, detected on page {detected_page}")
+    
+    # Look backwards up to 10 pages to find the section start
+    for look_back in range(min(10, detected_page + 1)):
+        check_page = detected_page - look_back
+        if check_page < 0:
+            break
+            
+        try:
+            page_text = doc.load_page(check_page).get_text()
+            lines = page_text.splitlines()
+            
+            # Look for the actual section header in the first few lines of the page
+            for i, line in enumerate(lines[:15]):  # Check first 15 lines
+                line_stripped = line.strip()
+                
+                # Look for "SECTION 10 XX XX - TITLE" pattern
+                escaped_section = re.escape(section)
+                spaced_section = section.replace(' ', r'[\s\-\.]*')
+                section_header_patterns = [
+                    rf"SECTION\s+{escaped_section}\s*[-–—]\s*",
+                    rf"^{escaped_section}\s*[-–—]\s*",  # Just the section number and dash
+                    rf"SECTION\s+{spaced_section}\s*[-–—]",
+                ]
+                
+                import re
+                for pattern in section_header_patterns:
+                    if re.search(pattern, line_stripped, re.IGNORECASE):
+                        print(f"DEBUG: Found section header on page {check_page}: {line_stripped[:100]}")
+                        return check_page
+                
+                # Also check if this line contains the section number and looks like a title
+                if (section in line_stripped and 
+                    len(line_stripped) > 20 and 
+                    not line_stripped.startswith(("A.", "B.", "C.", "1.", "2.", "3.", "a.", "b.", "c.")) and
+                    i < 10):  # Must be in first 10 lines
+                    print(f"DEBUG: Found potential section title on page {check_page}: {line_stripped[:100]}")
+                    return check_page
+            
+            # Secondary check - look for "PART 1 - GENERAL" near top of page
+            page_upper = page_text.upper()
+            if "PART 1" in page_upper and "GENERAL" in page_upper:
+                # Also check if our section number appears on this page
+                if section in page_text:
+                    print(f"DEBUG: Found PART 1 - GENERAL with section number on page {check_page}")
+                    return check_page
+                    
+        except Exception as e:
+            print(f"DEBUG: Error checking page {check_page}: {e}")
+            continue
+    
+    # If we can't find a better start page, return the detected page
+    print(f"DEBUG: No better start page found, using detected page {detected_page}")
+    return detected_page
+
+def make_ranges_from_headers(headers: List[Dict], total_pages: int, doc=None) -> List[Dict]:
+    ranges = []
+    for i, h in enumerate(headers):
+        start = h["page"]
+        
+        # Calculate end page with validation
+        if i+1 < len(headers):
+            end = headers[i+1]["page"] - 1
+        else:
+            # Last section - limit to reasonable size or end of document
+            end = total_pages - 1
+        
+        page_count = end - start + 1
+        
+        # Always try to find actual end using "END OF SECTION" detection
+        # This is critical for blank sections (just header + END OF SECTION)
+        if doc:
+            actual_end = find_section_end_page(doc, start, end, h['section'])
+            if actual_end and actual_end < end:
+                end = actual_end
+                page_count = end - start + 1
+                print(f"DEBUG: Section {h['section']} - Found 'END OF SECTION' at page {end}, section is {page_count} pages")
+        
+        # Validate unrealistic section sizes
+        if page_count > 15:  # Even 15+ pages is large for a spec section
+            print(f"WARNING: Section {h['section']} calculated as {page_count} pages (start: {start}, end: {end})")
+            
+            # For very large sections, apply heuristic limits
+            if page_count > 100:
+                end = start + 10  # Most spec sections are under 10 pages
+                page_count = end - start + 1
+                print(f"  -> Adjusted to {page_count} pages (end: {end}) based on typical section size")
+        
+        # Flag large sections (more than 15 pages)
+        is_large = page_count > 15
+        
+        ranges.append({
+            "section": h["section"], 
+            "title": h["title"], 
+            "start": start, 
+            "end": end,
+            "page_count": page_count,
+            "is_large": is_large  # Flag for highlighting in UI
+        })
+    return ranges
+
+def find_section_end_page(doc, start_page: int, max_search_page: int, section: str) -> int:
+    """
+    Find where a section actually ends by looking for 'END OF SECTION' marker or next section header.
+    This prevents extraction from bleeding into the next section.
+    """
+    
+    for page_num in range(start_page, min(max_search_page + 1, len(doc))):
+        try:
+            page_text = doc.load_page(page_num).get_text()
+            page_lines = page_text.splitlines()
+            
+            # PRIORITY 1: Look for "END OF SECTION" markers (most reliable)
+            end_markers = [
+                'end of section', 'end of spec', 'end section', 
+                'end of specification', '— end —', '- end -',
+                'end div', 'section end'
+            ]
+            
+            for i, line in enumerate(page_lines):
+                line_lower = line.lower().strip()
+                for marker in end_markers:
+                    # Must be exact or near-exact match (not just substring)
+                    if marker == line_lower or (marker in line_lower and len(line_lower) < len(marker) + 10):
+                        print(f"DEBUG: Found end marker '{marker}' on page {page_num} for section {section}")
+                        return page_num
+            
+            # PRIORITY 2: Look for next Division 10 OR any other division section header
+            # This catches cases where END OF SECTION is missing
+            # Focus on top 20 lines of each page for new section headers
+            top_zone = "\n".join(page_lines[:20])
+            
+            # Check for ANY new section header (Division 10 or other)
+            # Pattern 1: "SECTION XX XX XX - TITLE"
+            section_header_match = re.search(
+                r'(?:^|\n)\s*SECTION\s+(\d{2})\s*[\s\-\._]*(\d{2})\s*[\s\-\._]*(\d{2})',
+                top_zone,
+                re.IGNORECASE | re.MULTILINE
+            )
+            
+            if section_header_match:
+                new_div = section_header_match.group(1)
+                new_sec_full = f"{new_div} {section_header_match.group(2)} {section_header_match.group(3)}"
+                
+                # If it's a different section number, this page starts a new section
+                if new_sec_full != section:
+                    print(f"DEBUG: Found new section header '{new_sec_full}' on page {page_num}, ending {section} at page {page_num - 1}")
+                    return page_num - 1
+            
+            # Pattern 2: Section number at start of line with dash/title (like "10 14 00 - SIGNAGE")
+            number_title_match = re.search(
+                r'(?:^|\n)\s*(\d{2})\s*[\s\-\._]*(\d{2})\s*[\s\-\._]*(\d{2})\s*[\-:–—]',
+                top_zone,
+                re.MULTILINE
+            )
+            
+            if number_title_match:
+                new_sec_full = f"{number_title_match.group(1)} {number_title_match.group(2)} {number_title_match.group(3)}"
+                
+                # If it's a different section AND looks like a header (in top 10 lines)
+                if new_sec_full != section and page_num > start_page:
+                    # Verify it's in the very top of the page (header position)
+                    if any(new_sec_full.replace(" ", "") in line for line in page_lines[:10]):
+                        print(f"DEBUG: Found new section number '{new_sec_full}' on page {page_num}, ending {section} at page {page_num - 1}")
+                        return page_num - 1
+                            
+        except Exception as e:
+            print(f"DEBUG: Error checking page {page_num} for section end: {e}")
+            continue
+    
+    # If no end found, return reasonable default (start + 10 pages max)
+    return min(start_page + 10, max_search_page)
+
+def normalize_title(title: str) -> str:
+    """Normalize title for comparison by removing common variations"""
+    import re
+    # Remove leading/trailing whitespace and convert to lowercase
+    title = title.strip().lower()
+    # Remove common prefixes and suffixes
+    title = re.sub(r'^(section|sec\.?)\s*\d+[\d\s\.\-]*\s*[-–—]?\s*', '', title, flags=re.IGNORECASE)
+    # Remove extra whitespace
+    title = re.sub(r'\s+', ' ', title).strip()
+    return title
+
+def is_toc_section(page_text: str, page_num: int, total_pages: int) -> bool:
+    """Detect if a page contains table of contents content"""
+    # TOC indicators
+    toc_indicators = [
+        r'\btable\s+of\s+contents\b',
+        r'\bcontents\b',
+        r'\btoc\b',
+        r'\.{3,}',  # Three or more dots (common in TOC)
+        r'page\s+\d+',  # "page 123" references
+    ]
+    
+    text_lower = page_text.lower()
+    
+    # Check for TOC patterns
+    import re
+    for pattern in toc_indicators:
+        if re.search(pattern, text_lower):
+            # Additional checks: TOC usually in first 15% of document
+            if page_num < total_pages * 0.15:
+                return True
+    
+    # Check for excessive dots and page numbers (TOC formatting)
+    dot_count = text_lower.count('.')
+    if dot_count > 20 and page_num < total_pages * 0.2:
+        return True
+    
+    return False
+
+def get_exact_section_base(section: str) -> str:
+    """Get the exact section base for precise grouping (e.g., '10.14.73' from '10.14.73.01')"""
+    # For section "10 14 73.01", return "10 14 73"
+    # For section "10 14 73", return "10 14 73"
+    parts = section.split('.')
+    if len(parts) > 1 and parts[-1].isdigit():
+        # Remove subsection numbers like .01, .02
+        return '.'.join(parts[:-1]) if len(parts) > 2 else parts[0]
+    return section
+
+def group_sections_by_title(ranges: List[Dict]) -> List[Dict]:
+    """Group sections by their main category using scope names"""
+    groups = []
+    used_indices = set()
+    
+    for i, current in enumerate(ranges):
+        if i in used_indices:
+            continue
+            
+        current_scope = current.get("scope_name", "Division 10 (Unmapped)")
+        
+        # Use scope name as the main title (cleaner than individual section titles)
+        main_title = current_scope.replace(" (Unmapped)", "").replace("Division 10", "Specialties")
+        if main_title == "Specialties":
+            main_title = current["title"][:50].strip()  # Fallback to section title
+        
+        # Start a new group
+        group = {
+            "parent_section": parent_key(current["section"]),
+            "main_title": main_title,
+            "combine": True,  # Always combine into single PDF
+            "sections": [current],
+            "start_page": current["start"],
+            "end_page": current["end"]
+        }
+        used_indices.add(i)
+        
+        # Look for related sections with same scope (category)
+        for j, candidate in enumerate(ranges):
+            if j in used_indices or j <= i:
+                continue
+                
+            candidate_scope = candidate.get("scope_name", "Division 10 (Unmapped)")
+            
+            # Group by same scope/category AND sections must be consecutive or very close
+            if (candidate_scope == current_scope and 
+                abs(candidate["start"] - group["end_page"]) <= 10):  # Allow small gaps
+                group["sections"].append(candidate)
+                group["end_page"] = max(group["end_page"], candidate["end"])
+                used_indices.add(j)
+        
+        # Calculate total pages for the group
+        total_pages = 0
+        for section in group["sections"]:
+            total_pages += (section["end"] - section["start"] + 1)
+        group["total_pages"] = total_pages
+        
+        groups.append(group)
+    
+    return groups
+
+def save_session(obj) -> str:
+    sid = str(uuid.uuid4())
+    path = os.path.join(SESSIONS, sid)
+    os.makedirs(path, exist_ok=True)
+    with open(os.path.join(path, "session.json"), "w", encoding="utf-8") as f:
+        json.dump(obj, f, indent=2, ensure_ascii=False)
+    return sid
+
+def load_session(sid: str) -> Dict:
+    with open(os.path.join(SESSIONS, sid, "session.json"), "r", encoding="utf-8") as f:
+        return json.load(f)
+
+def write_session(sid: str, obj: Dict):
+    with open(os.path.join(SESSIONS, sid, "session.json"), "w", encoding="utf-8") as f:
+        json.dump(obj, f, indent=2, ensure_ascii=False)
+
+# --- Web UI ---
+
+@app.get("/", response_class=HTMLResponse)
+def home(request: Request):
+    return templates.TemplateResponse("upload.html", {"request": request})
+
+@app.post("/analyze")
+async def analyze(request: Request):
+    form = await request.form()
+    
+    # Get file and project info  
+    file_upload = form.get("file")
+    project_name = str(form.get("project_name", "Unknown Project"))
+    base_folder = str(form.get("base_folder", BASE_OUT))
+    
+    os.makedirs(base_folder, exist_ok=True)
+    
+    # Read file data
+    if hasattr(file_upload, 'read'):
+        data = await file_upload.read()
+    else:
+        return templates.TemplateResponse("upload.html", {
+            "request": request,
+            "error": "No file was uploaded. Please select a PDF file."
+        })
+    
+    # Validate file is not empty
+    if not data or len(data) == 0:
+        return templates.TemplateResponse("upload.html", {
+            "request": request,
+            "error": "The uploaded file appears to be empty. Please select a valid PDF file."
+        })
+    
+    # persist original for processing step
+    sid = save_session({
+        "project_name": project_name,
+        "base_folder": base_folder,
+        "scopes": DEFAULT_SCOPES
+    })
+    orig_path = os.path.join(SESSIONS, sid, "original.pdf")
+    with open(orig_path, "wb") as f: f.write(data)
+    
+    # Store PDF path for accessory analysis
+    sess = load_session(sid)
+    sess["pdf_path"] = orig_path
+    write_session(sid, sess)
+
+    try:
+        doc = fitz.open(stream=data, filetype="pdf")
+    except Exception as e:
+        return templates.TemplateResponse("upload.html", {
+            "request": request,
+            "error": f"Could not open PDF file: {str(e)}"
+        })
+    
+    # Detect division boundaries for accessory search scoping
+    print("DEBUG: Detecting division boundaries for accessory search...")
+    division_boundaries = detect_division_boundaries(doc)
+    
+    # Division 10 Analysis
+    headers = [h for h in find_div10_headers(doc) if h["section"].startswith("10 ")]
+    
+    # Filter out TOC sections - but use the actual TOC boundary we detected
+    filtered_headers = []
+    toc_end = division_boundaries.get('toc', (0, -1))[1]  # Get TOC end page
+    
+    # First, count how many sections appear on each page (to detect index pages)
+    page_counts = {}
+    for h in headers:
+        page_num = h["page"]
+        page_counts[page_num] = page_counts.get(page_num, 0) + 1
+    
+    for h in headers:
+        # If we detected a TOC, only filter out headers that are actually IN the TOC
+        if toc_end >= 0 and h["page"] <= toc_end:
+            print(f"DEBUG: Filtering out section {h['section']} on page {h['page']} (within TOC range 0-{toc_end})")
+            continue
+        
+        # If more than 2 sections appear on the same page, it's likely an index/listing, not actual sections
+        if page_counts.get(h["page"], 0) > 2:
+            print(f"DEBUG: Filtering out section {h['section']} on page {h['page']} (index page with {page_counts[h['page']]} sections)")
+            continue
+            
+        filtered_headers.append(h)
+    
+    print(f"DEBUG: Kept {len(filtered_headers)} headers after TOC/index filtering (TOC ends at page {toc_end})")
+    ranges = make_ranges_from_headers(filtered_headers, len(doc), doc)
+    
+    # Add scope names and default selection
+    for r in ranges:
+        r["selected"] = True
+        # Try exact section, then parent section (10 26), then use the actual title from spec
+        scope_name = DEFAULT_SCOPES.get(r["section"])
+        if not scope_name:
+            scope_name = DEFAULT_SCOPES.get(parent_key(r["section"]))
+        if not scope_name:
+            # Fallback: use the cleaned title from spec
+            scope_name = clean_section_title(r["title"])
+        r["scope_name"] = scope_name
+
+    # Group related sections
+    groups = group_sections_by_title(ranges)
+    
+    print(f"DEBUG: Created {len(ranges)} ranges from {len(filtered_headers)} headers")
+    print(f"DEBUG: Grouped into {len(groups)} groups")
+    for i, g in enumerate(groups):
+        print(f"DEBUG: Group {i}: {g['main_title']} - {len(g['sections'])} sections")
+    
+    # Accessory Analysis (if any selected)
+    accessory_results = []
+    selected_scopes = []
+    custom_keywords = []
+    
+    for scope in ACCESSORY_SCOPES:
+        if form.get(f"accessory_{scope['name'].replace(' ', '_').replace('/', '_')}") == "on":
+            selected_scopes.append(scope)
+    
+    # Get custom "Other" keywords
+    other_index = 0
+    while True:
+        other_key = f"other_keyword_{other_index}"
+        if other_key in form and form.get(other_key):
+            keyword_text = str(form.get(other_key)).strip()
+            if keyword_text:
+                custom_keywords.append(keyword_text)
+            other_index += 1
+        else:
+            break
+    
+    # Run accessory search if anything was selected
+    if selected_scopes or custom_keywords:
+        for scope in selected_scopes:
+            # Use division scope from accessory definition
+            div_scope = scope.get("division_scope", [11, 12])  # Default to Div 11-12
+            print(f"DEBUG: Searching for '{scope['name']}' in divisions {div_scope}")
+            ranges_found = search_keyword_ranges(doc, scope["keywords"], buffer_pages=1, 
+                                                division_scope=div_scope, 
+                                                division_boundaries=division_boundaries)
+            if ranges_found:
+                for range_data in ranges_found:
+                    accessory_results.append({
+                        "name": scope["name"],
+                        "section_hint": scope.get("section_hint", ""),
+                        "keywords": ", ".join(scope["keywords"]),
+                        "start": range_data["start"],
+                        "end": range_data["end"],
+                        "matches": range_data["matches"],
+                        "selected": True
+                    })
+        
+        # Custom keywords: default to Div 11-12 (equipment/furnishings)
+        for custom_keyword in custom_keywords:
+            print(f"DEBUG: Searching for custom keyword '{custom_keyword}' in divisions [11, 12]")
+            ranges_found = search_keyword_ranges(doc, [custom_keyword], buffer_pages=1,
+                                                division_scope=[11, 12],
+                                                division_boundaries=division_boundaries)
+            if ranges_found:
+                for range_data in ranges_found:
+                    accessory_results.append({
+                        "name": f"Custom: {custom_keyword}",
+                        "section_hint": "",
+                        "keywords": custom_keyword,
+                        "start": range_data["start"],
+                        "end": range_data["end"],
+                        "matches": range_data["matches"],
+                        "selected": True
+                    })
+    
+    doc.close()
+    
+    # Save results to session
+    sess = load_session(sid)
+    sess["ranges"] = ranges
+    sess["groups"] = groups
+    sess["accessory_results"] = accessory_results
+    write_session(sid, sess)
+
+    return templates.TemplateResponse("review.html", {
+        "request": request, 
+        "sid": sid, 
+        "project": project_name, 
+        "groups": groups,
+        "accessory_results": accessory_results
+    })
+
+def extract_pdfs_background(sid: str, picked: List[Dict], project: str, base_folder: str):
+    """Background task to extract PDFs without blocking the server"""
+    try:
+        processing_status[sid] = {"status": "processing", "progress": 0, "message": "Starting extraction..."}
+        
+        orig_path = os.path.join(SESSIONS, sid, "original.pdf")
+        doc = fitz.open(orig_path)
+        manifest = []
+        proj_folder = os.path.join(base_folder, project)
+        
+        # Clean up old files from previous runs to prevent duplicates
+        if os.path.exists(proj_folder):
+            for item in os.listdir(proj_folder):
+                item_path = os.path.join(proj_folder, item)
+                if os.path.isdir(item_path):
+                    shutil.rmtree(item_path)
+                elif item_path.endswith('.pdf') or item_path.endswith('.zip'):
+                    os.remove(item_path)
+        
+        os.makedirs(proj_folder, exist_ok=True)
+        
+        total_sections = len(picked)
+        
+        for idx, r in enumerate(picked):
+            try:
+                progress = int((idx / total_sections) * 90)  # Save 10% for final steps
+                processing_status[sid]["progress"] = progress
+                
+                # Handle accessory items differently from Division 10 sections
+                if r.get("type") == "accessory":
+                    processing_status[sid]["message"] = f"Processing {r['name'][:30]}..."
+                    
+                    # Accessory items go in "Additional Items" folder
+                    folder_name = "Additional Items"
+                    out_dir = os.path.join(proj_folder, folder_name)
+                    os.makedirs(out_dir, exist_ok=True)
+                    
+                    # Create filename for accessory item
+                    name_short = r['name'][:50] if len(r['name']) > 50 else r['name']
+                    project_short = project[:20] if len(project) > 20 else project
+                    fname = f"{name_short} - {project_short} - p{r['start']+1}-{r['end']+1}.pdf"
+                    out_path = os.path.join(out_dir, fname)
+                    
+                    # Create PDF with compression
+                    sub = fitz.open()
+                    for p in range(r["start"], r["end"] + 1):
+                        if 0 <= p < doc.page_count:
+                            sub.insert_pdf(doc, from_page=p, to_page=p)
+                    
+                    sub.save(out_path, deflate=True, clean=True, garbage=4)
+                    sub.close()
+                    
+                    file_size = os.path.getsize(out_path)
+                    manifest.append({
+                        "name": r["name"],
+                        "title": r["name"],
+                        "file": out_path,
+                        "size": file_size,
+                        "pages": r["end"] - r["start"] + 1,
+                        "type": "accessory",
+                        "keywords": r.get("keywords", "")
+                    })
+                else:
+                    # Division 10 section
+                    processing_status[sid]["message"] = f"Processing {r['section']} - {r['title'][:30]}..."
+                    
+                    # Skip sections with 0 pages
+                    page_count = r["end"] - r["start"] + 1
+                    if page_count <= 0:
+                        print(f"Skipping section {r['section']} - has {page_count} pages")
+                        continue
+                    
+                    # Use full section number and scope name for folder
+                    folder_name = f"{r['section']} - {r['scope']}"
+                    out_dir = os.path.join(proj_folder, folder_name)
+                    os.makedirs(out_dir, exist_ok=True)
+                    
+                    # Create filename with combined indicator if applicable
+                    title_short = r['title'][:50] if len(r['title']) > 50 else r['title']
+                    project_short = project[:20] if len(project) > 20 else project
+                    
+                    if r.get("combined", False):
+                        fname = f"{r['section']} - {title_short} - {project_short} - COMBINED.pdf"
+                    else:
+                        fname = f"{r['section']} - {title_short} - {project_short}.pdf"
+                    out_path = os.path.join(out_dir, fname)
+
+                    # Create PDF with compression
+                    sub = fitz.open()
+                    for p in range(r["start"], r["end"] + 1):
+                        if 0 <= p < doc.page_count:
+                            sub.insert_pdf(doc, from_page=p, to_page=p)
+                    
+                    # Save with compression to reduce file size
+                    sub.save(out_path, deflate=True, clean=True, garbage=4)
+                    sub.close()
+                    
+                    file_size = os.path.getsize(out_path)
+                    manifest.append({
+                        "section": r["section"],
+                        "title": r["title"],
+                        "file": out_path,
+                        "size": file_size,
+                        "pages": r["end"] - r["start"] + 1,
+                        "combined": r.get("combined", False),
+                        "subsections": r.get("subsections", 0)
+                    })
+            except Exception as e:
+                print(f"Error processing section {r.get('section', 'Unknown')}: {e}")
+                continue
+        
+        doc.close()
+        
+        # Create ZIP archive
+        processing_status[sid]["progress"] = 95
+        processing_status[sid]["message"] = "Creating ZIP archive..."
+        
+        zip_path = os.path.join(proj_folder, f"{project}_specs.zip")
+        shutil.make_archive(zip_path.replace(".zip", ""), "zip", proj_folder)
+        
+        # Calculate relative path for download endpoint (relative to BASE_OUT)
+        zip_rel_path = os.path.relpath(zip_path, BASE_OUT)
+        
+        # Save manifest
+        sess = load_session(sid)
+        sess["manifest"] = manifest
+        sess["zip_path"] = zip_rel_path  # Store relative path instead of absolute
+        sess["extraction_complete"] = True
+        write_session(sid, sess)
+        
+        processing_status[sid] = {"status": "complete", "progress": 100, "message": "Extraction complete!"}
+        
+    except Exception as e:
+        print(f"Background extraction error: {e}")
+        processing_status[sid] = {"status": "error", "progress": 0, "message": f"Error: {str(e)}"}
+
+@app.post("/process")
+async def process(request: Request, background_tasks: BackgroundTasks):
+    form = await request.form()
+    sid = str(form.get("sid"))
+    sess = load_session(sid)
+    project = sess["project_name"]
+    base_folder = sess["base_folder"]
+    groups = sess["groups"]
+
+    # Process groups and collect selected sections
+    picked = []
+    
+    for group_idx, group in enumerate(groups):
+        # Check if master checkbox is selected (overall group selection)
+        master_selected = form.get(f"master_{group_idx}") == "on"
+        combine_group = form.get(f"combine_group_{group_idx}") == "true"
+        
+        print(f"DEBUG: Group {group_idx} - master_selected={master_selected}, combine_group={combine_group}, sections_count={len(group['sections'])}")
+        
+        if master_selected:
+            # Use the entire group as one selection
+            main_section = group.get("parent_section", group["sections"][0]["section"] if group["sections"] else "10 00 00")
+            main_title = group.get("main_title", group["sections"][0]["title"] if group["sections"] else "Unknown Section")
+            main_scope = group["sections"][0].get("scope_name", "Division 10 (Unmapped)") if group["sections"] else "Division 10 (Unmapped)"
+            
+            # Calculate combined range for the entire group
+            group_start = min(section["start"] for section in group["sections"]) if group["sections"] else 0
+            group_end = max(section["end"] for section in group["sections"]) if group["sections"] else 0
+            
+            print(f"DEBUG: Processing group as single section: {main_section}, start={group_start}, end={group_end}, pages={group_end-group_start+1}")
+            
+            picked.append({
+                "section": main_section,
+                "title": main_title,
+                "start": group_start,
+                "end": group_end,
+                "scope": main_scope,
+                "combined": True,
+                "subsections": len(group["sections"])
+            })
+        else:
+            # Process individual section selections within the group
+            selected_sections = []
+            for section_idx, section in enumerate(group["sections"]):
+                if form.get(f"sel_{group_idx}_{section_idx}") == "on":
+                    # Get updated values from form
+                    try:
+                        # Form sends 1-based page numbers, convert to 0-based for internal use
+                        form_start = form.get(f"start_{group_idx}_{section_idx}", section["start"] + 1)
+                        form_end = form.get(f"end_{group_idx}_{section_idx}", section["end"] + 1)
+                        start_page = int(str(form_start)) - 1
+                        end_page = int(str(form_end)) - 1
+                    except Exception as e:
+                        # section["start"] and section["end"] are already 0-based
+                        start_page, end_page = section["start"], section["end"]
+                    
+                    title = str(form.get(f"title_{group_idx}_{section_idx}", section["title"])).strip() or section["title"]
+                    scope = str(form.get(f"scope_{group_idx}_{section_idx}", section.get("scope_name", "Division 10 (Unmapped)"))).strip()
+                    section_num = canonize(str(form.get(f"sec_{group_idx}_{section_idx}", section["section"])).strip())
+                    
+                    selected_sections.append({
+                        "section": section_num, 
+                        "title": title, 
+                        "start": max(0, start_page), 
+                        "end": max(0, end_page), 
+                        "scope": scope
+                    })
+            
+            if selected_sections:
+                if combine_group and len(selected_sections) > 1:
+                    # Combine selected sections into one PDF
+                    combined_start = min(s["start"] for s in selected_sections)
+                    combined_end = max(s["end"] for s in selected_sections)
+                    main_section = group.get("parent_section", selected_sections[0]["section"])
+                    main_title = group.get("main_title", selected_sections[0]["title"])
+                    main_scope = selected_sections[0]["scope"]
+                    
+                    picked.append({
+                        "section": main_section,
+                        "title": main_title,
+                        "start": combined_start,
+                        "end": combined_end,
+                        "scope": main_scope,
+                        "combined": True,
+                        "subsections": len(selected_sections)
+                    })
+                else:
+                    # Keep sections separate
+                    for section in selected_sections:
+                        section["combined"] = False
+                        picked.append(section)
+    
+    # Process accessory selections
+    accessory_results = sess.get("accessory_results", [])
+    picked_accessories = []
+    
+    for acc_idx, acc_item in enumerate(accessory_results):
+        if form.get(f"accessory_sel_{acc_idx}") == "on":
+            # Get values from form
+            name = str(form.get(f"acc_name_{acc_idx}", acc_item["name"]))
+            start = int(form.get(f"acc_start_{acc_idx}", acc_item["start"]))
+            end = int(form.get(f"acc_end_{acc_idx}", acc_item["end"]))
+            keywords = str(form.get(f"acc_keywords_{acc_idx}", acc_item["keywords"]))
+            
+            picked_accessories.append({
+                "name": name,
+                "title": name,
+                "start": start,
+                "end": end,
+                "keywords": keywords,
+                "scope": "Additional Items",
+                "type": "accessory"
+            })
+    
+    # Combine both Division 10 and accessory items
+    all_items = picked + picked_accessories
+
+    if not all_items:
+        # No items were selected - redirect back to review with message
+        accessory_results = sess.get("accessory_results", [])
+        return templates.TemplateResponse("review.html", {
+            "request": request, 
+            "sid": sid, 
+            "project": project, 
+            "groups": groups,
+            "accessory_results": accessory_results,
+            "error_message": "⚠️ Please select at least one item from either tab before extracting."
+        })
+    
+    # Start background processing with all items (Division 10 + Accessories)
+    background_tasks.add_task(extract_pdfs_background, sid, all_items, project, base_folder)
+    
+    # Return immediate response with processing page
+    return templates.TemplateResponse("processing.html", {
+        "request": request, 
+        "sid": sid, 
+        "project": project, 
+        "total_sections": len(all_items)
+    })
+
+@app.get("/progress/{sid}")
+def get_progress(sid: str):
+    """Get processing progress status for a session"""
+    status = processing_status.get(sid, {"status": "unknown", "progress": 0, "message": "No processing found"})
+    return JSONResponse(status)
+
+@app.get("/done/{sid}")
+def done(request: Request, sid: str):
+    """Display results page when processing is complete"""
+    sess = load_session(sid)
+    if not sess.get("extraction_complete", False):
+        # Redirect to processing page if not complete
+        return RedirectResponse(url=f"/processing/{sid}")
+    
+    manifest = sess.get("manifest", [])
+    zip_path = sess.get("zip_path", "")
+    project = sess.get("project_name", "Unknown Project")
+    
+    return templates.TemplateResponse("done.html", {
+        "request": request, 
+        "sid": sid, 
+        "project": project, 
+        "manifest": manifest, 
+        "zip_path": zip_path
+    })
+
+@app.get("/processing/{sid}")
+def processing_page(request: Request, sid: str):
+    """Show processing status page"""
+    sess = load_session(sid)
+    project = sess.get("project_name", "Unknown Project")
+    
+    # Check if already complete
+    if sess.get("extraction_complete", False):
+        return RedirectResponse(url=f"/done/{sid}")
+    
+    return templates.TemplateResponse("processing.html", {
+        "request": request,
+        "sid": sid,
+        "project": project,
+        "total_sections": len(sess.get("manifest", []))
+    })
+
+@app.get("/download")
+def download(path: str = ""):
+    # Serve any file under /mnt/data/specs
+    if not path or path.strip() == "":
+        return JSONResponse({"ok": False, "error": "No file path provided"}, status_code=400)
+    
+    full = os.path.abspath(os.path.join(BASE_OUT, path))
+    if not full.startswith(os.path.abspath(BASE_OUT)) or not os.path.exists(full):
+        return JSONResponse({"ok": False, "error": "Not found"}, status_code=404)
+    
+    # Make sure it's a file, not a directory
+    if not os.path.isfile(full):
+        return JSONResponse({"ok": False, "error": "Path is not a file"}, status_code=400)
+    
+    return FileResponse(full, filename=os.path.basename(full))
+
+# --- Accessory Search Routes ---
+@app.post("/analyze_accessories")
+async def analyze_accessories(request: Request):
+    """Analyze PDF for selected accessory keywords (non-Division 10 items)"""
+    form = await request.form()
+    sid = str(form.get("sid"))
+    sess = load_session(sid)
+    
+    if not sess or "pdf_path" not in sess:
+        return JSONResponse({"ok": False, "error": "Session not found or PDF not uploaded"}, status_code=400)
+    
+    # Get selected accessory scopes and custom keywords
+    selected_scopes = []
+    custom_keywords = []
+    
+    for scope in ACCESSORY_SCOPES:
+        if form.get(f"accessory_{scope['name'].replace(' ', '_').replace('/', '_')}") == "on":
+            selected_scopes.append(scope)
+    
+    # Get custom "Other" keywords
+    other_index = 0
+    while True:
+        other_key = f"other_keyword_{other_index}"
+        if other_key in form and form.get(other_key).strip():
+            keyword_text = str(form.get(other_key)).strip()
+            if keyword_text:
+                custom_keywords.append(keyword_text)
+            other_index += 1
+        else:
+            break
+    
+    if not selected_scopes and not custom_keywords:
+        return JSONResponse({"ok": False, "error": "No accessory scopes or keywords selected"}, status_code=400)
+    
+    # Load PDF
+    pdf_path = sess["pdf_path"]
+    doc = fitz.open(pdf_path)
+    
+    # Search for each selected scope
+    accessory_results = []
+    
+    for scope in selected_scopes:
+        ranges = search_keyword_ranges(doc, scope["keywords"], buffer_pages=1)
+        if ranges:
+            for range_data in ranges:
+                accessory_results.append({
+                    "name": scope["name"],
+                    "section_hint": scope.get("section_hint", ""),
+                    "keywords": ", ".join(scope["keywords"]),
+                    "start": range_data["start"],
+                    "end": range_data["end"],
+                    "matches": range_data["matches"],
+                    "selected": True  # Default to selected
+                })
+    
+    # Search for custom keywords
+    for custom_keyword in custom_keywords:
+        ranges = search_keyword_ranges(doc, [custom_keyword], buffer_pages=1)
+        if ranges:
+            for range_data in ranges:
+                accessory_results.append({
+                    "name": f"Custom: {custom_keyword}",
+                    "section_hint": "",
+                    "keywords": custom_keyword,
+                    "start": range_data["start"],
+                    "end": range_data["end"],
+                    "matches": range_data["matches"],
+                    "selected": True
+                })
+    
+    doc.close()
+    
+    # Save results to session
+    sess["accessory_results"] = accessory_results
+    write_session(sid, sess)
+    
+    return JSONResponse({
+        "ok": True, 
+        "count": len(accessory_results),
+        "results": accessory_results
+    })
+
+# --- Automation: Power Automate webhook ---
+# Send multipart/form-data with fields: file (pdf), project_name, base_folder (optional)
+@app.post("/webhook")
+async def webhook(file: UploadFile = File(...),
+                  project_name: str = Form("Unknown Project"),
+                  base_folder: str = Form(BASE_OUT)):
+    data = await file.read()
+    doc = fitz.open(stream=data, filetype="pdf")
+    headers = [h for h in find_div10_headers(doc) if h["section"].startswith("10 ")]
+    ranges = make_ranges_from_headers(headers, len(doc), doc)
+    if not ranges:
+        return {"ok": False, "message": "No Division 10 sections found."}
+
+    proj_folder = os.path.join(base_folder, project_name)
+    os.makedirs(proj_folder, exist_ok=True)
+    manifest = []
+
+    for r in ranges:
+        scope = DEFAULT_SCOPES.get(r["section"], DEFAULT_SCOPES.get(parent_key(r["section"]), "Division 10 (Unmapped)"))
+        out_dir = os.path.join(proj_folder, f"{parent_key(r['section'])} - {scope}")
+        os.makedirs(out_dir, exist_ok=True)
+        fname = f"{r['section']} - {r['title']} - {project_name} - p{r['start']+1}-{r['end']+1}.pdf"
+        out_path = os.path.join(out_dir, fname)
+        sub = fitz.open()
+        for p in range(r["start"], r["end"] + 1):
+            sub.insert_pdf(doc, from_page=p, to_page=p)
+        sub.save(out_path); sub.close()
+        manifest.append({"section": r["section"], "title": r["title"], "scope": scope,
+                         "pages": [r["start"]+1, r["end"]+1], "file": out_path,
+                         "relpath": os.path.relpath(out_path, BASE_OUT)})
+
+    with open(os.path.join(proj_folder, "division10_index.json"), "w", encoding="utf-8") as f:
+        json.dump(manifest, f, indent=2, ensure_ascii=False)
+
+    return {"ok": True, "project": project_name, "count": len(manifest), "items": manifest}
