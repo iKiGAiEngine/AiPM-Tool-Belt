@@ -32,8 +32,11 @@ export async function registerRoutes(
         return res.status(400).json({ message: "No file uploaded" });
       }
 
+      const projectName = req.body.projectName || "Untitled Project";
+
       const session = await storage.createSession({
         filename: req.file.originalname,
+        projectName,
         status: "processing",
         progress: 0,
         message: "Starting extraction...",

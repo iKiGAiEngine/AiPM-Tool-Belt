@@ -11,6 +11,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import type { ExtractedSection } from "@shared/schema";
 import { DEFAULT_SCOPES } from "@shared/schema";
@@ -19,6 +20,8 @@ import { cn } from "@/lib/utils";
 interface SectionsTableProps {
   sections: ExtractedSection[];
   onUpdateTitle?: (id: string, title: string) => void;
+  selectedIds?: Set<string>;
+  onSelectionChange?: (ids: Set<string>) => void;
 }
 
 interface EditingRow {
@@ -26,9 +29,32 @@ interface EditingRow {
   value: string;
 }
 
-export function SectionsTable({ sections, onUpdateTitle }: SectionsTableProps) {
+export function SectionsTable({ sections, onUpdateTitle, selectedIds = new Set(), onSelectionChange }: SectionsTableProps) {
   const [editingRow, setEditingRow] = useState<EditingRow | null>(null);
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
+
+  const allSelected = sections.length > 0 && sections.every(s => selectedIds.has(s.id));
+  const someSelected = sections.some(s => selectedIds.has(s.id)) && !allSelected;
+
+  const handleSelectAll = (checked: boolean) => {
+    if (!onSelectionChange) return;
+    if (checked) {
+      onSelectionChange(new Set(sections.map(s => s.id)));
+    } else {
+      onSelectionChange(new Set());
+    }
+  };
+
+  const handleSelectOne = (id: string, checked: boolean) => {
+    if (!onSelectionChange) return;
+    const newSet = new Set(selectedIds);
+    if (checked) {
+      newSet.add(id);
+    } else {
+      newSet.delete(id);
+    }
+    onSelectionChange(newSet);
+  };
 
   const toggleExpanded = (id: string) => {
     setExpandedRows((prev) => {
@@ -74,6 +100,20 @@ export function SectionsTable({ sections, onUpdateTitle }: SectionsTableProps) {
       <Table>
         <TableHeader>
           <TableRow className="bg-muted/50">
+            {onSelectionChange && (
+              <TableHead className="w-12">
+                <Checkbox
+                  checked={allSelected}
+                  ref={(el) => {
+                    if (el) {
+                      (el as any).indeterminate = someSelected;
+                    }
+                  }}
+                  onCheckedChange={handleSelectAll}
+                  data-testid="checkbox-select-all"
+                />
+              </TableHead>
+            )}
             <TableHead className="w-12"></TableHead>
             <TableHead className="w-32 font-semibold">Section</TableHead>
             <TableHead className="font-semibold">Title</TableHead>
@@ -95,10 +135,20 @@ export function SectionsTable({ sections, onUpdateTitle }: SectionsTableProps) {
                   <TableRow
                     className={cn(
                       "group",
-                      isExpanded && "bg-muted/30"
+                      isExpanded && "bg-muted/30",
+                      selectedIds.has(section.id) && "bg-primary/5"
                     )}
                     data-testid={`row-section-${section.id}`}
                   >
+                    {onSelectionChange && (
+                      <TableCell className="p-2">
+                        <Checkbox
+                          checked={selectedIds.has(section.id)}
+                          onCheckedChange={(checked) => handleSelectOne(section.id, !!checked)}
+                          data-testid={`checkbox-section-${section.id}`}
+                        />
+                      </TableCell>
+                    )}
                     <TableCell className="p-2">
                       {section.content && (
                         <CollapsibleTrigger asChild>
@@ -203,7 +253,7 @@ export function SectionsTable({ sections, onUpdateTitle }: SectionsTableProps) {
                   {section.content && (
                     <CollapsibleContent asChild>
                       <TableRow className="bg-muted/20" data-testid={`row-content-${section.id}`}>
-                        <TableCell colSpan={6} className="p-4">
+                        <TableCell colSpan={onSelectionChange ? 7 : 6} className="p-4">
                           <div className="text-sm text-muted-foreground whitespace-pre-wrap max-h-48 overflow-y-auto">
                             {section.content}
                           </div>

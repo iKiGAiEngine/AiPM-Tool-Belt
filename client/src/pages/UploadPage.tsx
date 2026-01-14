@@ -4,7 +4,9 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { UploadZone } from "@/components/UploadZone";
 import { ProcessingStatus } from "@/components/ProcessingStatus";
 import { Button } from "@/components/ui/button";
-import { ArrowRight, FileText, Zap, Shield } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { ArrowRight, FileText, Zap, Shield, Building2 } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import type { Session } from "@shared/schema";
 import { useToast } from "@/hooks/use-toast";
@@ -14,6 +16,7 @@ export default function UploadPage() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [activeSession, setActiveSession] = useState<Session | null>(null);
+  const [projectName, setProjectName] = useState("");
   const pollTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
@@ -26,9 +29,10 @@ export default function UploadPage() {
   }, []);
 
   const uploadMutation = useMutation({
-    mutationFn: async (file: File) => {
+    mutationFn: async ({ file, projectName }: { file: File; projectName: string }) => {
       const formData = new FormData();
       formData.append("file", file);
+      formData.append("projectName", projectName || "Untitled Project");
       
       const response = await fetch("/api/upload", {
         method: "POST",
@@ -95,7 +99,7 @@ export default function UploadPage() {
   };
 
   const handleUpload = (file: File) => {
-    uploadMutation.mutate(file);
+    uploadMutation.mutate({ file, projectName });
   };
 
   const handleViewResults = () => {
@@ -136,10 +140,30 @@ export default function UploadPage() {
 
         <div className="mt-12">
           {!activeSession || activeSession.status === "idle" ? (
-            <UploadZone
-              onUpload={handleUpload}
-              isUploading={uploadMutation.isPending}
-            />
+            <div className="space-y-6">
+              <div className="mx-auto max-w-md">
+                <Label htmlFor="project-name" className="flex items-center gap-2 text-sm font-medium text-foreground mb-2">
+                  <Building2 className="h-4 w-4" />
+                  Project Name
+                </Label>
+                <Input
+                  id="project-name"
+                  type="text"
+                  placeholder="e.g., Fountain Valley School"
+                  value={projectName}
+                  onChange={(e) => setProjectName(e.target.value)}
+                  className="w-full"
+                  data-testid="input-project-name"
+                />
+                <p className="mt-1.5 text-xs text-muted-foreground">
+                  This name will be used in exported PDF filenames
+                </p>
+              </div>
+              <UploadZone
+                onUpload={handleUpload}
+                isUploading={uploadMutation.isPending}
+              />
+            </div>
           ) : (
             <div className="space-y-6">
               <ProcessingStatus session={activeSession} />

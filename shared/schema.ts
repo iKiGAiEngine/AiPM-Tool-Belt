@@ -6,6 +6,7 @@ export type ProcessingStatus = z.infer<typeof processingStatusSchema>;
 export const sessionSchema = z.object({
   id: z.string(),
   filename: z.string(),
+  projectName: z.string(),
   status: processingStatusSchema,
   progress: z.number().min(0).max(100),
   message: z.string(),

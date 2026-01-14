@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useLocation, useSearch } from "wouter";
 import { 
@@ -9,7 +9,9 @@ import {
   FileText, 
   Loader2,
   Search,
-  Filter
+  Filter,
+  CheckSquare,
+  Square
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -21,6 +23,9 @@ import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import type { Session, ExtractedSection, AccessoryMatch } from "@shared/schema";
 import { cn } from "@/lib/utils";
+import { jsPDF } from "jspdf";
+import JSZip from "jszip";
+import { saveAs } from "file-saver";
 
 type ViewMode = "grid" | "table";
 
@@ -36,6 +41,7 @@ export default function ReviewPage() {
   const [viewMode, setViewMode] = useState<ViewMode>("table");
   const [searchQuery, setSearchQuery] = useState("");
   const [showAccessoryPanel, setShowAccessoryPanel] = useState(true);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
   const { data: session, isLoading: sessionLoading } = useQuery<Session>({
     queryKey: ["/api/sessions", sessionId],
@@ -51,6 +57,38 @@ export default function ReviewPage() {
     queryKey: ["/api/sessions", sessionId, "accessories"],
     enabled: !!sessionId,
   });
+
+  useEffect(() => {
+    if (sections.length > 0 && selectedIds.size === 0) {
+      setSelectedIds(new Set(sections.map(s => s.id)));
+    }
+  }, [sections]);
+
+  const handleSelectionChange = (ids: Set<string>) => {
+    setSelectedIds(ids);
+  };
+
+  const handleCardSelectionChange = (id: string, selected: boolean) => {
+    const newSet = new Set(selectedIds);
+    if (selected) {
+      newSet.add(id);
+    } else {
+      newSet.delete(id);
+    }
+    setSelectedIds(newSet);
+  };
+
+  const handleSelectAll = () => {
+    setSelectedIds(new Set(sections.map(s => s.id)));
+  };
+
+  const handleSelectNone = () => {
+    setSelectedIds(new Set());
+  };
+
+  const sanitizeFilename = (name: string): string => {
+    return name.replace(/[\/\\?%*:|"<>]/g, "-").trim();
+  };
 
   const updateTitleMutation = useMutation({
     mutationFn: async ({ id, title }: { id: string; title: string }) => {
@@ -78,24 +116,83 @@ export default function ReviewPage() {
 
   const handleExport = async () => {
     try {
-      const response = await fetch(`/api/sessions/${sessionId}/export`);
-      if (!response.ok) throw new Error("Export failed");
-      
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `division-10-sections-${sessionId}.json`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      window.URL.revokeObjectURL(url);
+      const selectedSections = sections.filter(s => selectedIds.has(s.id));
+      if (selectedSections.length === 0) {
+        toast({
+          title: "No Sections Selected",
+          description: "Please select at least one section to export.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      const projectName = sanitizeFilename(session?.projectName || "Untitled Project");
+      const zip = new JSZip();
+
+      for (const section of selectedSections) {
+        const safeTitle = sanitizeFilename(section.title);
+        const folderName = `${section.sectionNumber} - ${safeTitle}`;
+        const pdfFileName = `${section.sectionNumber} - ${safeTitle} - ${projectName}.pdf`;
+        
+        const doc = new jsPDF();
+        const pageWidth = doc.internal.pageSize.getWidth();
+        const margin = 20;
+        const maxWidth = pageWidth - margin * 2;
+        
+        doc.setFontSize(18);
+        doc.setFont("helvetica", "bold");
+        doc.text(`Section ${section.sectionNumber}`, margin, 25);
+        
+        doc.setFontSize(14);
+        doc.text(section.title, margin, 35);
+        
+        doc.setFontSize(10);
+        doc.setFont("helvetica", "normal");
+        doc.setTextColor(100);
+        doc.text(`Project: ${projectName}`, margin, 45);
+        if (section.pageNumber) {
+          doc.text(`Source Page: ${section.pageNumber}`, margin, 52);
+        }
+        
+        doc.setDrawColor(200);
+        doc.line(margin, 58, pageWidth - margin, 58);
+        
+        if (section.content) {
+          doc.setFontSize(11);
+          doc.setTextColor(0);
+          const lines = doc.splitTextToSize(section.content, maxWidth);
+          let yPos = 68;
+          
+          for (const line of lines) {
+            if (yPos > 280) {
+              doc.addPage();
+              yPos = 20;
+            }
+            doc.text(line, margin, yPos);
+            yPos += 6;
+          }
+        }
+        
+        doc.setFontSize(8);
+        doc.setTextColor(150);
+        doc.text(`Generated by SpecSift - ${new Date().toLocaleDateString()}`, margin, 290);
+        
+        const pdfBlob = doc.output("blob");
+        const folder = zip.folder(folderName);
+        if (folder) {
+          folder.file(pdfFileName, pdfBlob);
+        }
+      }
+
+      const zipBlob = await zip.generateAsync({ type: "blob" });
+      saveAs(zipBlob, sanitizeFilename(`${projectName} - Division 10 Specs`) + ".zip");
       
       toast({
         title: "Export Complete",
-        description: "Your sections have been exported successfully.",
+        description: `Exported ${selectedSections.length} section${selectedSections.length !== 1 ? "s" : ""} as PDFs.`,
       });
     } catch (error) {
+      console.error("Export error:", error);
       toast({
         title: "Export Failed",
         description: "Failed to export sections.",
@@ -206,6 +303,29 @@ export default function ReviewPage() {
                 </Button>
               </div>
 
+              <div className="flex items-center gap-1 rounded-md border border-border p-1">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 px-2 text-xs"
+                  onClick={handleSelectAll}
+                  data-testid="button-select-all"
+                >
+                  <CheckSquare className="mr-1 h-3 w-3" />
+                  All
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 px-2 text-xs"
+                  onClick={handleSelectNone}
+                  data-testid="button-select-none"
+                >
+                  <Square className="mr-1 h-3 w-3" />
+                  None
+                </Button>
+              </div>
+
               <Button
                 variant="outline"
                 size="sm"
@@ -220,9 +340,9 @@ export default function ReviewPage() {
                 Accessories
               </Button>
 
-              <Button onClick={handleExport} data-testid="button-export">
+              <Button onClick={handleExport} disabled={selectedIds.size === 0} data-testid="button-export">
                 <Download className="mr-2 h-4 w-4" />
-                Export
+                Export ({selectedIds.size})
               </Button>
             </div>
           </div>
@@ -261,6 +381,8 @@ export default function ReviewPage() {
                   key={section.id}
                   section={section}
                   onUpdateTitle={handleUpdateTitle}
+                  isSelected={selectedIds.has(section.id)}
+                  onSelectionChange={handleCardSelectionChange}
                 />
               ))}
             </div>
@@ -268,6 +390,8 @@ export default function ReviewPage() {
             <SectionsTable
               sections={filteredSections}
               onUpdateTitle={handleUpdateTitle}
+              selectedIds={selectedIds}
+              onSelectionChange={handleSelectionChange}
             />
           )}
         </div>
