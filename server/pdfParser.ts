@@ -87,74 +87,104 @@ interface ExtractedDetails {
 function extractManufacturers(text: string): string[] {
   const manufacturers: string[] = [];
   
-  const textNormalized = text.replace(/\s+/g, " ");
-  
-  const mfrSectionPatterns = [
-    /Manufacturers?:?\s*(?:Subject to compliance[^:]*:?\s*)?(.{50,1500}?)(?=\d+\.\d+\s+[A-Z]|PART\s+\d|$)/gi,
-    /Acceptable\s+Manufacturers?:?\s*(.{50,1000}?)(?=\d+\.\d+\s+[A-Z]|PART\s+\d|$)/gi,
-    /Approved\s+(?:Manufacturers?|Products?):?\s*(.{50,1000}?)(?=\d+\.\d+\s+[A-Z]|PART\s+\d|$)/gi,
-    /Basis[\s\-\.]+of[\s\-\.]+Design:?\s*(.{20,300}?)(?=\d+\.\d+|[a-z]\.|$)/gi,
-    /Products?:?\s*(?:Subject to compliance[^:]*:?\s*)?(.{50,1500}?)(?=\d+\.\d+\s+[A-Z]|PART\s+\d|$)/gi,
+  const excludeTerms = [
+    "warranty", "period", "marker board", "solid type", "display rail", "end stops",
+    "poster clips", "face sheet", "thickness", "laminating", "adhesive", "flame",
+    "smoke", "index", "compliance", "voc", "formaldehyde", "color", "section",
+    "part", "general", "products", "execution", "summary", "requirements",
+    "provide", "install", "verify", "coordinate", "submit", "deliver",
+    "failures", "include", "following", "limited", "materials", "finish",
+    "mounting", "fastener", "hardware", "accessory", "assembly", "component"
   ];
   
-  for (const pattern of mfrSectionPatterns) {
+  function isLikelyManufacturer(name: string): boolean {
+    const nameLower = name.toLowerCase();
+    
+    for (const term of excludeTerms) {
+      if (nameLower.includes(term)) return false;
+    }
+    
+    if (name.length < 5 || name.length > 80) return false;
+    
+    const companyIndicators = /(Inc\.?|LLC|Corp\.?|Co\.?|Ltd\.?|Company|Corporation|Manufacturing|Products|Equipment|Industries|Enterprises|International|Group|Systems|Associates|Specialties)\b/i;
+    if (companyIndicators.test(name)) return true;
+    
+    if (/^[A-Z][a-z]+(?:\s+[A-Z][a-z]+)+$/.test(name) && name.split(/\s+/).length >= 2) {
+      return true;
+    }
+    
+    if (/^[A-Z][a-z]+[-\s]?[A-Z][a-z]+/.test(name)) {
+      return true;
+    }
+    
+    return false;
+  }
+  
+  const companyPatterns = [
+    /[a-z]\.\s+([A-Z][A-Za-z\s\-&]+(?:Inc\.?|LLC|Corp(?:oration)?\.?|Co\.?|Ltd\.?|Company|Manufacturing|Products|Equipment)[^\.]*)/g,
+    /[a-z]\.\s+([A-Z][A-Za-z]+(?:\s+[A-Z][A-Za-z]+){1,4})\s*[;:\.]/g,
+    /(?:by|from|Manufacturer:?)\s+([A-Z][A-Za-z\s\-&]+(?:Inc\.?|LLC|Corp\.?|Co\.?|Ltd\.?|Company|Manufacturing)[^\.]*)/gi,
+    /Basis[\s\-\.]+of[\s\-\.]+Design[:\s]+([A-Z][A-Za-z\s\-&,]+(?:Inc\.?|LLC|Corp\.?|Co\.?|Ltd\.?|Company|Manufacturing)[^\.]*)/gi,
+  ];
+  
+  for (const pattern of companyPatterns) {
     let match;
-    while ((match = pattern.exec(textNormalized)) !== null) {
-      const section = match[1];
+    const textToSearch = text.replace(/\s+/g, " ");
+    while ((match = pattern.exec(textToSearch)) !== null) {
+      let name = match[1].trim();
       
-      const listItems = section.match(/[a-z]\.\s*([A-Z][^a-z\.]{3,60})/g);
-      if (listItems) {
-        for (const item of listItems) {
-          const cleaned = item.replace(/^[a-z]\.\s*/, "").trim();
-          if (cleaned.length > 3 && !cleaned.match(/^(PART|SECTION|GENERAL|Subject|Provide|See|Refer)/i)) {
-            const mfr = cleaned
-              .replace(/[;:].*$/, "")
-              .replace(/\s+or equal.*$/i, "")
-              .replace(/[,.]$/, "")
-              .trim();
-            if (mfr.length > 3 && mfr.length < 60) {
-              manufacturers.push(mfr);
-            }
+      name = name.replace(/[;,]?\s*(?:a\s+)?(?:Steelcase|division|subsidiary).*$/i, "");
+      name = name.replace(/\s+or\s+equal.*$/i, "");
+      name = name.replace(/[,;.]$/, "").trim();
+      
+      if (name.includes(":")) {
+        const parts = name.split(":");
+        for (const part of parts) {
+          const cleaned = part.trim();
+          if (isLikelyManufacturer(cleaned)) {
+            manufacturers.push(cleaned);
           }
         }
-      }
-      
-      const numberedItems = section.match(/\d+\.\s*([A-Z][^0-9\.]{3,60})/g);
-      if (numberedItems) {
-        for (const item of numberedItems) {
-          const cleaned = item.replace(/^\d+\.\s*/, "").trim();
-          if (cleaned.length > 3 && !cleaned.match(/^(PART|SECTION|GENERAL|Subject|Provide|See|Refer)/i)) {
-            const mfr = cleaned
-              .replace(/[;:].*$/, "")
-              .replace(/\s+or equal.*$/i, "")
-              .replace(/[,.]$/, "")
-              .trim();
-            if (mfr.length > 3 && mfr.length < 60) {
-              manufacturers.push(mfr);
-            }
-          }
-        }
+      } else if (isLikelyManufacturer(name)) {
+        manufacturers.push(name);
       }
     }
   }
   
-  const directPatterns = [
-    /(?:by|from)\s+([A-Z][A-Za-z\s&,]+(?:Inc|LLC|Corp|Co|Ltd|Company)?\.?)/gi,
-    /([A-Z][A-Za-z]+(?:\s+[A-Z][A-Za-z]+)*)\s+(?:Model|Series|Type)\s+/g,
-  ];
+  const lines = text.split(/[\n\r]+/);
+  let inMfrSection = false;
   
-  for (const pattern of directPatterns) {
-    let match;
-    while ((match = pattern.exec(text)) !== null) {
-      const mfr = match[1].replace(/[,;.]$/, "").trim();
-      if (mfr.length > 3 && mfr.length < 50 && !mfr.match(/^(The|This|That|And|For|With)/i)) {
-        manufacturers.push(mfr);
+  for (const line of lines) {
+    const trimmed = line.trim();
+    const lower = trimmed.toLowerCase();
+    
+    if (lower.includes("manufacturer") && (lower.includes(":") || /^\d+\.\d+/.test(trimmed))) {
+      inMfrSection = true;
+      continue;
+    }
+    
+    if (inMfrSection) {
+      if (/^(?:PART|\d+\.\d+\s+[A-Z]{2,}|[A-Z]{2,}\s+[A-Z]{2,})/.test(trimmed) && !lower.includes("manufacturer")) {
+        inMfrSection = false;
+        continue;
+      }
+      
+      const listMatch = trimmed.match(/^[a-z]\.\s+(.+)$/);
+      if (listMatch) {
+        let name = listMatch[1].trim();
+        name = name.replace(/[;,]?\s*(?:a\s+)?(?:Steelcase|division|subsidiary).*$/i, "");
+        name = name.replace(/\s+or\s+equal.*$/i, "");
+        name = name.replace(/[,;.]$/, "").trim();
+        
+        if (isLikelyManufacturer(name)) {
+          manufacturers.push(name);
+        }
       }
     }
   }
   
   const unique = Array.from(new Set(manufacturers.map(m => m.trim())));
-  return unique.filter(m => m.length > 3).slice(0, 15);
+  return unique.filter(m => m.length >= 5).slice(0, 20);
 }
 
 function extractModelNumbers(text: string): string[] {
