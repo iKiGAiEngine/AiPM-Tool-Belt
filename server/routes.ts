@@ -3,7 +3,9 @@ import { createServer, type Server } from "http";
 import multer from "multer";
 import { storage } from "./storage";
 import { processPdf } from "./pdfParser";
-import type { Session } from "@shared/schema";
+import type { Session, ExtractedSection } from "@shared/schema";
+import { PDFDocument, rgb, StandardFonts, type PDFFont } from "pdf-lib";
+import JSZip from "jszip";
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -44,6 +46,8 @@ export async function registerRoutes(
       });
 
       processingStatus.set(session.id, { progress: 0, message: "Starting extraction..." });
+
+      await storage.storePdfBuffer(session.id, req.file.buffer);
 
       processInBackground(session.id, req.file.buffer);
 
@@ -193,6 +197,7 @@ export async function registerRoutes(
     try {
       await storage.deleteSectionsBySession(req.params.id);
       await storage.deleteAccessoryMatchesBySession(req.params.id);
+      await storage.deletePdfBuffer(req.params.id);
       await storage.deleteSession(req.params.id);
       res.json({ success: true });
     } catch (error) {
@@ -214,11 +219,28 @@ export async function registerRoutes(
 
   app.patch("/api/sections/:id", async (req: Request, res: Response) => {
     try {
-      const { title, isEdited } = req.body;
+      const { title, isEdited, startPage, endPage } = req.body;
+      
+      if (startPage !== undefined || endPage !== undefined) {
+        const start = startPage !== undefined ? Number(startPage) : undefined;
+        const end = endPage !== undefined ? Number(endPage) : undefined;
+        
+        if (start !== undefined && (isNaN(start) || start < 1)) {
+          return res.status(400).json({ message: "Start page must be a positive number" });
+        }
+        if (end !== undefined && (isNaN(end) || end < 1)) {
+          return res.status(400).json({ message: "End page must be a positive number" });
+        }
+        if (start !== undefined && end !== undefined && start > end) {
+          return res.status(400).json({ message: "Start page cannot be greater than end page" });
+        }
+      }
       
       const section = await storage.updateSection(req.params.id, {
         ...(title !== undefined && { title }),
         ...(isEdited !== undefined && { isEdited }),
+        ...(startPage !== undefined && { startPage: Number(startPage) }),
+        ...(endPage !== undefined && { endPage: Number(endPage) }),
       });
 
       if (!section) {
@@ -231,5 +253,397 @@ export async function registerRoutes(
     }
   });
 
+  app.post("/api/sessions/:id/generate-packets", async (req: Request, res: Response) => {
+    try {
+      const { sectionIds } = req.body as { sectionIds: string[] };
+      
+      const session = await storage.getSession(req.params.id);
+      if (!session) {
+        return res.status(404).json({ message: "Session not found" });
+      }
+
+      const pdfBuffer = await storage.getPdfBuffer(req.params.id);
+      if (!pdfBuffer) {
+        return res.status(404).json({ message: "Original PDF not found" });
+      }
+
+      const allSections = await storage.getSectionsBySession(req.params.id);
+      const sections = allSections.filter(s => sectionIds.includes(s.id));
+
+      if (sections.length === 0) {
+        return res.status(400).json({ message: "No sections selected" });
+      }
+
+      const sourcePdf = await PDFDocument.load(pdfBuffer);
+      const zip = new JSZip();
+      const projectName = sanitizeFilename(session.projectName || "Untitled Project");
+
+      for (const section of sections) {
+        const packet = await generateSectionPacket(sourcePdf, section, session.projectName);
+        const safeTitle = sanitizeFilename(section.title);
+        const folderName = `${section.sectionNumber} - ${safeTitle}`;
+        const pdfFileName = `${section.sectionNumber} - ${safeTitle} - ${projectName}.pdf`;
+        
+        const folder = zip.folder(folderName);
+        if (folder) {
+          folder.file(pdfFileName, packet);
+        }
+      }
+
+      const zipBuffer = await zip.generateAsync({ type: "nodebuffer" });
+      const zipFilename = sanitizeFilename(`${projectName} - Division 10 Specs`) + ".zip";
+
+      res.setHeader("Content-Type", "application/zip");
+      res.setHeader("Content-Disposition", `attachment; filename="${zipFilename}"`);
+      res.setHeader("Content-Length", zipBuffer.length);
+      res.send(zipBuffer);
+    } catch (error) {
+      console.error("Packet generation error:", error);
+      res.status(500).json({ message: "Failed to generate packets" });
+    }
+  });
+
+  function sanitizeFilename(name: string): string {
+    return name.replace(/[\/\\?%*:|"<>]/g, "-").trim();
+  }
+
   return httpServer;
+}
+
+async function generateSectionPacket(
+  sourcePdf: PDFDocument,
+  section: ExtractedSection,
+  projectName: string
+): Promise<Uint8Array> {
+  const packetPdf = await PDFDocument.create();
+  const helveticaFont = await packetPdf.embedFont(StandardFonts.Helvetica);
+  const helveticaBold = await packetPdf.embedFont(StandardFonts.HelveticaBold);
+
+  await addCoverPage(packetPdf, section, projectName, helveticaFont, helveticaBold);
+
+  const startPage = section.startPage ?? section.pageNumber ?? 1;
+  const endPage = section.endPage ?? startPage;
+  const totalPages = sourcePdf.getPageCount();
+
+  const validStartPage = Math.max(1, Math.min(startPage, totalPages));
+  const validEndPage = Math.max(validStartPage, Math.min(endPage, totalPages));
+
+  const pageIndices: number[] = [];
+  for (let i = validStartPage - 1; i < validEndPage; i++) {
+    pageIndices.push(i);
+  }
+
+  if (pageIndices.length > 0) {
+    const copiedPages = await packetPdf.copyPages(sourcePdf, pageIndices);
+    copiedPages.forEach(page => packetPdf.addPage(page));
+  }
+
+  await addSummaryPages(packetPdf, section, helveticaFont, helveticaBold);
+
+  return packetPdf.save();
+}
+
+async function addCoverPage(
+  pdf: PDFDocument,
+  section: ExtractedSection,
+  projectName: string,
+  font: PDFFont,
+  boldFont: PDFFont
+): Promise<void> {
+  const page = pdf.addPage([612, 792]);
+  const { height } = page.getSize();
+  let y = height - 50;
+
+  page.drawText("DIVISION 10 SPECIFICATION EXTRACT", {
+    x: 50,
+    y,
+    size: 14,
+    font: boldFont,
+    color: rgb(0.2, 0.2, 0.2),
+  });
+
+  y -= 30;
+  page.drawText("SHORT ORDER FORM", {
+    x: 50,
+    y,
+    size: 20,
+    font: boldFont,
+    color: rgb(0, 0, 0),
+  });
+
+  y -= 40;
+  page.drawLine({
+    start: { x: 50, y },
+    end: { x: 562, y },
+    thickness: 1,
+    color: rgb(0.7, 0.7, 0.7),
+  });
+
+  y -= 30;
+  const drawField = (label: string, value: string, multiline = false) => {
+    page.drawText(label, {
+      x: 50,
+      y,
+      size: 10,
+      font: boldFont,
+      color: rgb(0.3, 0.3, 0.3),
+    });
+    y -= 16;
+    
+    if (multiline && value.length > 80) {
+      const lines = wrapText(value, 85);
+      for (const line of lines) {
+        page.drawText(line, {
+          x: 50,
+          y,
+          size: 11,
+          font,
+          color: rgb(0, 0, 0),
+        });
+        y -= 14;
+      }
+    } else {
+      page.drawText(value || "Not specified", {
+        x: 50,
+        y,
+        size: 11,
+        font,
+        color: value ? rgb(0, 0, 0) : rgb(0.5, 0.5, 0.5),
+      });
+      y -= 14;
+    }
+    y -= 12;
+  };
+
+  drawField("PROJECT NAME", projectName);
+  drawField("CSI SECTION NUMBER", section.sectionNumber);
+  drawField("SECTION TITLE", section.title);
+  drawField("PAGE RANGE", `Pages ${section.startPage ?? "?"} - ${section.endPage ?? "?"}`);
+
+  y -= 10;
+  page.drawLine({
+    start: { x: 50, y },
+    end: { x: 562, y },
+    thickness: 0.5,
+    color: rgb(0.8, 0.8, 0.8),
+  });
+  y -= 25;
+
+  drawField("APPROVED MANUFACTURERS", 
+    section.manufacturers.length > 0 ? section.manufacturers.join(", ") : "Not explicitly specified - see spec pages"
+  );
+
+  drawField("MODEL NUMBERS / SERIES",
+    section.modelNumbers.length > 0 ? section.modelNumbers.join(", ") : "Not explicitly specified - see spec pages"
+  );
+
+  drawField("KEY MATERIAL REQUIREMENTS",
+    section.materials.length > 0 ? section.materials.join(", ") : "Not explicitly specified - see spec pages",
+    true
+  );
+
+  if (section.notes.length > 0) {
+    y -= 10;
+    drawField("ADDITIONAL NOTES", section.notes.join("; "), true);
+  }
+
+  y -= 20;
+  page.drawLine({
+    start: { x: 50, y },
+    end: { x: 562, y },
+    thickness: 0.5,
+    color: rgb(0.8, 0.8, 0.8),
+  });
+  
+  y -= 20;
+  page.drawText("This cover page was auto-generated by SpecSift. Original spec pages follow.", {
+    x: 50,
+    y,
+    size: 9,
+    font,
+    color: rgb(0.5, 0.5, 0.5),
+  });
+}
+
+async function addSummaryPages(
+  pdf: PDFDocument,
+  section: ExtractedSection,
+  font: PDFFont,
+  boldFont: PDFFont
+): Promise<void> {
+  const page = pdf.addPage([612, 792]);
+  const { height } = page.getSize();
+  let y = height - 50;
+
+  page.drawText("SUMMARY & RISK REPORT", {
+    x: 50,
+    y,
+    size: 16,
+    font: boldFont,
+    color: rgb(0, 0, 0),
+  });
+
+  y -= 25;
+  page.drawText(`Section ${section.sectionNumber} - ${section.title}`, {
+    x: 50,
+    y,
+    size: 12,
+    font,
+    color: rgb(0.3, 0.3, 0.3),
+  });
+
+  y -= 30;
+  page.drawLine({
+    start: { x: 50, y },
+    end: { x: 562, y },
+    thickness: 1,
+    color: rgb(0.7, 0.7, 0.7),
+  });
+
+  y -= 30;
+
+  const drawSection = (title: string, items: string[], emptyText: string) => {
+    page.drawText(title, {
+      x: 50,
+      y,
+      size: 11,
+      font: boldFont,
+      color: rgb(0.2, 0.2, 0.2),
+    });
+    y -= 18;
+
+    if (items.length === 0) {
+      page.drawText(emptyText, {
+        x: 60,
+        y,
+        size: 10,
+        font,
+        color: rgb(0.5, 0.5, 0.5),
+      });
+      y -= 14;
+    } else {
+      for (const item of items) {
+        const lines = wrapText(`• ${item}`, 90);
+        for (const line of lines) {
+          page.drawText(line, {
+            x: 60,
+            y,
+            size: 10,
+            font,
+            color: rgb(0, 0, 0),
+          });
+          y -= 14;
+        }
+      }
+    }
+    y -= 15;
+  };
+
+  drawSection("APPROVED MANUFACTURERS", section.manufacturers, "None explicitly listed in spec");
+  drawSection("MODEL NUMBERS / SERIES", section.modelNumbers, "None explicitly listed in spec");
+  drawSection("KEY MATERIAL REQUIREMENTS", section.materials, "No specific material requirements identified");
+
+  y -= 10;
+  page.drawLine({
+    start: { x: 50, y },
+    end: { x: 562, y },
+    thickness: 0.5,
+    color: rgb(0.85, 0.85, 0.85),
+  });
+  y -= 25;
+
+  page.drawText("CONFLICTS & AMBIGUITIES", {
+    x: 50,
+    y,
+    size: 11,
+    font: boldFont,
+    color: rgb(0.6, 0.1, 0.1),
+  });
+  y -= 18;
+
+  if (section.conflicts.length === 0) {
+    page.drawText("No significant conflicts or ambiguities detected", {
+      x: 60,
+      y,
+      size: 10,
+      font,
+      color: rgb(0.4, 0.6, 0.4),
+    });
+    y -= 14;
+  } else {
+    for (const conflict of section.conflicts) {
+      const lines = wrapText(`⚠ ${conflict}`, 85);
+      for (const line of lines) {
+        page.drawText(line, {
+          x: 60,
+          y,
+          size: 10,
+          font,
+          color: rgb(0.6, 0.1, 0.1),
+        });
+        y -= 14;
+      }
+    }
+  }
+
+  y -= 25;
+  page.drawText("NOTES FOR ESTIMATING", {
+    x: 50,
+    y,
+    size: 11,
+    font: boldFont,
+    color: rgb(0.2, 0.2, 0.2),
+  });
+  y -= 18;
+
+  if (section.notes.length === 0) {
+    page.drawText("No additional notes", {
+      x: 60,
+      y,
+      size: 10,
+      font,
+      color: rgb(0.5, 0.5, 0.5),
+    });
+  } else {
+    for (const note of section.notes) {
+      const lines = wrapText(`• ${note}`, 90);
+      for (const line of lines) {
+        page.drawText(line, {
+          x: 60,
+          y,
+          size: 10,
+          font,
+          color: rgb(0, 0, 0),
+        });
+        y -= 14;
+      }
+    }
+  }
+
+  y -= 40;
+  page.drawText("This summary was auto-generated by SpecSift. Review original spec pages for complete requirements.", {
+    x: 50,
+    y,
+    size: 9,
+    font,
+    color: rgb(0.5, 0.5, 0.5),
+  });
+}
+
+function wrapText(text: string, maxChars: number): string[] {
+  const words = text.split(" ");
+  const lines: string[] = [];
+  let currentLine = "";
+
+  for (const word of words) {
+    if ((currentLine + " " + word).trim().length <= maxChars) {
+      currentLine = (currentLine + " " + word).trim();
+    } else {
+      if (currentLine) lines.push(currentLine);
+      currentLine = word;
+    }
+  }
+  if (currentLine) lines.push(currentLine);
+
+  return lines;
 }

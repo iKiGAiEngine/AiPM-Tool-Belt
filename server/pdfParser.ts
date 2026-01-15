@@ -72,6 +72,148 @@ interface ParsedHeader {
   sectionNumber: string;
   title: string;
   pageNumber?: number;
+  startPage?: number;
+  endPage?: number;
+}
+
+interface ExtractedDetails {
+  manufacturers: string[];
+  modelNumbers: string[];
+  materials: string[];
+  conflicts: string[];
+  notes: string[];
+}
+
+function extractManufacturers(text: string): string[] {
+  const manufacturers: string[] = [];
+  const lines = text.split("\n");
+  
+  let inManufacturerSection = false;
+  
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].trim();
+    const lineLower = line.toLowerCase();
+    
+    if (lineLower.includes("manufacturer") || lineLower.includes("approved product") || lineLower.includes("acceptable manufacturer")) {
+      inManufacturerSection = true;
+      continue;
+    }
+    
+    if (inManufacturerSection) {
+      if (/^[A-Z][a-zA-Z\s&,\.]+(?:Inc|LLC|Corp|Co|Ltd)?\.?$/i.test(line) && line.length > 3 && line.length < 80) {
+        if (!line.match(/^(PART|SECTION|GENERAL|PRODUCTS|EXECUTION|SUMMARY|REQUIREMENTS)/i)) {
+          manufacturers.push(line.replace(/[,;.]$/, "").trim());
+        }
+      }
+      
+      if (/^(PART|SECTION|\d+\.\d+|[A-Z]\.)/.test(line) && !lineLower.includes("manufacturer")) {
+        inManufacturerSection = false;
+      }
+    }
+    
+    const mfrMatch = line.match(/(?:Basis.of.Design|Approved|Acceptable)[\s:]+([A-Z][a-zA-Z\s&,\.]+(?:Inc|LLC|Corp|Co|Ltd)?)/i);
+    if (mfrMatch && mfrMatch[1].length > 3) {
+      manufacturers.push(mfrMatch[1].replace(/[,;.]$/, "").trim());
+    }
+  }
+  
+  return Array.from(new Set(manufacturers)).slice(0, 10);
+}
+
+function extractModelNumbers(text: string): string[] {
+  const models: string[] = [];
+  
+  const modelPatterns = [
+    /Model\s*(?:No\.?|Number|#)?[\s:]+([A-Z0-9][\w\-\/\.]+)/gi,
+    /Series\s*[\s:]+([A-Z0-9][\w\-\/\.]+)/gi,
+    /Type\s*[\s:]+([A-Z0-9][\w\-\/\.]+)/gi,
+    /Part\s*(?:No\.?|Number|#)?[\s:]+([A-Z0-9][\w\-\/\.]+)/gi,
+    /Product\s*(?:No\.?|Number|#)?[\s:]+([A-Z0-9][\w\-\/\.]+)/gi,
+  ];
+  
+  for (const pattern of modelPatterns) {
+    let match;
+    while ((match = pattern.exec(text)) !== null) {
+      const modelNum = match[1].trim();
+      if (modelNum.length >= 3 && modelNum.length <= 30) {
+        models.push(modelNum);
+      }
+    }
+  }
+  
+  return Array.from(new Set(models)).slice(0, 15);
+}
+
+function extractMaterials(text: string): string[] {
+  const materials: string[] = [];
+  const textLower = text.toLowerCase();
+  
+  const materialKeywords = [
+    "stainless steel", "type 304", "type 316", "brushed", "satin", "polished",
+    "solid plastic", "phenolic", "powder coated", "chrome", "aluminum",
+    "galvanized", "epoxy", "ADA compliant", "vandal resistant",
+    "surface mounted", "recessed", "semi-recessed", "partition mounted",
+    "floor mounted", "ceiling hung", "wall mounted",
+  ];
+  
+  for (const keyword of materialKeywords) {
+    if (textLower.includes(keyword.toLowerCase())) {
+      materials.push(keyword);
+    }
+  }
+  
+  return Array.from(new Set(materials)).slice(0, 20);
+}
+
+function detectConflicts(text: string, manufacturers: string[], models: string[]): string[] {
+  const conflicts: string[] = [];
+  const textLower = text.toLowerCase();
+  
+  if (manufacturers.length > 3) {
+    conflicts.push(`Multiple manufacturers specified (${manufacturers.length} found) - clarify approved substitutions`);
+  }
+  
+  if (textLower.includes("or equal") || textLower.includes("or approved equal")) {
+    conflicts.push("'Or equal' clause present - substitutions may be allowed");
+  }
+  
+  if (textLower.includes("no substitution") || textLower.includes("no substitutions")) {
+    conflicts.push("No substitutions allowed - sole source requirement");
+  }
+  
+  if (textLower.includes("performance") && textLower.includes("prescriptive")) {
+    conflicts.push("Both performance and prescriptive requirements mentioned - verify which governs");
+  }
+  
+  const contraMatches = text.match(/(?:shall not|prohibited|not acceptable|not permitted)/gi);
+  if (contraMatches && contraMatches.length > 2) {
+    conflicts.push("Multiple prohibitive requirements found - review carefully");
+  }
+  
+  return conflicts;
+}
+
+function extractNotes(text: string): string[] {
+  const notes: string[] = [];
+  const textLower = text.toLowerCase();
+  
+  if (textLower.includes("submit") || textLower.includes("submittal")) {
+    notes.push("Submittal requirements present");
+  }
+  
+  if (textLower.includes("mock-up") || textLower.includes("mockup") || textLower.includes("sample")) {
+    notes.push("Sample/mock-up may be required");
+  }
+  
+  if (textLower.includes("warranty") || textLower.includes("guarantee")) {
+    notes.push("Warranty requirements specified");
+  }
+  
+  if (textLower.includes("lead time") || textLower.includes("delivery")) {
+    notes.push("Lead time or delivery requirements mentioned");
+  }
+  
+  return notes;
 }
 
 function parseHeadersFromText(text: string, pageNumber?: number): ParsedHeader[] {
@@ -219,9 +361,7 @@ export async function processPdf(
   sessionId: string,
   onProgress?: (progress: number, message: string) => void
 ): Promise<ProcessingResult> {
-  const sections: InsertSection[] = [];
   const accessories: InsertAccessoryMatch[] = [];
-  const seenSections = new Set<string>();
   
   try {
     onProgress?.(10, "Reading PDF file...");
@@ -248,34 +388,84 @@ export async function processPdf(
       }
     }
     
+    const sectionStarts: Map<string, { title: string; startPage: number }> = new Map();
+    
     for (let pageNum = 0; pageNum < pageTexts.length; pageNum++) {
       const pageText = pageTexts[pageNum];
-      const progress = 20 + Math.floor((pageNum / pageTexts.length) * 60);
-      onProgress?.(progress, `Processing page ${pageNum + 1} of ${pageTexts.length}...`);
+      const progress = 20 + Math.floor((pageNum / pageTexts.length) * 40);
+      onProgress?.(progress, `Scanning page ${pageNum + 1} of ${pageTexts.length}...`);
       
       const headers = parseHeadersFromText(pageText, pageNum + 1);
       
       for (const header of headers) {
-        if (!seenSections.has(header.sectionNumber)) {
-          seenSections.add(header.sectionNumber);
-          
-          const contentMatch = pageText.match(
-            new RegExp(`${header.sectionNumber.replace(/ /g, "\\s*")}[\\s\\S]{0,500}`, "i")
-          );
-          
-          sections.push({
-            sessionId,
-            sectionNumber: header.sectionNumber,
+        if (!sectionStarts.has(header.sectionNumber)) {
+          sectionStarts.set(header.sectionNumber, {
             title: header.title,
-            content: contentMatch ? contentMatch[0].slice(0, 500) : undefined,
-            pageNumber: header.pageNumber,
-            isEdited: false,
+            startPage: pageNum + 1,
           });
         }
       }
       
       const accessoryMatches = findAccessoryMatches(pageText, sessionId, pageNum + 1);
       accessories.push(...accessoryMatches);
+    }
+    
+    onProgress?.(70, "Determining section boundaries...");
+    
+    const sortedSections = Array.from(sectionStarts.entries())
+      .sort((a, b) => a[1].startPage - b[1].startPage);
+    
+    const sectionRanges: Map<string, { title: string; startPage: number; endPage: number }> = new Map();
+    
+    for (let i = 0; i < sortedSections.length; i++) {
+      const [secNum, { title, startPage }] = sortedSections[i];
+      let endPage: number;
+      
+      if (i < sortedSections.length - 1) {
+        endPage = sortedSections[i + 1][1].startPage - 1;
+        if (endPage < startPage) endPage = startPage;
+      } else {
+        endPage = numPages;
+      }
+      
+      sectionRanges.set(secNum, { title, startPage, endPage });
+    }
+    
+    onProgress?.(80, "Extracting section details...");
+    
+    const sections: InsertSection[] = [];
+    
+    for (const [sectionNumber, range] of Array.from(sectionRanges.entries())) {
+      let sectionText = "";
+      for (let p = range.startPage - 1; p < range.endPage && p < pageTexts.length; p++) {
+        sectionText += pageTexts[p] + "\n";
+      }
+      
+      const manufacturers = extractManufacturers(sectionText);
+      const modelNumbers = extractModelNumbers(sectionText);
+      const materials = extractMaterials(sectionText);
+      const conflicts = detectConflicts(sectionText, manufacturers, modelNumbers);
+      const notes = extractNotes(sectionText);
+      
+      const contentMatch = sectionText.match(
+        new RegExp(`${sectionNumber.replace(/ /g, "\\s*")}[\\s\\S]{0,500}`, "i")
+      );
+      
+      sections.push({
+        sessionId,
+        sectionNumber,
+        title: range.title,
+        content: contentMatch ? contentMatch[0].slice(0, 500) : undefined,
+        pageNumber: range.startPage,
+        startPage: range.startPage,
+        endPage: range.endPage,
+        manufacturers,
+        modelNumbers,
+        materials,
+        conflicts,
+        notes,
+        isEdited: false,
+      });
     }
     
     onProgress?.(90, "Finalizing results...");
@@ -290,6 +480,8 @@ export async function processPdf(
         deduplicatedAccessories.push(acc);
       }
     }
+    
+    sections.sort((a, b) => a.sectionNumber.localeCompare(b.sectionNumber));
     
     onProgress?.(100, `Found ${sections.length} sections and ${deduplicatedAccessories.length} accessory matches`);
     

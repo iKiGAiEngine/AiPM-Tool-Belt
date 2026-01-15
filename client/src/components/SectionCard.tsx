@@ -66,7 +66,13 @@ export function SectionCard({ section, onUpdateTitle, isSelected = false, onSele
                   Edited
                 </Badge>
               )}
-              {section.pageNumber && (
+              {section.startPage && section.endPage ? (
+                <Badge variant="outline" className="text-xs font-mono">
+                  {section.startPage === section.endPage 
+                    ? `Page ${section.startPage}` 
+                    : `Pages ${section.startPage}-${section.endPage}`}
+                </Badge>
+              ) : section.pageNumber && (
                 <Badge variant="outline" className="text-xs">
                   Page {section.pageNumber}
                 </Badge>

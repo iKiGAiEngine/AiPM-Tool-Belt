@@ -4,6 +4,28 @@
 
 SpecSift is a professional construction document processing tool that extracts Division 10 specifications from PDF files. The application parses construction specification documents to identify and extract section numbers, titles, and content related to Division 10 (Specialties) items like toilet accessories, signage, lockers, visual display units, and more. Users can upload PDFs, monitor processing status, review extracted sections, edit titles, and export results.
 
+## Recent Changes (January 2026)
+
+### PDF Packet Export System
+- **Document-Centric Output**: Export now generates scope-specific PDF packets that preserve original spec pages
+- **Three-Part PDF Structure**: Each exported section contains:
+  1. **Cover Page (Short Order Form)**: Auto-filled with CSI section number, title, manufacturers, model numbers, materials, and notes
+  2. **Original Extracted Pages**: Verbatim pages from the uploaded PDF (visually identical to source)
+  3. **Summary/Risk Report**: Highlights conflicts, ambiguities, approved manufacturers, and items needing clarification
+
+### Enhanced Parsing
+- **Page Boundary Detection**: Parser now tracks start/end pages for each section
+- **Manufacturer Extraction**: Automatically identifies approved manufacturers from spec text
+- **Model Number Detection**: Extracts model numbers, series, and product references
+- **Material Requirements**: Identifies key material specs (stainless steel, finishes, mounting types)
+- **Conflict Detection**: Flags potential issues like multiple manufacturers, "or equal" clauses, sole source requirements
+
+### UI Improvements
+- **Page Range Display**: Table view shows start-end page ranges for each section
+- **Expanded Details**: Expandable rows show manufacturers, models, materials, and conflicts
+- **Loading States**: Export button shows progress during PDF packet generation
+- **Project Name**: User can specify project name for exported file naming
+
 ## User Preferences
 
 Preferred communication style: Simple, everyday language.
@@ -39,8 +61,13 @@ Key backend modules:
 - **Database Ready**: Drizzle ORM configured with PostgreSQL dialect, migrations output to `./migrations`
 
 Data models:
-- `Session`: Upload session tracking (id, filename, status, progress, message)
-- `ExtractedSection`: Parsed specification sections (sectionNumber, title, content, pageNumber)
+- `Session`: Upload session tracking (id, filename, projectName, status, progress, message)
+- `ExtractedSection`: Parsed specification sections with enriched data:
+  - sectionNumber, title, content, pageNumber
+  - startPage, endPage (page range for the section)
+  - manufacturers, modelNumbers, materials (extracted from spec text)
+  - conflicts, notes (detected issues and requirements)
+  - isEdited (user modification flag)
 - `AccessoryMatch`: Keyword matches for accessory scopes (scopeName, matchedKeyword, context)
 
 ### PDF Parsing Logic
@@ -55,10 +82,13 @@ Follows a system-based design approach inspired by Linear/Notion:
 ## External Dependencies
 
 ### Core Libraries
-- **pdf-parse**: PDF text extraction
+- **pdfjs-dist**: PDF text extraction and page parsing
+- **pdf-lib**: PDF page extraction and document assembly for export packets
 - **Drizzle ORM**: Database toolkit (PostgreSQL ready)
 - **Zod**: Schema validation for API data
 - **TanStack Query**: Async state management
+- **JSZip**: ZIP file generation for export bundles
+- **file-saver**: Client-side file downloads
 
 ### UI Components
 - **Radix UI**: Accessible component primitives (dialog, dropdown, tabs, etc.)

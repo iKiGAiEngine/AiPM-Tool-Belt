@@ -20,6 +20,7 @@ import { cn } from "@/lib/utils";
 interface SectionsTableProps {
   sections: ExtractedSection[];
   onUpdateTitle?: (id: string, title: string) => void;
+  onUpdatePageRange?: (id: string, startPage: number, endPage: number) => void;
   selectedIds?: Set<string>;
   onSelectionChange?: (ids: Set<string>) => void;
 }
@@ -29,8 +30,15 @@ interface EditingRow {
   value: string;
 }
 
-export function SectionsTable({ sections, onUpdateTitle, selectedIds = new Set(), onSelectionChange }: SectionsTableProps) {
+interface EditingPageRange {
+  id: string;
+  startPage: number;
+  endPage: number;
+}
+
+export function SectionsTable({ sections, onUpdateTitle, onUpdatePageRange, selectedIds = new Set(), onSelectionChange }: SectionsTableProps) {
   const [editingRow, setEditingRow] = useState<EditingRow | null>(null);
+  const [editingPageRange, setEditingPageRange] = useState<EditingPageRange | null>(null);
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
 
   const allSelected = sections.length > 0 && sections.every(s => selectedIds.has(s.id));
@@ -117,7 +125,7 @@ export function SectionsTable({ sections, onUpdateTitle, selectedIds = new Set()
             <TableHead className="w-12"></TableHead>
             <TableHead className="w-32 font-semibold">Section</TableHead>
             <TableHead className="font-semibold">Title</TableHead>
-            <TableHead className="w-20 text-center font-semibold">Page</TableHead>
+            <TableHead className="w-28 text-center font-semibold">Pages</TableHead>
             <TableHead className="w-24 text-center font-semibold">Status</TableHead>
             <TableHead className="w-20 text-right font-semibold">Actions</TableHead>
           </TableRow>
@@ -150,7 +158,7 @@ export function SectionsTable({ sections, onUpdateTitle, selectedIds = new Set()
                       </TableCell>
                     )}
                     <TableCell className="p-2">
-                      {section.content && (
+                      {(section.content || section.manufacturers?.length || section.modelNumbers?.length || section.materials?.length || section.conflicts?.length || section.notes?.length) && (
                         <CollapsibleTrigger asChild>
                           <Button
                             variant="ghost"
@@ -217,7 +225,94 @@ export function SectionsTable({ sections, onUpdateTitle, selectedIds = new Set()
                       )}
                     </TableCell>
                     <TableCell className="text-center">
-                      {section.pageNumber ? (
+                      {editingPageRange?.id === section.id ? (
+                        <div className="flex items-center gap-1 justify-center">
+                          <Input
+                            type="number"
+                            min={1}
+                            value={editingPageRange.startPage}
+                            onChange={(e) => setEditingPageRange({ 
+                              ...editingPageRange, 
+                              startPage: parseInt(e.target.value) || 1 
+                            })}
+                            className="h-7 w-14 text-xs font-mono"
+                            data-testid={`input-start-page-${section.id}`}
+                          />
+                          <span className="text-muted-foreground">-</span>
+                          <Input
+                            type="number"
+                            min={1}
+                            value={editingPageRange.endPage}
+                            onChange={(e) => setEditingPageRange({ 
+                              ...editingPageRange, 
+                              endPage: parseInt(e.target.value) || 1 
+                            })}
+                            className="h-7 w-14 text-xs font-mono"
+                            data-testid={`input-end-page-${section.id}`}
+                          />
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className="h-6 w-6"
+                            disabled={
+                              !editingPageRange.startPage || 
+                              !editingPageRange.endPage || 
+                              editingPageRange.startPage > editingPageRange.endPage ||
+                              editingPageRange.startPage < 1
+                            }
+                            onClick={() => {
+                              if (onUpdatePageRange && 
+                                  editingPageRange.startPage > 0 && 
+                                  editingPageRange.endPage > 0 &&
+                                  editingPageRange.startPage <= editingPageRange.endPage) {
+                                onUpdatePageRange(section.id, editingPageRange.startPage, editingPageRange.endPage);
+                              }
+                              setEditingPageRange(null);
+                            }}
+                            data-testid={`button-save-pages-${section.id}`}
+                          >
+                            <Check className="h-3 w-3" />
+                          </Button>
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className="h-6 w-6"
+                            onClick={() => setEditingPageRange(null)}
+                            data-testid={`button-cancel-pages-${section.id}`}
+                          >
+                            <X className="h-3 w-3" />
+                          </Button>
+                        </div>
+                      ) : section.startPage && section.endPage ? (
+                        <Badge 
+                          variant="outline" 
+                          className="font-mono text-xs cursor-pointer hover-elevate"
+                          onClick={() => onUpdatePageRange && setEditingPageRange({
+                            id: section.id,
+                            startPage: section.startPage!,
+                            endPage: section.endPage!
+                          })}
+                          data-testid={`badge-pages-${section.id}`}
+                        >
+                          {section.startPage === section.endPage 
+                            ? section.startPage 
+                            : `${section.startPage}-${section.endPage}`}
+                        </Badge>
+                      ) : onUpdatePageRange ? (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-6 text-xs"
+                          onClick={() => setEditingPageRange({
+                            id: section.id,
+                            startPage: section.pageNumber || 1,
+                            endPage: section.pageNumber || 1
+                          })}
+                          data-testid={`button-set-pages-${section.id}`}
+                        >
+                          {section.pageNumber ? `Page ${section.pageNumber}` : "Set pages"}
+                        </Button>
+                      ) : section.pageNumber ? (
                         <Badge variant="outline" className="font-mono text-xs">
                           {section.pageNumber}
                         </Badge>
@@ -250,12 +345,48 @@ export function SectionsTable({ sections, onUpdateTitle, selectedIds = new Set()
                       )}
                     </TableCell>
                   </TableRow>
-                  {section.content && (
+                  {(section.content || section.manufacturers?.length || section.modelNumbers?.length || section.materials?.length || section.conflicts?.length) && (
                     <CollapsibleContent asChild>
                       <TableRow className="bg-muted/20" data-testid={`row-content-${section.id}`}>
                         <TableCell colSpan={onSelectionChange ? 7 : 6} className="p-4">
-                          <div className="text-sm text-muted-foreground whitespace-pre-wrap max-h-48 overflow-y-auto">
-                            {section.content}
+                          <div className="space-y-3">
+                            {(section.manufacturers?.length > 0 || section.modelNumbers?.length > 0) && (
+                              <div className="grid grid-cols-2 gap-4 text-sm">
+                                {section.manufacturers?.length > 0 && (
+                                  <div>
+                                    <span className="font-medium text-foreground">Manufacturers:</span>
+                                    <p className="text-muted-foreground">{section.manufacturers.join(", ")}</p>
+                                  </div>
+                                )}
+                                {section.modelNumbers?.length > 0 && (
+                                  <div>
+                                    <span className="font-medium text-foreground">Model Numbers:</span>
+                                    <p className="text-muted-foreground">{section.modelNumbers.join(", ")}</p>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                            {section.materials?.length > 0 && (
+                              <div className="text-sm">
+                                <span className="font-medium text-foreground">Materials:</span>
+                                <p className="text-muted-foreground">{section.materials.join(", ")}</p>
+                              </div>
+                            )}
+                            {section.conflicts?.length > 0 && (
+                              <div className="text-sm">
+                                <span className="font-medium text-destructive">Conflicts/Notes:</span>
+                                <ul className="list-disc list-inside text-muted-foreground">
+                                  {section.conflicts.map((c, i) => (
+                                    <li key={i}>{c}</li>
+                                  ))}
+                                </ul>
+                              </div>
+                            )}
+                            {section.content && (
+                              <div className="text-sm text-muted-foreground whitespace-pre-wrap max-h-32 overflow-y-auto border-t pt-3 mt-3">
+                                {section.content}
+                              </div>
+                            )}
                           </div>
                         </TableCell>
                       </TableRow>

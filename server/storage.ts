@@ -25,17 +25,35 @@ export interface IStorage {
   createAccessoryMatch(data: InsertAccessoryMatch): Promise<AccessoryMatch>;
   getAccessoryMatchesBySession(sessionId: string): Promise<AccessoryMatch[]>;
   deleteAccessoryMatchesBySession(sessionId: string): Promise<boolean>;
+
+  storePdfBuffer(sessionId: string, buffer: Buffer): Promise<void>;
+  getPdfBuffer(sessionId: string): Promise<Buffer | undefined>;
+  deletePdfBuffer(sessionId: string): Promise<boolean>;
 }
 
 export class MemStorage implements IStorage {
   private sessions: Map<string, Session>;
   private sections: Map<string, ExtractedSection>;
   private accessoryMatches: Map<string, AccessoryMatch>;
+  private pdfBuffers: Map<string, Buffer>;
 
   constructor() {
     this.sessions = new Map();
     this.sections = new Map();
     this.accessoryMatches = new Map();
+    this.pdfBuffers = new Map();
+  }
+
+  async storePdfBuffer(sessionId: string, buffer: Buffer): Promise<void> {
+    this.pdfBuffers.set(sessionId, buffer);
+  }
+
+  async getPdfBuffer(sessionId: string): Promise<Buffer | undefined> {
+    return this.pdfBuffers.get(sessionId);
+  }
+
+  async deletePdfBuffer(sessionId: string): Promise<boolean> {
+    return this.pdfBuffers.delete(sessionId);
   }
 
   async createSession(data: InsertSession): Promise<Session> {

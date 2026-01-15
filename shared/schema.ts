@@ -22,6 +22,13 @@ export const extractedSectionSchema = z.object({
   title: z.string(),
   content: z.string().optional(),
   pageNumber: z.number().optional(),
+  startPage: z.number().optional(),
+  endPage: z.number().optional(),
+  manufacturers: z.array(z.string()).default([]),
+  modelNumbers: z.array(z.string()).default([]),
+  materials: z.array(z.string()).default([]),
+  conflicts: z.array(z.string()).default([]),
+  notes: z.array(z.string()).default([]),
   isEdited: z.boolean().default(false),
 });
 export type ExtractedSection = z.infer<typeof extractedSectionSchema>;
