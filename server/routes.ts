@@ -255,7 +255,11 @@ export async function registerRoutes(
 
   app.post("/api/sessions/:id/generate-packets", async (req: Request, res: Response) => {
     try {
-      const { sectionIds } = req.body as { sectionIds: string[] };
+      const { sectionIds, includeCover = false, includeSummary = false } = req.body as { 
+        sectionIds: string[];
+        includeCover?: boolean;
+        includeSummary?: boolean;
+      };
       
       const session = await storage.getSession(req.params.id);
       if (!session) {
@@ -279,7 +283,7 @@ export async function registerRoutes(
       const projectName = sanitizeFilename(session.projectName || "Untitled Project");
 
       for (const section of sections) {
-        const packet = await generateSectionPacket(sourcePdf, section, session.projectName);
+        const packet = await generateSectionPacket(sourcePdf, section, session.projectName, includeCover, includeSummary);
         const safeTitle = sanitizeFilename(section.title);
         const folderName = `${section.sectionNumber} - ${safeTitle}`;
         const pdfFileName = `${section.sectionNumber} - ${safeTitle} - ${projectName}.pdf`;
@@ -313,13 +317,17 @@ export async function registerRoutes(
 async function generateSectionPacket(
   sourcePdf: PDFDocument,
   section: ExtractedSection,
-  projectName: string
+  projectName: string,
+  includeCover: boolean = false,
+  includeSummary: boolean = false
 ): Promise<Uint8Array> {
   const packetPdf = await PDFDocument.create();
   const helveticaFont = await packetPdf.embedFont(StandardFonts.Helvetica);
   const helveticaBold = await packetPdf.embedFont(StandardFonts.HelveticaBold);
 
-  await addCoverPage(packetPdf, section, projectName, helveticaFont, helveticaBold);
+  if (includeCover) {
+    await addCoverPage(packetPdf, section, projectName, helveticaFont, helveticaBold);
+  }
 
   const startPage = section.startPage ?? section.pageNumber ?? 1;
   const endPage = section.endPage ?? startPage;
@@ -338,7 +346,9 @@ async function generateSectionPacket(
     copiedPages.forEach(page => packetPdf.addPage(page));
   }
 
-  await addSummaryPages(packetPdf, section, helveticaFont, helveticaBold);
+  if (includeSummary) {
+    await addSummaryPages(packetPdf, section, helveticaFont, helveticaBold);
+  }
 
   return packetPdf.save();
 }

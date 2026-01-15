@@ -32,6 +32,8 @@ export default function ReviewPage() {
   const searchParams = useSearch();
   const params = new URLSearchParams(searchParams);
   const sessionId = params.get("session");
+  const includeCover = params.get("cover") === "1";
+  const includeSummary = params.get("summary") === "1";
   
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -163,7 +165,7 @@ export default function ReviewPage() {
       const response = await fetch(`/api/sessions/${sessionId}/generate-packets`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sectionIds }),
+        body: JSON.stringify({ sectionIds, includeCover, includeSummary }),
       });
 
       if (!response.ok) {

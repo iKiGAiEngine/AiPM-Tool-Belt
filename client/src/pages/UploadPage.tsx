@@ -6,6 +6,7 @@ import { ProcessingStatus } from "@/components/ProcessingStatus";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import { ArrowRight, FileText, Zap, Shield, Building2 } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import type { Session } from "@shared/schema";
@@ -17,6 +18,8 @@ export default function UploadPage() {
   const queryClient = useQueryClient();
   const [activeSession, setActiveSession] = useState<Session | null>(null);
   const [projectName, setProjectName] = useState("");
+  const [includeCoverPage, setIncludeCoverPage] = useState(false);
+  const [includeSummary, setIncludeSummary] = useState(false);
   const pollTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
@@ -104,7 +107,12 @@ export default function UploadPage() {
 
   const handleViewResults = () => {
     if (activeSession) {
-      setLocation(`/review?session=${activeSession.id}`);
+      const params = new URLSearchParams({
+        session: activeSession.id,
+        cover: includeCoverPage ? "1" : "0",
+        summary: includeSummary ? "1" : "0",
+      });
+      setLocation(`/review?${params.toString()}`);
     }
   };
 
@@ -141,23 +149,53 @@ export default function UploadPage() {
         <div className="mt-12">
           {!activeSession || activeSession.status === "idle" ? (
             <div className="space-y-6">
-              <div className="mx-auto max-w-md">
-                <Label htmlFor="project-name" className="flex items-center gap-2 text-sm font-medium text-foreground mb-2">
-                  <Building2 className="h-4 w-4" />
-                  Project Name
-                </Label>
-                <Input
-                  id="project-name"
-                  type="text"
-                  placeholder="e.g., Fountain Valley School"
-                  value={projectName}
-                  onChange={(e) => setProjectName(e.target.value)}
-                  className="w-full"
-                  data-testid="input-project-name"
-                />
-                <p className="mt-1.5 text-xs text-muted-foreground">
-                  This name will be used in exported PDF filenames
-                </p>
+              <div className="mx-auto max-w-md space-y-4">
+                <div>
+                  <Label htmlFor="project-name" className="flex items-center gap-2 text-sm font-medium text-foreground mb-2">
+                    <Building2 className="h-4 w-4" />
+                    Project Name
+                  </Label>
+                  <Input
+                    id="project-name"
+                    type="text"
+                    placeholder="e.g., Fountain Valley School"
+                    value={projectName}
+                    onChange={(e) => setProjectName(e.target.value)}
+                    className="w-full"
+                    data-testid="input-project-name"
+                  />
+                  <p className="mt-1.5 text-xs text-muted-foreground">
+                    This name will be used in exported PDF filenames
+                  </p>
+                </div>
+
+                <div className="pt-2 border-t">
+                  <p className="text-sm font-medium text-foreground mb-3">Export Options</p>
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-3">
+                      <Checkbox
+                        id="include-cover"
+                        checked={includeCoverPage}
+                        onCheckedChange={(checked) => setIncludeCoverPage(checked === true)}
+                        data-testid="checkbox-include-cover"
+                      />
+                      <Label htmlFor="include-cover" className="text-sm text-muted-foreground cursor-pointer">
+                        Include Short Order Form (cover page)
+                      </Label>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <Checkbox
+                        id="include-summary"
+                        checked={includeSummary}
+                        onCheckedChange={(checked) => setIncludeSummary(checked === true)}
+                        data-testid="checkbox-include-summary"
+                      />
+                      <Label htmlFor="include-summary" className="text-sm text-muted-foreground cursor-pointer">
+                        Include Summary/Risk Report
+                      </Label>
+                    </div>
+                  </div>
+                </div>
               </div>
               <UploadZone
                 onUpload={handleUpload}
