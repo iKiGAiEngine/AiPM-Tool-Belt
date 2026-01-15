@@ -7,7 +7,8 @@ SpecSift is a professional construction document processing tool that extracts D
 ## Recent Changes (January 2026)
 
 ### PDF Packet Export System
-- **Document-Centric Output**: Export now generates scope-specific PDF packets that preserve original spec pages
+- **Document-Centric Output**: Export generates scope-specific PDF packets that preserve original spec pages
+- **Server-Side ZIP Generation**: ZIP files are built on the server and returned as binary data, avoiding browser memory limits
 - **Three-Part PDF Structure**: Each exported section contains:
   1. **Cover Page (Short Order Form)**: Auto-filled with CSI section number, title, manufacturers, model numbers, materials, and notes
   2. **Original Extracted Pages**: Verbatim pages from the uploaded PDF (visually identical to source)
@@ -21,7 +22,9 @@ SpecSift is a professional construction document processing tool that extracts D
 - **Conflict Detection**: Flags potential issues like multiple manufacturers, "or equal" clauses, sole source requirements
 
 ### UI Improvements
-- **Page Range Display**: Table view shows start-end page ranges for each section
+- **Page Range Editing**: Click on page range badges in table view to edit start/end pages inline
+- **Set Pages Button**: Sections without detected page ranges show a "Set pages" button to add them
+- **Validation**: Client-side validation disables save for invalid ranges; server validates positive numbers and start ≤ end
 - **Expanded Details**: Expandable rows show manufacturers, models, materials, and conflicts
 - **Loading States**: Export button shows progress during PDF packet generation
 - **Project Name**: User can specify project name for exported file naming
