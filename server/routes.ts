@@ -572,7 +572,7 @@ async function addSummaryPages(
     y -= 14;
   } else {
     for (const conflict of section.conflicts) {
-      const lines = wrapText(`⚠ ${conflict}`, 85);
+      const lines = wrapText(`[!] ${conflict}`, 85);
       for (const line of lines) {
         page.drawText(line, {
           x: 60,
