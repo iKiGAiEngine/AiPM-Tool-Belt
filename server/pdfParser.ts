@@ -90,10 +90,11 @@ function extractManufacturers(text: string): string[] {
   const textNormalized = text.replace(/\s+/g, " ");
   
   const mfrSectionPatterns = [
-    /Manufacturers?:?\s*(?:Subject to compliance[^:]*:?\s*)?(.{50,800}?)(?=\d+\.\d+\s+[A-Z]|PART\s+\d|$)/gi,
-    /Acceptable\s+Manufacturers?:?\s*(.{50,500}?)(?=\d+\.\d+\s+[A-Z]|PART\s+\d|$)/gi,
-    /Approved\s+(?:Manufacturers?|Products?):?\s*(.{50,500}?)(?=\d+\.\d+\s+[A-Z]|PART\s+\d|$)/gi,
-    /Basis.of.Design:?\s*(.{20,200}?)(?=\.|$)/gi,
+    /Manufacturers?:?\s*(?:Subject to compliance[^:]*:?\s*)?(.{50,1500}?)(?=\d+\.\d+\s+[A-Z]|PART\s+\d|$)/gi,
+    /Acceptable\s+Manufacturers?:?\s*(.{50,1000}?)(?=\d+\.\d+\s+[A-Z]|PART\s+\d|$)/gi,
+    /Approved\s+(?:Manufacturers?|Products?):?\s*(.{50,1000}?)(?=\d+\.\d+\s+[A-Z]|PART\s+\d|$)/gi,
+    /Basis[\s\-\.]+of[\s\-\.]+Design:?\s*(.{20,300}?)(?=\d+\.\d+|[a-z]\.|$)/gi,
+    /Products?:?\s*(?:Subject to compliance[^:]*:?\s*)?(.{50,1500}?)(?=\d+\.\d+\s+[A-Z]|PART\s+\d|$)/gi,
   ];
   
   for (const pattern of mfrSectionPatterns) {
@@ -205,16 +206,12 @@ function detectConflicts(text: string, manufacturers: string[], models: string[]
   const conflicts: string[] = [];
   const textLower = text.toLowerCase();
   
-  if (manufacturers.length > 3) {
-    conflicts.push(`Multiple manufacturers specified (${manufacturers.length} found) - clarify approved substitutions`);
-  }
-  
-  if (textLower.includes("or equal") || textLower.includes("or approved equal")) {
-    conflicts.push("'Or equal' clause present - substitutions may be allowed");
-  }
-  
   if (textLower.includes("no substitution") || textLower.includes("no substitutions")) {
     conflicts.push("No substitutions allowed - sole source requirement");
+  }
+  
+  if (manufacturers.length === 1 && !textLower.includes("or equal")) {
+    conflicts.push("Single manufacturer specified without 'or equal' - may be sole source");
   }
   
   if (textLower.includes("performance") && textLower.includes("prescriptive")) {
