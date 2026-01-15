@@ -1,0 +1,140 @@
+Perfect — this is exactly the right way to do this 👍
+Below is (1) a short supporting summary you can include for context and (2) a detailed, copy-paste-ready prompt written in Replit-native language that tells the agent precisely how to change the existing SpecSift app’s output behavior.
+
+You can paste just the prompt, or paste both (I recommend both).
+
+⸻
+
+1️⃣ Supporting Summary (Context for Replit)
+
+Purpose of this change
+SpecSift’s value is not just “AI interpretation,” but acting as a trusted extraction + packaging tool for Division 10 material scopes.
+
+The output needs to preserve the original contract documents verbatim, while adding structured clarity on top for estimating, manufacturer pricing, and scope coordination.
+
+This update changes SpecSift’s output from a primarily text-based summary into a document-centric deliverable: curated, scope-specific PDF packets that combine:
+	•	Original spec pages (unaltered)
+	•	A filled short order form cover page
+	•	A clear risk/conflict summary tailored to NBS material supply
+
+This helps ensure:
+	•	Auditability
+	•	Traceability
+	•	Reduced misinterpretation
+	•	Cleaner handoff to vendors and manufacturers
+
+⸻
+
+2️⃣ COPY / PASTE PROMPT FOR REPLIT (Main Instruction)
+
+You can paste everything below directly into Replit as a change request.
+
+⸻
+
+SpecSift – Output Behavior Update
+
+I want to update the existing SpecSift app so that its primary output is no longer just a text report, but instead scope-specific PDF packets extracted directly from the original uploaded project specifications.
+
+Core Output Concept
+
+For each identified spec section (scope), SpecSift should generate a new PDF composed of three ordered parts:
+
+⸻
+
+PART 1 – Cover Page (Short Order Form)
+
+The first page of each scope PDF must be a generated cover page that functions as a completed short order form for that scope.
+
+This cover page should be auto-filled using information found in the specs and include, where applicable:
+	•	CSI spec section number
+	•	Spec section title
+	•	Inferred scope type (e.g., Toilet Accessories, Partitions, Lockers, Wall Protection, FECs, etc.)
+	•	Approved manufacturers listed in the spec
+	•	Explicitly named model numbers or series
+	•	Key material requirements relevant to supplying (finishes, mounting, options, accessories)
+	•	Any spec references or notes used to populate the form
+
+If an item is not clearly defined, it should be marked as:
+
+“Not explicitly specified – see summary notes”
+
+⸻
+
+PART 2 – Original Extracted Spec Pages (Verbatim)
+
+Immediately following the cover page, include only the relevant original pages from the uploaded spec PDF for that section.
+
+Rules for page extraction
+	•	The extracted section must:
+	•	Start at the first page where the CSI section header and section title appear at the top
+	•	End at the final page of that same section
+	•	Pages must remain:
+	•	In original order
+	•	Unedited
+	•	Visually identical to the source PDF
+	•	No unrelated pages may be included
+
+This portion of the output must act as a verbatim legal reference for pricing, submittals, and coordination.
+
+⸻
+
+PART 3 – Summary / Risk / Conflict Report
+
+After the extracted spec pages, append one or more generated summary pages that clearly explain what was found and what may cause confusion.
+
+This report should focus on material-supply relevance for NBS, including:
+
+Required sections
+	•	What This Spec Covers (Plain English)
+	•	Approved Manufacturers
+	•	Identified Model Numbers / Series
+	•	Key Requirements Affecting Pricing or Fabrication
+	•	Conflicts or Ambiguities, such as:
+	•	Multiple product types allowed
+	•	Multiple manufacturers without clarification
+	•	Performance vs prescriptive conflicts
+	•	Notes that may confuse estimators or vendors
+	•	Items Requiring Clarification or Assumptions
+
+This section should be conservative and highlight risk, not guess intent.
+
+⸻
+
+Scope Identification & Review
+	•	Each PDF packet must clearly display:
+	•	CSI section number
+	•	Section title
+	•	Scope label used for folder naming
+	•	If multiple spec sections map to the same scope type, they should be output as separate PDFs unless the user explicitly combines them.
+	•	The app should preserve or allow a review step before final generation so the user can confirm:
+	•	Scope label
+	•	Start/end pages
+	•	Inclusion or exclusion of edge pages
+
+⸻
+
+File Naming & Packaging
+	•	Each generated PDF should be named using a consistent, estimator-friendly format, such as:
+[CSI Section Number] – [Scope Name] – [Project Name (if provided)]
+	•	The app should allow:
+	•	Individual PDF downloads
+	•	A single ZIP file containing all scope PDFs
+
+⸻
+
+Guiding Principles
+	•	Preserve original contract documents exactly
+	•	Favor traceability over interpretation
+	•	Flag uncertainty instead of resolving it silently
+	•	Optimize for estimating, buyout, and manufacturer pricing workflows
+	•	Treat output as something that could be shared externally without additional cleanup
+
+⸻
+
+If you want, next I can help you with:
+	•	A one-page short order form layout (what fields go where)
+	•	A conflict-detection checklist SpecSift should follow
+	•	A “confidence score” model per scope
+	•	Or a SpecSift → Buyout Bot handoff structure
+
+Just tell me what you want to tackle next.
