@@ -86,38 +86,74 @@ interface ExtractedDetails {
 
 function extractManufacturers(text: string): string[] {
   const manufacturers: string[] = [];
-  const lines = text.split("\n");
   
-  let inManufacturerSection = false;
+  const textNormalized = text.replace(/\s+/g, " ");
   
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i].trim();
-    const lineLower = line.toLowerCase();
-    
-    if (lineLower.includes("manufacturer") || lineLower.includes("approved product") || lineLower.includes("acceptable manufacturer")) {
-      inManufacturerSection = true;
-      continue;
-    }
-    
-    if (inManufacturerSection) {
-      if (/^[A-Z][a-zA-Z\s&,\.]+(?:Inc|LLC|Corp|Co|Ltd)?\.?$/i.test(line) && line.length > 3 && line.length < 80) {
-        if (!line.match(/^(PART|SECTION|GENERAL|PRODUCTS|EXECUTION|SUMMARY|REQUIREMENTS)/i)) {
-          manufacturers.push(line.replace(/[,;.]$/, "").trim());
+  const mfrSectionPatterns = [
+    /Manufacturers?:?\s*(?:Subject to compliance[^:]*:?\s*)?(.{50,800}?)(?=\d+\.\d+\s+[A-Z]|PART\s+\d|$)/gi,
+    /Acceptable\s+Manufacturers?:?\s*(.{50,500}?)(?=\d+\.\d+\s+[A-Z]|PART\s+\d|$)/gi,
+    /Approved\s+(?:Manufacturers?|Products?):?\s*(.{50,500}?)(?=\d+\.\d+\s+[A-Z]|PART\s+\d|$)/gi,
+    /Basis.of.Design:?\s*(.{20,200}?)(?=\.|$)/gi,
+  ];
+  
+  for (const pattern of mfrSectionPatterns) {
+    let match;
+    while ((match = pattern.exec(textNormalized)) !== null) {
+      const section = match[1];
+      
+      const listItems = section.match(/[a-z]\.\s*([A-Z][^a-z\.]{3,60})/g);
+      if (listItems) {
+        for (const item of listItems) {
+          const cleaned = item.replace(/^[a-z]\.\s*/, "").trim();
+          if (cleaned.length > 3 && !cleaned.match(/^(PART|SECTION|GENERAL|Subject|Provide|See|Refer)/i)) {
+            const mfr = cleaned
+              .replace(/[;:].*$/, "")
+              .replace(/\s+or equal.*$/i, "")
+              .replace(/[,.]$/, "")
+              .trim();
+            if (mfr.length > 3 && mfr.length < 60) {
+              manufacturers.push(mfr);
+            }
+          }
         }
       }
       
-      if (/^(PART|SECTION|\d+\.\d+|[A-Z]\.)/.test(line) && !lineLower.includes("manufacturer")) {
-        inManufacturerSection = false;
+      const numberedItems = section.match(/\d+\.\s*([A-Z][^0-9\.]{3,60})/g);
+      if (numberedItems) {
+        for (const item of numberedItems) {
+          const cleaned = item.replace(/^\d+\.\s*/, "").trim();
+          if (cleaned.length > 3 && !cleaned.match(/^(PART|SECTION|GENERAL|Subject|Provide|See|Refer)/i)) {
+            const mfr = cleaned
+              .replace(/[;:].*$/, "")
+              .replace(/\s+or equal.*$/i, "")
+              .replace(/[,.]$/, "")
+              .trim();
+            if (mfr.length > 3 && mfr.length < 60) {
+              manufacturers.push(mfr);
+            }
+          }
+        }
       }
-    }
-    
-    const mfrMatch = line.match(/(?:Basis.of.Design|Approved|Acceptable)[\s:]+([A-Z][a-zA-Z\s&,\.]+(?:Inc|LLC|Corp|Co|Ltd)?)/i);
-    if (mfrMatch && mfrMatch[1].length > 3) {
-      manufacturers.push(mfrMatch[1].replace(/[,;.]$/, "").trim());
     }
   }
   
-  return Array.from(new Set(manufacturers)).slice(0, 10);
+  const directPatterns = [
+    /(?:by|from)\s+([A-Z][A-Za-z\s&,]+(?:Inc|LLC|Corp|Co|Ltd|Company)?\.?)/gi,
+    /([A-Z][A-Za-z]+(?:\s+[A-Z][A-Za-z]+)*)\s+(?:Model|Series|Type)\s+/g,
+  ];
+  
+  for (const pattern of directPatterns) {
+    let match;
+    while ((match = pattern.exec(text)) !== null) {
+      const mfr = match[1].replace(/[,;.]$/, "").trim();
+      if (mfr.length > 3 && mfr.length < 50 && !mfr.match(/^(The|This|That|And|For|With)/i)) {
+        manufacturers.push(mfr);
+      }
+    }
+  }
+  
+  const unique = Array.from(new Set(manufacturers.map(m => m.trim())));
+  return unique.filter(m => m.length > 3).slice(0, 15);
 }
 
 function extractModelNumbers(text: string): string[] {
