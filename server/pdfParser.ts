@@ -57,7 +57,8 @@ export function canonize(sec: string): string {
 function cleanSectionTitle(title: string): string {
   let cleaned = title;
   cleaned = cleaned.replace(/\s*SECTION\s+\d+.*$/i, "");
-  cleaned = cleaned.replace(/\s*PART\s+\d+.*$/i, "");
+  cleaned = cleaned.replace(/\s*PART\s*\d*.*$/i, "");
+  cleaned = cleaned.replace(/\s+PART\s*$/i, "");
   
   const markers = ["GENERAL", "SUMMARY", "PRODUCTS", "EXECUTION", "REQUIREMENTS"];
   for (const marker of markers) {
