@@ -278,7 +278,7 @@ export async function registerRoutes(
         return res.status(400).json({ message: "No sections selected" });
       }
 
-      const sourcePdf = await PDFDocument.load(pdfBuffer);
+      const sourcePdf = await PDFDocument.load(pdfBuffer, { ignoreEncryption: true });
       const zip = new JSZip();
       const projectName = sanitizeFilename(session.projectName || "Untitled Project");
 
