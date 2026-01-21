@@ -6,6 +6,10 @@ import { processPdf } from "./pdfParser";
 import type { Session, ExtractedSection } from "@shared/schema";
 import { PDFDocument, rgb, StandardFonts, type PDFFont } from "pdf-lib";
 import JSZip from "jszip";
+import { execSync } from "child_process";
+import fs from "fs";
+import path from "path";
+import os from "os";
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -278,7 +282,40 @@ export async function registerRoutes(
         return res.status(400).json({ message: "No sections selected" });
       }
 
-      const sourcePdf = await PDFDocument.load(pdfBuffer, { ignoreEncryption: true });
+      // Decrypt PDF using qpdf if encrypted
+      let pdfToLoad = pdfBuffer;
+      try {
+        // Try loading directly first
+        await PDFDocument.load(pdfBuffer);
+      } catch (e: any) {
+        if (e.message?.includes('encrypted')) {
+          // Use qpdf to decrypt (handles permission-restricted PDFs with empty password)
+          const tmpDir = os.tmpdir();
+          const inputPath = path.join(tmpDir, `input-${Date.now()}.pdf`);
+          const outputPath = path.join(tmpDir, `decrypted-${Date.now()}.pdf`);
+          
+          fs.writeFileSync(inputPath, pdfBuffer);
+          try {
+            execSync(`qpdf --decrypt --password="" "${inputPath}" "${outputPath}"`, { stdio: 'pipe' });
+            pdfToLoad = fs.readFileSync(outputPath);
+          } catch {
+            // If qpdf fails, try without password
+            try {
+              execSync(`qpdf --decrypt "${inputPath}" "${outputPath}"`, { stdio: 'pipe' });
+              pdfToLoad = fs.readFileSync(outputPath);
+            } catch {
+              // Last resort: use ignoreEncryption
+              pdfToLoad = pdfBuffer;
+            }
+          } finally {
+            // Cleanup temp files
+            try { fs.unlinkSync(inputPath); } catch {}
+            try { fs.unlinkSync(outputPath); } catch {}
+          }
+        }
+      }
+      
+      const sourcePdf = await PDFDocument.load(pdfToLoad, { ignoreEncryption: true });
       const zip = new JSZip();
       const projectName = sanitizeFilename(session.projectName || "Untitled Project");
 
