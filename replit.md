@@ -1,8 +1,10 @@
-# SpecSift - Division 10 Specification Extractor
+# Team Tools - Construction Document Suite
 
 ## Overview
 
-SpecSift is a professional construction document processing tool that extracts Division 10 specifications from PDF files. The application parses construction specification documents to identify and extract section numbers, titles, and content related to Division 10 (Specialties) items like toilet accessories, signage, lockers, visual display units, and more. Users can upload PDFs, monitor processing status, review extracted sections, edit titles, and export results.
+Team Tools is a suite of construction document processing tools. The main landing page (`/`) displays a modern tile-based menu where users can select from available tools. Currently includes:
+
+- **SpecSift** (`/specsift`): Extracts Division 10 specifications from PDF files, parses section numbers/titles/content for toilet accessories, partitions, lockers, and more. Users upload PDFs, review extracted sections, edit titles, and export organized PDF packets.
 
 ## Recent Changes (January 2026)
 
@@ -44,8 +46,9 @@ Preferred communication style: Simple, everyday language.
 - **Build Tool**: Vite
 
 The frontend follows a page-based structure:
-- `UploadPage`: File upload with drag-and-drop, processing status polling
-- `ReviewPage`: Section review with grid/table view toggle, search, accessory matching panel
+- `HomePage` (`/`): Modern tile-based menu for selecting tools
+- `UploadPage` (`/specsift`): File upload with drag-and-drop, processing status polling
+- `ReviewPage` (`/specsift/review`): Section review with grid/table view toggle, search, accessory matching panel
 
 ### Backend Architecture
 - **Framework**: Express.js with TypeScript
