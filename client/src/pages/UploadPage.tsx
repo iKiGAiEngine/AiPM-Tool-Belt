@@ -112,7 +112,7 @@ export default function UploadPage() {
         cover: includeCoverPage ? "1" : "0",
         summary: includeSummary ? "1" : "0",
       });
-      setLocation(`/review?${params.toString()}`);
+      setLocation(`/specsift/review?${params.toString()}`);
     }
   };
 

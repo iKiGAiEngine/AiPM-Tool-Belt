@@ -218,7 +218,7 @@ export default function ReviewPage() {
           </p>
           <Button
             className="mt-6"
-            onClick={() => setLocation("/")}
+            onClick={() => setLocation("/specsift")}
             data-testid="button-go-upload"
           >
             <ArrowLeft className="mr-2 h-4 w-4" />
@@ -249,7 +249,7 @@ export default function ReviewPage() {
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={() => setLocation("/")}
+                onClick={() => setLocation("/specsift")}
                 data-testid="button-back"
               >
                 <ArrowLeft className="mr-2 h-4 w-4" />

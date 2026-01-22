@@ -5,6 +5,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ThemeProvider } from "@/lib/theme";
 import { Header } from "@/components/Header";
+import HomePage from "@/pages/HomePage";
 import UploadPage from "@/pages/UploadPage";
 import ReviewPage from "@/pages/ReviewPage";
 import NotFound from "@/pages/not-found";
@@ -12,8 +13,9 @@ import NotFound from "@/pages/not-found";
 function Router() {
   return (
     <Switch>
-      <Route path="/" component={UploadPage} />
-      <Route path="/review" component={ReviewPage} />
+      <Route path="/" component={HomePage} />
+      <Route path="/specsift" component={UploadPage} />
+      <Route path="/specsift/review" component={ReviewPage} />
       <Route component={NotFound} />
     </Switch>
   );
