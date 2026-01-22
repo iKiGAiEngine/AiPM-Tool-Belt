@@ -22,7 +22,7 @@ export function Header() {
               <Wrench className="h-5 w-5 text-primary-foreground" />
             </div>
             <span className="text-xl font-semibold tracking-tight" data-testid="text-logo">
-              Team Tools
+              AiPM Tool Belt
             </span>
           </Link>
           

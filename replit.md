@@ -1,8 +1,8 @@
-# Team Tools - Construction Document Suite
+# AiPM Tool Belt - Your Ai Assisted APM
 
 ## Overview
 
-Team Tools is a suite of construction document processing tools. The main landing page (`/`) displays a modern tile-based menu where users can select from available tools. Currently includes:
+AiPM Tool Belt is a suite of construction document processing tools. The main landing page (`/`) displays a modern tile-based menu where users can select from available tools. Currently includes:
 
 - **SpecSift** (`/specsift`): Extracts Division 10 specifications from PDF files, parses section numbers/titles/content for toilet accessories, partitions, lockers, and more. Users upload PDFs, review extracted sections, edit titles, and export organized PDF packets.
 

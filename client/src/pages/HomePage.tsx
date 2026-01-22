@@ -51,10 +51,10 @@ export default function HomePage() {
       <div className="flex-1 flex flex-col items-center justify-center px-6 py-12">
         <div className="text-center mb-12">
           <h1 className="text-4xl font-light tracking-tight text-foreground mb-3">
-            Team Tools
+            AiPM Tool Belt
           </h1>
           <p className="text-muted-foreground text-lg font-light">
-            Select a tool to get started
+            Your Ai Assisted APM
           </p>
         </div>
 
@@ -66,7 +66,7 @@ export default function HomePage() {
       </div>
 
       <footer className="text-center py-6 text-muted-foreground/60 text-sm">
-        Construction Document Tools
+        AiPM Tool Belt
       </footer>
     </div>
   );
