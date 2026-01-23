@@ -138,13 +138,13 @@ export default function UploadPage() {
     <div className="min-h-[calc(100vh-4rem)]">
       <div className="mx-auto max-w-7xl px-6 py-12 lg:px-8 lg:py-20">
         <div className="mx-auto max-w-3xl text-center">
-          <p className="text-sm font-medium uppercase tracking-widest text-muted-foreground mb-2" data-testid="text-tool-name">
+          <h1 className="text-4xl font-semibold tracking-tight text-foreground sm:text-5xl" data-testid="text-tool-name">
             SpecSift
-          </p>
-          <h1 className="text-4xl font-semibold tracking-tight text-foreground sm:text-5xl" data-testid="text-page-title">
-            Division 10 Spec Extractor
           </h1>
-          <p className="mt-4 text-lg text-muted-foreground">
+          <p className="mt-2 text-xl text-muted-foreground sm:text-2xl" data-testid="text-page-title">
+            Division 10 Spec Extractor
+          </p>
+          <p className="mt-4 text-base text-muted-foreground">
             Upload your construction specification PDF and automatically extract Division 10 sections for toilet accessories, partitions, lockers, and more.
           </p>
         </div>
