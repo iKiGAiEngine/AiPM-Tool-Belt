@@ -138,6 +138,9 @@ export default function UploadPage() {
     <div className="min-h-[calc(100vh-4rem)]">
       <div className="mx-auto max-w-7xl px-6 py-12 lg:px-8 lg:py-20">
         <div className="mx-auto max-w-3xl text-center">
+          <p className="text-sm font-medium uppercase tracking-widest text-muted-foreground mb-2" data-testid="text-tool-name">
+            SpecSift
+          </p>
           <h1 className="text-4xl font-semibold tracking-tight text-foreground sm:text-5xl" data-testid="text-page-title">
             Division 10 Spec Extractor
           </h1>
