@@ -105,3 +105,54 @@ export const users = {
 };
 export type User = typeof users;
 export type InsertUser = Omit<User, "id">;
+
+// Plan Parser schemas
+export const planParserJobStatusSchema = z.enum(["pending", "processing", "complete", "error"]);
+export type PlanParserJobStatus = z.infer<typeof planParserJobStatusSchema>;
+
+export const planParserJobSchema = z.object({
+  id: z.string(),
+  status: planParserJobStatusSchema,
+  totalPages: z.number().default(0),
+  processedPages: z.number().default(0),
+  flaggedPages: z.number().default(0),
+  filenames: z.array(z.string()).default([]),
+  message: z.string().default(""),
+  createdAt: z.string(),
+  expiresAt: z.string(),
+  scopeCounts: z.record(z.string(), z.number()).default({}),
+});
+export type PlanParserJob = z.infer<typeof planParserJobSchema>;
+export type InsertPlanParserJob = Omit<PlanParserJob, "id">;
+
+export const parsedPageSchema = z.object({
+  id: z.string(),
+  jobId: z.string(),
+  originalFilename: z.string(),
+  pageNumber: z.number(),
+  isRelevant: z.boolean().default(false),
+  tags: z.array(z.string()).default([]),
+  confidence: z.number().min(0).max(100).default(0),
+  whyFlagged: z.string().default(""),
+  signageOverrideApplied: z.boolean().default(false),
+  ocrSnippet: z.string().default(""),
+  ocrText: z.string().default(""),
+  thumbnailPath: z.string().optional(),
+  userModified: z.boolean().default(false),
+});
+export type ParsedPage = z.infer<typeof parsedPageSchema>;
+export type InsertParsedPage = Omit<ParsedPage, "id">;
+
+// Plan Parser Scope Types
+export const PLAN_PARSER_SCOPES = [
+  "Toilet Accessories",
+  "Toilet Partitions",
+  "Wall Protection",
+  "Fire Extinguisher Cabinets",
+  "Cubicle Curtains",
+  "Visual Display",
+  "Lockers",
+  "Shelving",
+  "Other Div10",
+] as const;
+export type PlanParserScope = typeof PLAN_PARSER_SCOPES[number];
