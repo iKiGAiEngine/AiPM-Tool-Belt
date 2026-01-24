@@ -7,7 +7,7 @@ import type { PlanParserJob, ParsedPage } from "@shared/schema";
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: {
-    fileSize: 150 * 1024 * 1024,
+    fileSize: 500 * 1024 * 1024,
     files: 10,
   },
   fileFilter: (req, file, cb) => {
