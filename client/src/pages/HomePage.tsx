@@ -1,5 +1,5 @@
 import { Link } from "wouter";
-import { FileSearch, Wrench, Calculator, ClipboardList } from "lucide-react";
+import { FileSearch, ScanSearch, Wrench, Calculator } from "lucide-react";
 
 interface ToolTile {
   id: string;
@@ -20,7 +20,15 @@ const tools: ToolTile[] = [
     available: true,
   },
   {
-    id: "tool2",
+    id: "planparser",
+    title: "Plan Parser",
+    description: "OCR and classify construction plan pages by Division 10 scope categories",
+    icon: ScanSearch,
+    href: "/planparser",
+    available: true,
+  },
+  {
+    id: "tool3",
     title: "Coming Soon",
     description: "Additional tools for your team will appear here",
     icon: Wrench,
@@ -28,18 +36,10 @@ const tools: ToolTile[] = [
     available: false,
   },
   {
-    id: "tool3",
-    title: "Coming Soon",
-    description: "Additional tools for your team will appear here",
-    icon: Calculator,
-    href: "#",
-    available: false,
-  },
-  {
     id: "tool4",
     title: "Coming Soon",
     description: "Additional tools for your team will appear here",
-    icon: ClipboardList,
+    icon: Calculator,
     href: "#",
     available: false,
   },

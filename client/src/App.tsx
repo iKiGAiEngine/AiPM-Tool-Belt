@@ -8,6 +8,7 @@ import { Header } from "@/components/Header";
 import HomePage from "@/pages/HomePage";
 import UploadPage from "@/pages/UploadPage";
 import ReviewPage from "@/pages/ReviewPage";
+import PlanParserPage from "@/pages/PlanParserPage";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -16,6 +17,7 @@ function Router() {
       <Route path="/" component={HomePage} />
       <Route path="/specsift" component={UploadPage} />
       <Route path="/specsift/review" component={ReviewPage} />
+      <Route path="/planparser" component={PlanParserPage} />
       <Route component={NotFound} />
     </Switch>
   );
