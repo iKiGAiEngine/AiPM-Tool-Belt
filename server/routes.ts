@@ -103,6 +103,106 @@ export async function registerRoutes(
     }
   });
 
+  app.post("/api/demo", async (req: Request, res: Response) => {
+    try {
+      const session = await storage.createSession({
+        filename: "Demo_Specifications.pdf",
+        projectName: "Demo Project - Sample School",
+        status: "complete",
+        progress: 100,
+        message: "Demo data loaded",
+        createdAt: new Date().toISOString(),
+      });
+
+      const demoSections = [
+        {
+          sessionId: session.id,
+          sectionNumber: "10 14 00",
+          title: "Signage",
+          content: "This section covers interior and exterior signage requirements including room identification, directional signage, and ADA-compliant tactile signs.",
+          pageNumber: 42,
+          startPage: 42,
+          endPage: 45,
+          manufacturers: ["ASI Sign Systems", "Takeform", "Scott Sign Systems"],
+          modelNumbers: ["Series 2000", "ADA-100"],
+          materials: ["Acrylic", "Brushed Aluminum", "Photopolymer"],
+          conflicts: [],
+          notes: ["Verify room numbering with owner"],
+          isEdited: false,
+        },
+        {
+          sessionId: session.id,
+          sectionNumber: "10 21 13",
+          title: "Toilet Compartments",
+          content: "Phenolic toilet partitions with stainless steel hardware. Floor-mounted, overhead-braced configuration for standard locations.",
+          pageNumber: 48,
+          startPage: 48,
+          endPage: 52,
+          manufacturers: ["Bobrick", "Hadrian", "ASI Global Partitions"],
+          modelNumbers: ["1080 Series", "Solid Phenolic"],
+          materials: ["Solid Phenolic Core", "Stainless Steel Hardware", "Type 304"],
+          conflicts: ["Multiple manufacturers listed - verify acceptable brands"],
+          notes: ["ADA compartments required per plans"],
+          isEdited: false,
+        },
+        {
+          sessionId: session.id,
+          sectionNumber: "10 28 00",
+          title: "Toilet, Bath, and Laundry Accessories",
+          content: "Stainless steel toilet accessories including paper dispensers, grab bars, mirrors, and soap dispensers. Surface-mounted and recessed types as scheduled.",
+          pageNumber: 55,
+          startPage: 55,
+          endPage: 61,
+          manufacturers: ["Bobrick", "Bradley", "ASI"],
+          modelNumbers: ["B-2888", "B-4112", "B-290"],
+          materials: ["Type 304 Stainless Steel", "Satin Finish", "Polished Chrome"],
+          conflicts: [],
+          notes: ["Coordinate backing locations with framing contractor"],
+          isEdited: false,
+        },
+        {
+          sessionId: session.id,
+          sectionNumber: "10 44 13",
+          title: "Fire Protection Cabinets",
+          content: "Semi-recessed fire extinguisher cabinets with glass doors. Cabinets sized for ABC dry chemical extinguishers.",
+          pageNumber: 64,
+          startPage: 64,
+          endPage: 66,
+          manufacturers: ["JL Industries", "Larsen's", "Potter Roemer"],
+          modelNumbers: ["Ambassador Series", "2409"],
+          materials: ["Steel Cabinet", "Tempered Glass Door"],
+          conflicts: [],
+          notes: ["Verify cabinet sizes with fire extinguisher schedule"],
+          isEdited: false,
+        },
+        {
+          sessionId: session.id,
+          sectionNumber: "10 51 13",
+          title: "Metal Lockers",
+          content: "Single and double tier metal lockers for gymnasium and staff areas. Powder-coated finish with built-in combination locks.",
+          pageNumber: 68,
+          startPage: 68,
+          endPage: 73,
+          manufacturers: ["Republic Storage", "Lyon Workspace", "Penco"],
+          modelNumbers: ["Patriot Series", "Standard KD"],
+          materials: ["16-gauge Cold Rolled Steel", "Powder Coat Finish"],
+          conflicts: ["Sole source specification noted for Republic Storage"],
+          notes: ["Color selection by architect", "ADA accessible lockers at ends of rows"],
+          isEdited: false,
+        },
+      ];
+
+      for (const section of demoSections) {
+        await storage.createSection(section);
+      }
+
+      res.json(session);
+    } catch (error) {
+      console.error("Demo creation error:", error);
+      res.status(500).json({ message: "Failed to create demo session" });
+    }
+  });
+
   app.get("/api/sessions/:id", async (req: Request, res: Response) => {
     try {
       const session = await storage.getSession(req.params.id);

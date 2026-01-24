@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
-import { ArrowRight, FileText, Zap, Shield, Building2 } from "lucide-react";
+import { ArrowRight, FileText, Zap, Shield, Building2, Eye } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import type { Session } from "@shared/schema";
 import { useToast } from "@/hooks/use-toast";
@@ -56,6 +56,24 @@ export default function UploadPage() {
     onError: (error: Error) => {
       toast({
         title: "Upload Failed",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const demoMutation = useMutation({
+    mutationFn: async () => {
+      const response = await apiRequest("POST", "/api/demo");
+      return response.json() as Promise<Session>;
+    },
+    onSuccess: (session) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/sessions"] });
+      setLocation(`/specsift/review?session=${session.id}`);
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Demo Failed",
         description: error.message,
         variant: "destructive",
       });
@@ -200,6 +218,18 @@ export default function UploadPage() {
                     </Label>
                   </div>
                 </div>
+              </div>
+              <div className="mx-auto max-w-md pt-4 flex justify-center">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => demoMutation.mutate()}
+                  disabled={demoMutation.isPending}
+                  data-testid="button-preview-demo"
+                >
+                  <Eye className="mr-2 h-4 w-4" />
+                  {demoMutation.isPending ? "Loading..." : "Preview Demo"}
+                </Button>
               </div>
             </div>
           ) : (
