@@ -43,7 +43,7 @@ export default function PlanParserPage() {
     },
   });
 
-  const { data: pages = [] } = useQuery<ParsedPageWithoutText[]>({
+  const { data: pages = [], isLoading: pagesLoading } = useQuery<ParsedPageWithoutText[]>({
     queryKey: ["/api/planparser/jobs", activeJobId, "pages"],
     enabled: !!activeJobId && activeJob?.status === "complete",
   });
@@ -191,7 +191,7 @@ export default function PlanParserPage() {
         {!activeJobId || activeJob?.status === "complete" || activeJob?.status === "error" ? (
           <div className="space-y-6">
             <div
-              className={`mx-auto max-w-xl border-2 border-dashed rounded-lg p-12 text-center transition-colors ${
+              className={`relative mx-auto max-w-xl border-2 border-dashed rounded-lg p-12 text-center transition-colors cursor-pointer ${
                 isDragging 
                   ? "border-primary bg-primary/5" 
                   : "border-border hover:border-primary/50"
@@ -199,8 +199,18 @@ export default function PlanParserPage() {
               onDragOver={handleDragOver}
               onDragLeave={handleDragLeave}
               onDrop={handleDrop}
+              onClick={() => document.getElementById("file-input")?.click()}
               data-testid="upload-dropzone"
             >
+              <input
+                id="file-input"
+                type="file"
+                accept=".pdf,application/pdf"
+                multiple
+                onChange={handleFileSelect}
+                className="hidden"
+                data-testid="file-input"
+              />
               <Upload className="mx-auto h-12 w-12 text-muted-foreground" />
               <p className="mt-4 text-lg font-medium">
                 Drag & drop PDF files here
@@ -208,19 +218,13 @@ export default function PlanParserPage() {
               <p className="mt-2 text-sm text-muted-foreground">
                 or click to browse
               </p>
-              <input
-                type="file"
-                accept=".pdf,application/pdf"
-                multiple
-                onChange={handleFileSelect}
-                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0 }}
-                data-testid="file-input"
-              />
               <Button
                 variant="outline"
-                className="mt-4 relative"
-                onClick={() => document.querySelector<HTMLInputElement>('[data-testid="file-input"]')?.click()}
+                className="mt-4"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  document.getElementById("file-input")?.click();
+                }}
                 data-testid="button-browse-files"
               >
                 Browse Files
@@ -395,7 +399,12 @@ export default function PlanParserPage() {
                     </div>
                   </div>
 
-                  {relevantPages.length > 0 && (
+                  {pagesLoading ? (
+                    <div className="flex items-center justify-center py-8">
+                      <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                      <span className="ml-2 text-muted-foreground">Loading results...</span>
+                    </div>
+                  ) : relevantPages.length > 0 ? (
                     <div>
                       <h3 className="text-sm font-medium mb-3">Flagged Pages ({relevantPages.length})</h3>
                       <div className="border rounded-lg overflow-hidden">
@@ -448,7 +457,7 @@ export default function PlanParserPage() {
                         )}
                       </div>
                     </div>
-                  )}
+                  ) : null}
                 </CardContent>
               </Card>
             </div>

@@ -7,7 +7,8 @@ import type { PlanParserJob, ParsedPage } from "@shared/schema";
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: {
-    fileSize: 200 * 1024 * 1024,
+    fileSize: 50 * 1024 * 1024,
+    files: 10,
   },
   fileFilter: (req, file, cb) => {
     if (file.mimetype === "application/pdf") {

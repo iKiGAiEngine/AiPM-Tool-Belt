@@ -6,6 +6,8 @@ AiPM Tool Belt is a suite of construction document processing tools. The main la
 
 - **SpecSift** (`/specsift`): Extracts Division 10 specifications from PDF files, parses section numbers/titles/content for toilet accessories, partitions, lockers, and more. Users upload PDFs, review extracted sections, edit titles, and export organized PDF packets.
 
+- **Plan Parser** (`/planparser`): OCR-based Division 10 page classifier for construction plan PDFs. Automatically identifies and classifies pages into 9 scope categories (Toilet Accessories, Toilet Partitions, Wall Protection, Fire Extinguisher Cabinets, Cubicle Curtains, Visual Display, Lockers, Shelving, Other Div10). Features signage exclusion (60% threshold) and millwork filtering for shelving scope.
+
 ## Recent Changes (January 2026)
 
 ### PDF Packet Export System
@@ -49,6 +51,7 @@ The frontend follows a page-based structure:
 - `HomePage` (`/`): Modern tile-based menu for selecting tools
 - `UploadPage` (`/specsift`): File upload with drag-and-drop, processing status polling
 - `ReviewPage` (`/specsift/review`): Section review with grid/table view toggle, search, accessory matching panel
+- `PlanParserPage` (`/planparser`): Plan Parser tool with drag-drop upload, real-time progress, and results dashboard
 
 ### Backend Architecture
 - **Framework**: Express.js with TypeScript
@@ -60,6 +63,12 @@ Key backend modules:
 - `routes.ts`: API endpoint definitions and request handling
 - `pdfParser.ts`: PDF text extraction and Division 10 section parsing logic
 - `storage.ts`: Data persistence layer (currently in-memory with interface for future DB)
+- `planparser/`: Plan Parser module
+  - `routes.ts`: Plan Parser API endpoints (create job, upload, status, pages, delete)
+  - `pdfProcessor.ts`: PDF page extraction, OCR with tesseract.js, background processing
+  - `classifier.ts`: Keyword-based classification engine with configurable scopes
+  - `classificationConfig.ts`: Scope definitions, keywords, boost phrases, signage exclusions
+  - `storage.ts`: In-memory job/page storage with 2-hour TTL and auto-cleanup
 
 ### Data Storage
 - **Current**: In-memory storage using Maps (MemStorage class)
@@ -75,9 +84,19 @@ Data models:
   - conflicts, notes (detected issues and requirements)
   - isEdited (user modification flag)
 - `AccessoryMatch`: Keyword matches for accessory scopes (scopeName, matchedKeyword, context)
+- `PlanParserJob`: OCR processing job (id, status, progress, filenames, scopeCounts, timestamps)
+- `ParsedPage`: Classified page data (tags, confidence, whyFlagged, ocrText, signageOverride, isRelevant)
 
-### PDF Parsing Logic
+### PDF Parsing Logic (SpecSift)
 The parser uses regex patterns to identify Division 10 section numbers (formats: `10 XX XX`, `10XXXX`, `101400`). It extracts section headers, content, and matches against predefined accessory keywords. The `canonize` function normalizes section number formats for consistent display.
+
+### Plan Parser Classification
+Uses keyword-based scoring with scope-specific configuration:
+- Keywords have individual weights and boost phrases for higher confidence matches
+- Signage exclusion: Pages with >60% signage-related terms are excluded
+- Millwork filter: Shelving scope excludes pages dominated by millwork references
+- OCR fallback: Pages with insufficient embedded text trigger Tesseract.js OCR
+- Schedule layout detection: Boosts confidence when schedule/table patterns detected
 
 ### Design System
 Follows a system-based design approach inspired by Linear/Notion:
@@ -88,8 +107,10 @@ Follows a system-based design approach inspired by Linear/Notion:
 ## External Dependencies
 
 ### Core Libraries
-- **pdfjs-dist**: PDF text extraction and page parsing
+- **pdfjs-dist**: PDF text extraction and page parsing (legacy build for Node.js)
 - **pdf-lib**: PDF page extraction and document assembly for export packets
+- **tesseract.js**: Browser/Node.js OCR engine for text extraction from images
+- **canvas**: Node.js canvas implementation for PDF page rendering
 - **Drizzle ORM**: Database toolkit (PostgreSQL ready)
 - **Zod**: Schema validation for API data
 - **TanStack Query**: Async state management
