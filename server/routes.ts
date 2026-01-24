@@ -10,6 +10,7 @@ import { execSync } from "child_process";
 import fs from "fs";
 import path from "path";
 import os from "os";
+import { registerPlanParserRoutes } from "./planparser/routes";
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -31,6 +32,8 @@ export async function registerRoutes(
   httpServer: Server,
   app: Express
 ): Promise<Server> {
+  
+  registerPlanParserRoutes(app);
   
   app.post("/api/upload", upload.single("file"), async (req: Request, res: Response) => {
     try {
