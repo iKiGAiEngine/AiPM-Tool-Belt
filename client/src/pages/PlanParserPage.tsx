@@ -32,6 +32,8 @@ export default function PlanParserPage() {
   const [activeJobId, setActiveJobId] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  const [uploadProgress, setUploadProgress] = useState<number>(0);
+  const [isUploading, setIsUploading] = useState(false);
 
   const { data: activeJob, refetch: refetchJob } = useQuery<PlanParserJob>({
     queryKey: ["/api/planparser/jobs", activeJobId],
@@ -65,28 +67,57 @@ export default function PlanParserPage() {
     },
   });
 
-  const uploadMutation = useMutation({
-    mutationFn: async ({ jobId, files }: { jobId: string; files: File[] }) => {
+  const uploadWithProgress = async (jobId: string, files: File[]): Promise<void> => {
+    return new Promise((resolve, reject) => {
       const formData = new FormData();
       files.forEach(file => formData.append("files", file));
       
-      const response = await fetch(`/api/planparser/jobs/${jobId}/upload`, {
-        method: "POST",
-        body: formData,
+      const xhr = new XMLHttpRequest();
+      
+      xhr.upload.addEventListener("progress", (event) => {
+        if (event.lengthComputable) {
+          const percent = Math.round((event.loaded / event.total) * 100);
+          setUploadProgress(percent);
+        }
       });
       
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.message || "Upload failed");
-      }
+      xhr.addEventListener("load", () => {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          resolve();
+        } else {
+          try {
+            const error = JSON.parse(xhr.responseText);
+            reject(new Error(error.message || "Upload failed"));
+          } catch {
+            reject(new Error("Upload failed"));
+          }
+        }
+      });
       
-      return response.json();
+      xhr.addEventListener("error", () => {
+        reject(new Error("Network error during upload"));
+      });
+      
+      xhr.open("POST", `/api/planparser/jobs/${jobId}/upload`);
+      xhr.send(formData);
+    });
+  };
+
+  const uploadMutation = useMutation({
+    mutationFn: async ({ jobId, files }: { jobId: string; files: File[] }) => {
+      setIsUploading(true);
+      setUploadProgress(0);
+      await uploadWithProgress(jobId, files);
     },
     onSuccess: () => {
       setSelectedFiles([]);
+      setIsUploading(false);
+      setUploadProgress(0);
       refetchJob();
     },
     onError: (error: Error) => {
+      setIsUploading(false);
+      setUploadProgress(0);
       toast({
         title: "Upload failed",
         description: error.message,
@@ -322,7 +353,34 @@ export default function PlanParserPage() {
           </div>
         ) : null}
 
-        {activeJob && activeJob.status === "processing" && (
+        {isUploading && (
+          <div className="mx-auto max-w-xl">
+            <Card>
+              <CardHeader>
+                <div className="flex items-center gap-3">
+                  <Upload className="h-5 w-5 text-primary animate-pulse" />
+                  <CardTitle>Uploading Files</CardTitle>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div>
+                  <div className="flex justify-between text-sm mb-2">
+                    <span>Uploading {selectedFiles.length} file{selectedFiles.length > 1 ? "s" : ""} to server...</span>
+                    <span className="font-mono font-bold">{uploadProgress}%</span>
+                  </div>
+                  <Progress value={uploadProgress} className="h-3" data-testid="progress-upload" />
+                </div>
+                <div className="text-sm text-muted-foreground">
+                  {uploadProgress < 100 
+                    ? `${(selectedFiles.reduce((acc, f) => acc + f.size, 0) * uploadProgress / 100 / 1024 / 1024).toFixed(1)} MB of ${(selectedFiles.reduce((acc, f) => acc + f.size, 0) / 1024 / 1024).toFixed(1)} MB uploaded`
+                    : "Upload complete, starting processing..."}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
+        {activeJob && activeJob.status === "processing" && !isUploading && (
           <div className="mx-auto max-w-xl">
             <Card>
               <CardHeader>
@@ -334,21 +392,25 @@ export default function PlanParserPage() {
               <CardContent className="space-y-4">
                 <div>
                   <div className="flex justify-between text-sm mb-2">
-                    <span>{activeJob.message}</span>
-                    <span>{progressPercent}%</span>
+                    <span className="font-medium">
+                      {activeJob.processedPages > 0 
+                        ? `Analyzing page ${activeJob.processedPages} of ${activeJob.totalPages}...`
+                        : "Extracting pages from PDF..."}
+                    </span>
+                    <span className="font-mono font-bold">{progressPercent}%</span>
                   </div>
-                  <Progress value={progressPercent} className="h-2" />
+                  <Progress value={progressPercent} className="h-3" data-testid="progress-processing" />
                 </div>
                 <div className="grid grid-cols-2 gap-4 text-sm">
                   <div>
                     <span className="text-muted-foreground">Pages processed:</span>
-                    <span className="ml-2 font-medium">
+                    <span className="ml-2 font-bold">
                       {activeJob.processedPages} / {activeJob.totalPages}
                     </span>
                   </div>
                   <div>
-                    <span className="text-muted-foreground">Flagged:</span>
-                    <span className="ml-2 font-medium text-green-600">
+                    <span className="text-muted-foreground">Flagged so far:</span>
+                    <span className="ml-2 font-bold text-green-600">
                       {activeJob.flaggedPages}
                     </span>
                   </div>

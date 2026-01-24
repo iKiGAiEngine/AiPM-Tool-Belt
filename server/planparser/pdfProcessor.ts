@@ -161,17 +161,15 @@ export async function processJob(
           
           processedCount++;
           
-          if (processedCount % 5 === 0 || processedCount === totalPages) {
-            const progressPercent = Math.round((processedCount / totalPages) * 100);
-            await planParserStorage.updateJob(jobId, {
-              processedPages: processedCount,
-              flaggedPages: flaggedCount,
-              scopeCounts,
-              message: `Processing page ${processedCount} of ${totalPages} (${progressPercent}%)...`
-            });
-            
-            options.onProgress?.(processedCount, totalPages, `${progressPercent}%`);
-          }
+          const progressPercent = Math.round((processedCount / totalPages) * 100);
+          await planParserStorage.updateJob(jobId, {
+            processedPages: processedCount,
+            flaggedPages: flaggedCount,
+            scopeCounts,
+            message: `Analyzing page ${processedCount} of ${totalPages}...`
+          });
+          
+          options.onProgress?.(processedCount, totalPages, `${progressPercent}%`);
           
         } catch (pageError) {
           console.error(`Error processing page ${pageNum} of ${filename}:`, pageError);
