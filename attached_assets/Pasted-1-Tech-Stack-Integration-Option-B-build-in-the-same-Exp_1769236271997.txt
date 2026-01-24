@@ -1,0 +1,54 @@
+1) Tech Stack Integration
+
+Option B — build in the same Express.js / TypeScript stack as SpecSift.
+Reason: consistent architecture, shared UI/components, simpler deployment/maintenance in one Replit project.
+
+Implementation note: OCR + PDF rendering can still run as a worker/service inside the same TS backend (BullMQ/Redis or a simple local queue), but it stays in the same app.
+
+⸻
+
+2) OCR Provider
+
+Yes — allow cloud OCR as an optional fallback, but default to local Tesseract.
+	•	Default: Local Tesseract (cost-controlled)
+	•	Fallback: Cloud OCR only when needed, controlled by a toggle:
+	•	“Use Cloud OCR for low-confidence pages only” (recommended)
+	•	Or “Force local only” mode available
+
+This protects accuracy on bad scans without making every job expensive.
+
+⸻
+
+3) Page Volume / Processing Time
+
+Several minutes is acceptable.
+We’re prioritizing accuracy + completeness (over-inclusive) and the tool will show progress.
+
+Must-have: progress UI + background processing so it never times out.
+Optional: “Fast mode” later (OCR only on pages that look like schedules/title pages), but MVP should OCR all pages.
+
+⸻
+
+4) “Other Div10” Catch-All
+
+Yes — it should catch Div10 content that doesn’t fit the known buckets.
+Criteria:
+
+Trigger “Other Div10” when:
+	•	OCR contains “Division 10” / “Div 10” / “Specialties” OR contains strong Div10-specialties keywords that aren’t mapped to the named scopes.
+
+Starter keywords for Other Div10 (configurable):
+	•	“specialties”, “toilet specialties”, “building specialties”, “accessories”, “owner furnished”, “install by others”
+	•	Plus future items you’ll add later (benches, mats, protection systems, etc.)
+
+Hard rule: still apply signage exclusion override first, and exclude “millwork/casework” from shelving-related matches.
+
+⸻
+
+5) MVP or Full Build
+
+Iterative approach.
+Order:
+	1.	Upload + PDF page split/render + OCR + classification + basic report list
+	2.	Add review UI (thumbnails + filters + unflag/retag)
+	3.	Add separate PDF exports per scope + report CSV/JSON + auto-delete job

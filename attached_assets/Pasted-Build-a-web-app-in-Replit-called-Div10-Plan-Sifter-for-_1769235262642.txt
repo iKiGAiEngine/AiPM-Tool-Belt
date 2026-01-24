@@ -1,0 +1,102 @@
+Build a web app in Replit called “Div10 Plan Sifter” for NBS.
+
+GOAL:
+User uploads one or more PDFs (100–800+ pages). App OCRs every page, identifies pages relevant to Division 10 specialties (EXCLUDING SIGNAGE), tags each relevant page by scope category, then exports SEPARATE PDFs per scope type + a report. Default is OVER-INCLUSIVE to avoid missing key pages.
+
+NON-NEGOTIABLE DATA ISOLATION / NO HISTORY:
+- Each upload creates a new Job (job_id).
+- All OCR text, thumbnails, metadata, and exports belong ONLY to that job.
+- Do NOT reuse data from previous jobs.
+- No training, no embeddings carry-over, no cached classification across jobs.
+- After export (or after a short TTL), delete the job folder + DB rows so nothing remains.
+- Ensure reports can NEVER blend across jobs. All lists and exports must be strictly from the PDFs uploaded in the current job.
+
+INPUTS:
+- PDF only (multi-PDF upload supported)
+- Language: English only
+
+SCOPES TO DETECT (include all, except signage):
+1) Toilet Accessories
+2) Toilet Partitions (plans, enlarged restroom plans, details, schedules)
+3) Wall / Corner / Crash / Finish Protection
+4) Fire Extinguisher Cabinets (FEC) + Fire Extinguishers
+5) Cubicle Curtains / Tracks
+6) Visual Display (markerboards/whiteboards/tackboards/display cases/projection screens)
+7) Lockers
+8) Shelving (NOT millwork; exclude millwork/casework/cabinets)
+9) Other Div10 (configurable catch-all)
+
+EXCLUSION:
+- Do NOT include Signage pages. Pages primarily about signage/wayfinding/door numbers/room IDs/sign schedules must be marked NOT relevant, even if other words match.
+- If a page has real Div10 content + small signage notes, KEEP it. Only exclude pages that are signage-heavy.
+
+OUTPUTS:
+- Export separate PDFs per scope type listed above.
+- Each PDF contains ONLY pages currently flagged for that scope, in original order.
+- Allow a page to belong to multiple PDFs if it truly covers multiple scopes.
+- Report downloads: CSV + JSON containing all pages and metadata:
+  - job_id, original filename, page number, is_relevant, tags, confidence, why_flagged, signage_override_applied, ocr_snippet
+
+UI REQUIREMENTS:
+- Drag/drop PDF upload
+- Show processing progress: pages processed / total and percent
+- Results dashboard: counts per scope + total flagged
+- Table view + thumbnail gallery:
+  - page #, tags, confidence, “why flagged”, preview
+  - filters by scope + confidence threshold
+- Human-in-the-loop review:
+  - user can unflag/flag pages
+  - user can add/remove tags per page
+  - changes must affect exports
+- Export buttons:
+  - Export ALL scope PDFs
+  - Export selected scope PDF
+  - Download report CSV/JSON
+- Job deletion:
+  - “Delete Job Now” button to wipe all job data
+  - Auto-delete after export or TTL (default 2 hours)
+
+TECH STACK (Replit-friendly):
+- Backend: Python FastAPI
+- Frontend: React (clean minimalist UI)
+- Storage: SQLite for the CURRENT JOB ONLY, plus filesystem folder /tmp/jobs/{job_id}
+- Delete SQLite rows and files on job deletion/TTL.
+- PDF rendering: PyMuPDF (fitz) to render each page to PNG (high-res).
+- OCR: Provider interface with default LocalTesseractProvider using pytesseract.
+- Must handle scanned/image-only pages.
+
+PERFORMANCE / RESILIENCE:
+- Processing should run in a background worker so HTTP requests do not time out.
+- Persist per-page results incrementally so UI updates as pages complete.
+- On per-page OCR/classification error: log and continue; do NOT stop the job.
+
+CLASSIFICATION (OVER-INCLUSIVE DEFAULT):
+- Use weighted keyword scoring per scope using OCR text.
+- Use fuzzy matching to handle OCR errors.
+- Schedule/table boost: if text layout indicates a schedule AND scope keywords exist, increase confidence.
+- Save “why_flagged”: top keyword hits and small text snippets around the hit.
+
+SIGNAGE OVERRIDE:
+- Maintain signage_exclusion keywords and patterns.
+- If signage score exceeds override threshold AND no strong Div10 scope signals, mark NOT relevant.
+- If strong Div10 signals exist, do NOT exclude solely due to minor signage mentions.
+
+SHELVING RULE:
+- Include “shelving” / “wire shelving” / “closet shelving” / “adjustable shelving” / “brackets/standards”
+- EXCLUDE millwork/casework/cabinets/countertops/woodwork. Add millwork exclusion keywords.
+
+CONFIGURABILITY:
+- Put keywords + thresholds in config JSON:
+  - include_keywords per scope
+  - boost_phrases per scope
+  - signage_exclusion keywords + override threshold
+  - millwork_exclusion keywords (applies especially to shelving)
+- Make it easy for user to edit config without code changes.
+
+DELIVERABLES:
+- Working app end-to-end
+- README with setup steps (including installing tesseract)
+- Unit tests for:
+  - scoring logic
+  - signage override logic
+  - shelving vs millwork exclusion logic
