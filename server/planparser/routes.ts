@@ -219,4 +219,146 @@ export function registerPlanParserRoutes(app: Express): void {
       res.status(500).json({ message: "Failed to fetch thumbnail" });
     }
   });
+
+  app.post("/api/planparser/demo", async (req: Request, res: Response) => {
+    try {
+      const ttlHours = 2;
+      const now = new Date();
+      const expiresAt = new Date(now.getTime() + ttlHours * 60 * 60 * 1000);
+      
+      const job = await planParserStorage.createJob({
+        status: "complete",
+        totalPages: 24,
+        processedPages: 24,
+        flaggedPages: 8,
+        filenames: ["Sample_Construction_Plans.pdf"],
+        message: "Demo completed",
+        createdAt: now.toISOString(),
+        expiresAt: expiresAt.toISOString(),
+        scopeCounts: {
+          "Toilet Accessories": 3,
+          "Toilet Partitions": 2,
+          "Lockers": 1,
+          "Fire Extinguisher Cabinets": 1,
+          "Wall Protection": 1,
+        }
+      });
+
+      const demoPages = [
+        {
+          jobId: job.id,
+          pageNumber: 5,
+          originalFilename: "Sample_Construction_Plans.pdf",
+          tags: ["Toilet Accessories"],
+          confidence: 92,
+          whyFlagged: "Found: grab bar, toilet paper holder, soap dispenser, paper towel dispenser",
+          ocrText: "TOILET ACCESSORIES SCHEDULE - GRAB BARS, PAPER DISPENSERS",
+          ocrSnippet: "GRAB BAR, TOILET PAPER HOLDER, SOAP DISPENSER",
+          signageOverrideApplied: false,
+          userModified: false,
+          isRelevant: true,
+        },
+        {
+          jobId: job.id,
+          pageNumber: 6,
+          originalFilename: "Sample_Construction_Plans.pdf",
+          tags: ["Toilet Accessories"],
+          confidence: 88,
+          whyFlagged: "Found: mirror, sanitary napkin disposal, seat cover dispenser",
+          ocrText: "RESTROOM ACCESSORIES SCHEDULE",
+          ocrSnippet: "MIRROR, SANITARY NAPKIN DISPOSAL, SEAT COVER DISPENSER",
+          signageOverrideApplied: false,
+          userModified: false,
+          isRelevant: true,
+        },
+        {
+          jobId: job.id,
+          pageNumber: 7,
+          originalFilename: "Sample_Construction_Plans.pdf",
+          tags: ["Toilet Accessories"],
+          confidence: 75,
+          whyFlagged: "Found: baby changing station, waste receptacle",
+          ocrText: "ACCESSORY SCHEDULE CONTINUED",
+          ocrSnippet: "BABY CHANGING STATION, WASTE RECEPTACLE",
+          signageOverrideApplied: false,
+          userModified: false,
+          isRelevant: true,
+        },
+        {
+          jobId: job.id,
+          pageNumber: 12,
+          originalFilename: "Sample_Construction_Plans.pdf",
+          tags: ["Toilet Partitions"],
+          confidence: 95,
+          whyFlagged: "Found: toilet partition, urinal screen, pilaster, headrail",
+          ocrText: "TOILET PARTITION SCHEDULE - PHENOLIC CORE",
+          ocrSnippet: "TOILET PARTITION, URINAL SCREEN, PILASTER, HEADRAIL",
+          signageOverrideApplied: false,
+          userModified: false,
+          isRelevant: true,
+        },
+        {
+          jobId: job.id,
+          pageNumber: 13,
+          originalFilename: "Sample_Construction_Plans.pdf",
+          tags: ["Toilet Partitions"],
+          confidence: 82,
+          whyFlagged: "Found: partition door, stainless steel partition",
+          ocrText: "PARTITION DETAILS AND ELEVATIONS",
+          ocrSnippet: "PARTITION DOOR, STAINLESS STEEL PARTITION",
+          signageOverrideApplied: false,
+          userModified: false,
+          isRelevant: true,
+        },
+        {
+          jobId: job.id,
+          pageNumber: 15,
+          originalFilename: "Sample_Construction_Plans.pdf",
+          tags: ["Lockers"],
+          confidence: 89,
+          whyFlagged: "Found: employee locker, locker bench, padlock hasp",
+          ocrText: "LOCKER ROOM PLAN AND SCHEDULE",
+          ocrSnippet: "EMPLOYEE LOCKER, LOCKER BENCH, PADLOCK HASP",
+          signageOverrideApplied: false,
+          userModified: false,
+          isRelevant: true,
+        },
+        {
+          jobId: job.id,
+          pageNumber: 18,
+          originalFilename: "Sample_Construction_Plans.pdf",
+          tags: ["Fire Extinguisher Cabinets"],
+          confidence: 78,
+          whyFlagged: "Found: fire extinguisher cabinet, recessed cabinet",
+          ocrText: "FIRE PROTECTION DETAILS",
+          ocrSnippet: "FIRE EXTINGUISHER CABINET, RECESSED CABINET",
+          signageOverrideApplied: false,
+          userModified: false,
+          isRelevant: true,
+        },
+        {
+          jobId: job.id,
+          pageNumber: 21,
+          originalFilename: "Sample_Construction_Plans.pdf",
+          tags: ["Wall Protection"],
+          confidence: 85,
+          whyFlagged: "Found: corner guard, wall guard, handrail",
+          ocrText: "WALL PROTECTION SCHEDULE",
+          ocrSnippet: "CORNER GUARD, WALL GUARD, HANDRAIL",
+          signageOverrideApplied: false,
+          userModified: false,
+          isRelevant: true,
+        },
+      ];
+
+      for (const page of demoPages) {
+        await planParserStorage.createPage(page);
+      }
+
+      res.json(job);
+    } catch (error) {
+      console.error("Demo job error:", error);
+      res.status(500).json({ message: "Failed to create demo job" });
+    }
+  });
 }

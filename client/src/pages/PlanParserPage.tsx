@@ -106,6 +106,24 @@ export default function PlanParserPage() {
     },
   });
 
+  const demoMutation = useMutation({
+    mutationFn: async () => {
+      const response = await apiRequest("POST", "/api/planparser/demo");
+      return response.json() as Promise<PlanParserJob>;
+    },
+    onSuccess: (job) => {
+      setActiveJobId(job.id);
+      toast({ title: "Demo loaded", description: "Showing sample classification results" });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Demo failed",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
   const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     setIsDragging(true);
@@ -218,17 +236,36 @@ export default function PlanParserPage() {
               <p className="mt-2 text-sm text-muted-foreground">
                 or click to browse
               </p>
-              <Button
-                variant="outline"
-                className="mt-4"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  document.getElementById("file-input")?.click();
-                }}
-                data-testid="button-browse-files"
-              >
-                Browse Files
-              </Button>
+              <div className="flex gap-3 mt-4 justify-center">
+                <Button
+                  variant="outline"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    document.getElementById("file-input")?.click();
+                  }}
+                  data-testid="button-browse-files"
+                >
+                  Browse Files
+                </Button>
+                <Button
+                  variant="secondary"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    demoMutation.mutate();
+                  }}
+                  disabled={demoMutation.isPending}
+                  data-testid="button-try-demo"
+                >
+                  {demoMutation.isPending ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Loading...
+                    </>
+                  ) : (
+                    "Try Demo"
+                  )}
+                </Button>
+              </div>
             </div>
 
             {selectedFiles.length > 0 && (
