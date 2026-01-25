@@ -1,8 +1,13 @@
 import type { Express, Request, Response } from "express";
 import multer from "multer";
+import fs from "fs";
+import path from "path";
+import { PDFDocument } from "pdf-lib";
+import JSZip from "jszip";
 import { planParserStorage } from "./storage";
 import { processJob } from "./pdfProcessor";
 import type { PlanParserJob, ParsedPage } from "@shared/schema";
+import { PLAN_PARSER_SCOPES } from "@shared/schema";
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -69,10 +74,20 @@ export function registerPlanParserRoutes(app: Express): void {
           return res.status(400).json({ message: "No files uploaded" });
         }
         
-        const pdfBuffers = files.map(f => ({
-          filename: f.originalname,
-          buffer: f.buffer
-        }));
+        const jobDir = await planParserStorage.ensureJobDirectory(jobId);
+        const pdfsDir = path.join(jobDir, "pdfs");
+        if (!fs.existsSync(pdfsDir)) {
+          fs.mkdirSync(pdfsDir, { recursive: true });
+        }
+        
+        const pdfBuffers = files.map(f => {
+          const pdfPath = path.join(pdfsDir, f.originalname);
+          fs.writeFileSync(pdfPath, f.buffer);
+          return {
+            filename: f.originalname,
+            buffer: f.buffer
+          };
+        });
         
         processingJobs.set(jobId, true);
         
@@ -359,6 +374,123 @@ export function registerPlanParserRoutes(app: Express): void {
     } catch (error) {
       console.error("Demo job error:", error);
       res.status(500).json({ message: "Failed to create demo job" });
+    }
+  });
+
+  app.get("/api/planparser/jobs/:jobId/export", async (req: Request, res: Response) => {
+    try {
+      const { jobId } = req.params;
+      const job = await planParserStorage.getJob(jobId);
+      
+      if (!job) {
+        return res.status(404).json({ message: "Job not found" });
+      }
+      
+      if (job.status !== "complete") {
+        return res.status(400).json({ message: "Job not complete" });
+      }
+      
+      const pages = await planParserStorage.getPagesByJob(jobId);
+      const relevantPages = pages.filter(p => p.isRelevant);
+      
+      if (relevantPages.length === 0) {
+        return res.status(400).json({ message: "No relevant pages to export" });
+      }
+      
+      const jobDir = planParserStorage.getJobDirectory(jobId);
+      const pdfsDir = path.join(jobDir, "pdfs");
+      
+      if (!fs.existsSync(pdfsDir)) {
+        return res.status(400).json({ message: "Original PDFs not available for export" });
+      }
+      
+      const pagesByScope: Record<string, { filename: string; pageNumber: number }[]> = {};
+      for (const scope of PLAN_PARSER_SCOPES) {
+        pagesByScope[scope] = [];
+      }
+      
+      for (const page of relevantPages) {
+        for (const tag of page.tags) {
+          if (pagesByScope[tag]) {
+            pagesByScope[tag].push({
+              filename: page.originalFilename,
+              pageNumber: page.pageNumber
+            });
+          }
+        }
+      }
+      
+      const pdfCache: Record<string, PDFDocument> = {};
+      
+      const loadPdf = async (filename: string): Promise<PDFDocument | null> => {
+        if (pdfCache[filename]) {
+          return pdfCache[filename];
+        }
+        
+        const pdfPath = path.join(pdfsDir, filename);
+        if (!fs.existsSync(pdfPath)) {
+          return null;
+        }
+        
+        const pdfBytes = fs.readFileSync(pdfPath);
+        const pdfDoc = await PDFDocument.load(pdfBytes);
+        pdfCache[filename] = pdfDoc;
+        return pdfDoc;
+      };
+      
+      const zip = new JSZip();
+      
+      for (const scope of PLAN_PARSER_SCOPES) {
+        const scopePages = pagesByScope[scope];
+        if (scopePages.length === 0) continue;
+        
+        const newPdf = await PDFDocument.create();
+        
+        const pagesByFile: Record<string, number[]> = {};
+        for (const { filename, pageNumber } of scopePages) {
+          if (!pagesByFile[filename]) {
+            pagesByFile[filename] = [];
+          }
+          if (!pagesByFile[filename].includes(pageNumber)) {
+            pagesByFile[filename].push(pageNumber);
+          }
+        }
+        
+        for (const [filename, pageNumbers] of Object.entries(pagesByFile)) {
+          const sourcePdf = await loadPdf(filename);
+          if (!sourcePdf) continue;
+          
+          const sortedPageNumbers = pageNumbers.sort((a, b) => a - b);
+          
+          for (const pageNum of sortedPageNumbers) {
+            try {
+              const [copiedPage] = await newPdf.copyPages(sourcePdf, [pageNum - 1]);
+              newPdf.addPage(copiedPage);
+            } catch (err) {
+              console.error(`Failed to copy page ${pageNum} from ${filename}:`, err);
+            }
+          }
+        }
+        
+        if (newPdf.getPageCount() > 0) {
+          const pdfBytes = await newPdf.save();
+          const safeScopeName = scope.replace(/[^a-zA-Z0-9]/g, "_");
+          zip.file(`${safeScopeName}.pdf`, pdfBytes);
+        }
+      }
+      
+      const zipBuffer = await zip.generateAsync({ type: "nodebuffer" });
+      
+      const projectName = job.filenames[0]?.replace(/\.pdf$/i, "") || "PlanParser";
+      const sanitizedName = projectName.replace(/[^a-zA-Z0-9-_]/g, "_");
+      
+      res.setHeader("Content-Type", "application/zip");
+      res.setHeader("Content-Disposition", `attachment; filename="${sanitizedName}_Scope_Exports.zip"`);
+      res.send(zipBuffer);
+      
+    } catch (error) {
+      console.error("Export error:", error);
+      res.status(500).json({ message: "Failed to generate export" });
     }
   });
 }

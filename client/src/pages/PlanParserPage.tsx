@@ -155,6 +155,42 @@ export default function PlanParserPage() {
     },
   });
 
+  const [isExporting, setIsExporting] = useState(false);
+
+  const handleExport = async () => {
+    if (!activeJobId) return;
+    
+    setIsExporting(true);
+    try {
+      const response = await fetch(`/api/planparser/jobs/${activeJobId}/export`);
+      
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || "Export failed");
+      }
+      
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = response.headers.get("Content-Disposition")?.match(/filename="(.+)"/)?.[1] || "scope_exports.zip";
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      
+      toast({ title: "Export complete", description: "Scope PDFs downloaded" });
+    } catch (error) {
+      toast({
+        title: "Export failed",
+        description: error instanceof Error ? error.message : "Failed to generate export",
+        variant: "destructive",
+      });
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
   const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     setIsDragging(true);
@@ -437,6 +473,24 @@ export default function PlanParserPage() {
                       <CardTitle>Results</CardTitle>
                     </div>
                     <div className="flex gap-2">
+                      <Button
+                        size="sm"
+                        onClick={handleExport}
+                        disabled={isExporting || relevantPages.length === 0}
+                        data-testid="button-export-pdfs"
+                      >
+                        {isExporting ? (
+                          <>
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            Exporting...
+                          </>
+                        ) : (
+                          <>
+                            <Download className="mr-2 h-4 w-4" />
+                            Export Scope PDFs
+                          </>
+                        )}
+                      </Button>
                       <Button
                         variant="outline"
                         size="sm"
