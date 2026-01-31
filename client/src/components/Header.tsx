@@ -1,4 +1,4 @@
-import { FileText, Upload, List, Home, Wrench } from "lucide-react";
+import { FileText, Upload, List, Home, Wrench, Settings } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { ThemeToggle } from "./ThemeToggle";
 import { cn } from "@/lib/utils";
@@ -11,6 +11,7 @@ export function Header() {
   const specSiftNav = [
     { href: "/specsift", label: "Upload", icon: Upload },
     { href: "/specsift/review", label: "Review", icon: List },
+    { href: "/specsift/settings", label: "Settings", icon: Settings },
   ];
 
   return (

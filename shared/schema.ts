@@ -1,4 +1,6 @@
 import { z } from "zod";
+import { pgTable, serial, text, timestamp, jsonb, boolean, integer, varchar } from "drizzle-orm/pg-core";
+import { createInsertSchema } from "drizzle-zod";
 
 export const processingStatusSchema = z.enum(["idle", "processing", "complete", "error"]);
 export type ProcessingStatus = z.infer<typeof processingStatusSchema>;
@@ -156,3 +158,57 @@ export const PLAN_PARSER_SCOPES = [
   "Other Div10",
 ] as const;
 export type PlanParserScope = typeof PLAN_PARSER_SCOPES[number];
+
+// SpecSift Configuration Database Schema
+export interface AccessoryScopeData {
+  name: string;
+  keywords: string[];
+  sectionHint: string;
+  divisionScope: number[];
+}
+
+export const specsiftConfig = pgTable("specsift_config", {
+  id: serial("id").primaryKey(),
+  version: integer("version").notNull().default(1),
+  isActive: boolean("is_active").notNull().default(true),
+  sectionPattern: text("section_pattern").notNull(),
+  defaultScopes: jsonb("default_scopes").notNull().$type<Record<string, string>>(),
+  accessoryScopes: jsonb("accessory_scopes").notNull().$type<AccessoryScopeData[]>(),
+  manufacturerExcludeTerms: jsonb("manufacturer_exclude_terms").notNull().$type<string[]>(),
+  modelPatterns: jsonb("model_patterns").notNull().$type<string[]>(),
+  materialKeywords: jsonb("material_keywords").notNull().$type<string[]>(),
+  conflictPatterns: jsonb("conflict_patterns").notNull().$type<string[]>(),
+  notePatterns: jsonb("note_patterns").notNull().$type<string[]>(),
+  notes: text("notes").default(""),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  createdBy: varchar("created_by", { length: 100 }).default("admin"),
+});
+
+export type SpecsiftConfig = typeof specsiftConfig.$inferSelect;
+export type InsertSpecsiftConfig = typeof specsiftConfig.$inferInsert;
+
+export const insertSpecsiftConfigSchema = createInsertSchema(specsiftConfig).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const accessoryScopeDataSchema = z.object({
+  name: z.string().min(1),
+  keywords: z.array(z.string()),
+  sectionHint: z.string(),
+  divisionScope: z.array(z.number()),
+});
+
+export const specsiftConfigFormSchema = z.object({
+  sectionPattern: z.string().min(1, "Section pattern is required"),
+  defaultScopes: z.record(z.string(), z.string()),
+  accessoryScopes: z.array(accessoryScopeDataSchema),
+  manufacturerExcludeTerms: z.array(z.string()),
+  modelPatterns: z.array(z.string()),
+  materialKeywords: z.array(z.string()),
+  conflictPatterns: z.array(z.string()),
+  notePatterns: z.array(z.string()),
+  notes: z.string().optional(),
+});
+
+export type SpecsiftConfigFormData = z.infer<typeof specsiftConfigFormSchema>;

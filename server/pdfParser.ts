@@ -19,8 +19,9 @@ async function pdf(buffer: Buffer): Promise<{ text: string; numpages: number }> 
   
   return { text: fullText, numpages: numPages };
 }
-import type { ExtractedSection, AccessoryMatch, InsertSection, InsertAccessoryMatch } from "@shared/schema";
+import type { ExtractedSection, AccessoryMatch, InsertSection, InsertAccessoryMatch, SpecsiftConfig, AccessoryScopeData } from "@shared/schema";
 import { DEFAULT_SCOPES, ACCESSORY_SCOPES } from "@shared/schema";
+import { getActiveConfiguration, getSectionRegex } from "./configService";
 
 const SEC_RE = /\b10[\s\-\._]*(?:\d{2}[\s\-\._]*\d{2}(?:[\s\-\._]*\d{2})?|\d{4,6})\b/g;
 
@@ -85,19 +86,36 @@ interface ExtractedDetails {
   notes: string[];
 }
 
-function extractManufacturers(text: string): string[] {
+const DEFAULT_EXCLUDE_TERMS = [
+  "warranty", "period", "marker board", "solid type", "display rail", "end stops",
+  "poster clips", "face sheet", "thickness", "laminating", "adhesive", "flame",
+  "smoke", "index", "compliance", "voc", "formaldehyde", "color", "section",
+  "part", "general", "execution", "summary", "requirements", "related",
+  "provide", "install", "verify", "coordinate", "submit", "deliver", "drawings",
+  "failures", "include", "following", "limited", "materials", "finish", "acceptable",
+  "mounting", "fastener", "hardware", "accessory", "assembly", "component",
+  "substitution", "quality", "assurance", "submittals", "closeout", "maintenance"
+];
+
+const DEFAULT_MATERIAL_KEYWORDS = [
+  "stainless steel", "type 304", "type 316", "brushed", "satin", "polished",
+  "solid plastic", "phenolic", "powder coated", "chrome", "aluminum",
+  "galvanized", "epoxy", "ADA compliant", "vandal resistant",
+  "surface mounted", "recessed", "semi-recessed", "partition mounted",
+  "floor mounted", "ceiling hung", "wall mounted"
+];
+
+const DEFAULT_MODEL_PATTERNS = [
+  "Model\\s*(?:No\\.?|Number|#)?[\\s:]+([A-Z0-9][\\w\\-\\/\\.]+)",
+  "Series\\s*[\\s:]+([A-Z0-9][\\w\\-\\/\\.]+)",
+  "Type\\s*[\\s:]+([A-Z0-9][\\w\\-\\/\\.]+)",
+  "Part\\s*(?:No\\.?|Number|#)?[\\s:]+([A-Z0-9][\\w\\-\\/\\.]+)",
+  "Product\\s*(?:No\\.?|Number|#)?[\\s:]+([A-Z0-9][\\w\\-\\/\\.]+)"
+];
+
+function extractManufacturers(text: string, excludeTermsList?: string[]): string[] {
   const manufacturers: string[] = [];
-  
-  const excludeTerms = [
-    "warranty", "period", "marker board", "solid type", "display rail", "end stops",
-    "poster clips", "face sheet", "thickness", "laminating", "adhesive", "flame",
-    "smoke", "index", "compliance", "voc", "formaldehyde", "color", "section",
-    "part", "general", "execution", "summary", "requirements", "related",
-    "provide", "install", "verify", "coordinate", "submit", "deliver", "drawings",
-    "failures", "include", "following", "limited", "materials", "finish", "acceptable",
-    "mounting", "fastener", "hardware", "accessory", "assembly", "component",
-    "substitution", "quality", "assurance", "submittals", "closeout", "maintenance"
-  ];
+  const excludeTerms = excludeTermsList || DEFAULT_EXCLUDE_TERMS;
   
   function isLikelyManufacturer(name: string): boolean {
     const nameLower = name.toLowerCase();
@@ -232,16 +250,17 @@ function extractManufacturers(text: string): string[] {
   return unique.filter(m => m.length >= 3).slice(0, 25);
 }
 
-function extractModelNumbers(text: string): string[] {
+function extractModelNumbers(text: string, modelPatternStrings?: string[]): string[] {
   const models: string[] = [];
   
-  const modelPatterns = [
-    /Model\s*(?:No\.?|Number|#)?[\s:]+([A-Z0-9][\w\-\/\.]+)/gi,
-    /Series\s*[\s:]+([A-Z0-9][\w\-\/\.]+)/gi,
-    /Type\s*[\s:]+([A-Z0-9][\w\-\/\.]+)/gi,
-    /Part\s*(?:No\.?|Number|#)?[\s:]+([A-Z0-9][\w\-\/\.]+)/gi,
-    /Product\s*(?:No\.?|Number|#)?[\s:]+([A-Z0-9][\w\-\/\.]+)/gi,
-  ];
+  const patternStrings = modelPatternStrings || DEFAULT_MODEL_PATTERNS;
+  const modelPatterns = patternStrings.map(p => {
+    try {
+      return new RegExp(p, "gi");
+    } catch {
+      return null;
+    }
+  }).filter(Boolean) as RegExp[];
   
   for (const pattern of modelPatterns) {
     let match;
@@ -256,17 +275,10 @@ function extractModelNumbers(text: string): string[] {
   return Array.from(new Set(models)).slice(0, 15);
 }
 
-function extractMaterials(text: string): string[] {
+function extractMaterials(text: string, keywordsList?: string[]): string[] {
   const materials: string[] = [];
   const textLower = text.toLowerCase();
-  
-  const materialKeywords = [
-    "stainless steel", "type 304", "type 316", "brushed", "satin", "polished",
-    "solid plastic", "phenolic", "powder coated", "chrome", "aluminum",
-    "galvanized", "epoxy", "ADA compliant", "vandal resistant",
-    "surface mounted", "recessed", "semi-recessed", "partition mounted",
-    "floor mounted", "ceiling hung", "wall mounted",
-  ];
+  const materialKeywords = keywordsList || DEFAULT_MATERIAL_KEYWORDS;
   
   for (const keyword of materialKeywords) {
     if (textLower.includes(keyword.toLowerCase())) {
@@ -324,9 +336,10 @@ function extractNotes(text: string): string[] {
   return notes;
 }
 
-function parseHeadersFromText(text: string, pageNumber?: number): ParsedHeader[] {
+function parseHeadersFromText(text: string, pageNumber?: number, defaultScopes?: Record<string, string>): ParsedHeader[] {
   const hits: ParsedHeader[] = [];
   const lines = text.split("\n");
+  const scopes = defaultScopes || DEFAULT_SCOPES;
   
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i].trim();
@@ -384,7 +397,7 @@ function parseHeadersFromText(text: string, pageNumber?: number): ParsedHeader[]
           }
         } else {
           if (!hits.some((h) => h.sectionNumber === canon)) {
-            const defaultTitle = DEFAULT_SCOPES[canon];
+            const defaultTitle = scopes[canon];
             hits.push({
               sectionNumber: canon,
               title: defaultTitle || `SECTION ${secRaw}`,
@@ -427,12 +440,14 @@ function parseHeadersFromText(text: string, pageNumber?: number): ParsedHeader[]
 function findAccessoryMatches(
   text: string,
   sessionId: string,
-  pageNumber: number
+  pageNumber: number,
+  accessoryScopes?: AccessoryScopeData[]
 ): InsertAccessoryMatch[] {
   const matches: InsertAccessoryMatch[] = [];
   const textLower = text.toLowerCase();
+  const scopes = accessoryScopes || ACCESSORY_SCOPES;
   
-  for (const scope of ACCESSORY_SCOPES) {
+  for (const scope of scopes) {
     for (const keyword of scope.keywords) {
       const keywordLower = keyword.toLowerCase();
       let index = textLower.indexOf(keywordLower);
@@ -472,6 +487,16 @@ export async function processPdf(
   const accessories: InsertAccessoryMatch[] = [];
   
   try {
+    onProgress?.(5, "Loading configuration...");
+    
+    const config = await getActiveConfiguration();
+    const dynamicSecRe = getSectionRegex(config.sectionPattern);
+    const dynamicDefaultScopes = config.defaultScopes as Record<string, string>;
+    const dynamicAccessoryScopes = config.accessoryScopes as AccessoryScopeData[];
+    const dynamicExcludeTerms = config.manufacturerExcludeTerms as string[];
+    const dynamicMaterialKeywords = config.materialKeywords as string[];
+    const dynamicModelPatterns = config.modelPatterns as string[];
+    
     onProgress?.(10, "Reading PDF file...");
     
     const data = await pdf(buffer);
@@ -503,7 +528,7 @@ export async function processPdf(
       const progress = 20 + Math.floor((pageNum / pageTexts.length) * 40);
       onProgress?.(progress, `Scanning page ${pageNum + 1} of ${pageTexts.length}...`);
       
-      const headers = parseHeadersFromText(pageText, pageNum + 1);
+      const headers = parseHeadersFromText(pageText, pageNum + 1, dynamicDefaultScopes);
       
       for (const header of headers) {
         if (!sectionStarts.has(header.sectionNumber)) {
@@ -514,7 +539,7 @@ export async function processPdf(
         }
       }
       
-      const accessoryMatches = findAccessoryMatches(pageText, sessionId, pageNum + 1);
+      const accessoryMatches = findAccessoryMatches(pageText, sessionId, pageNum + 1, dynamicAccessoryScopes);
       accessories.push(...accessoryMatches);
     }
     
@@ -549,9 +574,9 @@ export async function processPdf(
         sectionText += pageTexts[p] + "\n";
       }
       
-      const manufacturers = extractManufacturers(sectionText);
-      const modelNumbers = extractModelNumbers(sectionText);
-      const materials = extractMaterials(sectionText);
+      const manufacturers = extractManufacturers(sectionText, dynamicExcludeTerms);
+      const modelNumbers = extractModelNumbers(sectionText, dynamicModelPatterns);
+      const materials = extractMaterials(sectionText, dynamicMaterialKeywords);
       const conflicts = detectConflicts(sectionText, manufacturers, modelNumbers);
       const notes = extractNotes(sectionText);
       

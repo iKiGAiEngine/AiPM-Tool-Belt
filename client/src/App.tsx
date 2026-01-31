@@ -9,6 +9,7 @@ import HomePage from "@/pages/HomePage";
 import UploadPage from "@/pages/UploadPage";
 import ReviewPage from "@/pages/ReviewPage";
 import PlanParserPage from "@/pages/PlanParserPage";
+import SettingsPage from "@/pages/SettingsPage";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -17,6 +18,7 @@ function Router() {
       <Route path="/" component={HomePage} />
       <Route path="/specsift" component={UploadPage} />
       <Route path="/specsift/review" component={ReviewPage} />
+      <Route path="/specsift/settings" component={SettingsPage} />
       <Route path="/planparser" component={PlanParserPage} />
       <Route component={NotFound} />
     </Switch>

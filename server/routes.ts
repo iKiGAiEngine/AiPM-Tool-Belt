@@ -4,6 +4,7 @@ import multer from "multer";
 import { storage } from "./storage";
 import { processPdf } from "./pdfParser";
 import type { Session, ExtractedSection } from "@shared/schema";
+import { specsiftConfigFormSchema } from "@shared/schema";
 import { PDFDocument, rgb, StandardFonts, type PDFFont } from "pdf-lib";
 import JSZip from "jszip";
 import { execSync } from "child_process";
@@ -11,6 +12,14 @@ import fs from "fs";
 import path from "path";
 import os from "os";
 import { registerPlanParserRoutes } from "./planparser/routes";
+import { 
+  getActiveConfig, 
+  getAllConfigVersions, 
+  createConfig, 
+  rollbackToVersion,
+  getOrCreateActiveConfig 
+} from "./settingsStorage";
+import { clearConfigCache } from "./configService";
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -496,6 +505,96 @@ export async function registerRoutes(
   function sanitizeFilename(name: string): string {
     return name.replace(/[\/\\?%*:|"<>]/g, "-").trim();
   }
+
+  // =====================
+  // Settings API Routes
+  // =====================
+  
+  const ADMIN_PASSWORD = "admin123";
+
+  app.post("/api/settings/auth", async (req: Request, res: Response) => {
+    try {
+      const { password } = req.body;
+      if (password === ADMIN_PASSWORD) {
+        res.json({ success: true });
+      } else {
+        res.status(401).json({ message: "Invalid password" });
+      }
+    } catch (error) {
+      res.status(500).json({ message: "Authentication failed" });
+    }
+  });
+
+  app.get("/api/settings/config", async (req: Request, res: Response) => {
+    try {
+      const config = await getOrCreateActiveConfig();
+      res.json(config);
+    } catch (error) {
+      console.error("Failed to get config:", error);
+      res.status(500).json({ message: "Failed to fetch configuration" });
+    }
+  });
+
+  app.get("/api/settings/versions", async (req: Request, res: Response) => {
+    try {
+      const versions = await getAllConfigVersions();
+      res.json(versions);
+    } catch (error) {
+      console.error("Failed to get versions:", error);
+      res.status(500).json({ message: "Failed to fetch version history" });
+    }
+  });
+
+  app.post("/api/settings/config", async (req: Request, res: Response) => {
+    try {
+      const { password, ...configData } = req.body;
+      
+      if (password !== ADMIN_PASSWORD) {
+        return res.status(401).json({ message: "Invalid password" });
+      }
+
+      const parsed = specsiftConfigFormSchema.safeParse(configData);
+      if (!parsed.success) {
+        return res.status(400).json({ 
+          message: "Invalid configuration data", 
+          errors: parsed.error.flatten() 
+        });
+      }
+
+      const newConfig = await createConfig(parsed.data);
+      clearConfigCache();
+      res.json(newConfig);
+    } catch (error) {
+      console.error("Failed to save config:", error);
+      res.status(500).json({ message: "Failed to save configuration" });
+    }
+  });
+
+  app.post("/api/settings/rollback/:id", async (req: Request, res: Response) => {
+    try {
+      const { password } = req.body;
+      
+      if (password !== ADMIN_PASSWORD) {
+        return res.status(401).json({ message: "Invalid password" });
+      }
+
+      const configId = parseInt(req.params.id);
+      if (isNaN(configId)) {
+        return res.status(400).json({ message: "Invalid config ID" });
+      }
+
+      const restored = await rollbackToVersion(configId);
+      if (!restored) {
+        return res.status(404).json({ message: "Configuration version not found" });
+      }
+
+      clearConfigCache();
+      res.json(restored);
+    } catch (error) {
+      console.error("Failed to rollback:", error);
+      res.status(500).json({ message: "Failed to rollback configuration" });
+    }
+  });
 
   return httpServer;
 }
