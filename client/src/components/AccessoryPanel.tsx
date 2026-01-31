@@ -1,19 +1,39 @@
-import { Search, ExternalLink, Tag, MapPin } from "lucide-react";
+import { Search, ExternalLink, Tag, MapPin, Check } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
 import type { AccessoryMatch } from "@shared/schema";
 import { ACCESSORY_SCOPES } from "@shared/schema";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
 
 interface AccessoryPanelProps {
   matches: AccessoryMatch[];
+  selectedScopes?: Set<string>;
+  onScopeSelectionChange?: (scopes: Set<string>) => void;
 }
 
-export function AccessoryPanel({ matches }: AccessoryPanelProps) {
+export function AccessoryPanel({ matches, selectedScopes, onScopeSelectionChange }: AccessoryPanelProps) {
   const [searchQuery, setSearchQuery] = useState("");
+  const [internalSelectedScopes, setInternalSelectedScopes] = useState<Set<string>>(new Set());
+
+  const effectiveSelectedScopes = selectedScopes ?? internalSelectedScopes;
+
+  const handleScopeToggle = (scopeName: string, checked: boolean) => {
+    const newSet = new Set(effectiveSelectedScopes);
+    if (checked) {
+      newSet.add(scopeName);
+    } else {
+      newSet.delete(scopeName);
+    }
+    if (onScopeSelectionChange) {
+      onScopeSelectionChange(newSet);
+    } else {
+      setInternalSelectedScopes(newSet);
+    }
+  };
 
   const filteredMatches = matches.filter(
     (match) =>
@@ -70,17 +90,35 @@ export function AccessoryPanel({ matches }: AccessoryPanelProps) {
               const scope = ACCESSORY_SCOPES.find((s) => s.name === scopeName);
               const colorClass = scopeColors[scopeName] || "bg-muted text-muted-foreground";
 
+              const isSelected = effectiveSelectedScopes.has(scopeName);
+
               return (
-                <Card key={scopeName} className="overflow-hidden" data-testid={`card-accessory-${scopeName}`}>
+                <Card 
+                  key={scopeName} 
+                  className={cn(
+                    "overflow-hidden cursor-pointer transition-colors",
+                    isSelected && "ring-2 ring-primary bg-primary/5"
+                  )} 
+                  data-testid={`card-accessory-${scopeName}`}
+                  onClick={() => handleScopeToggle(scopeName, !isSelected)}
+                >
                   <CardHeader className="p-4 pb-2">
                     <div className="flex items-center justify-between gap-2">
-                      <CardTitle className="text-sm font-semibold">{scopeName}</CardTitle>
+                      <div className="flex items-center gap-2">
+                        <Checkbox 
+                          checked={isSelected}
+                          onCheckedChange={(checked) => handleScopeToggle(scopeName, !!checked)}
+                          onClick={(e) => e.stopPropagation()}
+                          data-testid={`checkbox-scope-${scopeName}`}
+                        />
+                        <CardTitle className="text-sm font-semibold">{scopeName}</CardTitle>
+                      </div>
                       <Badge variant="secondary" className="text-xs">
                         {scopeMatches.length} match{scopeMatches.length !== 1 ? "es" : ""}
                       </Badge>
                     </div>
                     {scope && (
-                      <div className="flex items-center gap-2 mt-1">
+                      <div className="flex items-center gap-2 mt-1 ml-6">
                         <ExternalLink className="h-3 w-3 text-muted-foreground" />
                         <span className="font-mono text-xs text-muted-foreground">
                           {scope.sectionHint}

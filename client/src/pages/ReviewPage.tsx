@@ -42,6 +42,7 @@ export default function ReviewPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [showAccessoryPanel, setShowAccessoryPanel] = useState(true);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [selectedAccessoryScopes, setSelectedAccessoryScopes] = useState<Set<string>>(new Set());
 
   const { data: session, isLoading: sessionLoading } = useQuery<Session>({
     queryKey: ["/api/sessions", sessionId],
@@ -60,6 +61,7 @@ export default function ReviewPage() {
 
   useEffect(() => {
     setSelectedIds(new Set());
+    setSelectedAccessoryScopes(new Set());
   }, [sessionId]);
 
   useEffect(() => {
@@ -146,26 +148,38 @@ export default function ReviewPage() {
     try {
       setIsExporting(true);
       const sectionIds = Array.from(selectedIds);
+      const accessoryScopes = Array.from(selectedAccessoryScopes);
       
-      if (sectionIds.length === 0) {
+      if (sectionIds.length === 0 && accessoryScopes.length === 0) {
         toast({
-          title: "No Sections Selected",
-          description: "Please select at least one section to export.",
+          title: "No Selections Made",
+          description: "Please select at least one section or accessory scope to export.",
           variant: "destructive",
         });
         setIsExporting(false);
         return;
       }
 
+      const sectionCount = sectionIds.length;
+      const scopeCount = accessoryScopes.length;
+      let description = "";
+      if (sectionCount > 0 && scopeCount > 0) {
+        description = `Extracting ${sectionCount} section${sectionCount !== 1 ? "s" : ""} and ${scopeCount} accessory scope${scopeCount !== 1 ? "s" : ""}...`;
+      } else if (sectionCount > 0) {
+        description = `Extracting ${sectionCount} section${sectionCount !== 1 ? "s" : ""} from original PDF...`;
+      } else {
+        description = `Extracting ${scopeCount} accessory scope${scopeCount !== 1 ? "s" : ""}...`;
+      }
+
       toast({
         title: "Generating PDF Packets",
-        description: `Extracting ${sectionIds.length} section${sectionIds.length !== 1 ? "s" : ""} from original PDF...`,
+        description,
       });
 
       const response = await fetch(`/api/sessions/${sessionId}/generate-packets`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sectionIds, includeCover, includeSummary }),
+        body: JSON.stringify({ sectionIds, accessoryScopes, includeCover, includeSummary }),
       });
 
       if (!response.ok) {
@@ -183,9 +197,16 @@ export default function ReviewPage() {
       const blob = await response.blob();
       saveAs(blob, filename);
       
+      const successParts = [];
+      if (sectionIds.length > 0) {
+        successParts.push(`${sectionIds.length} section${sectionIds.length !== 1 ? "s" : ""}`);
+      }
+      if (accessoryScopes.length > 0) {
+        successParts.push(`${accessoryScopes.length} accessory scope${accessoryScopes.length !== 1 ? "s" : ""}`);
+      }
       toast({
         title: "Export Complete",
-        description: `Exported ${sectionIds.length} section packet${sectionIds.length !== 1 ? "s" : ""} with original pages, cover sheets, and summaries.`,
+        description: `Exported ${successParts.join(" and ")} with original pages.`,
       });
     } catch (error) {
       console.error("Export error:", error);
@@ -340,7 +361,7 @@ export default function ReviewPage() {
 
               <Button 
                 onClick={handleExport} 
-                disabled={selectedIds.size === 0 || isExporting} 
+                disabled={(selectedIds.size === 0 && selectedAccessoryScopes.size === 0) || isExporting} 
                 data-testid="button-export"
               >
                 {isExporting ? (
@@ -348,7 +369,7 @@ export default function ReviewPage() {
                 ) : (
                   <Download className="mr-2 h-4 w-4" />
                 )}
-                {isExporting ? "Generating..." : `Export (${selectedIds.size})`}
+                {isExporting ? "Generating..." : `Export (${selectedIds.size + selectedAccessoryScopes.size})`}
               </Button>
             </div>
           </div>
@@ -406,7 +427,11 @@ export default function ReviewPage() {
 
       {showAccessoryPanel && (
         <div className="hidden lg:flex w-80 flex-shrink-0 flex-col border-l border-border bg-card">
-          <AccessoryPanel matches={accessories} />
+          <AccessoryPanel 
+            matches={accessories}
+            selectedScopes={selectedAccessoryScopes}
+            onScopeSelectionChange={setSelectedAccessoryScopes}
+          />
         </div>
       )}
     </div>

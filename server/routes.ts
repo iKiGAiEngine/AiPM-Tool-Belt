@@ -362,8 +362,9 @@ export async function registerRoutes(
 
   app.post("/api/sessions/:id/generate-packets", async (req: Request, res: Response) => {
     try {
-      const { sectionIds, includeCover = false, includeSummary = false } = req.body as { 
-        sectionIds: string[];
+      const { sectionIds = [], accessoryScopes = [], includeCover = false, includeSummary = false } = req.body as { 
+        sectionIds?: string[];
+        accessoryScopes?: string[];
         includeCover?: boolean;
         includeSummary?: boolean;
       };
@@ -381,8 +382,12 @@ export async function registerRoutes(
       const allSections = await storage.getSectionsBySession(req.params.id);
       const sections = allSections.filter(s => sectionIds.includes(s.id));
 
-      if (sections.length === 0) {
-        return res.status(400).json({ message: "No sections selected" });
+      // Get accessory matches for selected scopes
+      const allAccessoryMatches = await storage.getAccessoryMatchesBySession(req.params.id);
+      const selectedAccessoryMatches = allAccessoryMatches.filter(m => accessoryScopes.includes(m.scopeName));
+
+      if (sections.length === 0 && selectedAccessoryMatches.length === 0) {
+        return res.status(400).json({ message: "No sections or accessory scopes selected" });
       }
 
       // Decrypt PDF using qpdf if encrypted
@@ -431,6 +436,47 @@ export async function registerRoutes(
         const folder = zip.folder(folderName);
         if (folder) {
           folder.file(pdfFileName, packet);
+        }
+      }
+
+      // Generate PDFs for selected accessory scopes
+      // Group matches by scope name and extract unique pages
+      const accessoryScopeGroups: Record<string, number[]> = {};
+      for (const match of selectedAccessoryMatches) {
+        if (!accessoryScopeGroups[match.scopeName]) {
+          accessoryScopeGroups[match.scopeName] = [];
+        }
+        if (match.pageNumber && !accessoryScopeGroups[match.scopeName].includes(match.pageNumber)) {
+          accessoryScopeGroups[match.scopeName].push(match.pageNumber);
+        }
+      }
+
+      // Create a PDF for each accessory scope with its matched pages
+      const totalPages = sourcePdf.getPageCount();
+      for (const [scopeName, pages] of Object.entries(accessoryScopeGroups)) {
+        if (pages.length === 0) continue;
+        
+        const sortedPages = pages.sort((a, b) => a - b);
+        const scopePdf = await PDFDocument.create();
+        
+        // Copy each matched page
+        const validPageIndices = sortedPages
+          .filter(p => p >= 1 && p <= totalPages)
+          .map(p => p - 1); // Convert to 0-indexed
+        
+        if (validPageIndices.length > 0) {
+          const copiedPages = await scopePdf.copyPages(sourcePdf, validPageIndices);
+          copiedPages.forEach(page => scopePdf.addPage(page));
+        }
+        
+        if (scopePdf.getPageCount() > 0) {
+          const scopeBytes = await scopePdf.save();
+          const safeScopeName = sanitizeFilename(scopeName);
+          const accessoryFolder = zip.folder("Accessory Scopes");
+          const scopeFolder = accessoryFolder?.folder(safeScopeName);
+          if (scopeFolder) {
+            scopeFolder.file(`${safeScopeName} - ${projectName}.pdf`, scopeBytes);
+          }
         }
       }
 
