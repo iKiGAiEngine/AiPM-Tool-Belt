@@ -32,23 +32,17 @@ AiPM Tool Belt is a suite of construction document processing tools. The main la
 
 ### Quote Parser Module
 - **New Tool**: Quote → Estimate Parser for vendor quote processing
+- **Simplified Summary Output**: Generates a single summary row per quote with:
+  - MODEL NUMBER: "Manufacturer - Quote #" format
+  - ITEM QUANTITY: Always "1"
+  - MATERIAL: Total material cost (Subtotal preferred over Grand Total)
+  - FREIGHT: Total freight cost
 - **PDF OCR Support**: PDFs are converted to images via pdftoppm and processed with Tesseract.js OCR
-- **Price Detection**: Now detects prices both with and without dollar signs (e.g., "$185.00" and "185.00")
 - **Vendor Auto-Detection**: Automatically identifies vendors based on quote patterns and names stored in settings
-- **Product Dictionary Matching**: Matches parsed model numbers against product dictionary with confidence levels (high/medium/low)
-- **Enhanced Model Matching**: `findProductByPartialMatch()` finds base models within extended model codes (e.g., "C2037F17FX2" matches base "2037")
-- **Suffix Decoding**: Translates manufacturer-specific suffix codes into readable descriptions:
-  - Depth codes: F12→"12\" Depth", F14→"14\" Depth", F17→"17\" Depth"
-  - Fire rating: FX2→"Fire-Rated"
-  - Material: AL→"Aluminum", SS→"Stainless Steel", BR→"Bronze"
-  - Door style: DW→"Full Glass Door", DS→"Solid Door", DP→"Breakable Acrylic Door"
-- **Special Line Consolidation**:
-  - TAG lines: Excluded from output, " - tagged" appended to preceding fire extinguisher
-  - Decal lines (LDCVBFE): Excluded, "decals included" appended to preceding cabinet
-  - Freight: Formatted as Model="Freight", Qty=1, cost in freight column
-- **Schedule Matching**: Optional schedule reference for Plan Callout population with confidence scoring
-- **Manufacturer Detection**: Recognizes common construction product manufacturers (Bobrick, ASI, Bradley, etc.)
-- **Freight Handling**: Three modes for freight allocation
+- **Manufacturer Extraction**: Detects manufacturer from vendor database or text patterns (JL Industries, Larsen's, etc.)
+- **Quote Number Extraction**: Parses quote/proposal/reference numbers from text
+- **Material Total Detection**: Prefers Subtotal over Grand Total; falls back to summing line item prices
+- **Freight Detection**: Extracts freight from lines starting with "Freight:", "Shipping:", or "Delivery:"
 - **Export Options**: Copy TSV for Excel paste and CSV download
 
 ### Fire Protection Products Database
