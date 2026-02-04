@@ -2,6 +2,8 @@ import * as pdfParse from "pdf-parse";
 const pdf = (pdfParse as any).default || pdfParse;
 import { createWorker, Worker } from "tesseract.js";
 import sharp from "sharp";
+import { createCanvas } from "canvas";
+import * as pdfjs from "pdfjs-dist/legacy/build/pdf.mjs";
 
 export interface ParsedLineItem {
   description: string;
@@ -81,11 +83,41 @@ export async function extractTextFromFile(
 }
 
 async function performOcrOnPdf(buffer: Buffer): Promise<string> {
-  // Tesseract.js cannot read PDFs directly - need to convert to images first
-  // For now, return empty and let the warning indicate OCR was attempted
-  // This is a fallback when pdf-parse fails (scanned/image-only PDFs)
-  console.warn("PDF OCR not supported - PDF appears to be image-only or scanned");
-  return "";
+  try {
+    const uint8Array = new Uint8Array(buffer);
+    const loadingTask = pdfjs.getDocument({ data: uint8Array });
+    const pdfDoc = await loadingTask.promise;
+    const numPages = Math.min(pdfDoc.numPages, 10);
+    
+    const worker = await getOcrWorker();
+    const allText: string[] = [];
+    
+    for (let pageNum = 1; pageNum <= numPages; pageNum++) {
+      try {
+        const page = await pdfDoc.getPage(pageNum);
+        const viewport = page.getViewport({ scale: 2.0 });
+        
+        const canvas = createCanvas(viewport.width, viewport.height);
+        const context = canvas.getContext("2d");
+        
+        await (page.render({
+          canvasContext: context as any,
+          viewport: viewport,
+        } as any)).promise;
+        
+        const pngBuffer = canvas.toBuffer("image/png");
+        const result = await worker.recognize(pngBuffer);
+        allText.push(result.data.text);
+      } catch (pageError) {
+        console.warn(`Failed to OCR page ${pageNum}:`, pageError);
+      }
+    }
+    
+    return allText.join("\n");
+  } catch (error) {
+    console.error("PDF OCR failed:", error);
+    return "";
+  }
 }
 
 export function parseQuoteText(text: string): QuoteParseResult {
