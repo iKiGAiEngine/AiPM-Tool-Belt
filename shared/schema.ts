@@ -212,3 +212,75 @@ export const specsiftConfigFormSchema = z.object({
 });
 
 export type SpecsiftConfigFormData = z.infer<typeof specsiftConfigFormSchema>;
+
+// =====================================================
+// AIPM CENTRAL SETTINGS - Vendors & Products
+// =====================================================
+
+// Vendor Profiles Table
+export const vendors = pgTable("vendors", {
+  id: serial("id").primaryKey(),
+  name: varchar("name", { length: 200 }).notNull(),
+  shortName: varchar("short_name", { length: 50 }), // e.g., "Activar", "Bobrick"
+  quotePatterns: jsonb("quote_patterns").$type<string[]>().default([]), // Regex patterns to identify vendor quotes
+  modelPrefixes: jsonb("model_prefixes").$type<string[]>().default([]), // e.g., ["B-", "ASI-"]
+  contactEmail: varchar("contact_email", { length: 200 }),
+  contactPhone: varchar("contact_phone", { length: 50 }),
+  website: varchar("website", { length: 300 }),
+  notes: text("notes"),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export type Vendor = typeof vendors.$inferSelect;
+export type InsertVendor = typeof vendors.$inferInsert;
+
+export const insertVendorSchema = createInsertSchema(vendors).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type InsertVendorInput = z.infer<typeof insertVendorSchema>;
+
+// Division 10 Products Table
+export const div10Products = pgTable("div10_products", {
+  id: serial("id").primaryKey(),
+  modelNumber: varchar("model_number", { length: 100 }).notNull(),
+  description: text("description").notNull(),
+  manufacturer: varchar("manufacturer", { length: 200 }),
+  vendorId: integer("vendor_id"), // Optional link to vendor
+  scopeCategory: varchar("scope_category", { length: 100 }).notNull(), // e.g., "Toilet Accessories", "Fire Extinguisher Cabinets"
+  aliases: jsonb("aliases").$type<string[]>().default([]), // Alternative model numbers or names
+  typicalPrice: varchar("typical_price", { length: 50 }), // For reference/validation
+  notes: text("notes"),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export type Div10Product = typeof div10Products.$inferSelect;
+export type InsertDiv10Product = typeof div10Products.$inferInsert;
+
+export const insertDiv10ProductSchema = createInsertSchema(div10Products).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type InsertDiv10ProductInput = z.infer<typeof insertDiv10ProductSchema>;
+
+// Scope categories for the products dropdown
+export const DIV10_SCOPE_CATEGORIES = [
+  "Toilet Accessories",
+  "Toilet Partitions",
+  "Wall Protection",
+  "Fire Extinguisher Cabinets",
+  "Fire Extinguishers",
+  "Cubicle Curtains",
+  "Visual Display",
+  "Lockers",
+  "Shelving",
+  "Signage",
+  "Other Div10",
+] as const;
+export type Div10ScopeCategory = typeof DIV10_SCOPE_CATEGORIES[number];
