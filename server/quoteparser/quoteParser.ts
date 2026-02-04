@@ -81,9 +81,11 @@ export async function extractTextFromFile(
 }
 
 async function performOcrOnPdf(buffer: Buffer): Promise<string> {
-  const worker = await getOcrWorker();
-  const result = await worker.recognize(buffer);
-  return result.data.text;
+  // Tesseract.js cannot read PDFs directly - need to convert to images first
+  // For now, return empty and let the warning indicate OCR was attempted
+  // This is a fallback when pdf-parse fails (scanned/image-only PDFs)
+  console.warn("PDF OCR not supported - PDF appears to be image-only or scanned");
+  return "";
 }
 
 export function parseQuoteText(text: string): QuoteParseResult {
