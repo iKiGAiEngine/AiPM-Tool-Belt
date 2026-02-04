@@ -36,10 +36,25 @@ AiPM Tool Belt is a suite of construction document processing tools. The main la
 - **Price Detection**: Now detects prices both with and without dollar signs (e.g., "$185.00" and "185.00")
 - **Vendor Auto-Detection**: Automatically identifies vendors based on quote patterns and names stored in settings
 - **Product Dictionary Matching**: Matches parsed model numbers against product dictionary with confidence levels (high/medium/low)
+- **Enhanced Model Matching**: `findProductByPartialMatch()` finds base models within extended model codes (e.g., "C2037F17FX2" matches base "2037")
+- **Suffix Decoding**: Translates manufacturer-specific suffix codes into readable descriptions:
+  - Depth codes: F12→"12\" Depth", F14→"14\" Depth", F17→"17\" Depth"
+  - Fire rating: FX2→"Fire-Rated"
+  - Material: AL→"Aluminum", SS→"Stainless Steel", BR→"Bronze"
+  - Door style: DW→"Full Glass Door", DS→"Solid Door", DP→"Breakable Acrylic Door"
+- **Special Line Consolidation**:
+  - TAG lines: Excluded from output, " - tagged" appended to preceding fire extinguisher
+  - Decal lines (LDCVBFE): Excluded, "decals included" appended to preceding cabinet
+  - Freight: Formatted as Model="Freight", Qty=1, cost in freight column
 - **Schedule Matching**: Optional schedule reference for Plan Callout population with confidence scoring
 - **Manufacturer Detection**: Recognizes common construction product manufacturers (Bobrick, ASI, Bradley, etc.)
 - **Freight Handling**: Three modes for freight allocation
 - **Export Options**: Copy TSV for Excel paste and CSV download
+
+### Fire Protection Products Database
+- **Vendors**: JL Industries, Larsen's, Potter Roemer, Fire End & Croker, Modern Metal
+- **Suffix Decoders**: 24 manufacturer-specific codes for depth, fire-rating, material, door-style, trim-style
+- **Products**: 67+ fire extinguishers and cabinets across all major manufacturers
 
 ## Recent Changes (January 2026)
 
