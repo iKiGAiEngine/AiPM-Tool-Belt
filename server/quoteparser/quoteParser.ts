@@ -1,11 +1,11 @@
-import * as pdfParse from "pdf-parse";
-const pdf = (pdfParse as any).default || pdfParse;
+import * as pdfParseModule from "pdf-parse";
+const pdfParse = (pdfParseModule as any).default || pdfParseModule;
 import { createWorker, Worker } from "tesseract.js";
 import sharp from "sharp";
-import { createCanvas } from "canvas";
-import * as pdfjs from "pdfjs-dist";
-
-pdfjs.GlobalWorkerOptions.workerSrc = "";
+import { execSync } from "child_process";
+import * as fs from "fs";
+import * as path from "path";
+import * as os from "os";
 
 export interface ParsedLineItem {
   description: string;
@@ -47,7 +47,7 @@ export async function extractTextFromFile(
 
   if (mimeType === "application/pdf") {
     try {
-      const data = await pdf(buffer);
+      const data = await pdfParse(buffer);
       if (data.text.trim().length < 50) {
         warnings.push("PDF has minimal text, attempting OCR");
         const ocrText = await performOcrOnPdf(buffer);
@@ -85,36 +85,46 @@ export async function extractTextFromFile(
 }
 
 async function performOcrOnPdf(buffer: Buffer): Promise<string> {
+  const tmpDir = os.tmpdir();
+  const sessionId = Date.now().toString() + Math.random().toString(36).slice(2);
+  const pdfPath = path.join(tmpDir, `quote_${sessionId}.pdf`);
+  const outputPrefix = path.join(tmpDir, `quote_${sessionId}_page`);
+  
   try {
-    const uint8Array = new Uint8Array(buffer);
-    const loadingTask = pdfjs.getDocument({ data: uint8Array });
-    const pdfDoc = await loadingTask.promise;
-    const numPages = Math.min(pdfDoc.numPages, 10);
+    try {
+      execSync('which pdftoppm', { timeout: 5000 });
+    } catch {
+      console.warn("pdftoppm not available, PDF OCR will fail");
+      return "";
+    }
+    
+    fs.writeFileSync(pdfPath, buffer);
+    
+    execSync(`pdftoppm -png -r 200 -l 10 "${pdfPath}" "${outputPrefix}"`, {
+      timeout: 60000,
+    });
+    
+    const files = fs.readdirSync(tmpDir)
+      .filter(f => f.startsWith(`quote_${sessionId}_page`) && f.endsWith('.png'))
+      .sort();
+    
+    if (files.length === 0) {
+      console.warn("No PNG files generated from PDF");
+      return "";
+    }
     
     const worker = await getOcrWorker();
     const allText: string[] = [];
     
-    for (let pageNum = 1; pageNum <= numPages; pageNum++) {
+    for (const file of files) {
       try {
-        const page = await pdfDoc.getPage(pageNum);
-        const viewport = page.getViewport({ scale: 2.0 });
-        
-        const canvas = createCanvas(viewport.width, viewport.height);
-        const context = canvas.getContext("2d");
-        
-        const renderContext = {
-          canvasContext: context as any,
-          viewport: viewport,
-          canvas: canvas as any,
-        };
-        
-        await page.render(renderContext).promise;
-        
-        const pngBuffer = canvas.toBuffer("image/png");
-        const result = await worker.recognize(pngBuffer);
+        const imagePath = path.join(tmpDir, file);
+        const imageBuffer = fs.readFileSync(imagePath);
+        const result = await worker.recognize(imageBuffer);
         allText.push(result.data.text);
+        fs.unlinkSync(imagePath);
       } catch (pageError) {
-        console.warn(`Failed to OCR page ${pageNum}:`, pageError);
+        console.warn(`Failed to OCR page:`, pageError);
       }
     }
     
@@ -122,6 +132,19 @@ async function performOcrOnPdf(buffer: Buffer): Promise<string> {
   } catch (error) {
     console.error("PDF OCR failed:", error);
     return "";
+  } finally {
+    try {
+      if (fs.existsSync(pdfPath)) {
+        fs.unlinkSync(pdfPath);
+      }
+      const leftoverFiles = fs.readdirSync(tmpDir)
+        .filter(f => f.startsWith(`quote_${sessionId}_page`));
+      for (const f of leftoverFiles) {
+        fs.unlinkSync(path.join(tmpDir, f));
+      }
+    } catch (e) {
+      // Cleanup errors are non-fatal
+    }
   }
 }
 
@@ -181,9 +204,19 @@ export function parseQuoteText(text: string): QuoteParseResult {
     /^\s*$/,
     /^[-=_]{3,}$/,
     /^\d+\s*of\s*\d+$/,
+    /buyer\s*signature/i,
+    /print\s*name/i,
+    /special\s*delivery/i,
+    /appointment\s*needed/i,
+    /seller\s*in\s*writing/i,
+    /form\s*should\s*be\s*completed/i,
+    /referenced\s*quote/i,
+    /\bUSD\b.*total/i,
+    /subtotal.*estimated.*freight.*tax/i,
   ];
 
-  const pricePattern = /\$([\d,]+\.?\d*)/g;
+  const pricePatternWithDollar = /\$([\d,]+\.?\d*)/g;
+  const pricePatternNoDollar = /(?:^|\s)([\d,]+\.\d{2})(?:\s|$)/g;
   const lines = text.split(/\n/).map((l) => l.trim());
 
   for (let i = 0; i < lines.length; i++) {
@@ -194,13 +227,24 @@ export function parseQuoteText(text: string): QuoteParseResult {
 
     const prices: number[] = [];
     let priceMatch;
-    while ((priceMatch = pricePattern.exec(line)) !== null) {
+    
+    while ((priceMatch = pricePatternWithDollar.exec(line)) !== null) {
       const val = parseFloat(priceMatch[1].replace(/,/g, ""));
       if (!isNaN(val) && val > 0 && val < 10000000) {
         prices.push(val);
       }
     }
-    pricePattern.lastIndex = 0;
+    pricePatternWithDollar.lastIndex = 0;
+    
+    if (prices.length === 0) {
+      while ((priceMatch = pricePatternNoDollar.exec(line)) !== null) {
+        const val = parseFloat(priceMatch[1].replace(/,/g, ""));
+        if (!isNaN(val) && val > 0 && val < 10000000) {
+          prices.push(val);
+        }
+      }
+      pricePatternNoDollar.lastIndex = 0;
+    }
 
     if (prices.length === 0) {
       if (lineItems.length > 0 && /^[A-Za-z]/.test(line) && line.length < 100) {
@@ -251,7 +295,8 @@ export function parseQuoteText(text: string): QuoteParseResult {
       description = description.replace(modelNumber, "").trim();
     }
     description = description
-      .replace(pricePattern, "")
+      .replace(/\$([\d,]+\.?\d*)/g, "")
+      .replace(/(?:^|\s)([\d,]+\.\d{2})(?:\s|$)/g, " ")
       .replace(/\s+/g, " ")
       .replace(/^[\s,.\-:]+|[\s,.\-:]+$/g, "")
       .slice(0, 200);

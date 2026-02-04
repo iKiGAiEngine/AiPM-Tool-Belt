@@ -22,6 +22,8 @@ AiPM Tool Belt is a suite of construction document processing tools. The main la
 
 ### Quote Parser Module
 - **New Tool**: Quote → Estimate Parser for vendor quote processing
+- **PDF OCR Support**: PDFs are converted to images via pdftoppm and processed with Tesseract.js OCR
+- **Price Detection**: Now detects prices both with and without dollar signs (e.g., "$185.00" and "185.00")
 - **Schedule Matching**: Optional schedule reference for Plan Callout population with confidence scoring
 - **Manufacturer Detection**: Recognizes common construction product manufacturers (Bobrick, ASI, Bradley, etc.)
 - **Freight Handling**: Three modes for freight allocation
