@@ -5,6 +5,7 @@ import {
   parseQuoteText,
   formatCurrency,
   ParsedLineItem,
+  enhanceWithProductDictionary,
 } from "./quoteParser";
 import { parseScheduleText, matchQuoteToSchedule, ScheduleEntry } from "./scheduleParser";
 
@@ -28,6 +29,9 @@ interface OutputRow {
   material: string;
   freight: string;
   confidence: number | null;
+  matchedProductId: number | null;
+  matchedProductDescription: string | null;
+  productMatchConfidence: "high" | "medium" | "low" | null;
 }
 
 interface ParseError {
@@ -87,6 +91,11 @@ quoteParserRouter.post(
 
       const quoteResult = parseQuoteText(quoteContent);
       warnings.push(...quoteResult.warnings);
+
+      const enhancedResult = await enhanceWithProductDictionary(quoteResult, quoteContent);
+      if (enhancedResult.detectedVendor) {
+        warnings.unshift(`Detected vendor: ${enhancedResult.detectedVendor.name}`);
+      }
 
       const hasPrices = /\$[\d,]+\.?\d*|\d+\.\d{2}/.test(quoteContent);
       if (
@@ -148,10 +157,13 @@ quoteParserRouter.post(
           material: formatCurrency(quoteResult.lumpSumAmount),
           freight: "$-",
           confidence: null,
+          matchedProductId: null,
+          matchedProductDescription: null,
+          productMatchConfidence: null,
         });
       } else {
-        for (let i = 0; i < quoteResult.lineItems.length; i++) {
-          const item = quoteResult.lineItems[i];
+        for (let i = 0; i < enhancedResult.enhancedLineItems.length; i++) {
+          const item = enhancedResult.enhancedLineItems[i];
 
           let planCallout = "";
           let confidence: number | null = null;
@@ -210,6 +222,9 @@ quoteParserRouter.post(
             material,
             freight: "$-",
             confidence: hasSchedule ? confidence : null,
+            matchedProductId: item.matchedProduct?.id ?? null,
+            matchedProductDescription: item.matchedProduct?.description ?? null,
+            productMatchConfidence: item.matchConfidence,
           });
         }
       }
@@ -226,6 +241,9 @@ quoteParserRouter.post(
           material: "$-",
           freight: formatCurrency(quoteResult.metadata.freightTotal),
           confidence: null,
+          matchedProductId: null,
+          matchedProductDescription: null,
+          productMatchConfidence: null,
         });
       } else if (
         settings.freightMode === "allocate" &&

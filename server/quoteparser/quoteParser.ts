@@ -6,6 +6,8 @@ import { execSync } from "child_process";
 import * as fs from "fs";
 import * as path from "path";
 import * as os from "os";
+import { getActiveProducts, getActiveVendors, findProductByModelNumber } from "../centralSettingsStorage";
+import type { Div10Product, Vendor } from "@shared/schema";
 
 export interface ParsedLineItem {
   description: string;
@@ -365,4 +367,109 @@ export function formatCurrency(amount: number | null): string {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   });
+}
+
+export interface EnhancedLineItem extends ParsedLineItem {
+  matchedProduct: Div10Product | null;
+  matchConfidence: "high" | "medium" | "low" | null;
+}
+
+export interface EnhancedQuoteParseResult extends QuoteParseResult {
+  enhancedLineItems: EnhancedLineItem[];
+  detectedVendor: Vendor | null;
+}
+
+export async function enhanceWithProductDictionary(
+  result: QuoteParseResult,
+  rawText: string
+): Promise<EnhancedQuoteParseResult> {
+  let products: Div10Product[] = [];
+  let vendors: Vendor[] = [];
+  
+  try {
+    products = await getActiveProducts();
+    vendors = await getActiveVendors();
+  } catch (error) {
+    console.warn("Failed to load product dictionary:", error);
+  }
+
+  let detectedVendor: Vendor | null = null;
+  const textUpper = rawText.toUpperCase();
+  for (const vendor of vendors) {
+    if (vendor.quotePatterns && vendor.quotePatterns.length > 0) {
+      for (const pattern of vendor.quotePatterns) {
+        if (textUpper.includes(pattern.toUpperCase())) {
+          detectedVendor = vendor;
+          break;
+        }
+      }
+    }
+    if (!detectedVendor && vendor.name) {
+      if (textUpper.includes(vendor.name.toUpperCase())) {
+        detectedVendor = vendor;
+      } else if (vendor.shortName && textUpper.includes(vendor.shortName.toUpperCase())) {
+        detectedVendor = vendor;
+      }
+    }
+    if (detectedVendor) break;
+  }
+
+  const enhancedLineItems: EnhancedLineItem[] = result.lineItems.map((item) => {
+    let matchedProduct: Div10Product | null = null;
+    let matchConfidence: "high" | "medium" | "low" | null = null;
+
+    if (item.modelNumber) {
+      const exactMatch = products.find(
+        (p) => p.modelNumber.toUpperCase() === item.modelNumber.toUpperCase()
+      );
+      if (exactMatch) {
+        matchedProduct = exactMatch;
+        matchConfidence = "high";
+      } else {
+        const aliasMatch = products.find((p) =>
+          p.aliases?.some((a) => a.toUpperCase() === item.modelNumber.toUpperCase())
+        );
+        if (aliasMatch) {
+          matchedProduct = aliasMatch;
+          matchConfidence = "high";
+        } else {
+          const partialMatch = products.find(
+            (p) =>
+              item.modelNumber.toUpperCase().includes(p.modelNumber.toUpperCase()) ||
+              p.modelNumber.toUpperCase().includes(item.modelNumber.toUpperCase())
+          );
+          if (partialMatch) {
+            matchedProduct = partialMatch;
+            matchConfidence = "medium";
+          }
+        }
+      }
+    }
+
+    if (!matchedProduct && item.description) {
+      const descUpper = item.description.toUpperCase();
+      const descMatch = products.find((p) => {
+        const pDescUpper = p.description.toUpperCase();
+        const words = pDescUpper.split(/\s+/).filter((w) => w.length > 3);
+        const matchCount = words.filter((w) => descUpper.includes(w)).length;
+        return matchCount >= 3 || (matchCount >= 2 && words.length <= 4);
+      });
+      if (descMatch) {
+        matchedProduct = descMatch;
+        matchConfidence = "low";
+      }
+    }
+
+    return {
+      ...item,
+      matchedProduct,
+      matchConfidence,
+    };
+  });
+
+  return {
+    ...result,
+    enhancedLineItems,
+    detectedVendor,
+  };
 }

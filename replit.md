@@ -20,10 +20,22 @@ AiPM Tool Belt is a suite of construction document processing tools. The main la
 
 ## Recent Changes (February 2026)
 
+### Central Settings Hub
+- **Settings Page** (`/settings`): Central admin area for all AiPM tools, accessible via footer link on homepage
+- **Vendor Profiles**: Manage vendor information, quote patterns, and model prefixes for better quote parsing
+  - Add/edit/delete vendors with name, short name, model prefixes, quote identification patterns
+  - Contact info (email, phone, website) and notes
+- **Division 10 Product Dictionary**: Build a knowledge base of known products organized by scope category
+  - Model numbers, descriptions, manufacturers, aliases
+  - Scope categories: Toilet Accessories, Partitions, Wall Protection, Fire Extinguisher Cabinets, etc.
+  - Products are matched during quote parsing for improved accuracy
+
 ### Quote Parser Module
 - **New Tool**: Quote → Estimate Parser for vendor quote processing
 - **PDF OCR Support**: PDFs are converted to images via pdftoppm and processed with Tesseract.js OCR
 - **Price Detection**: Now detects prices both with and without dollar signs (e.g., "$185.00" and "185.00")
+- **Vendor Auto-Detection**: Automatically identifies vendors based on quote patterns and names stored in settings
+- **Product Dictionary Matching**: Matches parsed model numbers against product dictionary with confidence levels (high/medium/low)
 - **Schedule Matching**: Optional schedule reference for Plan Callout population with confidence scoring
 - **Manufacturer Detection**: Recognizes common construction product manufacturers (Bobrick, ASI, Bradley, etc.)
 - **Freight Handling**: Three modes for freight allocation

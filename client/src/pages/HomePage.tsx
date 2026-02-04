@@ -1,5 +1,6 @@
 import { Link } from "wouter";
-import { FileSearch, ScanSearch, Wrench, Receipt } from "lucide-react";
+import { FileSearch, ScanSearch, Wrench, Receipt, Settings } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 interface ToolTile {
   id: string;
@@ -65,8 +66,14 @@ export default function HomePage() {
         </div>
       </div>
 
-      <footer className="text-center py-6 text-muted-foreground/60 text-sm">
-        AiPM Tool Belt
+      <footer className="flex items-center justify-center gap-4 py-6">
+        <span className="text-muted-foreground/60 text-sm">AiPM Tool Belt</span>
+        <Link href="/settings">
+          <Button variant="ghost" size="sm" className="gap-2 text-muted-foreground" data-testid="link-settings">
+            <Settings className="w-4 h-4" />
+            Settings
+          </Button>
+        </Link>
       </footer>
     </div>
   );
