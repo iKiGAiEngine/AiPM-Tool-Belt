@@ -9,15 +9,19 @@ import * as os from "os";
 import { getActiveVendors } from "../centralSettingsStorage";
 import type { Vendor } from "@shared/schema";
 
-export interface QuoteSummary {
+export interface ParsedLineItem {
+  description: string;
+  modelNumber: string;
+  qty: string;
+  lineType: "product" | "tag" | "decal" | "freight" | "summary";
+}
+
+export interface QuoteParseResult {
+  lineItems: ParsedLineItem[];
   manufacturer: string;
   quoteNumber: string;
   materialTotal: number;
   freightTotal: number;
-}
-
-export interface QuoteParseResult {
-  summary: QuoteSummary;
   warnings: string[];
   detectedVendor: Vendor | null;
 }
@@ -140,6 +144,21 @@ async function performOcrOnPdf(buffer: Buffer): Promise<string> {
   }
 }
 
+// Patterns to identify line types
+const TAG_PATTERNS = [/\bTAG[-\s]?[A-Z]{2}\b/i, /\btagging\b/i, /\bextinguisher\s*tag/i];
+const DECAL_PATTERNS = [/\bLDCVBFE\b/i, /\bdecal\b/i, /\bdie\s*cut\b/i, /\bsticker\b/i];
+const FREIGHT_PATTERNS = [/\bfreight\b/i, /\bFRTOUT\b/i, /\bshipping\b/i, /\boutbound\s*freight/i];
+
+function classifyLine(modelNumber: string, description: string): "product" | "tag" | "decal" | "freight" {
+  const combined = `${modelNumber} ${description}`.toUpperCase();
+  
+  if (FREIGHT_PATTERNS.some(p => p.test(combined))) return "freight";
+  if (TAG_PATTERNS.some(p => p.test(modelNumber) || p.test(combined))) return "tag";
+  if (DECAL_PATTERNS.some(p => p.test(modelNumber) || p.test(combined))) return "decal";
+  
+  return "product";
+}
+
 export async function parseQuoteText(text: string): Promise<QuoteParseResult> {
   const warnings: string[] = [];
   let manufacturer = "";
@@ -147,6 +166,7 @@ export async function parseQuoteText(text: string): Promise<QuoteParseResult> {
   let materialTotal = 0;
   let freightTotal = 0;
   let detectedVendor: Vendor | null = null;
+  const lineItems: ParsedLineItem[] = [];
 
   // Try to detect vendor from database
   try {
@@ -154,7 +174,6 @@ export async function parseQuoteText(text: string): Promise<QuoteParseResult> {
     const textUpper = text.toUpperCase();
     
     for (const vendor of vendors) {
-      // Check quote patterns first
       if (vendor.quotePatterns && vendor.quotePatterns.length > 0) {
         for (const pattern of vendor.quotePatterns) {
           if (textUpper.includes(pattern.toUpperCase())) {
@@ -164,7 +183,6 @@ export async function parseQuoteText(text: string): Promise<QuoteParseResult> {
           }
         }
       }
-      // Check vendor name
       if (!detectedVendor && vendor.name) {
         if (textUpper.includes(vendor.name.toUpperCase())) {
           detectedVendor = vendor;
@@ -180,16 +198,13 @@ export async function parseQuoteText(text: string): Promise<QuoteParseResult> {
     console.warn("Failed to load vendors:", error);
   }
 
-  // If no vendor found from database, try to extract manufacturer from text
+  // If no vendor found, try to extract manufacturer from text
   if (!manufacturer) {
     const mfrPatterns = [
-      // Common vendor names in fire protection industry
       /\b(JL\s*Industries|Larsen['']?s|Potter\s*Roemer|Fire\s*End\s*(?:&|and)\s*Croker|Modern\s*Metal)\b/i,
-      /\b(Bobrick|ASI|Bradley|American\s*Specialties)\b/i,
+      /\b(Activar|Maxam|Bobrick|ASI|Bradley|American\s*Specialties)\b/i,
       /\b(Amerex|Badger|Ansul|Kidde|Buckeye|First\s*Alert)\b/i,
-      // Generic patterns
       /(?:from|by|vendor|manufacturer)[:\s]+([A-Za-z][A-Za-z0-9\s&.,'-]+?)(?:\n|$)/i,
-      /^([A-Z][A-Za-z0-9\s&.]+(?:Inc\.?|LLC|Corp\.?|Co\.?))\s*$/m,
     ];
     
     for (const pattern of mfrPatterns) {
@@ -201,22 +216,17 @@ export async function parseQuoteText(text: string): Promise<QuoteParseResult> {
     }
   }
 
-  // Extract quote number - must contain at least one digit to be valid
+  // Extract quote number - must contain at least one digit
   const quoteNumPatterns = [
-    // Quote/Quotation/Proposal followed by # or number, must contain digits
+    /(?:sales\s*quote\s*number|quote\s*number|quote\s*no|quotation|proposal|estimate)\s*[:\s]*([A-Z0-9\-]*\d+[A-Z0-9\-]*)/i,
     /(?:quote|quotation|proposal|estimate)\s*(?:#|no\.?|number)?[:\s]*([A-Z0-9\-]*\d+[A-Z0-9\-]*)/i,
-    // Reference/Document number, must contain digits
-    /(?:ref(?:erence)?|doc(?:ument)?)\s*(?:#|no\.?|number)?[:\s]*([A-Z0-9\-]*\d+[A-Z0-9\-]*)/i,
-    // Just # followed by numbers
+    /\bSQ\d{8,}/i, // Activar format: SQ02630085
     /#\s*(\d{4,})/,
-    // "No." or "No:" followed by alphanumeric with digits
-    /\bno\.?\s*[:\s]*([A-Z0-9\-]*\d{3,}[A-Z0-9\-]*)/i,
   ];
   for (const pattern of quoteNumPatterns) {
     const match = text.match(pattern);
     if (match) {
-      const candidate = match[1].trim();
-      // Validate: must have at least one digit and be at least 3 chars
+      const candidate = match[1] ? match[1].trim() : match[0].trim();
       if (/\d/.test(candidate) && candidate.length >= 3) {
         quoteNumber = candidate;
         break;
@@ -224,88 +234,96 @@ export async function parseQuoteText(text: string): Promise<QuoteParseResult> {
     }
   }
 
-  // Look for explicit totals - prefer Subtotal over Grand Total
-  // This way we get material total without freight/tax
-  let foundMaterialTotal = false;
-  
-  // First, try to find Subtotal (material only, before freight/tax)
-  const subtotalPattern = /(?:sub\s*total|material\s*total|merchandise\s*total|product\s*total)[:\s]*\$?([\d,]+\.?\d*)/gi;
-  const subtotalMatches = Array.from(text.matchAll(subtotalPattern));
-  if (subtotalMatches.length > 0) {
-    const lastMatch = subtotalMatches[subtotalMatches.length - 1];
-    const val = parseFloat(lastMatch[1].replace(/,/g, ""));
-    if (!isNaN(val) && val > 0 && val < 10000000) {
-      materialTotal = val;
-      foundMaterialTotal = true;
-    }
-  }
-  
-  // Only use Grand Total if no subtotal found (means freight is probably included)
-  if (!foundMaterialTotal) {
-    const grandTotalPattern = /(?:grand\s*total|total|amount\s*due|net\s*amount)[:\s]*\$?([\d,]+\.?\d*)/gi;
-    const grandTotalMatches = Array.from(text.matchAll(grandTotalPattern));
-    if (grandTotalMatches.length > 0) {
-      const lastMatch = grandTotalMatches[grandTotalMatches.length - 1];
-      const val = parseFloat(lastMatch[1].replace(/,/g, ""));
-      if (!isNaN(val) && val > 0 && val < 10000000) {
-        materialTotal = val;
-        foundMaterialTotal = true;
-      }
-    }
-  }
-
-  // If no explicit total found, sum up all detected prices (extended prices)
-  if (!foundMaterialTotal) {
-    const lines = text.split(/\n/);
-    
-    // Look for lines that have quantity, description, and price
-    // Format: qty  model  description  unit_price  extended_price
-    // We want to sum the extended prices (last price on each line)
-    const lineItemPattern = /^\s*(\d+)\s+.*?(\$?[\d,]+\.?\d*)\s*$/;
-    const pricesOnLine = /\$?([\d,]+\.\d{2})/g;
-    
-    for (const line of lines) {
-      // Skip header/footer lines
-      if (/^(sub\s*total|total|tax|freight|shipping|delivery)/i.test(line.trim())) continue;
-      if (/^(terms|conditions|notes|warranty|payment)/i.test(line.trim())) continue;
-      if (line.trim().length < 10) continue;
-      
-      // Find all prices on this line
-      const prices: number[] = [];
-      let match;
-      while ((match = pricesOnLine.exec(line)) !== null) {
-        const val = parseFloat(match[1].replace(/,/g, ""));
-        if (!isNaN(val) && val > 0 && val < 100000) {
-          prices.push(val);
-        }
-      }
-      pricesOnLine.lastIndex = 0;
-      
-      // If line has 2 prices, the second is usually the extended price
-      // If line has 1 price and starts with qty, it's likely the extended price
-      if (prices.length >= 2) {
-        // Take the larger price as extended (or last if they're equal)
-        const extendedPrice = prices[prices.length - 1];
-        materialTotal += extendedPrice;
-      } else if (prices.length === 1) {
-        // Check if this is a single-price line item (not a subtotal or freight)
-        if (/^\s*\d+\s+/.test(line) && !/freight|shipping|delivery/i.test(line)) {
-          materialTotal += prices[0];
-        }
-      }
-    }
-  }
-
-  // Extract freight total - look for lines that start with freight/shipping/delivery
+  // Parse line items from the quote
+  // Look for lines with quantity, item number, and description
   const lines = text.split(/\n/);
+  
+  // Skip patterns for headers, footers, addresses, etc.
+  const skipPatterns = [
+    /^(sub\s*total|total|tax|terms|conditions|warranty|payment)/i,
+    /^(bill\s*to|ship\s*to|sold\s*to|attention|attn|phone|fax|email)/i,
+    /^(buyer|seller|signature|print\s*name|date|page\s*\d)/i,
+    /^\s*$/,
+    /^[-=_]{3,}$/,
+    /^\d+\s*of\s*\d+$/,
+    /mailing\s*address/i,
+    /quote\s*validity/i,
+    /lead\s*time/i,
+    /did\s*you\s*know/i,
+  ];
+
+  // Pattern to match line items: Qty Unit [Wh] ItemNo Description [Price]
+  // Example: "1   Each    CA     FEA445454       FIRE EXT, RED LINE..."
+  const lineItemPattern = /^\s*(\d+)\s+(?:Each|EA|Ea|PCS?|Unit)\s+(?:[A-Z]{2}\s+)?([A-Z0-9][\w\-\/]+)\s+(.+)/i;
+  
   for (const line of lines) {
-    const lineTrimmed = line.trim().toLowerCase();
-    // Only match lines that START with freight/shipping/delivery (summary lines)
-    if (/^(freight|shipping|delivery)\s*:?\s*\$?([\d,]+\.?\d*)/i.test(lineTrimmed)) {
-      const match = lineTrimmed.match(/\$?([\d,]+\.?\d*)/);
-      if (match) {
-        const val = parseFloat(match[1].replace(/,/g, ""));
-        if (!isNaN(val) && val > 0 && val < 100000) {
+    if (skipPatterns.some(p => p.test(line.trim()))) continue;
+    if (line.trim().length < 10) continue;
+    
+    const match = line.match(lineItemPattern);
+    if (match) {
+      const qty = match[1];
+      const modelNumber = match[2].trim();
+      let description = match[3].trim();
+      
+      // Remove prices from description
+      description = description.replace(/\$?[\d,]+\.\d{2}/g, "").trim();
+      // Clean up trailing commas, periods
+      description = description.replace(/[,.\s]+$/, "").trim();
+      
+      const lineType = classifyLine(modelNumber, description);
+      
+      lineItems.push({
+        description: description.toUpperCase(),
+        modelNumber,
+        qty,
+        lineType,
+      });
+    }
+  }
+
+  // Extract totals from the text
+  // Look for Subtotal line
+  const subtotalMatch = text.match(/(?:sub\s*total)[:\s]*\$?([\d,]+\.?\d*)/i);
+  if (subtotalMatch) {
+    const val = parseFloat(subtotalMatch[1].replace(/,/g, ""));
+    if (!isNaN(val) && val > 0) {
+      materialTotal = val;
+    }
+  }
+
+  // If no subtotal, look for individual line prices and sum them (excluding freight)
+  if (materialTotal === 0) {
+    // Find total price column values
+    const pricePattern = /(\d{1,3}(?:,\d{3})*\.\d{2})\s*$/gm;
+    let priceMatches;
+    const prices: number[] = [];
+    
+    while ((priceMatches = pricePattern.exec(text)) !== null) {
+      const val = parseFloat(priceMatches[1].replace(/,/g, ""));
+      if (!isNaN(val) && val > 0 && val < 100000) {
+        prices.push(val);
+      }
+    }
+    
+    // If we have prices, sum all except the largest (likely total) and freight
+    if (prices.length > 2) {
+      // Sort and exclude the largest (total) and any freight-like amounts
+      const sorted = [...prices].sort((a, b) => a - b);
+      // Sum all but the last (largest, which is likely the total)
+      for (let i = 0; i < sorted.length - 1; i++) {
+        materialTotal += sorted[i];
+      }
+    }
+  }
+
+  // Extract freight from specific freight line
+  for (const line of lines) {
+    if (FREIGHT_PATTERNS.some(p => p.test(line))) {
+      const freightMatch = line.match(/(\d{1,3}(?:,\d{3})*\.\d{2})/);
+      if (freightMatch) {
+        const val = parseFloat(freightMatch[1].replace(/,/g, ""));
+        if (!isNaN(val) && val > 0 && val < 10000) {
           freightTotal = val;
           break;
         }
@@ -313,19 +331,66 @@ export async function parseQuoteText(text: string): Promise<QuoteParseResult> {
     }
   }
 
-  // Subtract freight from material total if it seems included
-  // (when we summed all prices including a freight line)
-  if (freightTotal > 0 && !foundMaterialTotal) {
-    // Check if freight was in our material sum
-    const freightLinePattern = /(?:freight|shipping|delivery).*?\$?([\d,]+\.?\d*)/i;
-    const freightLineMatch = text.match(freightLinePattern);
-    if (freightLineMatch) {
-      const freightLineVal = parseFloat(freightLineMatch[1].replace(/,/g, ""));
-      if (!isNaN(freightLineVal) && Math.abs(freightLineVal - freightTotal) < 1) {
-        // Freight was probably included in our sum, subtract it
-        materialTotal = Math.max(0, materialTotal - freightTotal);
-      }
+  // Also check for "Estimated Freight" line
+  const estFreightMatch = text.match(/(?:estimated\s*freight|freight)[:\s]*\$?([\d,]+\.?\d*)/i);
+  if (!freightTotal && estFreightMatch) {
+    const val = parseFloat(estFreightMatch[1].replace(/,/g, ""));
+    if (!isNaN(val) && val > 0 && val < 10000) {
+      freightTotal = val;
     }
+  }
+
+  // Consolidate tag and decal lines into preceding products
+  const consolidatedItems: ParsedLineItem[] = [];
+  let hasTagConsolidation = false;
+  let hasDecalConsolidation = false;
+
+  for (let i = 0; i < lineItems.length; i++) {
+    const item = lineItems[i];
+    
+    if (item.lineType === "tag") {
+      // Find the most recent fire extinguisher and append "- tagged"
+      for (let j = consolidatedItems.length - 1; j >= 0; j--) {
+        if (consolidatedItems[j].lineType === "product") {
+          // Check if it's likely a fire extinguisher
+          const desc = consolidatedItems[j].description.toUpperCase();
+          if (/\b(EXT|FIRE|ANSUL|AMEREX|BADGER|KIDDE|RED\s*LINE|CARTRIDGE)\b/.test(desc) ||
+              /^FE[A-Z]?\d/.test(consolidatedItems[j].modelNumber)) {
+            consolidatedItems[j].description += " - tagged";
+            hasTagConsolidation = true;
+            break;
+          }
+        }
+      }
+      // Skip adding the tag line itself
+      continue;
+    }
+    
+    if (item.lineType === "decal") {
+      // Find the most recent cabinet and append "decals included"
+      for (let j = consolidatedItems.length - 1; j >= 0; j--) {
+        if (consolidatedItems[j].lineType === "product") {
+          const desc = consolidatedItems[j].description.toUpperCase();
+          const model = consolidatedItems[j].modelNumber.toUpperCase();
+          if (/\b(CABINET|FE\s*FX|COSMOPOLITAN|AMBASSADOR|ACADEMY|EMBASSY)\b/.test(desc) ||
+              /^C\d{4}/.test(model)) {
+            consolidatedItems[j].description += ", decals included";
+            hasDecalConsolidation = true;
+            break;
+          }
+        }
+      }
+      // Skip adding the decal line itself
+      continue;
+    }
+    
+    if (item.lineType === "freight") {
+      // Skip freight lines - we handle freight separately in summary
+      continue;
+    }
+    
+    // Add product lines
+    consolidatedItems.push(item);
   }
 
   // Set defaults if nothing found
@@ -347,12 +412,11 @@ export async function parseQuoteText(text: string): Promise<QuoteParseResult> {
   }
 
   return {
-    summary: {
-      manufacturer,
-      quoteNumber,
-      materialTotal,
-      freightTotal,
-    },
+    lineItems: consolidatedItems,
+    manufacturer,
+    quoteNumber,
+    materialTotal,
+    freightTotal,
     warnings,
     detectedVendor,
   };

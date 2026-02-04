@@ -61,33 +61,43 @@ quoteParserRouter.post(
 
       // Check if we have any usable data
       const hasPrices = /\$[\d,]+\.?\d*|\d+\.\d{2}/.test(quoteContent);
-      if (result.summary.materialTotal === 0 && !hasPrices) {
+      if (result.materialTotal === 0 && !hasPrices && result.lineItems.length === 0) {
         return res.status(400).json({
           rows: [],
           errors: [
             {
               type: "HARD_FAIL",
-              message:
-                "Quote has no detectable prices. Cannot parse.",
+              message: "Quote has no detectable prices or line items. Cannot parse.",
             },
           ],
           warnings,
         });
       }
 
-      // Create single summary row: "Manufacturer - Quote #" | Qty=1 | Material Total | Freight Total
-      const summaryLabel = `${result.summary.manufacturer} - ${result.summary.quoteNumber}`;
-      
-      const rows: OutputRow[] = [
-        {
+      const rows: OutputRow[] = [];
+
+      // Add individual line items with $0.00 for material (costs are in summary)
+      for (const item of result.lineItems) {
+        rows.push({
           planCallout: "",
-          description: "",
-          modelNumber: summaryLabel,
-          qty: "1",
-          material: formatCurrency(result.summary.materialTotal),
-          freight: formatCurrency(result.summary.freightTotal),
-        },
-      ];
+          description: item.description,
+          modelNumber: item.modelNumber,
+          qty: item.qty,
+          material: "$0.00",
+          freight: "$-",
+        });
+      }
+
+      // Add summary row at the bottom with totals
+      const summaryLabel = `${result.manufacturer} - ${result.quoteNumber}`;
+      rows.push({
+        planCallout: "",
+        description: "",
+        modelNumber: summaryLabel,
+        qty: "1",
+        material: formatCurrency(result.materialTotal),
+        freight: formatCurrency(result.freightTotal),
+      });
 
       res.json({ rows, errors, warnings });
     } catch (error) {
