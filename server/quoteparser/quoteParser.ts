@@ -7,7 +7,7 @@ import * as fs from "fs";
 import * as path from "path";
 import * as os from "os";
 import { getActiveVendors } from "../centralSettingsStorage";
-import type { Vendor } from "@shared/schema";
+import type { Vendor, VendorParseConfig } from "@shared/schema";
 
 export interface ParsedLineItem {
   description: string;
@@ -282,41 +282,13 @@ export async function parseQuoteText(text: string): Promise<QuoteParseResult> {
     }
   }
 
+  // Get vendor-specific parse config
+  const parseConfig: VendorParseConfig = detectedVendor?.parseConfig || {};
+
   // Extract totals from the text
-  // Look for Subtotal line
-  const subtotalMatch = text.match(/(?:sub\s*total)[:\s]*\$?([\d,]+\.?\d*)/i);
-  if (subtotalMatch) {
-    const val = parseFloat(subtotalMatch[1].replace(/,/g, ""));
-    if (!isNaN(val) && val > 0) {
-      materialTotal = val;
-    }
-  }
-
-  // If no subtotal, look for individual line prices and sum them (excluding freight)
-  if (materialTotal === 0) {
-    // Find total price column values
-    const pricePattern = /(\d{1,3}(?:,\d{3})*\.\d{2})\s*$/gm;
-    let priceMatches;
-    const prices: number[] = [];
-    
-    while ((priceMatches = pricePattern.exec(text)) !== null) {
-      const val = parseFloat(priceMatches[1].replace(/,/g, ""));
-      if (!isNaN(val) && val > 0 && val < 100000) {
-        prices.push(val);
-      }
-    }
-    
-    // If we have prices, sum all except the largest (likely total) and freight
-    if (prices.length > 2) {
-      // Sort and exclude the largest (total) and any freight-like amounts
-      const sorted = [...prices].sort((a, b) => a - b);
-      // Sum all but the last (largest, which is likely the total)
-      for (let i = 0; i < sorted.length - 1; i++) {
-        materialTotal += sorted[i];
-      }
-    }
-  }
-
+  // For table-format quotes (like Activar), look for labels then find values nearby
+  
+  // First, extract freight so we can subtract it from total if needed
   // Extract freight from specific freight line
   for (const line of lines) {
     if (FREIGHT_PATTERNS.some(p => p.test(line))) {
@@ -331,12 +303,71 @@ export async function parseQuoteText(text: string): Promise<QuoteParseResult> {
     }
   }
 
-  // Also check for "Estimated Freight" line
-  const estFreightMatch = text.match(/(?:estimated\s*freight|freight)[:\s]*\$?([\d,]+\.?\d*)/i);
-  if (!freightTotal && estFreightMatch) {
-    const val = parseFloat(estFreightMatch[1].replace(/,/g, ""));
-    if (!isNaN(val) && val > 0 && val < 10000) {
-      freightTotal = val;
+  // Also check for "Estimated Freight" in table format (label and value on different columns)
+  if (!freightTotal) {
+    const estFreightMatch = text.match(/(?:estimated\s*freight)[:\s]*\$?([\d,]+\.?\d*)/i);
+    if (estFreightMatch) {
+      const val = parseFloat(estFreightMatch[1].replace(/,/g, ""));
+      if (!isNaN(val) && val > 0 && val < 10000) {
+        freightTotal = val;
+      }
+    }
+  }
+  
+  // For table layouts, look for Subtotal row with value in next column
+  // Table format: "Subtotal             Estimated Freight             Tax               Total USD:"
+  //               "1,713.80             120.00                        0.00              1,833.80"
+  const tableSubtotalMatch = text.match(/Subtotal\s+(?:Estimated\s+Freight|Freight).*?\n\s*([\d,]+\.?\d{2})/i);
+  if (tableSubtotalMatch) {
+    const val = parseFloat(tableSubtotalMatch[1].replace(/,/g, ""));
+    if (!isNaN(val) && val > 0) {
+      materialTotal = val;
+    }
+  }
+  
+  // If no table match, try inline format: "Subtotal: 1,713.80"
+  if (materialTotal === 0) {
+    const subtotalMatch = text.match(/(?:sub\s*total)[:\s]*\$?([\d,]+\.?\d*)/i);
+    if (subtotalMatch) {
+      const val = parseFloat(subtotalMatch[1].replace(/,/g, ""));
+      if (!isNaN(val) && val > 0) {
+        materialTotal = val;
+      }
+    }
+  }
+  
+  // If still no subtotal, look for Total USD and subtract freight
+  if (materialTotal === 0) {
+    const totalMatch = text.match(/(?:Total\s*USD|Grand\s*Total|Total)[:\s]*\$?([\d,]+\.?\d*)/i);
+    if (totalMatch) {
+      const totalVal = parseFloat(totalMatch[1].replace(/,/g, ""));
+      if (!isNaN(totalVal) && totalVal > 0) {
+        // Subtract freight to get material subtotal
+        materialTotal = totalVal - freightTotal;
+        if (materialTotal < 0) materialTotal = totalVal; // Safety fallback
+      }
+    }
+  }
+
+  // If no subtotal found via any method, look for individual line prices and sum them
+  if (materialTotal === 0) {
+    const pricePattern = /(\d{1,3}(?:,\d{3})*\.\d{2})\s*$/gm;
+    let priceMatches;
+    const prices: number[] = [];
+    
+    while ((priceMatches = pricePattern.exec(text)) !== null) {
+      const val = parseFloat(priceMatches[1].replace(/,/g, ""));
+      if (!isNaN(val) && val > 0 && val < 100000) {
+        prices.push(val);
+      }
+    }
+    
+    // If we have prices, sum all except the largest (likely total) and freight
+    if (prices.length > 2) {
+      const sorted = [...prices].sort((a, b) => a - b);
+      for (let i = 0; i < sorted.length - 1; i++) {
+        materialTotal += sorted[i];
+      }
     }
   }
 

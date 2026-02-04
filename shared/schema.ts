@@ -217,6 +217,15 @@ export type SpecsiftConfigFormData = z.infer<typeof specsiftConfigFormSchema>;
 // AIPM CENTRAL SETTINGS - Vendors & Products
 // =====================================================
 
+// Vendor Parse Configuration - vendor-specific quote parsing rules
+export interface VendorParseConfig {
+  quoteFormat?: "inline" | "table"; // "table" means totals are in separate columns
+  subtotalLabel?: string; // e.g., "Subtotal" - what to look for
+  freightLabel?: string; // e.g., "Estimated Freight"
+  lineItemPattern?: string; // Regex pattern for line items
+  skipFreightFromTotal?: boolean; // If true, use Subtotal (before freight) not Total
+}
+
 // Vendor Profiles Table
 export const vendors = pgTable("vendors", {
   id: serial("id").primaryKey(),
@@ -224,6 +233,7 @@ export const vendors = pgTable("vendors", {
   shortName: varchar("short_name", { length: 50 }), // e.g., "Activar", "Bobrick"
   quotePatterns: jsonb("quote_patterns").$type<string[]>().default([]), // Regex patterns to identify vendor quotes
   modelPrefixes: jsonb("model_prefixes").$type<string[]>().default([]), // e.g., ["B-", "ASI-"]
+  parseConfig: jsonb("parse_config").$type<VendorParseConfig>().default({}), // Vendor-specific parsing rules
   contactEmail: varchar("contact_email", { length: 200 }),
   contactPhone: varchar("contact_phone", { length: 50 }),
   website: varchar("website", { length: 300 }),
