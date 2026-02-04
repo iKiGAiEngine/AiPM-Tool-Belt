@@ -284,3 +284,68 @@ export const DIV10_SCOPE_CATEGORIES = [
   "Other Div10",
 ] as const;
 export type Div10ScopeCategory = typeof DIV10_SCOPE_CATEGORIES[number];
+
+// =====================================================
+// MODEL SUFFIX DECODER - For extended model numbers
+// =====================================================
+
+// Suffix decoder entries for manufacturer-specific codes
+export const modelSuffixDecoders = pgTable("model_suffix_decoders", {
+  id: serial("id").primaryKey(),
+  vendorId: integer("vendor_id"), // Optional link to specific vendor
+  manufacturer: varchar("manufacturer", { length: 200 }), // e.g., "JL Industries", "Larsen's"
+  suffixCode: varchar("suffix_code", { length: 50 }).notNull(), // e.g., "F17", "FX2", "AL"
+  decodedText: varchar("decoded_text", { length: 200 }).notNull(), // e.g., "17\" Depth", "Fire-Rated"
+  category: varchar("category", { length: 100 }), // e.g., "depth", "fire-rating", "material", "door-style"
+  sortOrder: integer("sort_order").default(0), // For ordering decoded text in output
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export type ModelSuffixDecoder = typeof modelSuffixDecoders.$inferSelect;
+export type InsertModelSuffixDecoder = typeof modelSuffixDecoders.$inferInsert;
+
+export const insertModelSuffixDecoderSchema = createInsertSchema(modelSuffixDecoders).omit({
+  id: true,
+  createdAt: true,
+});
+export type InsertModelSuffixDecoderInput = z.infer<typeof insertModelSuffixDecoderSchema>;
+
+// Common suffix categories
+export const SUFFIX_CATEGORIES = [
+  "depth",
+  "fire-rating",
+  "material",
+  "door-style",
+  "trim-style",
+  "mounting",
+  "finish",
+  "size",
+  "other",
+] as const;
+export type SuffixCategory = typeof SUFFIX_CATEGORIES[number];
+
+// =====================================================
+// SPECIAL LINE ITEM RULES - For freight, tags, decals
+// =====================================================
+
+export const specialLineRules = pgTable("special_line_rules", {
+  id: serial("id").primaryKey(),
+  ruleType: varchar("rule_type", { length: 50 }).notNull(), // "freight", "tag", "decal", "exclude"
+  matchPattern: varchar("match_pattern", { length: 200 }).notNull(), // Regex or text pattern
+  action: varchar("action", { length: 50 }).notNull(), // "consolidate", "exclude", "transform"
+  appendText: varchar("append_text", { length: 200 }), // Text to append (e.g., " - tagged")
+  targetScope: varchar("target_scope", { length: 100 }), // Which scope it applies to
+  description: text("description"),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export type SpecialLineRule = typeof specialLineRules.$inferSelect;
+export type InsertSpecialLineRule = typeof specialLineRules.$inferInsert;
+
+export const insertSpecialLineRuleSchema = createInsertSchema(specialLineRules).omit({
+  id: true,
+  createdAt: true,
+});
+export type InsertSpecialLineRuleInput = z.infer<typeof insertSpecialLineRuleSchema>;

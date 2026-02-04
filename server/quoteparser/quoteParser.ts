@@ -6,8 +6,11 @@ import { execSync } from "child_process";
 import * as fs from "fs";
 import * as path from "path";
 import * as os from "os";
-import { getActiveProducts, getActiveVendors, findProductByModelNumber } from "../centralSettingsStorage";
-import type { Div10Product, Vendor } from "@shared/schema";
+import { 
+  getActiveProducts, getActiveVendors, findProductByModelNumber, 
+  findProductByPartialMatch, decodeSuffixes, getActiveSpecialLineRules 
+} from "../centralSettingsStorage";
+import type { Div10Product, Vendor, SpecialLineRule } from "@shared/schema";
 
 export interface ParsedLineItem {
   description: string;
@@ -372,11 +375,55 @@ export function formatCurrency(amount: number | null): string {
 export interface EnhancedLineItem extends ParsedLineItem {
   matchedProduct: Div10Product | null;
   matchConfidence: "high" | "medium" | "low" | null;
+  decodedSuffixes: string[];
+  enhancedDescription: string;
+  isFreightLine: boolean;
+  isConsolidatedTag: boolean;
+  isConsolidatedDecal: boolean;
+  excludeFromOutput: boolean;
 }
 
 export interface EnhancedQuoteParseResult extends QuoteParseResult {
   enhancedLineItems: EnhancedLineItem[];
   detectedVendor: Vendor | null;
+  freightLine: EnhancedLineItem | null;
+}
+
+// Default special line patterns (used when no database rules exist)
+const DEFAULT_FREIGHT_PATTERNS = [
+  /\bfreight\b/i,
+  /\bshipping\b/i,
+  /\bdelivery\b/i,
+  /\btransport\b/i,
+];
+
+const DEFAULT_TAG_PATTERNS = [
+  /\btag\b/i,
+  /\btagging\b/i,
+  /\btagged\b/i,
+  /\blabel\b/i,
+];
+
+const DEFAULT_DECAL_PATTERNS = [
+  /\bdecal\b/i,
+  /\bsticker\b/i,
+  /\bLDCVBFE\b/i,
+  /\bsign\s*decal\b/i,
+];
+
+function isFreightLine(line: string, modelNumber: string): boolean {
+  const combined = (line + " " + modelNumber).toUpperCase();
+  return DEFAULT_FREIGHT_PATTERNS.some(p => p.test(combined));
+}
+
+function isTagLine(line: string, modelNumber: string): boolean {
+  const combined = (line + " " + modelNumber).toUpperCase();
+  return DEFAULT_TAG_PATTERNS.some(p => p.test(combined));
+}
+
+function isDecalLine(line: string, modelNumber: string): boolean {
+  const combined = (line + " " + modelNumber).toUpperCase();
+  return DEFAULT_DECAL_PATTERNS.some(p => p.test(combined));
 }
 
 export async function enhanceWithProductDictionary(
@@ -393,6 +440,7 @@ export async function enhanceWithProductDictionary(
     console.warn("Failed to load product dictionary:", error);
   }
 
+  // Detect vendor from quote text
   let detectedVendor: Vendor | null = null;
   const textUpper = rawText.toUpperCase();
   for (const vendor of vendors) {
@@ -414,62 +462,188 @@ export async function enhanceWithProductDictionary(
     if (detectedVendor) break;
   }
 
-  const enhancedLineItems: EnhancedLineItem[] = result.lineItems.map((item) => {
-    let matchedProduct: Div10Product | null = null;
-    let matchConfidence: "high" | "medium" | "low" | null = null;
+  // Get manufacturer for suffix decoding
+  const manufacturer = detectedVendor?.name || result.metadata.manufacturer || undefined;
 
-    if (item.modelNumber) {
-      const exactMatch = products.find(
-        (p) => p.modelNumber.toUpperCase() === item.modelNumber.toUpperCase()
-      );
-      if (exactMatch) {
-        matchedProduct = exactMatch;
-        matchConfidence = "high";
-      } else {
-        const aliasMatch = products.find((p) =>
-          p.aliases?.some((a) => a.toUpperCase() === item.modelNumber.toUpperCase())
+  // Track special lines for consolidation
+  let freightLine: EnhancedLineItem | null = null;
+  const tagLines: number[] = [];
+  const decalLines: number[] = [];
+
+  // First pass: identify special lines and match products
+  const enhancedLineItems: EnhancedLineItem[] = await Promise.all(
+    result.lineItems.map(async (item, index) => {
+      let matchedProduct: Div10Product | null = null;
+      let matchConfidence: "high" | "medium" | "low" | null = null;
+      let decodedSuffixes: string[] = [];
+      let enhancedDescription = item.description;
+      let isFreight = false;
+      let isTag = false;
+      let isDecal = false;
+      let excludeFromOutput = false;
+
+      // Check if this is a freight line
+      if (isFreightLine(item.rawLine, item.modelNumber)) {
+        isFreight = true;
+      }
+
+      // Check if this is a tag line
+      if (isTagLine(item.rawLine, item.modelNumber)) {
+        isTag = true;
+        tagLines.push(index);
+      }
+
+      // Check if this is a decal line
+      if (isDecalLine(item.rawLine, item.modelNumber)) {
+        isDecal = true;
+        decalLines.push(index);
+      }
+
+      // Try to match product if we have a model number
+      if (item.modelNumber && !isFreight && !isTag && !isDecal) {
+        // Try exact match first
+        const exactMatch = products.find(
+          (p) => p.modelNumber.toUpperCase() === item.modelNumber.toUpperCase()
         );
-        if (aliasMatch) {
-          matchedProduct = aliasMatch;
+        
+        if (exactMatch) {
+          matchedProduct = exactMatch;
           matchConfidence = "high";
         } else {
-          const partialMatch = products.find(
-            (p) =>
-              item.modelNumber.toUpperCase().includes(p.modelNumber.toUpperCase()) ||
-              p.modelNumber.toUpperCase().includes(item.modelNumber.toUpperCase())
+          // Try alias match
+          const aliasMatch = products.find((p) =>
+            p.aliases?.some((a) => a.toUpperCase() === item.modelNumber.toUpperCase())
           );
-          if (partialMatch) {
-            matchedProduct = partialMatch;
-            matchConfidence = "medium";
+          
+          if (aliasMatch) {
+            matchedProduct = aliasMatch;
+            matchConfidence = "high";
+          } else {
+            // Try partial/contains match for extended model numbers
+            const partialResult = await findProductByPartialMatch(item.modelNumber);
+            
+            if (partialResult) {
+              matchedProduct = partialResult.product;
+              matchConfidence = "medium";
+              
+              // Decode suffixes from the remaining part of the model number
+              if (partialResult.remainingSuffix) {
+                decodedSuffixes = await decodeSuffixes(partialResult.remainingSuffix, manufacturer);
+              }
+            }
           }
         }
       }
-    }
 
-    if (!matchedProduct && item.description) {
-      const descUpper = item.description.toUpperCase();
-      const descMatch = products.find((p) => {
-        const pDescUpper = p.description.toUpperCase();
-        const words = pDescUpper.split(/\s+/).filter((w) => w.length > 3);
-        const matchCount = words.filter((w) => descUpper.includes(w)).length;
-        return matchCount >= 3 || (matchCount >= 2 && words.length <= 4);
-      });
-      if (descMatch) {
-        matchedProduct = descMatch;
-        matchConfidence = "low";
+      // Build enhanced description
+      if (matchedProduct) {
+        enhancedDescription = matchedProduct.description;
+        if (decodedSuffixes.length > 0) {
+          enhancedDescription += ", " + decodedSuffixes.join(", ");
+        }
+      }
+
+      // Handle description fallback
+      if (!matchedProduct && item.description) {
+        const descUpper = item.description.toUpperCase();
+        const descMatch = products.find((p) => {
+          const pDescUpper = p.description.toUpperCase();
+          const words = pDescUpper.split(/\s+/).filter((w) => w.length > 3);
+          const matchCount = words.filter((w) => descUpper.includes(w)).length;
+          return matchCount >= 3 || (matchCount >= 2 && words.length <= 4);
+        });
+        if (descMatch) {
+          matchedProduct = descMatch;
+          matchConfidence = "low";
+          enhancedDescription = descMatch.description;
+        }
+      }
+
+      return {
+        ...item,
+        matchedProduct,
+        matchConfidence,
+        decodedSuffixes,
+        enhancedDescription,
+        isFreightLine: isFreight,
+        isConsolidatedTag: false,
+        isConsolidatedDecal: false,
+        excludeFromOutput,
+      };
+    })
+  );
+
+  // Second pass: consolidate tags and decals into associated line items
+  // Find the freight line and prepare it properly
+  for (let i = 0; i < enhancedLineItems.length; i++) {
+    const item = enhancedLineItems[i];
+    
+    if (item.isFreightLine && !freightLine) {
+      // Create the proper freight line format
+      freightLine = {
+        ...item,
+        modelNumber: "Freight",
+        description: "",
+        enhancedDescription: "",
+        qty: "1",
+        excludeFromOutput: true, // Exclude from regular output
+      };
+    }
+  }
+
+  // Consolidate tag lines: append " - tagged" to preceding fire extinguisher
+  for (const tagIdx of tagLines) {
+    enhancedLineItems[tagIdx].excludeFromOutput = true;
+    
+    // Find the closest preceding fire extinguisher line
+    for (let i = tagIdx - 1; i >= 0; i--) {
+      const prevItem = enhancedLineItems[i];
+      if (!prevItem.excludeFromOutput && !prevItem.isFreightLine) {
+        // Check if it's likely a fire extinguisher (by matched product or keywords)
+        const isFireExt = prevItem.matchedProduct?.scopeCategory === "Fire Extinguishers" ||
+          /\b(extinguisher|cosmic|galaxy|sentinel|mercury|grenadier)\b/i.test(prevItem.rawLine);
+        
+        if (isFireExt || i === 0) {
+          enhancedLineItems[i].enhancedDescription += " - tagged";
+          enhancedLineItems[i].isConsolidatedTag = true;
+          break;
+        }
       }
     }
+  }
 
-    return {
-      ...item,
-      matchedProduct,
-      matchConfidence,
-    };
-  });
+  // Consolidate decal lines: append "decals included" to preceding cabinet
+  for (const decalIdx of decalLines) {
+    enhancedLineItems[decalIdx].excludeFromOutput = true;
+    
+    // Find the closest preceding cabinet line
+    for (let i = decalIdx - 1; i >= 0; i--) {
+      const prevItem = enhancedLineItems[i];
+      if (!prevItem.excludeFromOutput && !prevItem.isFreightLine) {
+        // Check if it's likely a cabinet (by matched product or keywords)
+        const isCabinet = prevItem.matchedProduct?.scopeCategory === "Fire Extinguisher Cabinets" ||
+          /\b(cabinet|ambassador|academy|cosmopolitan|panorama|embassy|cavalier)\b/i.test(prevItem.rawLine);
+        
+        if (isCabinet || i === 0) {
+          enhancedLineItems[i].enhancedDescription += ", decals included";
+          enhancedLineItems[i].isConsolidatedDecal = true;
+          break;
+        }
+      }
+    }
+  }
+
+  // Mark freight lines for exclusion from regular output
+  for (const item of enhancedLineItems) {
+    if (item.isFreightLine) {
+      item.excludeFromOutput = true;
+    }
+  }
 
   return {
     ...result,
     enhancedLineItems,
     detectedVendor,
+    freightLine,
   };
 }

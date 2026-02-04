@@ -165,6 +165,11 @@ quoteParserRouter.post(
         for (let i = 0; i < enhancedResult.enhancedLineItems.length; i++) {
           const item = enhancedResult.enhancedLineItems[i];
 
+          // Skip excluded lines (freight, tags, decals that have been consolidated)
+          if (item.excludeFromOutput) {
+            continue;
+          }
+
           let planCallout = "";
           let confidence: number | null = null;
 
@@ -200,7 +205,10 @@ quoteParserRouter.post(
             }
           }
 
-          if (!item.description && !item.modelNumber) {
+          // Use enhanced description (from product dictionary + decoded suffixes) if available
+          const description = item.enhancedDescription || item.description || "";
+
+          if (!description && !item.modelNumber) {
             errors.push({
               type: "DROPPED_ROW",
               message: "Row missing both description and model number",
@@ -216,7 +224,7 @@ quoteParserRouter.post(
 
           rows.push({
             planCallout,
-            description: item.description || "",
+            description,
             modelNumber: modelNumber || "",
             qty: item.qty || "",
             material,
@@ -227,16 +235,38 @@ quoteParserRouter.post(
             productMatchConfidence: item.matchConfidence,
           });
         }
+
+        // Add freight line at the end if detected (with proper format)
+        if (enhancedResult.freightLine) {
+          const freightAmount = enhancedResult.freightLine.extendedPrice || 
+                                quoteResult.metadata.freightTotal;
+          rows.push({
+            planCallout: "",
+            description: "",
+            modelNumber: "Freight",
+            qty: "1",
+            material: "$-",
+            freight: formatCurrency(freightAmount),
+            confidence: null,
+            matchedProductId: null,
+            matchedProductDescription: null,
+            productMatchConfidence: null,
+          });
+        }
       }
 
+      // Only add freight line from settings if we didn't already add one from enhanced result
+      const alreadyHasFreightLine = enhancedResult.freightLine !== null;
+      
       if (
         settings.freightMode === "separate_line" &&
-        quoteResult.metadata.freightTotal !== null
+        quoteResult.metadata.freightTotal !== null &&
+        !alreadyHasFreightLine
       ) {
         rows.push({
           planCallout: "",
-          description: "FREIGHT",
-          modelNumber: "",
+          description: "",
+          modelNumber: "Freight",
           qty: "1",
           material: "$-",
           freight: formatCurrency(quoteResult.metadata.freightTotal),
