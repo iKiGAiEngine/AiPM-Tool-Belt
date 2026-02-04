@@ -377,6 +377,15 @@ function parseHeadersFromText(text: string, pageNumber?: number, defaultScopes?:
     return null;
   }
   
+  // DEBUG: Log first 20 lines to understand PDF structure
+  console.log(`[parseHeaders] Page ${pageNumber}: Processing ${lines.length} lines`);
+  for (let dbg = 0; dbg < Math.min(10, lines.length); dbg++) {
+    const ln = lines[dbg].trim();
+    if (ln.length > 0) {
+      console.log(`[parseHeaders] Line ${dbg}: "${ln.slice(0, 120)}${ln.length > 120 ? '...' : ''}"`);
+    }
+  }
+  
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i].trim();
     
@@ -388,10 +397,12 @@ function parseHeadersFromText(text: string, pageNumber?: number, defaultScopes?:
     
     if (sectionNumMatch) {
       const secRaw = sectionNumMatch[1];
+      console.log(`[parseHeaders] Found section match on page ${pageNumber}: raw="${secRaw}" from line: "${line.slice(0, 80)}"`);
       
       if (secRaw.includes("-")) continue;
       
       const canon = canonize(secRaw);
+      console.log(`[parseHeaders] Canonized: "${canon}"`);
       if (!canon.startsWith("10 ") || canon.includes("-")) continue;
       
       // Already have this section? Skip
