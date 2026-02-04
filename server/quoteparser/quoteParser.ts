@@ -201,17 +201,26 @@ export async function parseQuoteText(text: string): Promise<QuoteParseResult> {
     }
   }
 
-  // Extract quote number
+  // Extract quote number - must contain at least one digit to be valid
   const quoteNumPatterns = [
-    /(?:quote|quotation|proposal|estimate)\s*(?:#|no\.?|number)?[:\s]*([A-Z0-9\-]+)/i,
-    /(?:ref(?:erence)?|doc(?:ument)?)\s*(?:#|no\.?)?[:\s]*([A-Z0-9\-]+)/i,
+    // Quote/Quotation/Proposal followed by # or number, must contain digits
+    /(?:quote|quotation|proposal|estimate)\s*(?:#|no\.?|number)?[:\s]*([A-Z0-9\-]*\d+[A-Z0-9\-]*)/i,
+    // Reference/Document number, must contain digits
+    /(?:ref(?:erence)?|doc(?:ument)?)\s*(?:#|no\.?|number)?[:\s]*([A-Z0-9\-]*\d+[A-Z0-9\-]*)/i,
+    // Just # followed by numbers
     /#\s*(\d{4,})/,
+    // "No." or "No:" followed by alphanumeric with digits
+    /\bno\.?\s*[:\s]*([A-Z0-9\-]*\d{3,}[A-Z0-9\-]*)/i,
   ];
   for (const pattern of quoteNumPatterns) {
     const match = text.match(pattern);
     if (match) {
-      quoteNumber = match[1].trim();
-      break;
+      const candidate = match[1].trim();
+      // Validate: must have at least one digit and be at least 3 chars
+      if (/\d/.test(candidate) && candidate.length >= 3) {
+        quoteNumber = candidate;
+        break;
+      }
     }
   }
 
