@@ -1,0 +1,187 @@
+You are building an AiPM Tool Belt module called:
+
+QUOTE → ESTIMATE PARSER (with optional SCHEDULE MATCHING)
+
+Goal:
+User drops in a vendor quote (PDF/image/text) and optionally a schedule reference (PDF/image/text). The app parses quote line items into a strict, paste-ready table that matches this template exactly:
+
+PLAN CALLOUT | DESCRIPTION | MODEL NUMBER | ITEM QUANTITY | MATERIAL | FREIGHT
+
+If a schedule is provided, the app attempts to align quote items to schedule items to fill PLAN CALLOUT and show a confidence percentage. If schedule is not provided or matching is low confidence, PLAN CALLOUT stays blank.
+
+TECH STACK (match existing AiPM tools):
+- Frontend: React + TypeScript + Tailwind
+- Backend: Express.js + TypeScript
+- File uploads: multer
+- Parsing:
+  - PDFs: pdf-parse (text extraction)
+  - Images: sharp for preprocessing + tesseract.js for OCR
+- Optional: use a simple in-memory store for MVP (no DB required). Add Postgres only if needed.
+- Must run fully in Replit.
+
+UI REQUIREMENTS (Notion/Apple clean minimal):
+Page layout:
+1) Header: "Quote → Estimate Parser"
+2) Two upload panels (both accept drag-drop and click-upload):
+   A) Vendor Quote (required) accepts: PDF, PNG, JPG, JPEG, HEIC, TXT
+   B) Schedule Reference (optional) accepts: PDF, PNG, JPG, JPEG, HEIC, TXT
+3) Optional paste boxes under each upload for raw text paste (if user wants to paste email quote text).
+4) Controls:
+   - Minimum confidence to populate Plan Callout (default 70)
+   - Append callout next to model number when confidence >= 85 (default ON)
+   - Freight mode dropdown (default "Leave Freight as $-"):
+       1) Leave Freight as $-
+       2) Add Freight as separate line (one row)
+       3) Allocate Freight across line items (pro-rata by material)
+   - Strict model match only (default OFF)
+5) Button: "Parse"
+6) Results table (copy/paste-friendly) with EXACT columns:
+   PLAN CALLOUT | DESCRIPTION | MODEL NUMBER | ITEM QUANTITY | MATERIAL | FREIGHT
+   - All currency formatted as $#,###.## or "$-" for blanks
+7) A second panel below results: "Match Confidence"
+   - Only shown when schedule provided
+   - Shows confidence per row as a percent (0–100)
+   - Also show a small badge: Auto-trust (90–100), Verify (70–89), Caution (50–69), Unmatched (<50)
+8) Buttons:
+   - "Copy Table (TSV)" copies rows to clipboard as tab-separated values for direct Excel paste
+   - "Download CSV"
+9) Error Summary panel:
+   - Lists rows that were dropped or flagged and why (missing description, missing qty, OCR poor, etc.)
+   - Does NOT block output unless hard fail conditions are met
+
+CORE OUTPUT RULES (non-negotiable):
+Output table must match the exact template columns:
+PLAN CALLOUT | DESCRIPTION | MODEL NUMBER | ITEM QUANTITY | MATERIAL | FREIGHT
+
+Mapping:
+- DESCRIPTION: cleaned quote line description
+- MODEL NUMBER: extracted SKU / model
+- ITEM QUANTITY: numeric > 0; if missing and not inferable, leave blank and flag
+- MATERIAL: line extended amount preferred; else compute qty * unit cost if only unit cost exists
+- FREIGHT: depends on freight mode; default $-
+- PLAN CALLOUT: filled only when schedule provided AND confidence >= minimum threshold, otherwise blank
+
+LUMP SUM-ONLY RULE:
+If the quote contains ONLY a lump sum total (no reliable itemized lines), output ONE row:
+- PLAN CALLOUT: blank
+- DESCRIPTION: "LUMP SUM"
+- MODEL NUMBER: "[Manufacturer] | Quote [Quote#]" (use placeholders if missing: UNKNOWN MFR | NO QUOTE #)
+- ITEM QUANTITY: 1
+- MATERIAL: lump sum amount
+- FREIGHT: $-
+
+SCHEDULE MATCHING + PLAN CALLOUT RULES:
+If schedule reference is provided, attempt to match each quote line item to schedule entries to fill PLAN CALLOUT.
+The schedule itself can be screenshot OCR, PDF text, or pasted text. Extract schedule rows into an internal structure:
+- callout (like E5, A12, etc.)
+- schedule description
+- schedule model number if present
+- schedule qty if present
+
+Matching signals (weighted):
+1) Model number exact match (highest weight)
+2) Model number partial/normalized match (high)
+3) Manufacturer/brand match (medium)
+4) Description semantic similarity (medium)
+5) Quantity sanity check (medium/low)
+Penalties:
+- Multiple schedule lines tie similarly (ambiguity penalty)
+- Missing model numbers on both sides
+- Low OCR quality on schedule
+
+Confidence output:
+- Always compute a 0–100 confidence per quote row when schedule provided
+- Only populate PLAN CALLOUT if confidence >= (default 70)
+- If confidence >= 85 AND append toggle is ON AND model number exists, append callout to model number like:
+  "PSB48YSNSS (E5)"
+- If confidence < 50, treat as Unmatched and leave PLAN CALLOUT blank.
+
+ERROR HANDLING RULES:
+Hard fail (stop schedule matching, still do quote parsing):
+- Schedule provided but unreadable (OCR/text extraction returns near-empty)
+In that case, show warning: "Schedule provided but couldn't be read reliably; output is quote-only."
+
+Hard fail (stop everything and show error):
+- Quote has no detectable prices anywhere AND no readable text; cannot parse
+
+Soft fail (continue with output + flags):
+- Missing qty or unit cost for some lines
+- Conflicting currencies
+- Ambiguous matches
+
+Parsing cleanup rules:
+- Remove non-line rows like: Subtotal, Total, Tax, Freight, Shipping, Net terms, validity, signature blocks, page numbers
+- Merge wrapped description lines: if a line has no numeric fields and looks like continuation, append to previous description
+- Normalize model numbers: trim, remove extra spaces, standardize hyphens, keep alphanumeric and common separators
+
+FREIGHT MODES:
+1) Leave Freight as $- (default): FREIGHT column always "$-" unless quote clearly provides per-line freight
+2) Add Freight as separate line:
+   - Add one extra row at bottom:
+     PLAN CALLOUT blank
+     DESCRIPTION "FREIGHT"
+     MODEL NUMBER blank
+     ITEM QUANTITY 1
+     MATERIAL $-
+     FREIGHT $X.XX
+   Only if a freight total is detected.
+3) Allocate Freight across line items (pro-rata by MATERIAL):
+   - If freight total detected, distribute proportionally to each item’s material total
+   - Round to cents; ensure allocated sums equal total freight (fix rounding on last line)
+
+BACKEND API (Express TS):
+Endpoints:
+- POST /api/parse
+  accepts multipart form:
+   - quoteFile (optional if quoteText provided)
+   - quoteText (optional)
+   - scheduleFile (optional)
+   - scheduleText (optional)
+   - settings: minConfidence, appendCalloutToModel, freightMode, strictModelMatch
+Returns JSON:
+{
+  rows: [
+    { planCallout, description, modelNumber, qty, material, freight, confidence }
+  ],
+  errors: [
+    { type, message, rowIndex?, rawSnippet? }
+  ],
+  warnings: [ ... ]
+}
+
+FRONTEND REQUIREMENTS:
+- Show the table columns exactly as template (Plan Callout first)
+- When schedule is not provided, hide confidence badges and set confidence null
+- Provide "Copy Table (TSV)" that copies ONLY the 6 required columns (not confidence) into clipboard
+- Provide "Download CSV" of the same 6 columns
+- Show "Confidence" visually per row (badge + percent) when schedule exists, but do not include it in the copy/paste TSV unless user explicitly selects "Include confidence" (optional toggle)
+
+IMPLEMENTATION STEPS:
+1) Scaffold React+TS frontend and Express+TS backend in same Replit workspace.
+2) Build upload UI and settings controls.
+3) Implement parsing pipeline:
+   - Extract quote text from PDF or OCR from image
+   - Parse line items using rule-based heuristics first (table detection, regex for price/qty)
+   - If heuristics fail and there is a total, use lump sum-only rule.
+4) If schedule provided:
+   - Extract schedule text similarly (PDF/OCR/text)
+   - Parse schedule rows (look for callout patterns like A1, B12, E5, etc.)
+   - Compute matching for each quote row
+5) Format output rows with currency ($- for blank)
+6) Return results + errors + warnings
+7) Add unit tests for the parsing functions (basic).
+8) Ensure the project runs with a single "Run" in Replit (concurrently start backend + frontend).
+
+DELIVERABLES:
+- Working web app in Replit
+- Clean UI
+- Upload + parse + show table
+- Copy TSV + Download CSV
+- Optional schedule matching + confidence display
+- Error summary panel
+- Code is well-commented and easy to extend
+
+IMPORTANT:
+- Be conservative: never guess plan callouts with low confidence. Leave blank instead.
+- Always output rows aligned to the exact template columns.
+- Never include extra columns in the paste-ready table.
