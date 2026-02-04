@@ -348,6 +348,8 @@ function parseHeadersFromText(text: string, pageNumber?: number, defaultScopes?:
     if (/^SECTION\s+10[\s\d]+$/i.test(title)) return false;
     // Reject if it's just the section number
     if (/^10[\s\d\-\.]+$/i.test(title)) return false;
+    // Reject page number patterns like "Page", "Page 1", "Page 1 of 5"
+    if (/^Page(\s+\d+(\s+of\s+\d+)?)?$/i.test(title)) return false;
     // Only reject structural markers if they are ALONE or followed by a number (like "PART 1", "GENERAL" alone)
     // Don't reject if it's "GENERAL REQUIREMENTS FOR..." as that could be a valid title
     if (/^(PART\s*\d|GENERAL\s*$|SUMMARY\s*$|EXECUTION\s*$|PRODUCTS\s*$|REQUIREMENTS\s*$)/i.test(title)) return false;
@@ -363,6 +365,10 @@ function parseHeadersFromText(text: string, pageNumber?: number, defaultScopes?:
     cleaned = cleaned.replace(/^10[\s\-\._]*(?:\d{2}[\s\-\._]*\d{2}(?:[\s\-\._]*\d{2})?|\d{4,6})/, "");
     // Remove leading underlines, dashes, spaces, colons
     cleaned = cleaned.replace(/^[\s_\-–—:]+/, "").trim();
+    // Remove page number patterns like "Page 1 of 5" from the beginning
+    cleaned = cleaned.replace(/^Page\s*\d+\s*(of\s*\d+)?[\s\-–—:]*/i, "").trim();
+    // Also remove "SECTION 10 XX XX" pattern that may appear after page number (spec document format)
+    cleaned = cleaned.replace(/^SECTION\s+10[\s\d\.]+/i, "").trim();
     
     // Must start with capital letter and have reasonable length
     if (cleaned.length > 3 && /^[A-Z]/i.test(cleaned)) {
@@ -404,9 +410,17 @@ function parseHeadersFromText(text: string, pageNumber?: number, defaultScopes?:
       for (let j = i + 1; j < Math.min(i + 4, lines.length); j++) {
         const nextLine = lines[j].trim();
         if (nextLine && nextLine.length > 3) {
+          // Skip page number patterns like "Page 1 of 5"
+          if (/^Page\s*\d+(\s*of\s*\d+)?$/i.test(nextLine)) {
+            continue;
+          }
           // Skip if it's a structural marker
           if (/^(PART\s*\d|1\.|A\.|GENERAL\s*$|SUMMARY\s*$|PRODUCTS\s*$|EXECUTION\s*$|REQUIREMENTS\s*$)/i.test(nextLine)) {
             break;
+          }
+          // Skip if it's another SECTION line (we're looking for the title, not a repeat of section number)
+          if (/^SECTION\s+10[\s\d\.]+$/i.test(nextLine)) {
+            continue;
           }
           // Accept titles starting with capital letter (mixed case or all caps)
           if (/^[A-Z][A-Za-z\s,&/\-()]{3,}$/.test(nextLine)) {
