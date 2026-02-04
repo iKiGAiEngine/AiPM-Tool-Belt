@@ -97,12 +97,14 @@ export default function QuoteParserPage() {
         body: formData,
       });
 
+      const data = await response.json();
+      
       if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.message || "Failed to parse quote");
+        const errorMsg = data.errors?.[0]?.message || data.message || "Failed to parse quote";
+        throw new Error(errorMsg);
       }
 
-      return response.json() as Promise<ParseResult>;
+      return data as ParseResult;
     },
     onSuccess: (data) => {
       setResult(data);

@@ -144,7 +144,7 @@ export function parseQuoteText(text: string): QuoteParseResult {
     /^\d+\s*of\s*\d+$/,
   ];
 
-  const pricePattern = /\$?([\d,]+\.?\d*)/g;
+  const pricePattern = /\$([\d,]+\.?\d*)/g;
   const lines = text.split(/\n/).map((l) => l.trim());
 
   for (let i = 0; i < lines.length; i++) {
@@ -157,10 +157,11 @@ export function parseQuoteText(text: string): QuoteParseResult {
     let priceMatch;
     while ((priceMatch = pricePattern.exec(line)) !== null) {
       const val = parseFloat(priceMatch[1].replace(/,/g, ""));
-      if (!isNaN(val) && val > 0) {
+      if (!isNaN(val) && val > 0 && val < 10000000) {
         prices.push(val);
       }
     }
+    pricePattern.lastIndex = 0;
 
     if (prices.length === 0) {
       if (lineItems.length > 0 && /^[A-Za-z]/.test(line) && line.length < 100) {
@@ -170,24 +171,39 @@ export function parseQuoteText(text: string): QuoteParseResult {
       continue;
     }
 
-    const qtyMatch = line.match(/(?:^|\s)(\d{1,4})(?:\s|x|@|ea|pcs?|units?)/i);
+    const qtyPatterns = [
+      /\((\d{1,4})\)/,
+      /(?:qty|quantity)[:\s]*(\d{1,4})/i,
+      /(?:^|\s)(\d{1,4})\s*(?:x|@|ea|pcs?|units?|each)/i,
+      /(?:^|\s)(\d{1,4})\s+(?:of|for)\s/i,
+    ];
     let qty: number | null = null;
-    if (qtyMatch) {
-      qty = parseInt(qtyMatch[1], 10);
-      if (qty > 1000) qty = null;
+    for (const qp of qtyPatterns) {
+      const qm = line.match(qp);
+      if (qm) {
+        const candidate = parseInt(qm[1], 10);
+        if (candidate > 0 && candidate <= 1000) {
+          qty = candidate;
+          break;
+        }
+      }
     }
 
     const modelPatterns = [
       /(?:model|part|sku|item|#)[:\s#]*([A-Z0-9][\w\-\/\.]{2,30})/i,
-      /\b([A-Z]{2,}[\-]?[A-Z0-9]{2,}[\-\w]*)\b/,
+      /\b(B-\d{3,5}[A-Z]*)\b/i,
+      /\b([A-Z]{1,3}[\-\s]?\d{3,6}[A-Z]*)\b/,
       /\b([A-Z0-9]{3,}[\-][A-Z0-9]+)\b/,
     ];
     let modelNumber = "";
     for (const mp of modelPatterns) {
       const mm = line.match(mp);
       if (mm) {
-        modelNumber = mm[1].trim();
-        break;
+        const candidate = mm[1].trim().replace(/\s+/g, "-");
+        if (!/^(qty|ea|pcs?|each|per|for|the|and|with)$/i.test(candidate)) {
+          modelNumber = candidate;
+          break;
+        }
       }
     }
 
