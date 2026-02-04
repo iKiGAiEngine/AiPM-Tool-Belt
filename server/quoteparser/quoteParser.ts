@@ -264,6 +264,7 @@ export function parseQuoteText(text: string): QuoteParseResult {
       /(?:qty|quantity)[:\s]*(\d{1,4})/i,
       /(?:^|\s)(\d{1,4})\s*(?:x|@|ea|pcs?|units?|each)/i,
       /(?:^|\s)(\d{1,4})\s+(?:of|for)\s/i,
+      /^(\d{1,4})\s+[A-Z]/i, // Quantity at start of line followed by alphanumeric model
     ];
     let qty: number | null = null;
     for (const qp of qtyPatterns) {
@@ -280,14 +281,23 @@ export function parseQuoteText(text: string): QuoteParseResult {
     const modelPatterns = [
       /(?:model|part|sku|item|#)[:\s#]*([A-Z0-9][\w\-\/\.]{2,30})/i,
       /\b(B-\d{3,5}[A-Z]*)\b/i,
+      // Named product models: "Cosmic 10E", "Sentinel 5", "Galaxy 20", "Mercury 11", etc.
+      /\b((?:Cosmic|Sentinel|Galaxy|Mercury|Grenadier)\s*(?:\d+[\-]?½?E?X?))\b/i,
       /\b([A-Z]{1,3}[\-\s]?\d{3,6}[A-Z]*)\b/,
       /\b([A-Z0-9]{3,}[\-][A-Z0-9]+)\b/,
+      // Model numbers like C2037F17FX2, MP10, 2409-R1, etc.
+      /\b([A-Z][A-Z0-9]{3,}(?:[\-][A-Z0-9]+)?)\b/,
+      // Numbers followed by suffix codes: 2037F17FX2, 2409-5R
+      /\b(\d{4,}[A-Z][A-Z0-9]*)\b/,
+      // Pattern for model numbers starting after qty: "4  C2037F17FX2  ..."
+      /^\d+\s+([A-Z][A-Z0-9\-]{3,})/i,
     ];
     let modelNumber = "";
     for (const mp of modelPatterns) {
       const mm = line.match(mp);
       if (mm) {
-        const candidate = mm[1].trim().replace(/\s+/g, "-");
+        // Preserve spaces for product names like "Cosmic 10E", only replace multiple spaces
+        const candidate = mm[1].trim().replace(/\s{2,}/g, " ");
         if (!/^(qty|ea|pcs?|each|per|for|the|and|with)$/i.test(candidate)) {
           modelNumber = candidate;
           break;
