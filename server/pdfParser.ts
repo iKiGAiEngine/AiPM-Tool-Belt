@@ -491,14 +491,15 @@ function parseHeadersFromText(text: string, pageNumber?: number, defaultScopes?:
       const defaultTitle = scopes[hit.sectionNumber];
       if (defaultTitle) {
         hit.title = defaultTitle;
+      } else {
+        // Use section number as fallback title rather than dropping the section
+        hit.title = `Section ${hit.sectionNumber}`;
       }
-      // Otherwise leave it empty - it will be filtered out
-      // This is intentional: we don't want to show "Section 10 XX XX" as the title
     }
   }
   
-  // Filter out entries that still have invalid titles (no valid title found anywhere)
-  return hits.filter(h => isValidTitle(h.title));
+  // Return all sections - we no longer filter out sections with fallback titles
+  return hits;
 }
 
 function findAccessoryMatches(
