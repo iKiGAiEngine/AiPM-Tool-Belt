@@ -10,6 +10,7 @@ import UploadPage from "@/pages/UploadPage";
 import ReviewPage from "@/pages/ReviewPage";
 import PlanParserPage from "@/pages/PlanParserPage";
 import SettingsPage from "@/pages/SettingsPage";
+import QuoteParserPage from "@/pages/QuoteParserPage";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -20,6 +21,7 @@ function Router() {
       <Route path="/specsift/review" component={ReviewPage} />
       <Route path="/specsift/settings" component={SettingsPage} />
       <Route path="/planparser" component={PlanParserPage} />
+      <Route path="/quoteparser" component={QuoteParserPage} />
       <Route component={NotFound} />
     </Switch>
   );

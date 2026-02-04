@@ -12,6 +12,7 @@ import fs from "fs";
 import path from "path";
 import os from "os";
 import { registerPlanParserRoutes } from "./planparser/routes";
+import { registerQuoteParserRoutes } from "./quoteparser/routes";
 import { 
   getActiveConfig, 
   getAllConfigVersions, 
@@ -43,6 +44,7 @@ export async function registerRoutes(
 ): Promise<Server> {
   
   registerPlanParserRoutes(app);
+  registerQuoteParserRoutes(app);
   
   app.post("/api/upload", upload.single("file"), async (req: Request, res: Response) => {
     try {

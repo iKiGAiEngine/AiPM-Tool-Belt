@@ -8,6 +8,25 @@ AiPM Tool Belt is a suite of construction document processing tools. The main la
 
 - **Plan Parser** (`/planparser`): OCR-based Division 10 page classifier for construction plan PDFs. Automatically identifies and classifies pages into 9 scope categories (Toilet Accessories, Toilet Partitions, Wall Protection, Fire Extinguisher Cabinets, Cubicle Curtains, Visual Display, Lockers, Shelving, Other Div10). Features signage exclusion (60% threshold) and millwork filtering for shelving scope.
 
+- **Quote Parser** (`/quoteparser`): Parses vendor quotes (PDF/image/text) into structured estimate tables. Features:
+  - Dual upload panels for vendor quote (required) and schedule reference (optional)
+  - Text paste option for email quotes
+  - Outputs exact 6-column format: PLAN CALLOUT | DESCRIPTION | MODEL NUMBER | ITEM QUANTITY | MATERIAL | FREIGHT
+  - Schedule matching with confidence scoring (Auto-trust 90-100%, Verify 70-89%, Caution 50-69%, Unmatched <50%)
+  - Three freight modes: leave as $-, add as separate line, or allocate pro-rata
+  - Lump sum detection when no itemized lines found
+  - Copy TSV (tab-separated) and Download CSV export
+  - Match Confidence panel with per-row analysis when schedule provided
+
+## Recent Changes (February 2026)
+
+### Quote Parser Module
+- **New Tool**: Quote → Estimate Parser for vendor quote processing
+- **Schedule Matching**: Optional schedule reference for Plan Callout population with confidence scoring
+- **Manufacturer Detection**: Recognizes common construction product manufacturers (Bobrick, ASI, Bradley, etc.)
+- **Freight Handling**: Three modes for freight allocation
+- **Export Options**: Copy TSV for Excel paste and CSV download
+
 ## Recent Changes (January 2026)
 
 ### PDF Packet Export System

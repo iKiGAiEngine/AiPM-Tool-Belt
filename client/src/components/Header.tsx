@@ -1,4 +1,4 @@
-import { FileText, Upload, List, Home, Wrench, Settings } from "lucide-react";
+import { FileText, Upload, List, Home, Wrench, Settings, Receipt } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { ThemeToggle } from "./ThemeToggle";
 import { cn } from "@/lib/utils";
@@ -7,6 +7,7 @@ export function Header() {
   const [location] = useLocation();
   const isHome = location === "/";
   const isSpecSift = location.startsWith("/specsift");
+  const isQuoteParser = location.startsWith("/quoteparser");
 
   const specSiftNav = [
     { href: "/specsift", label: "Upload", icon: Upload },
@@ -33,6 +34,16 @@ export function Header() {
               <div className="flex items-center gap-1.5">
                 <FileText className="h-4 w-4 text-primary" />
                 <span className="text-sm font-medium text-foreground">SpecSift</span>
+              </div>
+            </>
+          )}
+          
+          {isQuoteParser && (
+            <>
+              <div className="h-6 w-px bg-border" />
+              <div className="flex items-center gap-1.5">
+                <Receipt className="h-4 w-4 text-primary" />
+                <span className="text-sm font-medium text-foreground">Quote Parser</span>
               </div>
             </>
           )}
