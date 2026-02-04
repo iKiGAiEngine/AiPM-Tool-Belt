@@ -6,33 +6,20 @@ import { execSync } from "child_process";
 import * as fs from "fs";
 import * as path from "path";
 import * as os from "os";
-import { 
-  getActiveProducts, getActiveVendors, findProductByModelNumber, 
-  findProductByPartialMatch, decodeSuffixes, getActiveSpecialLineRules 
-} from "../centralSettingsStorage";
-import type { Div10Product, Vendor, SpecialLineRule } from "@shared/schema";
+import { getActiveVendors } from "../centralSettingsStorage";
+import type { Vendor } from "@shared/schema";
 
-export interface ParsedLineItem {
-  description: string;
-  modelNumber: string;
-  qty: string;
-  unitPrice: number | null;
-  extendedPrice: number | null;
-  rawLine: string;
-}
-
-export interface QuoteMetadata {
-  manufacturer: string | null;
-  quoteNumber: string | null;
-  freightTotal: number | null;
+export interface QuoteSummary {
+  manufacturer: string;
+  quoteNumber: string;
+  materialTotal: number;
+  freightTotal: number;
 }
 
 export interface QuoteParseResult {
-  lineItems: ParsedLineItem[];
-  metadata: QuoteMetadata;
-  isLumpSum: boolean;
-  lumpSumAmount: number | null;
+  summary: QuoteSummary;
   warnings: string[];
+  detectedVendor: Vendor | null;
 }
 
 let tesseractWorker: Worker | null = null;
@@ -153,507 +140,221 @@ async function performOcrOnPdf(buffer: Buffer): Promise<string> {
   }
 }
 
-export function parseQuoteText(text: string): QuoteParseResult {
+export async function parseQuoteText(text: string): Promise<QuoteParseResult> {
   const warnings: string[] = [];
-  const lineItems: ParsedLineItem[] = [];
-  let metadata: QuoteMetadata = {
-    manufacturer: null,
-    quoteNumber: null,
-    freightTotal: null,
-  };
+  let manufacturer = "";
+  let quoteNumber = "";
+  let materialTotal = 0;
+  let freightTotal = 0;
+  let detectedVendor: Vendor | null = null;
 
-  const mfrPatterns = [
-    /(?:from|by|vendor|manufacturer)[:\s]+([A-Za-z][A-Za-z0-9\s&.,'-]+?)(?:\n|$)/i,
-    /^([A-Z][A-Za-z0-9\s&.]+(?:Inc\.?|LLC|Corp\.?|Co\.?))\s*$/m,
-  ];
-  for (const pattern of mfrPatterns) {
-    const match = text.match(pattern);
-    if (match) {
-      metadata.manufacturer = match[1].trim().slice(0, 60);
-      break;
+  // Try to detect vendor from database
+  try {
+    const vendors = await getActiveVendors();
+    const textUpper = text.toUpperCase();
+    
+    for (const vendor of vendors) {
+      // Check quote patterns first
+      if (vendor.quotePatterns && vendor.quotePatterns.length > 0) {
+        for (const pattern of vendor.quotePatterns) {
+          if (textUpper.includes(pattern.toUpperCase())) {
+            detectedVendor = vendor;
+            manufacturer = vendor.name;
+            break;
+          }
+        }
+      }
+      // Check vendor name
+      if (!detectedVendor && vendor.name) {
+        if (textUpper.includes(vendor.name.toUpperCase())) {
+          detectedVendor = vendor;
+          manufacturer = vendor.name;
+        } else if (vendor.shortName && textUpper.includes(vendor.shortName.toUpperCase())) {
+          detectedVendor = vendor;
+          manufacturer = vendor.name;
+        }
+      }
+      if (detectedVendor) break;
+    }
+  } catch (error) {
+    console.warn("Failed to load vendors:", error);
+  }
+
+  // If no vendor found from database, try to extract manufacturer from text
+  if (!manufacturer) {
+    const mfrPatterns = [
+      // Common vendor names in fire protection industry
+      /\b(JL\s*Industries|Larsen['']?s|Potter\s*Roemer|Fire\s*End\s*(?:&|and)\s*Croker|Modern\s*Metal)\b/i,
+      /\b(Bobrick|ASI|Bradley|American\s*Specialties)\b/i,
+      /\b(Amerex|Badger|Ansul|Kidde|Buckeye|First\s*Alert)\b/i,
+      // Generic patterns
+      /(?:from|by|vendor|manufacturer)[:\s]+([A-Za-z][A-Za-z0-9\s&.,'-]+?)(?:\n|$)/i,
+      /^([A-Z][A-Za-z0-9\s&.]+(?:Inc\.?|LLC|Corp\.?|Co\.?))\s*$/m,
+    ];
+    
+    for (const pattern of mfrPatterns) {
+      const match = text.match(pattern);
+      if (match) {
+        manufacturer = match[1].trim();
+        break;
+      }
     }
   }
 
+  // Extract quote number
   const quoteNumPatterns = [
     /(?:quote|quotation|proposal|estimate)\s*(?:#|no\.?|number)?[:\s]*([A-Z0-9\-]+)/i,
     /(?:ref(?:erence)?|doc(?:ument)?)\s*(?:#|no\.?)?[:\s]*([A-Z0-9\-]+)/i,
+    /#\s*(\d{4,})/,
   ];
   for (const pattern of quoteNumPatterns) {
     const match = text.match(pattern);
     if (match) {
-      metadata.quoteNumber = match[1].trim();
+      quoteNumber = match[1].trim();
       break;
     }
   }
 
-  const freightPatterns = [
-    /(?:freight|shipping|delivery)\s*(?:total|charge)?[:\s]*\$?([\d,]+\.?\d*)/i,
-    /\$?([\d,]+\.?\d*)\s*(?:freight|shipping)/i,
-  ];
-  for (const pattern of freightPatterns) {
-    const match = text.match(pattern);
-    if (match) {
-      const freightStr = match[1].replace(/,/g, "");
-      const freight = parseFloat(freightStr);
-      if (!isNaN(freight) && freight > 0 && freight < 100000) {
-        metadata.freightTotal = freight;
-        break;
+  // Look for explicit totals - prefer Subtotal over Grand Total
+  // This way we get material total without freight/tax
+  let foundMaterialTotal = false;
+  
+  // First, try to find Subtotal (material only, before freight/tax)
+  const subtotalPattern = /(?:sub\s*total|material\s*total|merchandise\s*total|product\s*total)[:\s]*\$?([\d,]+\.?\d*)/gi;
+  const subtotalMatches = Array.from(text.matchAll(subtotalPattern));
+  if (subtotalMatches.length > 0) {
+    const lastMatch = subtotalMatches[subtotalMatches.length - 1];
+    const val = parseFloat(lastMatch[1].replace(/,/g, ""));
+    if (!isNaN(val) && val > 0 && val < 10000000) {
+      materialTotal = val;
+      foundMaterialTotal = true;
+    }
+  }
+  
+  // Only use Grand Total if no subtotal found (means freight is probably included)
+  if (!foundMaterialTotal) {
+    const grandTotalPattern = /(?:grand\s*total|total|amount\s*due|net\s*amount)[:\s]*\$?([\d,]+\.?\d*)/gi;
+    const grandTotalMatches = Array.from(text.matchAll(grandTotalPattern));
+    if (grandTotalMatches.length > 0) {
+      const lastMatch = grandTotalMatches[grandTotalMatches.length - 1];
+      const val = parseFloat(lastMatch[1].replace(/,/g, ""));
+      if (!isNaN(val) && val > 0 && val < 10000000) {
+        materialTotal = val;
+        foundMaterialTotal = true;
       }
     }
   }
 
-  const skipPatterns = [
-    /^(sub\s*total|total|tax|sales\s*tax|net\s*terms?|validity|signature|page\s*\d)/i,
-    /^(bill\s*to|ship\s*to|sold\s*to|attention|attn|phone|fax|email|website)/i,
-    /^(terms|conditions|notes?:|warranty|payment|due\s*date|expires?)/i,
-    /^\s*$/,
-    /^[-=_]{3,}$/,
-    /^\d+\s*of\s*\d+$/,
-    /buyer\s*signature/i,
-    /print\s*name/i,
-    /special\s*delivery/i,
-    /appointment\s*needed/i,
-    /seller\s*in\s*writing/i,
-    /form\s*should\s*be\s*completed/i,
-    /referenced\s*quote/i,
-    /\bUSD\b.*total/i,
-    /subtotal.*estimated.*freight.*tax/i,
-  ];
-
-  const pricePatternWithDollar = /\$([\d,]+\.?\d*)/g;
-  const pricePatternNoDollar = /(?:^|\s)([\d,]+\.\d{2})(?:\s|$)/g;
-  const lines = text.split(/\n/).map((l) => l.trim());
-
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
-
-    if (skipPatterns.some((p) => p.test(line))) continue;
-    if (line.length < 5) continue;
-
-    const prices: number[] = [];
-    let priceMatch;
+  // If no explicit total found, sum up all detected prices (extended prices)
+  if (!foundMaterialTotal) {
+    const lines = text.split(/\n/);
     
-    while ((priceMatch = pricePatternWithDollar.exec(line)) !== null) {
-      const val = parseFloat(priceMatch[1].replace(/,/g, ""));
-      if (!isNaN(val) && val > 0 && val < 10000000) {
-        prices.push(val);
-      }
-    }
-    pricePatternWithDollar.lastIndex = 0;
+    // Look for lines that have quantity, description, and price
+    // Format: qty  model  description  unit_price  extended_price
+    // We want to sum the extended prices (last price on each line)
+    const lineItemPattern = /^\s*(\d+)\s+.*?(\$?[\d,]+\.?\d*)\s*$/;
+    const pricesOnLine = /\$?([\d,]+\.\d{2})/g;
     
-    if (prices.length === 0) {
-      while ((priceMatch = pricePatternNoDollar.exec(line)) !== null) {
-        const val = parseFloat(priceMatch[1].replace(/,/g, ""));
-        if (!isNaN(val) && val > 0 && val < 10000000) {
+    for (const line of lines) {
+      // Skip header/footer lines
+      if (/^(sub\s*total|total|tax|freight|shipping|delivery)/i.test(line.trim())) continue;
+      if (/^(terms|conditions|notes|warranty|payment)/i.test(line.trim())) continue;
+      if (line.trim().length < 10) continue;
+      
+      // Find all prices on this line
+      const prices: number[] = [];
+      let match;
+      while ((match = pricesOnLine.exec(line)) !== null) {
+        const val = parseFloat(match[1].replace(/,/g, ""));
+        if (!isNaN(val) && val > 0 && val < 100000) {
           prices.push(val);
         }
       }
-      pricePatternNoDollar.lastIndex = 0;
-    }
-
-    if (prices.length === 0) {
-      if (lineItems.length > 0 && /^[A-Za-z]/.test(line) && line.length < 100) {
-        lineItems[lineItems.length - 1].description += " " + line;
-        lineItems[lineItems.length - 1].rawLine += " " + line;
-      }
-      continue;
-    }
-
-    const qtyPatterns = [
-      /\((\d{1,4})\)/,
-      /(?:qty|quantity)[:\s]*(\d{1,4})/i,
-      /(?:^|\s)(\d{1,4})\s*(?:x|@|ea|pcs?|units?|each)/i,
-      /(?:^|\s)(\d{1,4})\s+(?:of|for)\s/i,
-      /^(\d{1,4})\s+[A-Z]/i, // Quantity at start of line followed by alphanumeric model
-    ];
-    let qty: number | null = null;
-    for (const qp of qtyPatterns) {
-      const qm = line.match(qp);
-      if (qm) {
-        const candidate = parseInt(qm[1], 10);
-        if (candidate > 0 && candidate <= 1000) {
-          qty = candidate;
-          break;
+      pricesOnLine.lastIndex = 0;
+      
+      // If line has 2 prices, the second is usually the extended price
+      // If line has 1 price and starts with qty, it's likely the extended price
+      if (prices.length >= 2) {
+        // Take the larger price as extended (or last if they're equal)
+        const extendedPrice = prices[prices.length - 1];
+        materialTotal += extendedPrice;
+      } else if (prices.length === 1) {
+        // Check if this is a single-price line item (not a subtotal or freight)
+        if (/^\s*\d+\s+/.test(line) && !/freight|shipping|delivery/i.test(line)) {
+          materialTotal += prices[0];
         }
-      }
-    }
-
-    const modelPatterns = [
-      /(?:model|part|sku|item|#)[:\s#]*([A-Z0-9][\w\-\/\.]{2,30})/i,
-      /\b(B-\d{3,5}[A-Z]*)\b/i,
-      // Named product models: "Cosmic 10E", "Sentinel 5", "Galaxy 20", "Mercury 11", etc.
-      /\b((?:Cosmic|Sentinel|Galaxy|Mercury|Grenadier)\s*(?:\d+[\-]?½?E?X?))\b/i,
-      /\b([A-Z]{1,3}[\-\s]?\d{3,6}[A-Z]*)\b/,
-      /\b([A-Z0-9]{3,}[\-][A-Z0-9]+)\b/,
-      // Model numbers like C2037F17FX2, MP10, 2409-R1, etc.
-      /\b([A-Z][A-Z0-9]{3,}(?:[\-][A-Z0-9]+)?)\b/,
-      // Numbers followed by suffix codes: 2037F17FX2, 2409-5R
-      /\b(\d{4,}[A-Z][A-Z0-9]*)\b/,
-      // Pattern for model numbers starting after qty: "4  C2037F17FX2  ..."
-      /^\d+\s+([A-Z][A-Z0-9\-]{3,})/i,
-    ];
-    let modelNumber = "";
-    for (const mp of modelPatterns) {
-      const mm = line.match(mp);
-      if (mm) {
-        // Preserve spaces for product names like "Cosmic 10E", only replace multiple spaces
-        const candidate = mm[1].trim().replace(/\s{2,}/g, " ");
-        if (!/^(qty|ea|pcs?|each|per|for|the|and|with)$/i.test(candidate)) {
-          modelNumber = candidate;
-          break;
-        }
-      }
-    }
-
-    let description = line;
-    if (modelNumber) {
-      description = description.replace(modelNumber, "").trim();
-    }
-    description = description
-      .replace(/\$([\d,]+\.?\d*)/g, "")
-      .replace(/(?:^|\s)([\d,]+\.\d{2})(?:\s|$)/g, " ")
-      .replace(/\s+/g, " ")
-      .replace(/^[\s,.\-:]+|[\s,.\-:]+$/g, "")
-      .slice(0, 200);
-
-    if (description.length < 3 && !modelNumber) continue;
-
-    let unitPrice: number | null = null;
-    let extendedPrice: number | null = null;
-
-    if (prices.length >= 2 && qty) {
-      const sorted = [...prices].sort((a, b) => a - b);
-      unitPrice = sorted[0];
-      extendedPrice = sorted[sorted.length - 1];
-    } else if (prices.length === 1) {
-      extendedPrice = prices[0];
-      if (qty && qty > 0) {
-        unitPrice = extendedPrice / qty;
-      }
-    }
-
-    lineItems.push({
-      description,
-      modelNumber,
-      qty: qty ? qty.toString() : "",
-      unitPrice,
-      extendedPrice,
-      rawLine: line,
-    });
-  }
-
-  const lumpSumPatterns = [
-    /(?:total|lump\s*sum|grand\s*total|amount\s*due)[:\s]*\$?([\d,]+\.?\d*)/i,
-  ];
-  let lumpSumAmount: number | null = null;
-  for (const pattern of lumpSumPatterns) {
-    const match = text.match(pattern);
-    if (match) {
-      const val = parseFloat(match[1].replace(/,/g, ""));
-      if (!isNaN(val) && val > 0) {
-        lumpSumAmount = val;
-        break;
       }
     }
   }
 
-  const isLumpSum = lineItems.length === 0 && lumpSumAmount !== null;
+  // Extract freight total - look for lines that start with freight/shipping/delivery
+  const lines = text.split(/\n/);
+  for (const line of lines) {
+    const lineTrimmed = line.trim().toLowerCase();
+    // Only match lines that START with freight/shipping/delivery (summary lines)
+    if (/^(freight|shipping|delivery)\s*:?\s*\$?([\d,]+\.?\d*)/i.test(lineTrimmed)) {
+      const match = lineTrimmed.match(/\$?([\d,]+\.?\d*)/);
+      if (match) {
+        const val = parseFloat(match[1].replace(/,/g, ""));
+        if (!isNaN(val) && val > 0 && val < 100000) {
+          freightTotal = val;
+          break;
+        }
+      }
+    }
+  }
 
-  if (lineItems.length === 0 && !isLumpSum) {
-    warnings.push("No line items detected in quote");
+  // Subtract freight from material total if it seems included
+  // (when we summed all prices including a freight line)
+  if (freightTotal > 0 && !foundMaterialTotal) {
+    // Check if freight was in our material sum
+    const freightLinePattern = /(?:freight|shipping|delivery).*?\$?([\d,]+\.?\d*)/i;
+    const freightLineMatch = text.match(freightLinePattern);
+    if (freightLineMatch) {
+      const freightLineVal = parseFloat(freightLineMatch[1].replace(/,/g, ""));
+      if (!isNaN(freightLineVal) && Math.abs(freightLineVal - freightTotal) < 1) {
+        // Freight was probably included in our sum, subtract it
+        materialTotal = Math.max(0, materialTotal - freightTotal);
+      }
+    }
+  }
+
+  // Set defaults if nothing found
+  if (!manufacturer) {
+    manufacturer = "Unknown Vendor";
+    warnings.push("Could not detect manufacturer name");
+  }
+  if (!quoteNumber) {
+    quoteNumber = "No Quote #";
+    warnings.push("Could not detect quote number");
+  }
+  if (materialTotal === 0) {
+    warnings.push("Could not calculate material total - please verify");
+  }
+
+  // Add vendor detection warning
+  if (detectedVendor) {
+    warnings.unshift(`Detected vendor: ${detectedVendor.name}`);
   }
 
   return {
-    lineItems,
-    metadata,
-    isLumpSum,
-    lumpSumAmount,
+    summary: {
+      manufacturer,
+      quoteNumber,
+      materialTotal,
+      freightTotal,
+    },
     warnings,
+    detectedVendor,
   };
 }
 
 export function formatCurrency(amount: number | null): string {
-  if (amount === null || amount === undefined || isNaN(amount)) {
+  if (amount === null || amount === undefined || isNaN(amount) || amount === 0) {
     return "$-";
   }
   return "$" + amount.toLocaleString("en-US", {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   });
-}
-
-export interface EnhancedLineItem extends ParsedLineItem {
-  matchedProduct: Div10Product | null;
-  matchConfidence: "high" | "medium" | "low" | null;
-  decodedSuffixes: string[];
-  enhancedDescription: string;
-  isFreightLine: boolean;
-  isConsolidatedTag: boolean;
-  isConsolidatedDecal: boolean;
-  excludeFromOutput: boolean;
-}
-
-export interface EnhancedQuoteParseResult extends QuoteParseResult {
-  enhancedLineItems: EnhancedLineItem[];
-  detectedVendor: Vendor | null;
-  freightLine: EnhancedLineItem | null;
-}
-
-// Default special line patterns (used when no database rules exist)
-const DEFAULT_FREIGHT_PATTERNS = [
-  /\bfreight\b/i,
-  /\bshipping\b/i,
-  /\bdelivery\b/i,
-  /\btransport\b/i,
-];
-
-const DEFAULT_TAG_PATTERNS = [
-  /\btag\b/i,
-  /\btagging\b/i,
-  /\btagged\b/i,
-  /\blabel\b/i,
-];
-
-const DEFAULT_DECAL_PATTERNS = [
-  /\bdecal\b/i,
-  /\bsticker\b/i,
-  /\bLDCVBFE\b/i,
-  /\bsign\s*decal\b/i,
-];
-
-function isFreightLine(line: string, modelNumber: string): boolean {
-  const combined = (line + " " + modelNumber).toUpperCase();
-  return DEFAULT_FREIGHT_PATTERNS.some(p => p.test(combined));
-}
-
-function isTagLine(line: string, modelNumber: string): boolean {
-  const combined = (line + " " + modelNumber).toUpperCase();
-  return DEFAULT_TAG_PATTERNS.some(p => p.test(combined));
-}
-
-function isDecalLine(line: string, modelNumber: string): boolean {
-  const combined = (line + " " + modelNumber).toUpperCase();
-  return DEFAULT_DECAL_PATTERNS.some(p => p.test(combined));
-}
-
-export async function enhanceWithProductDictionary(
-  result: QuoteParseResult,
-  rawText: string
-): Promise<EnhancedQuoteParseResult> {
-  let products: Div10Product[] = [];
-  let vendors: Vendor[] = [];
-  
-  try {
-    products = await getActiveProducts();
-    vendors = await getActiveVendors();
-  } catch (error) {
-    console.warn("Failed to load product dictionary:", error);
-  }
-
-  // Detect vendor from quote text
-  let detectedVendor: Vendor | null = null;
-  const textUpper = rawText.toUpperCase();
-  for (const vendor of vendors) {
-    if (vendor.quotePatterns && vendor.quotePatterns.length > 0) {
-      for (const pattern of vendor.quotePatterns) {
-        if (textUpper.includes(pattern.toUpperCase())) {
-          detectedVendor = vendor;
-          break;
-        }
-      }
-    }
-    if (!detectedVendor && vendor.name) {
-      if (textUpper.includes(vendor.name.toUpperCase())) {
-        detectedVendor = vendor;
-      } else if (vendor.shortName && textUpper.includes(vendor.shortName.toUpperCase())) {
-        detectedVendor = vendor;
-      }
-    }
-    if (detectedVendor) break;
-  }
-
-  // Get manufacturer for suffix decoding
-  const manufacturer = detectedVendor?.name || result.metadata.manufacturer || undefined;
-
-  // Track special lines for consolidation
-  let freightLine: EnhancedLineItem | null = null;
-  const tagLines: number[] = [];
-  const decalLines: number[] = [];
-
-  // First pass: identify special lines and match products
-  const enhancedLineItems: EnhancedLineItem[] = await Promise.all(
-    result.lineItems.map(async (item, index) => {
-      let matchedProduct: Div10Product | null = null;
-      let matchConfidence: "high" | "medium" | "low" | null = null;
-      let decodedSuffixes: string[] = [];
-      let enhancedDescription = item.description;
-      let isFreight = false;
-      let isTag = false;
-      let isDecal = false;
-      let excludeFromOutput = false;
-
-      // Check if this is a freight line
-      if (isFreightLine(item.rawLine, item.modelNumber)) {
-        isFreight = true;
-      }
-
-      // Check if this is a tag line
-      if (isTagLine(item.rawLine, item.modelNumber)) {
-        isTag = true;
-        tagLines.push(index);
-      }
-
-      // Check if this is a decal line
-      if (isDecalLine(item.rawLine, item.modelNumber)) {
-        isDecal = true;
-        decalLines.push(index);
-      }
-
-      // Try to match product if we have a model number
-      if (item.modelNumber && !isFreight && !isTag && !isDecal) {
-        // Try exact match first
-        const exactMatch = products.find(
-          (p) => p.modelNumber.toUpperCase() === item.modelNumber.toUpperCase()
-        );
-        
-        if (exactMatch) {
-          matchedProduct = exactMatch;
-          matchConfidence = "high";
-        } else {
-          // Try alias match
-          const aliasMatch = products.find((p) =>
-            p.aliases?.some((a) => a.toUpperCase() === item.modelNumber.toUpperCase())
-          );
-          
-          if (aliasMatch) {
-            matchedProduct = aliasMatch;
-            matchConfidence = "high";
-          } else {
-            // Try partial/contains match for extended model numbers
-            const partialResult = await findProductByPartialMatch(item.modelNumber);
-            
-            if (partialResult) {
-              matchedProduct = partialResult.product;
-              matchConfidence = "medium";
-              
-              // Decode suffixes from the remaining part of the model number
-              if (partialResult.remainingSuffix) {
-                decodedSuffixes = await decodeSuffixes(partialResult.remainingSuffix, manufacturer);
-              }
-            }
-          }
-        }
-      }
-
-      // Build enhanced description
-      if (matchedProduct) {
-        enhancedDescription = matchedProduct.description;
-        if (decodedSuffixes.length > 0) {
-          enhancedDescription += ", " + decodedSuffixes.join(", ");
-        }
-      }
-
-      // Handle description fallback
-      if (!matchedProduct && item.description) {
-        const descUpper = item.description.toUpperCase();
-        const descMatch = products.find((p) => {
-          const pDescUpper = p.description.toUpperCase();
-          const words = pDescUpper.split(/\s+/).filter((w) => w.length > 3);
-          const matchCount = words.filter((w) => descUpper.includes(w)).length;
-          return matchCount >= 3 || (matchCount >= 2 && words.length <= 4);
-        });
-        if (descMatch) {
-          matchedProduct = descMatch;
-          matchConfidence = "low";
-          enhancedDescription = descMatch.description;
-        }
-      }
-
-      return {
-        ...item,
-        matchedProduct,
-        matchConfidence,
-        decodedSuffixes,
-        enhancedDescription,
-        isFreightLine: isFreight,
-        isConsolidatedTag: false,
-        isConsolidatedDecal: false,
-        excludeFromOutput,
-      };
-    })
-  );
-
-  // Second pass: consolidate tags and decals into associated line items
-  // Find the freight line and prepare it properly
-  for (let i = 0; i < enhancedLineItems.length; i++) {
-    const item = enhancedLineItems[i];
-    
-    if (item.isFreightLine && !freightLine) {
-      // Create the proper freight line format
-      freightLine = {
-        ...item,
-        modelNumber: "Freight",
-        description: "",
-        enhancedDescription: "",
-        qty: "1",
-        excludeFromOutput: true, // Exclude from regular output
-      };
-    }
-  }
-
-  // Consolidate tag lines: append " - tagged" to preceding fire extinguisher
-  for (const tagIdx of tagLines) {
-    enhancedLineItems[tagIdx].excludeFromOutput = true;
-    
-    // Find the closest preceding fire extinguisher line
-    for (let i = tagIdx - 1; i >= 0; i--) {
-      const prevItem = enhancedLineItems[i];
-      if (!prevItem.excludeFromOutput && !prevItem.isFreightLine) {
-        // Check if it's likely a fire extinguisher (by matched product or keywords)
-        const isFireExt = prevItem.matchedProduct?.scopeCategory === "Fire Extinguishers" ||
-          /\b(extinguisher|cosmic|galaxy|sentinel|mercury|grenadier)\b/i.test(prevItem.rawLine);
-        
-        if (isFireExt || i === 0) {
-          enhancedLineItems[i].enhancedDescription += " - tagged";
-          enhancedLineItems[i].isConsolidatedTag = true;
-          break;
-        }
-      }
-    }
-  }
-
-  // Consolidate decal lines: append "decals included" to preceding cabinet
-  for (const decalIdx of decalLines) {
-    enhancedLineItems[decalIdx].excludeFromOutput = true;
-    
-    // Find the closest preceding cabinet line
-    for (let i = decalIdx - 1; i >= 0; i--) {
-      const prevItem = enhancedLineItems[i];
-      if (!prevItem.excludeFromOutput && !prevItem.isFreightLine) {
-        // Check if it's likely a cabinet (by matched product or keywords)
-        const isCabinet = prevItem.matchedProduct?.scopeCategory === "Fire Extinguisher Cabinets" ||
-          /\b(cabinet|ambassador|academy|cosmopolitan|panorama|embassy|cavalier)\b/i.test(prevItem.rawLine);
-        
-        if (isCabinet || i === 0) {
-          enhancedLineItems[i].enhancedDescription += ", decals included";
-          enhancedLineItems[i].isConsolidatedDecal = true;
-          break;
-        }
-      }
-    }
-  }
-
-  // Mark freight lines for exclusion from regular output
-  for (const item of enhancedLineItems) {
-    if (item.isFreightLine) {
-      item.excludeFromOutput = true;
-    }
-  }
-
-  return {
-    ...result,
-    enhancedLineItems,
-    detectedVendor,
-    freightLine,
-  };
 }
