@@ -57,15 +57,15 @@ export function canonize(sec: string): string {
 
 function cleanSectionTitle(title: string): string {
   let cleaned = title;
-  cleaned = cleaned.replace(/\s*SECTION\s+\d+.*$/i, "");
-  cleaned = cleaned.replace(/\s*PART\s*\d*.*$/i, "");
-  cleaned = cleaned.replace(/\s+PART\s*$/i, "");
-  
-  const markers = ["GENERAL", "SUMMARY", "PRODUCTS", "EXECUTION", "REQUIREMENTS"];
-  for (const marker of markers) {
-    const regex = new RegExp(`\\s+${marker}.*$`, "i");
-    cleaned = cleaned.replace(regex, "");
-  }
+  // Only strip SECTION XX XX patterns that appear at the end (these are section references, not titles)
+  cleaned = cleaned.replace(/\s*SECTION\s+10[\s\d]+$/i, "");
+  // Only strip "PART 1" or similar if it's at the END of the title (indicating appended structural marker)
+  cleaned = cleaned.replace(/\s+PART\s*\d+\s*$/i, "");
+  // Only strip structural markers if they are alone at the END and preceded by whitespace
+  // This preserves titles like "GENERAL REQUIREMENTS FOR..." but strips "...GENERAL" at end
+  // We need to be careful - only strip if it's clearly an appended structural element
+  // e.g., "TOILET ACCESSORIES PART 1 - GENERAL" should become "TOILET ACCESSORIES"
+  cleaned = cleaned.replace(/\s+PART\s*\d*\s*[\-–—]\s*(GENERAL|SUMMARY|PRODUCTS|EXECUTION|REQUIREMENTS).*$/i, "");
   
   return cleaned.trim();
 }
@@ -341,100 +341,150 @@ function parseHeadersFromText(text: string, pageNumber?: number, defaultScopes?:
   const lines = text.split("\n");
   const scopes = defaultScopes || DEFAULT_SCOPES;
   
+  // Helper to check if a string is a valid section title (not just "SECTION 10 XX XX")
+  function isValidTitle(title: string): boolean {
+    if (!title || title.length < 3) return false;
+    // Reject if it's just "SECTION 10 XX XX" pattern
+    if (/^SECTION\s+10[\s\d]+$/i.test(title)) return false;
+    // Reject if it's just the section number
+    if (/^10[\s\d\-\.]+$/i.test(title)) return false;
+    // Only reject structural markers if they are ALONE or followed by a number (like "PART 1", "GENERAL" alone)
+    // Don't reject if it's "GENERAL REQUIREMENTS FOR..." as that could be a valid title
+    if (/^(PART\s*\d|GENERAL\s*$|SUMMARY\s*$|EXECUTION\s*$|PRODUCTS\s*$|REQUIREMENTS\s*$)/i.test(title)) return false;
+    return true;
+  }
+  
+  // Helper to extract title from text after section number (handles underlines, dashes, spaces)
+  function extractTitleAfterNumber(lineText: string): string | null {
+    let cleaned = lineText;
+    // Remove SECTION prefix if present
+    cleaned = cleaned.replace(/^SECTION\s*/i, "");
+    // Remove the section number at the start (spaced or compact)
+    cleaned = cleaned.replace(/^10[\s\-\._]*(?:\d{2}[\s\-\._]*\d{2}(?:[\s\-\._]*\d{2})?|\d{4,6})/, "");
+    // Remove leading underlines, dashes, spaces, colons
+    cleaned = cleaned.replace(/^[\s_\-–—:]+/, "").trim();
+    
+    // Must start with capital letter and have reasonable length
+    if (cleaned.length > 3 && /^[A-Z]/i.test(cleaned)) {
+      return cleanSectionTitle(cleaned);
+    }
+    return null;
+  }
+  
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i].trim();
     
-    const sameLineMatch = line.match(
-      /SECTION\s+(10[\s\-\._]*(?:\d{2}[\s\-\._]*\d{2}(?:[\s\-\._]*\d{2})?|\d{4,6}))\s+([A-Z][A-Z\s,&/\-]{5,})/i
+    // Only match lines that START with SECTION or a section number (anchored matching)
+    // This reduces false positives from lines that happen to contain section numbers in the middle
+    const sectionNumMatch = line.match(
+      /^(?:SECTION\s+)?(10[\s\-\._]*(?:\d{2}[\s\-\._]*\d{2}(?:[\s\-\._]*\d{2})?|\d{4,6}))/i
     );
     
-    if (sameLineMatch) {
-      const [, secRaw, titleRaw] = sameLineMatch;
+    if (sectionNumMatch) {
+      const secRaw = sectionNumMatch[1];
       
       if (secRaw.includes("-")) continue;
       
       const canon = canonize(secRaw);
-      if (canon.startsWith("10 ") && !canon.includes("-")) {
-        const cleanTitle = cleanSectionTitle(titleRaw.trim());
-        if (!hits.some((h) => h.sectionNumber === canon)) {
-          hits.push({ sectionNumber: canon, title: cleanTitle, pageNumber });
+      if (!canon.startsWith("10 ") || canon.includes("-")) continue;
+      
+      // Already have this section? Skip
+      if (hits.some((h) => h.sectionNumber === canon)) continue;
+      
+      // Try to extract title from the same line using helper
+      const titleFromLine = extractTitleAfterNumber(line);
+      
+      if (titleFromLine && isValidTitle(titleFromLine)) {
+        hits.push({ sectionNumber: canon, title: titleFromLine, pageNumber });
+        continue;
+      }
+      
+      // Title not on same line - look at next few lines
+      let titleFound = null;
+      for (let j = i + 1; j < Math.min(i + 4, lines.length); j++) {
+        const nextLine = lines[j].trim();
+        if (nextLine && nextLine.length > 3) {
+          // Skip if it's a structural marker
+          if (/^(PART\s*\d|1\.|A\.|GENERAL\s*$|SUMMARY\s*$|PRODUCTS\s*$|EXECUTION\s*$|REQUIREMENTS\s*$)/i.test(nextLine)) {
+            break;
+          }
+          // Accept titles starting with capital letter (mixed case or all caps)
+          if (/^[A-Z][A-Za-z\s,&/\-()]{3,}$/.test(nextLine)) {
+            titleFound = nextLine;
+            break;
+          }
         }
       }
-      continue;
-    }
-    
-    const sectionOnlyMatch = line.match(
-      /SECTION\s+(10[\s\-\._]*(?:\d{2}[\s\-\._]*\d{2}(?:[\s\-\._]*\d{2})?|\d{4,6}))\s*$/i
-    );
-    
-    if (sectionOnlyMatch) {
-      const secRaw = sectionOnlyMatch[1];
       
-      if (secRaw.includes("-")) continue;
-      
-      const canon = canonize(secRaw);
-      if (canon.startsWith("10 ") && !canon.includes("-")) {
-        let titleFound = null;
-        
-        for (let j = i + 1; j < Math.min(i + 3, lines.length); j++) {
-          const nextLine = lines[j].trim();
-          if (nextLine && nextLine.length > 3) {
-            const isAllCapsTitle = /^[A-Z][A-Z\s,&/\-]{4,}$/.test(nextLine);
-            
-            if (isAllCapsTitle) {
-              titleFound = nextLine;
-              break;
-            } else if (/^(PART|1\.|A\.|GENERAL|SUMMARY)/.test(nextLine)) {
-              break;
-            }
-          }
+      if (titleFound && isValidTitle(titleFound)) {
+        const cleanTitle = cleanSectionTitle(titleFound);
+        hits.push({ sectionNumber: canon, title: cleanTitle, pageNumber });
+      } else {
+        // Try default scope title
+        const defaultTitle = scopes[canon];
+        if (defaultTitle) {
+          hits.push({ sectionNumber: canon, title: defaultTitle, pageNumber });
         }
-        
-        if (titleFound) {
-          const cleanTitle = cleanSectionTitle(titleFound);
-          if (!hits.some((h) => h.sectionNumber === canon)) {
-            hits.push({ sectionNumber: canon, title: cleanTitle, pageNumber });
-          }
-        } else {
-          if (!hits.some((h) => h.sectionNumber === canon)) {
-            const defaultTitle = scopes[canon];
-            hits.push({
-              sectionNumber: canon,
-              title: defaultTitle || `SECTION ${secRaw}`,
-              pageNumber,
-            });
-          }
+        // Mark as needing title from fallback - we'll add entry without title for now
+        // and the fallback pass will try to find it
+        else {
+          hits.push({ sectionNumber: canon, title: "", pageNumber });
         }
       }
     }
   }
   
-  const dashPattern = /^(10[\s\-\._]*(?:\d{2}[\s\-\._]*\d{2}(?:[\s\-\._]*\d{2})?|\d{4,6}))\s*[\-–—:]\s*([A-Z][A-Z\s,&/\-]+)/gim;
+  // Fallback pass: Use full-text dash/underline pattern to catch headers we may have missed
+  // This handles cases where section number and title are joined by dashes in unusual ways
+  const fullText = lines.join("\n");
+  const dashPattern = /(?:SECTION\s+)?(10[\s\-\._]*(?:\d{2}[\s\-\._]*\d{2}(?:[\s\-\._]*\d{2})?|\d{4,6}))\s*[\-–—_:]+\s*([A-Z][A-Za-z\s,&/\-()]+)/gim;
   let match;
   
-  while ((match = dashPattern.exec(text)) !== null) {
+  while ((match = dashPattern.exec(fullText)) !== null) {
     const [, secRaw, titleRaw] = match;
     
     if (secRaw.includes("-")) continue;
     
     const canon = canonize(secRaw);
-    if (canon.startsWith("10 ") && !canon.includes("-")) {
-      const cleanTitle = cleanSectionTitle(titleRaw.trim()).slice(0, 100);
-      
-      const equipmentTitles = ["paper towel dispenser", "toilet paper dispenser", "soap dispenser", "hand dryer"];
-      if (equipmentTitles.some((e) => cleanTitle.toLowerCase().includes(e))) {
-        continue;
-      }
-      
-      if (cleanTitle.length > 5 && !/^\d+$/.test(cleanTitle)) {
-        if (!hits.some((h) => h.sectionNumber === canon)) {
-          hits.push({ sectionNumber: canon, title: cleanTitle, pageNumber });
+    if (!canon.startsWith("10 ") || canon.includes("-")) continue;
+    
+    const cleanTitle = cleanSectionTitle(titleRaw.trim()).slice(0, 100);
+    
+    // Skip equipment/product names that look like section titles
+    const equipmentTitles = ["paper towel dispenser", "toilet paper dispenser", "soap dispenser", "hand dryer"];
+    if (equipmentTitles.some((e) => cleanTitle.toLowerCase().includes(e))) {
+      continue;
+    }
+    
+    if (isValidTitle(cleanTitle) && cleanTitle.length > 3) {
+      // Update existing entry if it has empty/invalid title
+      const existingIdx = hits.findIndex((h) => h.sectionNumber === canon);
+      if (existingIdx >= 0) {
+        if (!isValidTitle(hits[existingIdx].title)) {
+          hits[existingIdx].title = cleanTitle;
         }
+      } else {
+        hits.push({ sectionNumber: canon, title: cleanTitle, pageNumber });
       }
     }
   }
   
-  return hits;
+  // Final pass: Keep sections but try to find better titles
+  // For sections with invalid/empty titles, use default scope or generate from section number
+  for (const hit of hits) {
+    if (!isValidTitle(hit.title)) {
+      // Try to use default scope title
+      const defaultTitle = scopes[hit.sectionNumber];
+      if (defaultTitle) {
+        hit.title = defaultTitle;
+      }
+      // Otherwise leave it empty - it will be filtered out
+      // This is intentional: we don't want to show "Section 10 XX XX" as the title
+    }
+  }
+  
+  // Filter out entries that still have invalid titles (no valid title found anywhere)
+  return hits.filter(h => isValidTitle(h.title));
 }
 
 function findAccessoryMatches(
