@@ -3,7 +3,9 @@ const pdf = (pdfParse as any).default || pdfParse;
 import { createWorker, Worker } from "tesseract.js";
 import sharp from "sharp";
 import { createCanvas } from "canvas";
-import * as pdfjs from "pdfjs-dist/legacy/build/pdf.mjs";
+import * as pdfjs from "pdfjs-dist";
+
+pdfjs.GlobalWorkerOptions.workerSrc = "";
 
 export interface ParsedLineItem {
   description: string;
@@ -100,10 +102,13 @@ async function performOcrOnPdf(buffer: Buffer): Promise<string> {
         const canvas = createCanvas(viewport.width, viewport.height);
         const context = canvas.getContext("2d");
         
-        await (page.render({
+        const renderContext = {
           canvasContext: context as any,
           viewport: viewport,
-        } as any)).promise;
+          canvas: canvas as any,
+        };
+        
+        await page.render(renderContext).promise;
         
         const pngBuffer = canvas.toBuffer("image/png");
         const result = await worker.recognize(pngBuffer);
