@@ -20,6 +20,21 @@ AiPM Tool Belt is a suite of construction document processing tools. The main la
 
 ## Recent Changes (February 2026)
 
+### SpecSift Accuracy Improvements
+Major overhaul of PDF parsing engine based on proven Division 10 Spec Extractor methodology:
+
+- **TOC Detection & Exclusion**: Automatically detects Table of Contents by scanning for "TABLE OF CONTENTS" and dot leader patterns (`.....`), then excludes those pages from section detection to prevent false positives
+- **Zone-Based Scanning**: Only scans top 15 lines of each page for section headers (where they actually appear), instead of full-page scanning
+- **Multi-Line Title Parsing**: Handles cases where section number appears on one line and ALL CAPS title on the next line
+- **Title Cleaning**: Strips structural markers (PART 1, GENERAL, PRODUCTS, EXECUTION, REQUIREMENTS) from extracted titles
+- **Section Legitimacy Validation**: Checks for "PART 1 - GENERAL" markers to confirm real spec sections vs. references
+- **Section Start/End Detection**: 
+  - Looks backwards up to 10 pages to find actual section start
+  - Looks forward for "END OF SECTION" markers and next section headers to prevent page bleeding
+- **Index Page Filtering**: Skips pages with 3+ sections detected (likely index/TOC pages that slipped through)
+- **Equipment Reference Rejection**: Rejects patterns like "10 1400-11" which are product numbers, not section numbers
+- **Per-Page Text Array**: PDF extraction returns individual page text for accurate zone-based analysis
+
 ### Central Settings Hub
 - **Settings Page** (`/settings`): Central admin area for all AiPM tools, accessible via footer link on homepage
 - **Vendor Profiles**: Manage vendor information, quote patterns, and model prefixes for better quote parsing
