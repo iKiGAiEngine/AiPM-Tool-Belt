@@ -380,12 +380,14 @@ function parseHeadersFromText(text: string, pageNumber?: number, defaultScopes?:
   // Join all lines into full text since PDFs often have section numbers embedded in long lines
   const fullText = lines.join(" ");
   
-  // First pass: Find all "SECTION 10XXXX" patterns (just extract section numbers)
-  const sectionOnlyPattern = /SECTION\s+(10[\s\d\.]{4,10})/gi;
+  // First pass: Find all "SECTION 10XXXX" patterns using canonical regex
+  // Matches: 10 14 73, 10-14-73, 10.14.73, 101473, 10 2800, 10 14 73 (all formats)
+  const sectionOnlyPattern = /SECTION\s+(10[\s\-\._]*(?:\d{2}[\s\-\._]*\d{2}(?:[\s\-\._]*\d{2})?|\d{4,6}))/gi;
   
   let match;
   while ((match = sectionOnlyPattern.exec(fullText)) !== null) {
     const secRaw = match[1].trim();
+    const matchIndex = match.index;
     const canon = canonize(secRaw);
     
     // Only Division 10 sections
@@ -394,37 +396,71 @@ function parseHeadersFromText(text: string, pageNumber?: number, defaultScopes?:
     // Already have this section? Skip
     if (hits.some((h) => h.sectionNumber === canon)) continue;
     
-    // Now search for title anywhere in the text - look for common Division 10 title patterns
+    // Search for title in a window around this section match
+    // Look both before (100 chars) and after (300 chars) the match to handle different layouts
+    const backwardStart = Math.max(0, matchIndex - 100);
+    const forwardEnd = Math.min(fullText.length, matchIndex + 300);
+    const searchWindow = fullText.slice(backwardStart, forwardEnd);
+    
     let title = "";
     
     // List of known Division 10 title patterns to search for
     const div10TitlePatterns = [
+      // Wall and Door Protection
       /Wall\s+and\s+Door\s+Protection/i,
       /Corner\s+Guards?/i,
+      /Wall\s+Guards?/i,
+      /Bumper\s+Guards?/i,
       /Wall\s+Protection/i,
+      /Door\s+(?:and\s+Frame\s+)?Protection/i,
+      // Toilet and Bath
       /Toilet\s+Accessories/i,
+      /Bath\s+Accessories/i,
       /Toilet\s+Compartments?/i,
       /Toilet\s+Partitions?/i,
-      /Phenolic\s+Toilet\s+Compartments?/i,
-      /Fire\s+Protection\s+Cabinets?/i,
+      /(?:Metal|Plastic|Phenolic|Solid\s+Plastic)\s+Toilet\s+Compartments?/i,
+      /Shower\s+(?:and\s+Dressing\s+)?Compartments?/i,
+      /Cubicle\s+Curtains?\s+(?:and\s+Track)?/i,
+      /Tub\s+and\s+Shower\s+Enclosures?/i,
+      // Fire Protection
+      /Fire\s+Protection\s+(?:Specialties|Cabinets?)/i,
       /Fire\s+Extinguisher\s+Cabinets?/i,
       /Fire\s+Extinguishers?/i,
+      /Defibrillator\s+Cabinets?/i,
+      /Emergency\s+(?:Key\s+)?Cabinets?/i,
+      // Visual Display and Signage
       /Visual\s+Display\s+(?:Units?|Boards?|Surfaces?)/i,
+      /(?:Chalk|Marker|Tack)boards?/i,
+      /Display\s+Cases?/i,
       /Signage/i,
+      /(?:Dimensional\s+Letter|Panel|Directory|Traffic|Painted)\s+Signage/i,
+      // Partitions
+      /(?:Operable|Folding|Sliding|Demountable|Portable)\s+Partitions?/i,
+      /(?:Accordion|Panel)\s+Folding\s+Partitions?/i,
+      /Wire\s+Mesh\s+Partitions?/i,
+      /Folding\s+Gates?/i,
+      // Storage
+      /(?:Metal|Plastic|Wood|Phenolic|Athletic)\s+Lockers?/i,
       /Lockers?/i,
-      /Metal\s+Lockers?/i,
-      /Cubicle\s+Curtains?/i,
-      /Folding\s+(?:Panel\s+)?Partitions?/i,
-      /Operable\s+Partitions?/i,
+      /(?:Metal|Wire)\s+Storage\s+Shelving/i,
+      /High[\s-]Density\s+(?:Mobile\s+)?Storage/i,
+      /Storage\s+(?:Assemblies|Shelving|Units?)/i,
+      /Mail\s*(?:boxes|Boxes)/i,
+      /Postal\s+Specialties/i,
+      // Exterior
+      /(?:Exterior\s+)?Sun\s+Control\s+Devices?/i,
+      /(?:Protective\s+)?Covers?/i,
+      /Awnings?/i,
+      /Canopies?/i,
+      /Flagpoles?/i,
+      // Other
       /Grilles?\s+and\s+Screens?/i,
+      /Security\s+Mirrors?/i,
       /Entrance\s+Mats?/i,
-      /Storage\s+(?:Shelving|Units?)/i,
-      /Sun\s+Control\s+Devices?/i,
-      /Protective\s+Covers?/i,
     ];
     
     for (const pattern of div10TitlePatterns) {
-      const titleMatch = fullText.match(pattern);
+      const titleMatch = searchWindow.match(pattern);
       if (titleMatch) {
         title = titleMatch[0];
         break;
@@ -444,8 +480,8 @@ function parseHeadersFromText(text: string, pageNumber?: number, defaultScopes?:
   }
   
   // Second pass: section number followed by dash and title (compact format)
-  // e.g., "101400 - SIGNAGE" or "10 14 00 - SIGNAGE"
-  const dashPattern = /(10[\s\d\.]{4,8})\s*[-–—]\s*([A-Z][A-Z\s,&\/\-()]+?)(?=\s+(?:PART\s*\d|1\.\d|Page\s*\d|SECTION|\d{6}|$))/gi;
+  // e.g., "101400 - SIGNAGE" or "10 14 00 - SIGNAGE" or "10-14-00 - SIGNAGE"
+  const dashPattern = /(10[\s\-\._]*(?:\d{2}[\s\-\._]*\d{2}(?:[\s\-\._]*\d{2})?|\d{4,6}))\s*[-–—]\s*([A-Z][A-Z\s,&\/\-()]+?)(?=\s+(?:PART\s*\d|1\.\d|Page\s*\d|SECTION|\d{6}|$))/gi;
   
   while ((match = dashPattern.exec(fullText)) !== null) {
     const secRaw = match[1];
