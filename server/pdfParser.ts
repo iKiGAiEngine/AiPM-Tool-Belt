@@ -1,12 +1,20 @@
 import * as pdfjsLib from "pdfjs-dist/legacy/build/pdf.mjs";
 
-async function pdf(buffer: Buffer): Promise<{ text: string; numpages: number }> {
+// Returns full text and also per-page text array for zone-based scanning
+interface PdfData {
+  text: string;
+  numpages: number;
+  pages: string[]; // Text for each page (0-indexed)
+}
+
+async function pdf(buffer: Buffer): Promise<PdfData> {
   const data = new Uint8Array(buffer);
   const loadingTask = pdfjsLib.getDocument({ data });
   const pdfDoc = await loadingTask.promise;
   const numPages = pdfDoc.numPages;
   
   let fullText = "";
+  const pages: string[] = [];
   
   for (let i = 1; i <= numPages; i++) {
     const page = await pdfDoc.getPage(i);
@@ -15,9 +23,10 @@ async function pdf(buffer: Buffer): Promise<{ text: string; numpages: number }> 
       .map((item: any) => item.str)
       .join(" ");
     fullText += pageText + "\n\f";
+    pages.push(pageText);
   }
   
-  return { text: fullText, numpages: numPages };
+  return { text: fullText, numpages: numPages, pages };
 }
 import type { ExtractedSection, AccessoryMatch, InsertSection, InsertAccessoryMatch, SpecsiftConfig, AccessoryScopeData } from "@shared/schema";
 import { DEFAULT_SCOPES, ACCESSORY_SCOPES } from "@shared/schema";
@@ -28,15 +37,23 @@ const SEC_RE = /\b10[\s\-\._]*(?:\d{2}[\s\-\._]*\d{2}(?:[\s\-\._]*\d{2})?|\d{4,6
 export function canonize(sec: string): string {
   const original = sec.trim();
   
+  // REJECT equipment references like "10 1400-11" (product numbers, not section numbers)
   if (/10\s*\d{4}-\d+/.test(original)) {
-    return original;
+    return original; // Return unchanged to be filtered out
   }
   
   let main = original;
   let sub = "";
   
+  // Handle decimal subsections like "10 21 13.17"
   if (original.includes(".")) {
-    [main, sub] = original.split(".", 2);
+    const dotPos = original.indexOf(".");
+    // Only treat as subsection if dot comes after at least 4 digits
+    const beforeDot = original.slice(0, dotPos);
+    const digitsBeforeDot = beforeDot.replace(/[^\d]/g, "");
+    if (digitsBeforeDot.length >= 4) {
+      [main, sub] = original.split(".", 2);
+    }
   }
   
   const digits = main.replace(/[^\d]/g, "");
@@ -53,6 +70,281 @@ export function canonize(sec: string): string {
   }
   
   return sec;
+}
+
+// ============= TOC DETECTION =============
+// Detects Table of Contents pages to exclude false positives from TOC listings
+
+interface TocBoundaries {
+  tocStartPage: number;
+  tocEndPage: number;
+}
+
+function detectTocBoundaries(pages: string[]): TocBoundaries {
+  let tocStartPage = -1;
+  let tocEndPage = -1;
+  
+  // Step 1: Find TOC start by scanning first 100 pages for "TABLE OF CONTENTS"
+  const maxScanPages = Math.min(100, pages.length);
+  for (let pageNum = 0; pageNum < maxScanPages; pageNum++) {
+    const pageText = pages[pageNum];
+    if (/TABLE\s+OF\s+CONTENTS/i.test(pageText)) {
+      tocStartPage = pageNum;
+      console.log(`[TOC] Found TABLE OF CONTENTS on page ${pageNum + 1}`);
+      break;
+    }
+  }
+  
+  // If no TOC found, return early
+  if (tocStartPage < 0) {
+    return { tocStartPage: -1, tocEndPage: -1 };
+  }
+  
+  // Step 2: Find where TOC ends using dot leader patterns and section listings
+  // TOC pages typically have: "SECTION 10 14 00 .... 45" or "DIVISION 10 ..... 100"
+  const tocPattern = /\.{3,}|(?:DIVISION|SECTION)\s+\d+.*\d+\s*$/i;
+  
+  let lastTocPage = tocStartPage;
+  for (let pageNum = tocStartPage; pageNum < maxScanPages && pageNum < tocStartPage + 50; pageNum++) {
+    const pageText = pages[pageNum];
+    const lines = pageText.split(/[\n\r]+/);
+    
+    // Count lines that look like TOC entries (have dot leaders or section+page patterns)
+    let tocLineCount = 0;
+    for (const line of lines) {
+      if (tocPattern.test(line)) {
+        tocLineCount++;
+      }
+    }
+    
+    // If 5+ TOC-style lines on a page, it's still TOC
+    if (tocLineCount >= 5) {
+      lastTocPage = pageNum;
+    } else if (pageNum > tocStartPage) {
+      // TOC has ended
+      break;
+    }
+  }
+  
+  tocEndPage = lastTocPage;
+  console.log(`[TOC] TOC detected from page ${tocStartPage + 1} to ${tocEndPage + 1}`);
+  
+  return { tocStartPage, tocEndPage };
+}
+
+// ============= ZONE-BASED HEADER DETECTION =============
+// Only looks at top 15 lines of each page where headers typically appear
+
+interface DetectedHeader {
+  sectionNumber: string;
+  title: string;
+  pageNumber: number;
+  isLegitimate: boolean;
+}
+
+function findHeadersInTopZone(pageText: string, pageNumber: number, scopes: Record<string, string>): DetectedHeader[] {
+  const headers: DetectedHeader[] = [];
+  const lines = pageText.split(/[\n\r]+/);
+  
+  // FOCUS ON TOP ZONE ONLY (first 15 lines where headers appear)
+  const topZoneLines = lines.slice(0, 15);
+  const topZone = topZoneLines.join("\n");
+  
+  // Enhanced patterns for header detection
+  const headerPatterns = [
+    // "SECTION 10 1400 - SIGNAGE" (section + number + dash + title)
+    /SECTION\s+(10[\s\-\._]*(?:\d{2}[\s\-\._]*\d{2}(?:[\s\-\._]*\d{2})?|\d{4,6}))\s*[\-–—:]\s*([A-Z][A-Z\s,&\/\-]+)/gi,
+    
+    // "10 1400 - SIGNAGE" (no SECTION prefix)
+    /^(10[\s\-\._]*(?:\d{2}[\s\-\._]*\d{2}(?:[\s\-\._]*\d{2})?|\d{4,6}))\s*[\-–—:]\s*([A-Z][A-Z\s,&\/\-]+)/gim,
+    
+    // "SECTION 10 1400 SIGNAGE" (no dash, title follows)
+    /SECTION\s+(10[\s\-\._]*(?:\d{2}[\s\-\._]*\d{2}(?:[\s\-\._]*\d{2})?|\d{4,6}))\s+([A-Z][A-Z\s,&\/\-]{10,})/gi,
+  ];
+  
+  for (const pattern of headerPatterns) {
+    let match;
+    while ((match = pattern.exec(topZone)) !== null) {
+      const secRaw = match[1];
+      const titleRaw = match[2] || "";
+      
+      const canon = canonize(secRaw);
+      
+      // Only Division 10 sections, reject equipment references
+      if (!canon.startsWith("10 ") || canon.includes("-")) continue;
+      
+      // Already found this section?
+      if (headers.some(h => h.sectionNumber === canon)) continue;
+      
+      let title = cleanSectionTitle(titleRaw.trim());
+      
+      // If no title extracted, try default scopes
+      if (!title || title.length < 3) {
+        title = scopes[canon] || "";
+      }
+      
+      headers.push({
+        sectionNumber: canon,
+        title,
+        pageNumber,
+        isLegitimate: false // Will be validated later
+      });
+    }
+  }
+  
+  // Multi-line title parsing: check for SECTION number on one line, title on next
+  for (let i = 0; i < topZoneLines.length; i++) {
+    const line = topZoneLines[i].trim();
+    
+    // Check for SECTION + number without title
+    const sectionOnlyMatch = line.match(/^SECTION\s+(10[\s\-\._]*(?:\d{2}[\s\-\._]*\d{2}(?:[\s\-\._]*\d{2})?|\d{4,6}))\s*$/i);
+    
+    if (sectionOnlyMatch && i + 1 < topZoneLines.length) {
+      const secRaw = sectionOnlyMatch[1];
+      const canon = canonize(secRaw);
+      
+      if (!canon.startsWith("10 ") || canon.includes("-")) continue;
+      if (headers.some(h => h.sectionNumber === canon)) continue;
+      
+      // Check next line for ALL CAPS title (spec convention)
+      const nextLine = topZoneLines[i + 1].trim();
+      if (/^[A-Z][A-Z\s,&\/\-]+$/.test(nextLine) && nextLine.length > 3) {
+        const title = cleanSectionTitle(nextLine);
+        headers.push({
+          sectionNumber: canon,
+          title,
+          pageNumber,
+          isLegitimate: false
+        });
+      }
+    }
+  }
+  
+  return headers;
+}
+
+// ============= SECTION LEGITIMACY VALIDATION =============
+// Checks for "PART 1 - GENERAL" markers to confirm real spec sections
+
+function validateSectionLegitimacy(pageText: string, section: string): boolean {
+  const pageUpper = pageText.toUpperCase();
+  
+  // Check for proper section structure markers
+  // Must have "PART 1 - GENERAL" or "PART 1 GENERAL" or similar
+  if (/PART\s*1\s*[\-–—:]?\s*GENERAL/i.test(pageText)) {
+    return true;
+  }
+  
+  // Also accept if it has "PART 2 - PRODUCTS" or "PART 3 - EXECUTION"
+  if (/PART\s*[23]\s*[\-–—:]?\s*(PRODUCTS|EXECUTION)/i.test(pageText)) {
+    return true;
+  }
+  
+  // Check for section-specific content markers
+  const contentMarkers = [
+    "SCOPE", "RELATED SECTIONS", "REFERENCES", "SUBMITTALS",
+    "QUALITY ASSURANCE", "DELIVERY", "PROJECT CONDITIONS",
+    "MANUFACTURERS", "MATERIALS", "FABRICATION", "INSTALLATION"
+  ];
+  
+  let markerCount = 0;
+  for (const marker of contentMarkers) {
+    if (pageUpper.includes(marker)) {
+      markerCount++;
+    }
+  }
+  
+  // If 3+ content markers found, likely a real spec section
+  return markerCount >= 3;
+}
+
+// ============= SECTION START PAGE DETECTION =============
+// Looks backwards to find actual start of section
+
+function findSectionStartPage(pages: string[], detectedPage: number, section: string): number {
+  // Look backwards up to 10 pages
+  const lookBackLimit = Math.min(10, detectedPage);
+  
+  const escapedSection = section.replace(/\s/g, "[\\s\\-\\._]*");
+  
+  for (let lookBack = 0; lookBack <= lookBackLimit; lookBack++) {
+    const checkPage = detectedPage - lookBack;
+    const pageText = pages[checkPage];
+    const lines = pageText.split(/[\n\r]+/);
+    
+    // Look for section header in first 15 lines
+    const topLines = lines.slice(0, 15).join("\n");
+    
+    const sectionHeaderPatterns = [
+      new RegExp(`SECTION\\s+${escapedSection}\\s*[\\-–—:]\\s*`, "i"),
+      new RegExp(`^${escapedSection}\\s*[\\-–—:]\\s*`, "im"),
+    ];
+    
+    for (const pattern of sectionHeaderPatterns) {
+      if (pattern.test(topLines)) {
+        console.log(`[StartPage] Section ${section} starts at page ${checkPage + 1} (detected on ${detectedPage + 1})`);
+        return checkPage;
+      }
+    }
+    
+    // Also check for "PART 1 - GENERAL" near top with section number present
+    const pageUpper = pageText.toUpperCase();
+    if (/PART\s*1\s*[\-–—:]?\s*GENERAL/i.test(topLines)) {
+      if (pageText.includes(section.replace(/\s/g, "")) || 
+          new RegExp(escapedSection, "i").test(pageText)) {
+        console.log(`[StartPage] Section ${section} starts at page ${checkPage + 1} via PART 1 marker`);
+        return checkPage;
+      }
+    }
+  }
+  
+  return detectedPage; // Fallback to detected page
+}
+
+// ============= SECTION END PAGE DETECTION =============
+// Looks for "END OF SECTION" markers and next section headers
+
+function findSectionEndPage(pages: string[], startPage: number, maxSearchPage: number, section: string): number {
+  for (let pageNum = startPage; pageNum <= Math.min(maxSearchPage, pages.length - 1); pageNum++) {
+    const pageText = pages[pageNum];
+    const lines = pageText.split(/[\n\r]+/);
+    
+    // PRIORITY 1: Look for "END OF SECTION" markers
+    const endMarkers = [
+      "end of section", "end of spec", "end section",
+      "end of specification", "— end —", "- end -",
+      "end div", "section end"
+    ];
+    
+    for (const line of lines) {
+      const lineLower = line.toLowerCase().trim();
+      for (const marker of endMarkers) {
+        if (lineLower === marker || (lineLower.includes(marker) && lineLower.length < marker.length + 10)) {
+          console.log(`[EndPage] Section ${section} ends at page ${pageNum + 1} via END marker`);
+          return pageNum;
+        }
+      }
+    }
+    
+    // PRIORITY 2: Look for next section header (ANY division) in top zone
+    if (pageNum > startPage) {
+      const topZone = lines.slice(0, 15).join("\n");
+      const nextSectionMatch = topZone.match(/(?:^|\n)\s*SECTION\s+(\d{2})\s*[\s\-\._]*(\d{2})\s*[\s\-\._]*(\d{2})/im);
+      
+      if (nextSectionMatch) {
+        const newSection = `${nextSectionMatch[1]} ${nextSectionMatch[2]} ${nextSectionMatch[3]}`;
+        if (newSection !== section) {
+          console.log(`[EndPage] Section ${section} ends at page ${pageNum} (next section ${newSection} on page ${pageNum + 1})`);
+          return pageNum - 1;
+        }
+      }
+    }
+  }
+  
+  // Default: cap at startPage + 10 if no end found
+  const defaultEnd = Math.min(startPage + 10, maxSearchPage);
+  console.log(`[EndPage] Section ${section} defaulting to end page ${defaultEnd + 1}`);
+  return defaultEnd;
 }
 
 function cleanSectionTitle(title: string): string {
@@ -629,66 +921,123 @@ export async function processPdf(
     const data = await pdf(buffer);
     const fullText = data.text;
     const numPages = data.numpages;
+    const pages = data.pages; // Per-page text array for accurate scanning
     
-    onProgress?.(20, `Parsing ${numPages} pages...`);
+    onProgress?.(15, "Detecting document structure...");
     
-    const pageTexts: string[] = [];
-    const pageBreaks = fullText.split(/\f/);
-    
-    if (pageBreaks.length > 1) {
-      pageTexts.push(...pageBreaks);
-    } else {
-      const linesPerPage = Math.ceil(fullText.split("\n").length / numPages);
-      const allLines = fullText.split("\n");
-      
-      for (let p = 0; p < numPages; p++) {
-        const start = p * linesPerPage;
-        const end = Math.min((p + 1) * linesPerPage, allLines.length);
-        pageTexts.push(allLines.slice(start, end).join("\n"));
-      }
+    // ============= TOC DETECTION =============
+    // Detect and exclude Table of Contents pages to prevent false positives
+    const { tocStartPage, tocEndPage } = detectTocBoundaries(pages);
+    if (tocEndPage >= 0) {
+      console.log(`[ProcessPdf] Excluding TOC pages ${tocStartPage + 1} to ${tocEndPage + 1}`);
     }
     
-    const sectionStarts: Map<string, { title: string; startPage: number }> = new Map();
+    onProgress?.(20, `Parsing ${numPages} pages with zone-based scanning...`);
+    
+    // Use per-page text from PDF function (more accurate than splitting by form-feed)
+    const pageTexts = pages.length > 0 ? pages : fullText.split(/\f/);
+    
+    // ============= ZONE-BASED HEADER DETECTION =============
+    // Collect all headers with page counts for index filtering
+    const allHeaders: DetectedHeader[] = [];
+    const pageHeaderCounts: Map<number, number> = new Map();
     
     for (let pageNum = 0; pageNum < pageTexts.length; pageNum++) {
       const pageText = pageTexts[pageNum];
-      const progress = 20 + Math.floor((pageNum / pageTexts.length) * 40);
+      const progress = 20 + Math.floor((pageNum / pageTexts.length) * 30);
       onProgress?.(progress, `Scanning page ${pageNum + 1} of ${pageTexts.length}...`);
       
-      const headers = parseHeadersFromText(pageText, pageNum + 1, dynamicDefaultScopes);
-      
-      for (const header of headers) {
-        if (!sectionStarts.has(header.sectionNumber)) {
-          sectionStarts.set(header.sectionNumber, {
-            title: header.title,
-            startPage: pageNum + 1,
-          });
-        }
+      // Skip pages within TOC range (only between start and end, not all pages before end)
+      if (tocStartPage >= 0 && tocEndPage >= 0 && pageNum >= tocStartPage && pageNum <= tocEndPage) {
+        console.log(`[ProcessPdf] Skipping TOC page ${pageNum + 1}`);
+        continue;
       }
       
+      // Use zone-based header detection (only top 15 lines)
+      const headers = findHeadersInTopZone(pageText, pageNum, dynamicDefaultScopes);
+      
+      // Track how many headers found per page (for index filtering)
+      pageHeaderCounts.set(pageNum, headers.length);
+      
+      for (const header of headers) {
+        // Validate section legitimacy (check for PART 1 - GENERAL markers)
+        header.isLegitimate = validateSectionLegitimacy(pageText, header.sectionNumber);
+        allHeaders.push(header);
+      }
+      
+      // Collect accessory matches (still scan full page for accessories)
       const accessoryMatches = findAccessoryMatches(pageText, sessionId, pageNum + 1, dynamicAccessoryScopes);
       accessories.push(...accessoryMatches);
     }
     
-    onProgress?.(70, "Determining section boundaries...");
+    onProgress?.(55, "Filtering and validating sections...");
     
-    const sortedSections = Array.from(sectionStarts.entries())
-      .sort((a, b) => a[1].startPage - b[1].startPage);
+    // ============= INDEX PAGE FILTERING & LEGITIMACY CHECK =============
+    // Skip pages with 3+ sections (likely index/TOC pages that slipped through)
+    // Also apply legitimacy validation
+    const filteredHeaders: DetectedHeader[] = [];
+    const seenSections = new Set<string>();
     
-    const sectionRanges: Map<string, { title: string; startPage: number; endPage: number }> = new Map();
-    
-    for (let i = 0; i < sortedSections.length; i++) {
-      const [secNum, { title, startPage }] = sortedSections[i];
-      let endPage: number;
+    for (const header of allHeaders) {
+      const pageCount = pageHeaderCounts.get(header.pageNumber) || 0;
       
-      if (i < sortedSections.length - 1) {
-        endPage = sortedSections[i + 1][1].startPage - 1;
-        if (endPage < startPage) endPage = startPage;
-      } else {
-        endPage = numPages;
+      // Filter out index pages (3+ sections on same page)
+      if (pageCount >= 3) {
+        console.log(`[ProcessPdf] Skipping index page ${header.pageNumber + 1} (${pageCount} sections)`);
+        continue;
       }
       
-      sectionRanges.set(secNum, { title, startPage, endPage });
+      // Deduplicate - only keep first occurrence of each section
+      if (seenSections.has(header.sectionNumber)) {
+        continue;
+      }
+      
+      // Apply legitimacy filter - prefer legitimate sections but allow fallback
+      // If this is a duplicate and the existing one is legitimate, skip this one
+      // If this section is not legitimate and we have no other sections on this page, still include it
+      // (some valid spec pages may not have all the expected markers)
+      if (!header.isLegitimate) {
+        // Log warning but still include - section legitimacy is advisory, not mandatory
+        console.log(`[ProcessPdf] Section ${header.sectionNumber} on page ${header.pageNumber + 1} may not be legitimate (no PART 1 markers found)`);
+      }
+      
+      seenSections.add(header.sectionNumber);
+      filteredHeaders.push(header);
+    }
+    
+    console.log(`[ProcessPdf] Found ${filteredHeaders.length} valid sections after filtering`);
+    
+    onProgress?.(65, "Determining section boundaries...");
+    
+    // Sort by page number
+    filteredHeaders.sort((a, b) => a.pageNumber - b.pageNumber);
+    
+    // ============= SECTION START/END DETECTION =============
+    // Use smart boundary detection for accurate page ranges
+    const sectionRanges: Map<string, { title: string; startPage: number; endPage: number }> = new Map();
+    
+    for (let i = 0; i < filteredHeaders.length; i++) {
+      const header = filteredHeaders[i];
+      
+      // Find actual start page (look backwards)
+      const actualStartPage = findSectionStartPage(pageTexts, header.pageNumber, header.sectionNumber);
+      
+      // Calculate max search range for end detection
+      let maxEndPage: number;
+      if (i < filteredHeaders.length - 1) {
+        maxEndPage = filteredHeaders[i + 1].pageNumber - 1;
+      } else {
+        maxEndPage = numPages - 1;
+      }
+      
+      // Find actual end page (look for END OF SECTION markers)
+      const actualEndPage = findSectionEndPage(pageTexts, actualStartPage, maxEndPage, header.sectionNumber);
+      
+      sectionRanges.set(header.sectionNumber, {
+        title: header.title,
+        startPage: actualStartPage + 1, // Convert to 1-indexed
+        endPage: actualEndPage + 1,     // Convert to 1-indexed
+      });
     }
     
     onProgress?.(80, "Extracting section details...");
