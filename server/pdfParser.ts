@@ -146,20 +146,25 @@ function findHeadersInTopZone(pageText: string, pageNumber: number, scopes: Reco
   const headers: DetectedHeader[] = [];
   const lines = pageText.split(/[\n\r]+/);
   
-  // FOCUS ON TOP ZONE ONLY (first 15 lines where headers appear)
-  const topZoneLines = lines.slice(0, 15);
+  // FOCUS ON TOP ZONE (first 20 lines where headers appear - extended from 15)
+  const topZoneLines = lines.slice(0, 20);
   const topZone = topZoneLines.join("\n");
   
   // Enhanced patterns for header detection - MIXED CASE allowed for titles
+  // Note: \s+ matches any amount of whitespace including tabs
   const headerPatterns = [
+    // "SECTION 10 26 13                    CORNER GUARDS" (section + number + lots of whitespace + title)
+    /SECTION\s+(10[\s\-\._]*\d{2}[\s\-\._]*\d{2}(?:[\s\-\._]*\d{2})?)[\s\t]+([A-Z][A-Za-z\s,&\/\-]+)/gi,
+    
     // "SECTION 10 1400 - SIGNAGE" or "SECTION 10 11 00 - Visual Display Units" (section + number + dash + title)
     /SECTION\s+(10[\s\-\._]*(?:\d{2}[\s\-\._]*\d{2}(?:[\s\-\._]*\d{2})?|\d{4,6}))\s*[\-–—:]\s*([A-Za-z][A-Za-z\s,&\/\-]+)/gi,
     
-    // "10 1400 - SIGNAGE" (no SECTION prefix)
-    /^(10[\s\-\._]*(?:\d{2}[\s\-\._]*\d{2}(?:[\s\-\._]*\d{2})?|\d{4,6}))\s*[\-–—:]\s*([A-Za-z][A-Za-z\s,&\/\-]+)/gim,
+    // "10 26 13 CORNER GUARDS" (no SECTION prefix, just number + whitespace + title) - common in headers
+    // Mixed case allowed for title
+    /(?:^|\n)\s*(10\s+\d{2}\s+\d{2})[\s\t]+([A-Za-z][A-Za-z\s,&\/\-]+)/gi,
     
-    // "SECTION 10 1400 SIGNAGE" (no dash, title follows directly) - more flexible minimum
-    /SECTION\s+(10[\s\-\._]*(?:\d{2}[\s\-\._]*\d{2}(?:[\s\-\._]*\d{2})?|\d{4,6}))\s+([A-Z][A-Za-z\s,&\/\-]{5,})/gi,
+    // "10 1400 - SIGNAGE" (no SECTION prefix, with dash)
+    /^(10[\s\-\._]*(?:\d{2}[\s\-\._]*\d{2}(?:[\s\-\._]*\d{2})?|\d{4,6}))\s*[\-–—:]\s*([A-Za-z][A-Za-z\s,&\/\-]+)/gim,
     
     // SECTION + number only (no title required) - use scopes lookup for title
     /SECTION\s+(10[\s\-\._]*(?:\d{2}[\s\-\._]*\d{2}(?:[\s\-\._]*\d{2})?|\d{4,6}))(?:\s*$|\s+PART|\s+\d)/gi,
@@ -235,6 +240,37 @@ function findHeadersInTopZone(pageText: string, pageNumber: number, scopes: Reco
         pageNumber,
         isLegitimate: false
       });
+    }
+  }
+  
+  // FALLBACK: If no headers found in zone, scan full page for SECTION headers only
+  if (headers.length === 0) {
+    const fullPagePatterns = [
+      // "SECTION 10 26 13" followed by anything (capture section only)
+      /SECTION\s+(10[\s\-\._]*\d{2}[\s\-\._]*\d{2}(?:[\s\-\._]*\d{2})?)/gi,
+    ];
+    
+    for (const pattern of fullPagePatterns) {
+      let match;
+      while ((match = pattern.exec(pageText)) !== null) {
+        const secRaw = match[1];
+        const canon = canonize(secRaw);
+        
+        if (!canon.startsWith("10 ") || canon.includes("-")) continue;
+        if (headers.some(h => h.sectionNumber === canon)) continue;
+        
+        // Use scopes lookup for title since we couldn't extract it
+        const title = scopes[canon] || "";
+        
+        console.log(`[ZoneDetect:Fallback] Found section ${canon} on page ${pageNumber + 1} with title "${title}"`);
+        
+        headers.push({
+          sectionNumber: canon,
+          title,
+          pageNumber,
+          isLegitimate: false
+        });
+      }
     }
   }
   
