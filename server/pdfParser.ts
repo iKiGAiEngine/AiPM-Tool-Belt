@@ -380,17 +380,13 @@ function parseHeadersFromText(text: string, pageNumber?: number, defaultScopes?:
   // Join all lines into full text since PDFs often have section numbers embedded in long lines
   const fullText = lines.join(" ");
   
-  // Find all SECTION patterns anywhere in the text (not just at line starts)
-  // Pattern: "SECTION 10XXXX" followed by potential title text
-  const sectionPattern = /SECTION\s+(10[\s\d\.]+)(?:\s+([A-Z][A-Z\s,&\/\-()]+?))?(?=\s+(?:PART\s*\d|1\.\d|A\.\s|Page\s*\d|SECTION\s+\d|$))/gi;
+  // First pass: Find all "SECTION 10XXXX" patterns (just extract section numbers)
+  const sectionOnlyPattern = /SECTION\s+(10[\s\d\.]{4,10})/gi;
   
   let match;
-  while ((match = sectionPattern.exec(fullText)) !== null) {
-    const secRaw = match[1];
-    const titleRaw = match[2] || "";
-    
+  while ((match = sectionOnlyPattern.exec(fullText)) !== null) {
+    const secRaw = match[1].trim();
     const canon = canonize(secRaw);
-    console.log(`[parseHeaders] Page ${pageNumber}: Found "SECTION ${secRaw}" -> canon="${canon}", title="${titleRaw.slice(0, 50)}"`);
     
     // Only Division 10 sections
     if (!canon.startsWith("10 ") || canon.includes("-")) continue;
@@ -398,16 +394,44 @@ function parseHeadersFromText(text: string, pageNumber?: number, defaultScopes?:
     // Already have this section? Skip
     if (hits.some((h) => h.sectionNumber === canon)) continue;
     
-    // Clean and validate the title
+    // Now search for title anywhere in the text - look for common Division 10 title patterns
     let title = "";
-    if (titleRaw) {
-      const cleaned = cleanSectionTitle(titleRaw.trim());
-      if (isValidTitle(cleaned)) {
-        title = cleaned;
+    
+    // List of known Division 10 title patterns to search for
+    const div10TitlePatterns = [
+      /Wall\s+and\s+Door\s+Protection/i,
+      /Corner\s+Guards?/i,
+      /Wall\s+Protection/i,
+      /Toilet\s+Accessories/i,
+      /Toilet\s+Compartments?/i,
+      /Toilet\s+Partitions?/i,
+      /Phenolic\s+Toilet\s+Compartments?/i,
+      /Fire\s+Protection\s+Cabinets?/i,
+      /Fire\s+Extinguisher\s+Cabinets?/i,
+      /Fire\s+Extinguishers?/i,
+      /Visual\s+Display\s+(?:Units?|Boards?|Surfaces?)/i,
+      /Signage/i,
+      /Lockers?/i,
+      /Metal\s+Lockers?/i,
+      /Cubicle\s+Curtains?/i,
+      /Folding\s+(?:Panel\s+)?Partitions?/i,
+      /Operable\s+Partitions?/i,
+      /Grilles?\s+and\s+Screens?/i,
+      /Entrance\s+Mats?/i,
+      /Storage\s+(?:Shelving|Units?)/i,
+      /Sun\s+Control\s+Devices?/i,
+      /Protective\s+Covers?/i,
+    ];
+    
+    for (const pattern of div10TitlePatterns) {
+      const titleMatch = fullText.match(pattern);
+      if (titleMatch) {
+        title = titleMatch[0];
+        break;
       }
     }
     
-    // If no title found, try default scope
+    // If no known title found, try default scope
     if (!title) {
       const defaultTitle = scopes[canon];
       if (defaultTitle) {
@@ -415,10 +439,11 @@ function parseHeadersFromText(text: string, pageNumber?: number, defaultScopes?:
       }
     }
     
+    console.log(`[parseHeaders] Page ${pageNumber}: Found "SECTION ${secRaw}" -> canon="${canon}", title="${title}"`);
     hits.push({ sectionNumber: canon, title, pageNumber });
   }
   
-  // Also try alternate format: section number followed by dash and title (compact format)
+  // Second pass: section number followed by dash and title (compact format)
   // e.g., "101400 - SIGNAGE" or "10 14 00 - SIGNAGE"
   const dashPattern = /(10[\s\d\.]{4,8})\s*[-–—]\s*([A-Z][A-Z\s,&\/\-()]+?)(?=\s+(?:PART\s*\d|1\.\d|Page\s*\d|SECTION|\d{6}|$))/gi;
   
