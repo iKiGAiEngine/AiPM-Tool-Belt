@@ -377,95 +377,85 @@ function parseHeadersFromText(text: string, pageNumber?: number, defaultScopes?:
     return null;
   }
   
-  // DEBUG: Log first 20 lines to understand PDF structure
-  console.log(`[parseHeaders] Page ${pageNumber}: Processing ${lines.length} lines`);
-  for (let dbg = 0; dbg < Math.min(10, lines.length); dbg++) {
-    const ln = lines[dbg].trim();
-    if (ln.length > 0) {
-      console.log(`[parseHeaders] Line ${dbg}: "${ln.slice(0, 120)}${ln.length > 120 ? '...' : ''}"`);
+  // Join all lines into full text since PDFs often have section numbers embedded in long lines
+  const fullText = lines.join(" ");
+  
+  // Find all SECTION patterns anywhere in the text (not just at line starts)
+  // Pattern: "SECTION 10XXXX" followed by potential title text
+  const sectionPattern = /SECTION\s+(10[\s\d\.]+)(?:\s+([A-Z][A-Z\s,&\/\-()]+?))?(?=\s+(?:PART\s*\d|1\.\d|A\.\s|Page\s*\d|SECTION\s+\d|$))/gi;
+  
+  let match;
+  while ((match = sectionPattern.exec(fullText)) !== null) {
+    const secRaw = match[1];
+    const titleRaw = match[2] || "";
+    
+    const canon = canonize(secRaw);
+    console.log(`[parseHeaders] Page ${pageNumber}: Found "SECTION ${secRaw}" -> canon="${canon}", title="${titleRaw.slice(0, 50)}"`);
+    
+    // Only Division 10 sections
+    if (!canon.startsWith("10 ") || canon.includes("-")) continue;
+    
+    // Already have this section? Skip
+    if (hits.some((h) => h.sectionNumber === canon)) continue;
+    
+    // Clean and validate the title
+    let title = "";
+    if (titleRaw) {
+      const cleaned = cleanSectionTitle(titleRaw.trim());
+      if (isValidTitle(cleaned)) {
+        title = cleaned;
+      }
     }
+    
+    // If no title found, try default scope
+    if (!title) {
+      const defaultTitle = scopes[canon];
+      if (defaultTitle) {
+        title = defaultTitle;
+      }
+    }
+    
+    hits.push({ sectionNumber: canon, title, pageNumber });
   }
   
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i].trim();
+  // Also try alternate format: section number followed by dash and title (compact format)
+  // e.g., "101400 - SIGNAGE" or "10 14 00 - SIGNAGE"
+  const dashPattern = /(10[\s\d\.]{4,8})\s*[-–—]\s*([A-Z][A-Z\s,&\/\-()]+?)(?=\s+(?:PART\s*\d|1\.\d|Page\s*\d|SECTION|\d{6}|$))/gi;
+  
+  while ((match = dashPattern.exec(fullText)) !== null) {
+    const secRaw = match[1];
+    const titleRaw = match[2] || "";
     
-    // Only match lines that START with SECTION or a section number (anchored matching)
-    // This reduces false positives from lines that happen to contain section numbers in the middle
-    const sectionNumMatch = line.match(
-      /^(?:SECTION\s+)?(10[\s\-\._]*(?:\d{2}[\s\-\._]*\d{2}(?:[\s\-\._]*\d{2})?|\d{4,6}))/i
-    );
+    const canon = canonize(secRaw);
     
-    if (sectionNumMatch) {
-      const secRaw = sectionNumMatch[1];
-      console.log(`[parseHeaders] Found section match on page ${pageNumber}: raw="${secRaw}" from line: "${line.slice(0, 80)}"`);
-      
-      if (secRaw.includes("-")) continue;
-      
-      const canon = canonize(secRaw);
-      console.log(`[parseHeaders] Canonized: "${canon}"`);
-      if (!canon.startsWith("10 ") || canon.includes("-")) continue;
-      
-      // Already have this section? Skip
-      if (hits.some((h) => h.sectionNumber === canon)) continue;
-      
-      // Try to extract title from the same line using helper
-      const titleFromLine = extractTitleAfterNumber(line);
-      
-      if (titleFromLine && isValidTitle(titleFromLine)) {
-        hits.push({ sectionNumber: canon, title: titleFromLine, pageNumber });
-        continue;
-      }
-      
-      // Title not on same line - look at next few lines
-      let titleFound = null;
-      for (let j = i + 1; j < Math.min(i + 4, lines.length); j++) {
-        const nextLine = lines[j].trim();
-        if (nextLine && nextLine.length > 3) {
-          // Skip page number patterns like "Page 1 of 5"
-          if (/^Page\s*\d+(\s*of\s*\d+)?$/i.test(nextLine)) {
-            continue;
-          }
-          // Skip if it's a structural marker
-          if (/^(PART\s*\d|1\.|A\.|GENERAL\s*$|SUMMARY\s*$|PRODUCTS\s*$|EXECUTION\s*$|REQUIREMENTS\s*$)/i.test(nextLine)) {
-            break;
-          }
-          // Skip if it's another SECTION line (we're looking for the title, not a repeat of section number)
-          if (/^SECTION\s+10[\s\d\.]+$/i.test(nextLine)) {
-            continue;
-          }
-          // Accept titles starting with capital letter (mixed case or all caps)
-          if (/^[A-Z][A-Za-z\s,&/\-()]{3,}$/.test(nextLine)) {
-            titleFound = nextLine;
-            break;
-          }
-        }
-      }
-      
-      if (titleFound && isValidTitle(titleFound)) {
-        const cleanTitle = cleanSectionTitle(titleFound);
-        hits.push({ sectionNumber: canon, title: cleanTitle, pageNumber });
-      } else {
-        // Try default scope title
-        const defaultTitle = scopes[canon];
-        if (defaultTitle) {
-          hits.push({ sectionNumber: canon, title: defaultTitle, pageNumber });
-        }
-        // Mark as needing title from fallback - we'll add entry without title for now
-        // and the fallback pass will try to find it
-        else {
-          hits.push({ sectionNumber: canon, title: "", pageNumber });
-        }
+    // Only Division 10 sections not already found
+    if (!canon.startsWith("10 ") || canon.includes("-")) continue;
+    if (hits.some((h) => h.sectionNumber === canon)) continue;
+    
+    let title = "";
+    if (titleRaw) {
+      const cleaned = cleanSectionTitle(titleRaw.trim());
+      if (isValidTitle(cleaned)) {
+        title = cleaned;
       }
     }
+    
+    if (!title) {
+      const defaultTitle = scopes[canon];
+      if (defaultTitle) {
+        title = defaultTitle;
+      }
+    }
+    
+    console.log(`[parseHeaders] Page ${pageNumber}: Dash pattern found "${secRaw}" -> canon="${canon}", title="${title}"`);
+    hits.push({ sectionNumber: canon, title, pageNumber });
   }
   
   // Fallback pass: Use full-text dash/underline pattern to catch headers we may have missed
   // This handles cases where section number and title are joined by dashes in unusual ways
-  const fullText = lines.join("\n");
-  const dashPattern = /(?:SECTION\s+)?(10[\s\-\._]*(?:\d{2}[\s\-\._]*\d{2}(?:[\s\-\._]*\d{2})?|\d{4,6}))\s*[\-–—_:]+\s*([A-Z][A-Za-z\s,&/\-()]+)/gim;
-  let match;
+  const fallbackDashPattern = /(?:SECTION\s+)?(10[\s\-\._]*(?:\d{2}[\s\-\._]*\d{2}(?:[\s\-\._]*\d{2})?|\d{4,6}))\s*[\-–—_:]+\s*([A-Z][A-Za-z\s,&/\-()]+)/gim;
   
-  while ((match = dashPattern.exec(fullText)) !== null) {
+  while ((match = fallbackDashPattern.exec(fullText)) !== null) {
     const [, secRaw, titleRaw] = match;
     
     if (secRaw.includes("-")) continue;
