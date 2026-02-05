@@ -150,6 +150,11 @@ function findHeadersInTopZone(pageText: string, pageNumber: number, scopes: Reco
   const topZoneLines = lines.slice(0, 20);
   const topZone = topZoneLines.join("\n");
   
+  // Log first 100 chars of page for debugging (only for pages with SECTION in them)
+  if (pageText.toUpperCase().includes("SECTION 10 26") || pageText.toUpperCase().includes("SECTION 10 44")) {
+    console.log(`[DEBUG] Page ${pageNumber + 1} first 200 chars: ${pageText.slice(0, 200).replace(/\n/g, '\\n')}`);
+  }
+  
   // Enhanced patterns for header detection - MIXED CASE allowed for titles
   // Note: \s+ matches any amount of whitespace including tabs
   const headerPatterns = [
@@ -243,7 +248,7 @@ function findHeadersInTopZone(pageText: string, pageNumber: number, scopes: Reco
     }
   }
   
-  // FALLBACK: If no headers found in zone, scan full page for SECTION headers only
+  // FALLBACK: If no headers found in zone, scan full page for SECTION headers
   if (headers.length === 0) {
     const fullPagePatterns = [
       // "SECTION 10 26 13" followed by anything (capture section only)
@@ -269,6 +274,41 @@ function findHeadersInTopZone(pageText: string, pageNumber: number, scopes: Reco
           title,
           pageNumber,
           isLegitimate: false
+        });
+      }
+    }
+  }
+  
+  // SECOND FALLBACK: Look for Division 10 section numbers with PART 1 - GENERAL in same page (strong indicator of real section)
+  // This catches cases where pdf.js text extraction puts text in unexpected order
+  if (headers.length === 0 && /PART\s*1\s*[\-–—:]?\s*GENERAL/i.test(pageText)) {
+    // Find any Division 10 section number on this page - flexible patterns
+    const secPatterns = [
+      /\b(10\s+\d{2}\s+\d{2})\b/g,                    // "10 26 13" with spaces
+      /\b(10[\-\._]\d{2}[\-\._]\d{2})\b/g,            // "10-26-13" or "10.26.13"
+      /\b(10\d{4})\b/g,                              // "102613" compact form
+    ];
+    
+    const foundSections = new Set<string>();
+    
+    for (const secPattern of secPatterns) {
+      let match;
+      while ((match = secPattern.exec(pageText)) !== null) {
+        const canon = canonize(match[1]);
+        if (!canon.startsWith("10 ") || canon.includes("-")) continue;
+        if (foundSections.has(canon)) continue;
+        foundSections.add(canon);
+        
+        // Use scopes lookup for title
+        const title = scopes[canon] || "";
+        
+        console.log(`[ZoneDetect:Part1Fallback] Found section ${canon} on page ${pageNumber + 1} with title "${title}"`);
+        
+        headers.push({
+          sectionNumber: canon,
+          title,
+          pageNumber,
+          isLegitimate: true // Has PART 1 - GENERAL so definitely legitimate
         });
       }
     }
