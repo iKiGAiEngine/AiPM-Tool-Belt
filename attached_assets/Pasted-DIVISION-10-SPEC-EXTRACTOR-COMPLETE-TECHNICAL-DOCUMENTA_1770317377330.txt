@@ -1,0 +1,306 @@
+DIVISION 10 SPEC EXTRACTOR - COMPLETE TECHNICAL DOCUMENTATION
+1. REGEX PATTERNS (Core Detection Engine)
+Primary Section Number Pattern (SEC_RE)
+SEC_RE = re.compile(r"\b10[\s\-\._]*(?:\d{2}[\s\-\._]*\d{2}(?:[\s\-\._]*\d{2})?|\d{4,6})\b")
+Matches:
+
+10 14 73 (spaced 6-digit)
+10-14-73 (dashed)
+10.14.73 (dotted)
+101473 (condensed 6-digit)
+10 2800 (spaced 4-digit)
+102800 (condensed 4-digit)
+Header Pattern (HDR_RE)
+HDR_RE = re.compile(r"^(?:SECTION|Section|SPEC|Spec)?\s*(10[\s\-\._]*(?:\d{2}[\s\-\._]*\d{2}(?:[\s\-\._]*\d{2})?|\d{4,6}))\s*[–—\-:]*\s*(.+)$", re.IGNORECASE)
+Matches:
+
+SECTION 10 14 73 - PAINTED SIGNAGE
+Section 101473: Painted Signage
+SPEC 10 28 00 – TOILET ACCESSORIES
+Section Number at Line Start (SECTION_NUMBER_RE)
+SECTION_NUMBER_RE = re.compile(r"(?:^|\n)\s*(?:SECTION\s+)?(10[\s\-\._]*(?:\d{2}[\s\-\._]*\d{2}(?:[\s\-\._]*\d{2})?|\d{4,6}))\b", re.IGNORECASE | re.MULTILINE)
+2. CANONIZATION (Normalization)
+The canonize() function converts all formats to standard XX XX XX:
+
+def canonize(sec: str) -> str:
+    # "101473" → "10 14 73"
+    # "10-14-73" → "10 14 73"  
+    # "10.14.73" → "10 14 73"
+    # "10 2800" → "10 28 00"
+    # "102800" → "10 28 00"
+    
+    # REJECTS equipment references like "10 1400-11"
+    if re.search(r'10\s*\d{4}-\d+', original_sec):
+        return original_sec  # Rejected
+    
+    digits = re.sub(r"[^\d]", "", main)
+    
+    if len(digits) == 6:
+        # 6-digit: "101473" → "10 14 73"
+        dv, p1, p2 = digits[:2], digits[2:4], digits[4:6]
+        return f"{dv} {p1} {p2}"
+    elif len(digits) == 4 and digits.startswith("10"):
+        # 4-digit: "1028" → "10 28 00"
+        dv, p1p2 = digits[:2], digits[2:4]
+        return f"{dv} {p1p2} 00"
+3. TABLE OF CONTENTS EXCLUSION
+Critical for accuracy - prevents false positives from TOC listings:
+
+def detect_division_boundaries(doc):
+    # STEP 1: Find TOC by scanning first 100 pages
+    for page_num in range(min(100, len(doc))):
+        if re.search(r'TABLE\s+OF\s+CONTENTS', text, re.IGNORECASE):
+            toc_start_page = page_num
+            break
+    
+    # STEP 2: Find where TOC ends using pattern detection
+    # TOC pages have dot leaders (...) and page numbers
+    toc_pattern = re.compile(r'\.{3,}|(?:DIVISION|SECTION)\s+\d+.*\d+\s*$', re.IGNORECASE)
+    
+    # If 5+ TOC-style lines on a page, it's still TOC
+    if toc_line_count >= 5:
+        last_toc_page = page_num
+    else:
+        toc_end_page = last_toc_page  # TOC ends here
+        break
+4. DIVISION BOUNDARY DETECTION
+For accessory search scoping (Divisions 6, 7, 11, 12):
+
+# Pattern for "DIVISION 06", "DIVISION 6", "DIV 06"
+division_pattern = re.compile(r'DIVISION\s+0?([6-9]|1[0-2])\b', re.IGNORECASE)
+# Pattern for "06 00 00" section-style markers
+section_division_pattern = re.compile(r'\b0?([6-9]|1[0-2])\s*00\s*00\b')
+# CRITICAL: Only keep FIRST occurrence of each division (after TOC)
+if div_num in target_divisions and div_num not in division_first_pages:
+    division_first_pages[div_num] = page_num
+5. HEADER DETECTION (find_div10_headers)
+Zone-based scanning - only looks at top 15 lines of each page:
+
+def find_div10_headers(doc):
+    for pno in range(len(doc)):
+        txt = doc.load_page(pno).get_text()
+        lines = txt.splitlines()
+        
+        # FOCUS ON TOP ZONE ONLY (headers appear at top)
+        top_zone = "\n".join(lines[:15])
+        
+        # Multiple pattern matching
+        enhanced_patterns = [
+            # "SECTION 10 1400 - SIGNAGE"
+            r'SECTION\s+(10[\s\-\._]*(?:\d{2}[\s\-\._]*\d{2}(?:[\s\-\._]*\d{2})?|\d{4,6}))\s*[\-–—:]\s*([A-Z][A-Z\s,&/\-]+)',
+            
+            # "10 1400 - SIGNAGE" (no SECTION prefix)
+            r'^(10[\s\-\._]*(?:\d{2}[\s\-\._]*\d{2}(?:[\s\-\._]*\d{2})?|\d{4,6}))\s*[\-–—:]\s*([A-Z][A-Z\s,&/\-]+)',
+            
+            # "SECTION 10 1400 SIGNAGE" (no dash)
+            r'SECTION\s+(10[\s\-\._]*(?:\d{2}[\s\-\._]*\d{2}(?:[\s\-\._]*\d{2})?|\d{4,6}))\s+([A-Z][A-Z\s,&/\-]{10,})',
+        ]
+6. TITLE EXTRACTION
+Multi-line title parsing - handles titles on separate lines:
+
+def parse_headers_from_page_text(text):
+    lines = text.splitlines()
+    
+    for i, line in enumerate(lines):
+        # Check for SECTION + TITLE on SAME line
+        same_line_match = re.match(
+            r'SECTION\s+(10[\s\-\._]*(?:\d{2}[\s\-\._]*\d{2}(?:[\s\-\._]*\d{2})?|\d{4,6}))\s+([A-Z][A-Z\s,&/\-]{5,})', 
+            line, re.IGNORECASE
+        )
+        
+        # If no title on same line, check NEXT line
+        if not same_line_match and i + 1 < len(lines):
+            next_line = lines[i + 1].strip()
+            # Title must be ALL CAPS (spec convention)
+            if re.match(r'^[A-Z][A-Z\s,&/\-]+$', next_line):
+                title = next_line
+Title Cleaning:
+
+def clean_section_title(title: str) -> str:
+    # Remove "SECTION XXXXXX" pattern
+    title = re.sub(r'\s*SECTION\s+\d+.*$', '', title, flags=re.IGNORECASE)
+    
+    # Remove PART X and everything after
+    title = re.sub(r'\s*PART\s+\d+.*$', '', title, flags=re.IGNORECASE)
+    
+    # Remove content markers
+    content_markers = ['GENERAL', 'SUMMARY', 'PRODUCTS', 'EXECUTION', 'REQUIREMENTS']
+    for marker in content_markers:
+        title = re.sub(rf'\s+{marker}.*$', '', title, flags=re.IGNORECASE)
+    
+    return title.strip()
+7. SECTION LEGITIMACY VALIDATION
+Prevents false positives:
+
+def is_legitimate_section(full_page_text: str, section: str, title: str) -> bool:
+    # Check for proper section structure
+    # Must have "PART 1 - GENERAL" or similar markers
+    
+    # Reject if it looks like an equipment reference
+    if re.search(r'\d+\s*-\s*\d+', section):
+        return False
+    
+    # Check page context for actual spec content
+    if "PART 1" in full_page_text.upper():
+        return True
+8. SECTION START PAGE DETECTION
+Finds actual start by looking backwards:
+
+def find_section_start_page(doc, detected_page: int, section: str) -> int:
+    # Look backwards up to 10 pages
+    for look_back in range(min(10, detected_page + 1)):
+        check_page = detected_page - look_back
+        
+        page_text = doc.load_page(check_page).get_text()
+        lines = page_text.splitlines()
+        
+        # Look for section header in first 15 lines
+        for i, line in enumerate(lines[:15]):
+            section_header_patterns = [
+                rf"SECTION\s+{escaped_section}\s*[-–—]\s*",
+                rf"^{escaped_section}\s*[-–—]\s*",
+            ]
+            
+            for pattern in section_header_patterns:
+                if re.search(pattern, line, re.IGNORECASE):
+                    return check_page
+        
+        # Also check for "PART 1 - GENERAL" near top
+        if "PART 1" in page_upper and "GENERAL" in page_upper:
+            if section in page_text:
+                return check_page
+    
+    return detected_page  # Fallback
+9. SECTION END DETECTION (Prevents Bleeding)
+Finds where each section actually ends:
+
+def find_section_end_page(doc, start_page: int, max_search_page: int, section: str) -> int:
+    for page_num in range(start_page, min(max_search_page + 1, len(doc))):
+        page_text = doc.load_page(page_num).get_text()
+        page_lines = page_text.splitlines()
+        
+        # PRIORITY 1: Look for "END OF SECTION" markers
+        end_markers = [
+            'end of section', 'end of spec', 'end section', 
+            'end of specification', '— end —', '- end -',
+            'end div', 'section end'
+        ]
+        
+        for line in page_lines:
+            line_lower = line.lower().strip()
+            for marker in end_markers:
+                if marker == line_lower or (marker in line_lower and len(line_lower) < len(marker) + 10):
+                    return page_num  # Section ends here
+        
+        # PRIORITY 2: Look for next section header (ANY division)
+        section_header_match = re.search(
+            r'(?:^|\n)\s*SECTION\s+(\d{2})\s*[\s\-\._]*(\d{2})\s*[\s\-\._]*(\d{2})',
+            top_zone, re.IGNORECASE | re.MULTILINE
+        )
+        
+        if section_header_match:
+            new_sec_full = f"{div} {group2} {group3}"
+            if new_sec_full != section:
+                return page_num - 1  # Previous page is end
+    
+    return min(start_page + 10, max_search_page)  # Default limit
+10. PAGE RANGE CALCULATION
+def make_ranges_from_headers(headers, total_pages, doc=None):
+    ranges = []
+    for i, h in enumerate(headers):
+        start = h["page"]
+        
+        if i+1 < len(headers):
+            end = headers[i+1]["page"] - 1
+        else:
+            end = total_pages - 1
+        
+        # Use END OF SECTION detection
+        if doc:
+            actual_end = find_section_end_page(doc, start, end, h['section'])
+            if actual_end and actual_end < end:
+                end = actual_end
+        
+        # Validate unrealistic sizes
+        page_count = end - start + 1
+        if page_count > 100:
+            end = start + 10  # Cap at 10 pages
+        
+        ranges.append({
+            "section": h["section"],
+            "title": h["title"],
+            "start": start,
+            "end": end
+        })
+11. TOC/INDEX PAGE FILTERING
+# Count sections per page to detect index pages
+page_counts = {}
+for h in headers:
+    page_num = h["page"]
+    page_counts[page_num] = page_counts.get(page_num, 0) + 1
+for h in headers:
+    # Filter out headers within detected TOC range
+    if toc_end >= 0 and h["page"] <= toc_end:
+        continue
+    
+    # Filter out index pages (multiple sections on same page)
+    if page_counts.get(h["page"], 0) > 2:
+        continue
+    
+    filtered_headers.append(h)
+12. DEFAULT SCOPES MAPPING
+DEFAULT_SCOPES = {
+    "10 11 00": "Visual Display Units",
+    "10 14 00": "Signage",
+    "10 14 19": "Dimensional Letter Signage",
+    "10 14 73": "Painted Signage",
+    "10 21 13": "Toilet Compartments",
+    "10 21 23": "Cubicle Curtains and Track",
+    "10 22 39": "Folding Panel Partitions",
+    "10 26 00": "Wall Protection",
+    "10 26 01": "Wall Protection",
+    "10 28 00": "Toilet, Bath, and Laundry Accessories",
+    "10 41 16": "Emergency Key Cabinets",
+    "10 44 00": "Fire Protection Specialties",
+    "10 44 13": "Fire Protection Cabinets",
+    "10 44 16": "Fire Extinguishers",
+    "10 51 00": "Lockers",
+    "10 51 13": "Metal Lockers",
+    "10 82 00": "Grilles and Screens"
+}
+13. FOLDER NAMING LOGIC
+def parent_key(canon: str) -> str:
+    # "10 26 05" → "10 26"
+    # "10 26 05.01" → "10 26"
+    parts = canon.split(".", 1)[0]
+    digits = parts.split()
+    if len(digits) >= 2:
+        return f"{digits[0]} {digits[1]}"
+    return canon
+# Folder name: "CSI Code - Scope Name"
+# Uses FULL section number (10 26 05), not parent (10 26)
+scope_name = DEFAULT_SCOPES.get(section) or DEFAULT_SCOPES.get(parent_key(section)) or clean_section_title(title)
+folder_name = f"{section} - {scope_name}"
+14. PDF EXTRACTION (PyMuPDF)
+import fitz  # PyMuPDF
+def extract_section_pdf(source_doc, start_page, end_page, output_path):
+    new_doc = fitz.open()
+    
+    for page_num in range(start_page, end_page + 1):
+        new_doc.insert_pdf(source_doc, from_page=page_num, to_page=page_num)
+    
+    new_doc.save(output_path)
+    new_doc.close()
+KEY ACCURACY FACTORS SUMMARY
+Factor	Implementation
+TOC Exclusion	Detects "TABLE OF CONTENTS" and dot leader patterns, excludes those pages
+Zone-based Scanning	Only checks top 15 lines for headers (where they appear)
+Multi-format Support	Regex handles spaces, dashes, dots, condensed formats
+Canonization	All formats normalized to XX XX XX for consistent matching
+Reference Rejection	Patterns like 10 1400-11 (equipment refs) are rejected
+End Detection	Looks for "END OF SECTION" markers to prevent bleeding
+Start Detection	Looks backwards to find actual section start page
+Index Filtering	Pages with 3+ sections are filtered (likely index pages)
+Title Cleaning	Removes "PART 1", "GENERAL", "PRODUCTS", etc. from titles
+Deduplication	Only keeps first occurrence of each section number
+This complete system achieves high accuracy by combining multiple validation layers and conservative defaults.
