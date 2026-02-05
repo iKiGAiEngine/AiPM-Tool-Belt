@@ -150,16 +150,19 @@ function findHeadersInTopZone(pageText: string, pageNumber: number, scopes: Reco
   const topZoneLines = lines.slice(0, 15);
   const topZone = topZoneLines.join("\n");
   
-  // Enhanced patterns for header detection
+  // Enhanced patterns for header detection - MIXED CASE allowed for titles
   const headerPatterns = [
-    // "SECTION 10 1400 - SIGNAGE" (section + number + dash + title)
-    /SECTION\s+(10[\s\-\._]*(?:\d{2}[\s\-\._]*\d{2}(?:[\s\-\._]*\d{2})?|\d{4,6}))\s*[\-–—:]\s*([A-Z][A-Z\s,&\/\-]+)/gi,
+    // "SECTION 10 1400 - SIGNAGE" or "SECTION 10 11 00 - Visual Display Units" (section + number + dash + title)
+    /SECTION\s+(10[\s\-\._]*(?:\d{2}[\s\-\._]*\d{2}(?:[\s\-\._]*\d{2})?|\d{4,6}))\s*[\-–—:]\s*([A-Za-z][A-Za-z\s,&\/\-]+)/gi,
     
     // "10 1400 - SIGNAGE" (no SECTION prefix)
-    /^(10[\s\-\._]*(?:\d{2}[\s\-\._]*\d{2}(?:[\s\-\._]*\d{2})?|\d{4,6}))\s*[\-–—:]\s*([A-Z][A-Z\s,&\/\-]+)/gim,
+    /^(10[\s\-\._]*(?:\d{2}[\s\-\._]*\d{2}(?:[\s\-\._]*\d{2})?|\d{4,6}))\s*[\-–—:]\s*([A-Za-z][A-Za-z\s,&\/\-]+)/gim,
     
-    // "SECTION 10 1400 SIGNAGE" (no dash, title follows)
-    /SECTION\s+(10[\s\-\._]*(?:\d{2}[\s\-\._]*\d{2}(?:[\s\-\._]*\d{2})?|\d{4,6}))\s+([A-Z][A-Z\s,&\/\-]{10,})/gi,
+    // "SECTION 10 1400 SIGNAGE" (no dash, title follows directly) - more flexible minimum
+    /SECTION\s+(10[\s\-\._]*(?:\d{2}[\s\-\._]*\d{2}(?:[\s\-\._]*\d{2})?|\d{4,6}))\s+([A-Z][A-Za-z\s,&\/\-]{5,})/gi,
+    
+    // SECTION + number only (no title required) - use scopes lookup for title
+    /SECTION\s+(10[\s\-\._]*(?:\d{2}[\s\-\._]*\d{2}(?:[\s\-\._]*\d{2})?|\d{4,6}))(?:\s*$|\s+PART|\s+\d)/gi,
   ];
   
   for (const pattern of headerPatterns) {
@@ -183,6 +186,8 @@ function findHeadersInTopZone(pageText: string, pageNumber: number, scopes: Reco
         title = scopes[canon] || "";
       }
       
+      console.log(`[ZoneDetect] Found section ${canon} on page ${pageNumber + 1} with title "${title}"`);
+      
       headers.push({
         sectionNumber: canon,
         title,
@@ -196,27 +201,40 @@ function findHeadersInTopZone(pageText: string, pageNumber: number, scopes: Reco
   for (let i = 0; i < topZoneLines.length; i++) {
     const line = topZoneLines[i].trim();
     
-    // Check for SECTION + number without title
-    const sectionOnlyMatch = line.match(/^SECTION\s+(10[\s\-\._]*(?:\d{2}[\s\-\._]*\d{2}(?:[\s\-\._]*\d{2})?|\d{4,6}))\s*$/i);
+    // Check for SECTION + number without title (or with separator but no title)
+    const sectionOnlyMatch = line.match(/^SECTION\s+(10[\s\-\._]*(?:\d{2}[\s\-\._]*\d{2}(?:[\s\-\._]*\d{2})?|\d{4,6}))\s*[\-–—:]?\s*$/i);
     
-    if (sectionOnlyMatch && i + 1 < topZoneLines.length) {
+    if (sectionOnlyMatch) {
       const secRaw = sectionOnlyMatch[1];
       const canon = canonize(secRaw);
       
       if (!canon.startsWith("10 ") || canon.includes("-")) continue;
       if (headers.some(h => h.sectionNumber === canon)) continue;
       
-      // Check next line for ALL CAPS title (spec convention)
-      const nextLine = topZoneLines[i + 1].trim();
-      if (/^[A-Z][A-Z\s,&\/\-]+$/.test(nextLine) && nextLine.length > 3) {
-        const title = cleanSectionTitle(nextLine);
-        headers.push({
-          sectionNumber: canon,
-          title,
-          pageNumber,
-          isLegitimate: false
-        });
+      let title = "";
+      
+      // Check next line for title (mixed case allowed, just needs to start with a letter)
+      if (i + 1 < topZoneLines.length) {
+        const nextLine = topZoneLines[i + 1].trim();
+        // Accept title if it starts with a capital letter and has reasonable length
+        if (/^[A-Z][A-Za-z\s,&\/\-]+/.test(nextLine) && nextLine.length > 3 && nextLine.length < 100) {
+          title = cleanSectionTitle(nextLine);
+        }
       }
+      
+      // Fallback to scopes lookup
+      if (!title || title.length < 3) {
+        title = scopes[canon] || "";
+      }
+      
+      console.log(`[ZoneDetect:MultiLine] Found section ${canon} on page ${pageNumber + 1} with title "${title}"`);
+      
+      headers.push({
+        sectionNumber: canon,
+        title,
+        pageNumber,
+        isLegitimate: false
+      });
     }
   }
   
