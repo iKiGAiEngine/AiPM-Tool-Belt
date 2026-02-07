@@ -27,6 +27,7 @@ import {
   getProjectScopes,
   createProjectScope,
   updateProjectScopeSelection,
+  deleteProject,
 } from "./scopeDictionaryStorage";
 import { storage } from "./storage";
 import { processPdf } from "./pdfParser";
@@ -436,6 +437,90 @@ export function registerProjectRoutes(app: Express) {
     }
   });
 
+  app.delete("/api/projects/:id", async (req: Request, res: Response) => {
+    try {
+      const projectId = parseInt(req.params.id);
+      if (isNaN(projectId)) return res.status(400).json({ message: "Invalid project ID" });
+
+      const project = await getProjectById(projectId);
+      if (!project) return res.status(404).json({ message: "Project not found" });
+
+      if (project.specsiftSessionId) {
+        try {
+          await storage.deleteSectionsBySession(project.specsiftSessionId);
+          await storage.deleteAccessoryMatchesBySession(project.specsiftSessionId);
+          await storage.deletePdfBuffer(project.specsiftSessionId);
+          await storage.deleteSession(project.specsiftSessionId);
+        } catch {}
+      }
+
+      if (project.planparserJobId) {
+        try {
+          await planParserStorage.deleteJob(project.planparserJobId);
+        } catch {}
+      }
+
+      if (project.folderPath) {
+        try {
+          fs.rmSync(project.folderPath, { recursive: true, force: true });
+        } catch {}
+      }
+
+      await deleteProject(projectId);
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error deleting project:", error);
+      res.status(500).json({ message: "Failed to delete project" });
+    }
+  });
+
+  app.post("/api/projects/bulk-delete", async (req: Request, res: Response) => {
+    try {
+      const { ids } = req.body;
+      if (!Array.isArray(ids) || ids.length === 0) {
+        return res.status(400).json({ message: "ids must be a non-empty array" });
+      }
+
+      let deleted = 0;
+      for (const id of ids) {
+        const projectId = parseInt(id);
+        if (isNaN(projectId)) continue;
+
+        const project = await getProjectById(projectId);
+        if (!project) continue;
+
+        if (project.specsiftSessionId) {
+          try {
+            await storage.deleteSectionsBySession(project.specsiftSessionId);
+            await storage.deleteAccessoryMatchesBySession(project.specsiftSessionId);
+            await storage.deletePdfBuffer(project.specsiftSessionId);
+            await storage.deleteSession(project.specsiftSessionId);
+          } catch {}
+        }
+
+        if (project.planparserJobId) {
+          try {
+            await planParserStorage.deleteJob(project.planparserJobId);
+          } catch {}
+        }
+
+        if (project.folderPath) {
+          try {
+            fs.rmSync(project.folderPath, { recursive: true, force: true });
+          } catch {}
+        }
+
+        await deleteProject(projectId);
+        deleted++;
+      }
+
+      res.json({ success: true, deleted });
+    } catch (error) {
+      console.error("Error bulk deleting projects:", error);
+      res.status(500).json({ message: "Failed to bulk delete projects" });
+    }
+  });
+
   app.post("/api/projects/:id/spec-pass", async (req: Request, res: Response) => {
     try {
       const projectId = parseInt(req.params.id);
@@ -490,6 +575,166 @@ export function registerProjectRoutes(app: Express) {
     } catch (error) {
       console.error("Spec-pass error:", error);
       res.status(500).json({ message: "Failed to start spec-informed pass" });
+    }
+  });
+
+  app.post("/api/projects/:id/retry", async (req: Request, res: Response) => {
+    try {
+      const projectId = parseInt(req.params.id);
+      if (isNaN(projectId)) return res.status(400).json({ message: "Invalid project ID" });
+
+      const project = await getProjectById(projectId);
+      if (!project) return res.status(404).json({ message: "Project not found" });
+
+      const errorStatuses = ["specsift_error", "planparser_baseline_error", "planparser_specpass_error"];
+      if (!project.status || !errorStatuses.includes(project.status)) {
+        return res.status(409).json({ message: "Project is not in an error state" });
+      }
+
+      const folderPath = project.folderPath;
+      if (!folderPath) {
+        return res.status(400).json({ message: "No folder path found for this project" });
+      }
+
+      res.json({ message: "Retry started", status: project.status });
+
+      if (project.status === "specsift_error") {
+        (async () => {
+          try {
+            const specsPath = path.join(folderPath, "Specs/Original", project.specsFilename || "");
+            if (!fs.existsSync(specsPath)) {
+              await updateProject(projectId, { status: "specsift_error" });
+              return;
+            }
+            const specsBuffer = fs.readFileSync(specsPath);
+            const sessionId = project.specsiftSessionId;
+
+            await updateProject(projectId, { status: "specsift_running" });
+            if (sessionId) {
+              await storage.updateSession(sessionId, { status: "processing", progress: 0, message: "Retrying SpecSift..." });
+            }
+
+            const result = await processPdf(specsBuffer, sessionId || "", (progress, message) => {
+              if (sessionId) storage.updateSession(sessionId, { progress, message });
+            });
+
+            for (const section of result.sections) {
+              await storage.createSection(section);
+            }
+            for (const accessory of result.accessories) {
+              await storage.createAccessoryMatch(accessory);
+            }
+
+            if (sessionId) {
+              await storage.updateSession(sessionId, {
+                status: "complete", progress: 100,
+                message: `Extracted ${result.sections.length} sections`,
+              });
+            }
+
+            const existingScopes = await getProjectScopes(projectId);
+            if (existingScopes.length === 0) {
+              for (const section of result.sections) {
+                await createProjectScope({
+                  projectId: projectId,
+                  scopeType: section.title || "Unknown",
+                  specSectionNumber: section.sectionNumber,
+                  specSectionTitle: section.title,
+                  manufacturers: section.manufacturers || [],
+                  modelNumbers: section.modelNumbers || [],
+                  materials: section.materials || [],
+                  keywords: [],
+                  confidenceScore: 80,
+                  isSelected: true,
+                });
+              }
+            }
+
+            await updateProject(projectId, { status: "specsift_complete" });
+
+            const plansPath = path.join(folderPath, "Plans/Original", project.plansFilename || "");
+            if (fs.existsSync(plansPath) && project.planparserJobId) {
+              try {
+                await updateProject(projectId, { status: "planparser_baseline_running" });
+                const plansBuffer = fs.readFileSync(plansPath);
+                await processJob(project.planparserJobId, [
+                  { filename: project.plansFilename || "plans.pdf", buffer: plansBuffer }
+                ]);
+                const completedJob = await planParserStorage.getJob(project.planparserJobId);
+                if (completedJob) {
+                  await updateProject(projectId, {
+                    status: "planparser_baseline_complete",
+                    baselineScopeCounts: completedJob.scopeCounts || {},
+                    baselineFlaggedPages: completedJob.flaggedPages,
+                  });
+                } else {
+                  await updateProject(projectId, { status: "planparser_baseline_complete" });
+                }
+              } catch (err) {
+                console.error("Plan Parser retry error:", err);
+                await updateProject(projectId, { status: "planparser_baseline_error" });
+              }
+            }
+          } catch (err) {
+            console.error("SpecSift retry error:", err);
+            await updateProject(projectId, { status: "specsift_error" });
+          }
+        })();
+      } else if (project.status === "planparser_baseline_error") {
+        (async () => {
+          try {
+            const plansPath = path.join(folderPath, "Plans/Original", project.plansFilename || "");
+            if (!fs.existsSync(plansPath) || !project.planparserJobId) {
+              return;
+            }
+            await updateProject(projectId, { status: "planparser_baseline_running" });
+            const plansBuffer = fs.readFileSync(plansPath);
+            await processJob(project.planparserJobId, [
+              { filename: project.plansFilename || "plans.pdf", buffer: plansBuffer }
+            ]);
+            const completedJob = await planParserStorage.getJob(project.planparserJobId);
+            if (completedJob) {
+              await updateProject(projectId, {
+                status: "planparser_baseline_complete",
+                baselineScopeCounts: completedJob.scopeCounts || {},
+                baselineFlaggedPages: completedJob.flaggedPages,
+              });
+            } else {
+              await updateProject(projectId, { status: "planparser_baseline_complete" });
+            }
+          } catch (err) {
+            console.error("Plan Parser retry error:", err);
+            await updateProject(projectId, { status: "planparser_baseline_error" });
+          }
+        })();
+      } else if (project.status === "planparser_specpass_error") {
+        (async () => {
+          try {
+            if (!project.planparserJobId) return;
+            const scopes = await getProjectScopes(projectId);
+            const selectedScopes = scopes.filter(s => s.isSelected);
+            if (selectedScopes.length === 0) return;
+
+            const specBoosts: SpecBoostData[] = selectedScopes.map(scope => ({
+              scopeType: scope.scopeType,
+              manufacturers: (scope.manufacturers as string[]) || [],
+              modelNumbers: (scope.modelNumbers as string[]) || [],
+              materials: (scope.materials as string[]) || [],
+              specSectionNumber: scope.specSectionNumber,
+            }));
+
+            await updateProject(projectId, { status: "planparser_specpass_running" });
+            await reprocessJobWithSpecBoost(project.planparserJobId, specBoosts);
+            await updateProject(projectId, { status: "outputs_ready" });
+          } catch (err) {
+            console.error("Spec-pass retry error:", err);
+            await updateProject(projectId, { status: "planparser_specpass_error" });
+          }
+        })();
+      }
+    } catch (error) {
+      console.error("Retry error:", error);
+      res.status(500).json({ message: "Failed to retry processing" });
     }
   });
 

@@ -229,6 +229,13 @@ export async function updateProjectScopeSelection(id: number, isSelected: boolea
   return result[0] || null;
 }
 
+export async function deleteProject(id: number): Promise<boolean> {
+  await db.delete(planIndex).where(eq(planIndex.projectId, id));
+  await db.delete(projectScopes).where(eq(projectScopes.projectId, id));
+  const result = await db.delete(projects).where(eq(projects.id, id)).returning();
+  return result.length > 0;
+}
+
 export async function getPlanIndex(projectId: number): Promise<PlanIndexEntry[]> {
   return await db.select().from(planIndex).where(eq(planIndex.projectId, projectId));
 }

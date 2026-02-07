@@ -1,12 +1,16 @@
 import { useState, useMemo } from "react";
 import { Link } from "wouter";
-import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft, Download, Search, ChevronUp, ChevronDown, FileSpreadsheet, FileText } from "lucide-react";
+import { useQuery, useMutation } from "@tanstack/react-query";
+import { ArrowLeft, Download, Search, ChevronUp, ChevronDown, FileSpreadsheet, FileText, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import { useToast } from "@/hooks/use-toast";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 import type { Project } from "@shared/schema";
 import { saveAs } from "file-saver";
 import * as XLSX from "xlsx";
@@ -33,9 +37,27 @@ export default function ProjectLogPage() {
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [sortField, setSortField] = useState<SortField>("createdAt");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const { toast } = useToast();
 
   const { data: projects = [], isLoading } = useQuery<Project[]>({
     queryKey: ["/api/projects"],
+  });
+
+  const bulkDeleteMutation = useMutation({
+    mutationFn: async (ids: number[]) => {
+      await apiRequest("POST", "/api/projects/bulk-delete", { ids });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/projects"] });
+      setSelectedIds(new Set());
+      setShowDeleteDialog(false);
+      toast({ title: "Projects deleted", description: `${selectedIds.size} project(s) removed successfully.` });
+    },
+    onError: () => {
+      toast({ title: "Error", description: "Failed to delete selected projects.", variant: "destructive" });
+    },
   });
 
   const filteredProjects = useMemo(() => {
@@ -87,6 +109,23 @@ export default function ProjectLogPage() {
   const SortIcon = ({ field }: { field: SortField }) => {
     if (sortField !== field) return null;
     return sortDir === "asc" ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />;
+  };
+
+  const toggleSelect = (id: number) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedIds.size === filteredProjects.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(filteredProjects.map(p => p.id)));
+    }
   };
 
   const exportToCSV = () => {
@@ -149,6 +188,34 @@ export default function ProjectLogPage() {
           <p className="text-muted-foreground">Complete log of all projects with export capabilities</p>
         </div>
         <div className="flex items-center gap-2">
+          {selectedIds.size > 0 && (
+            <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+              <AlertDialogTrigger asChild>
+                <Button variant="destructive" size="sm" data-testid="button-bulk-delete">
+                  <Trash2 className="w-4 h-4 mr-2" />
+                  Delete ({selectedIds.size})
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Delete {selectedIds.size} project{selectedIds.size !== 1 ? "s" : ""}?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    This will permanently delete the selected projects and all associated data including spec sessions, plan parser jobs, and project files. This action cannot be undone.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel data-testid="button-cancel-delete">Cancel</AlertDialogCancel>
+                  <AlertDialogAction
+                    onClick={() => bulkDeleteMutation.mutate(Array.from(selectedIds))}
+                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                    data-testid="button-confirm-delete"
+                  >
+                    {bulkDeleteMutation.isPending ? "Deleting..." : "Delete"}
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          )}
           <Button variant="outline" size="sm" onClick={exportToCSV} data-testid="button-export-csv">
             <FileText className="w-4 h-4 mr-2" />
             CSV
@@ -201,6 +268,13 @@ export default function ProjectLogPage() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b">
+                    <th className="py-3 px-3 w-10">
+                      <Checkbox
+                        checked={selectedIds.size === filteredProjects.length && filteredProjects.length > 0}
+                        onCheckedChange={toggleSelectAll}
+                        data-testid="checkbox-select-all"
+                      />
+                    </th>
                     <th
                       className="text-left py-3 px-3 font-medium text-muted-foreground cursor-pointer select-none"
                       onClick={() => toggleSort("projectId")}
@@ -249,8 +323,16 @@ export default function ProjectLogPage() {
                 <tbody>
                   {filteredProjects.map((project) => {
                     const statusCat = getStatusCategory(project.status);
+                    const isSelected = selectedIds.has(project.id);
                     return (
-                      <tr key={project.id} className="border-b last:border-0 hover-elevate">
+                      <tr key={project.id} className={`border-b last:border-0 hover-elevate ${isSelected ? "bg-muted/50" : ""}`}>
+                        <td className="py-3 px-3">
+                          <Checkbox
+                            checked={isSelected}
+                            onCheckedChange={() => toggleSelect(project.id)}
+                            data-testid={`checkbox-project-${project.id}`}
+                          />
+                        </td>
                         <td className="py-3 px-3">
                           <Link href={`/projects/${project.id}`}>
                             <Badge variant="outline" className="font-mono cursor-pointer" data-testid={`text-bid-id-${project.id}`}>

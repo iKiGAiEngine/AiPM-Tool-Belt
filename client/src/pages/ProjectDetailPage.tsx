@@ -5,7 +5,7 @@ import {
   ArrowLeft, Loader2, CheckCircle, AlertCircle, Clock,
   FileText, ScanSearch, FolderOpen, ToggleLeft, ToggleRight,
   Play, Factory, Hash, Layers, ChevronDown, ChevronRight, Download,
-  BookOpen, FileDown, TrendingUp, TrendingDown, Minus
+  BookOpen, FileDown, TrendingUp, TrendingDown, Minus, RefreshCw
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -137,6 +137,24 @@ export default function ProjectDetailPage() {
     },
   });
 
+  const retryMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", `/api/projects/${projectId}/retry`);
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId] });
+      toast({ title: "Retry started" });
+    },
+    onError: (err: any) => {
+      toast({
+        title: "Failed to retry",
+        description: err.message || "Please try again",
+        variant: "destructive"
+      });
+    },
+  });
+
   const selectAllMutation = useMutation({
     mutationFn: async (selectAll: boolean) => {
       for (const scope of scopes) {
@@ -248,6 +266,7 @@ export default function ProjectDetailPage() {
   const statusInfo = STATUS_MAP[project.status || "created"] || STATUS_MAP.created;
   const StatusIcon = statusInfo.icon;
   const isProcessing = isProcessingStatus(project.status);
+  const isError = !!project.status && project.status.includes("error");
   const selectedCount = scopes.filter(s => s.isSelected).length;
   const showSpecPassButton = canRunSpecPass(project.status) && scopes.length > 0;
   const showPlanResults = hasPlanResults(project.status);
@@ -325,10 +344,49 @@ export default function ProjectDetailPage() {
           <CardContent className="py-4">
             <div className="flex items-center gap-3">
               <Loader2 className="w-5 h-5 animate-spin text-yellow-500" />
-              <div>
+              <div className="flex-1">
                 <p className="text-sm font-medium">Processing in progress</p>
                 <p className="text-xs text-muted-foreground">This page refreshes automatically. Results will appear when ready.</p>
               </div>
+              <Badge variant="outline" className="text-xs">
+                {statusInfo.label}
+              </Badge>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {isError && (
+        <Card className="mb-6 border-red-500/30">
+          <CardContent className="py-4">
+            <div className="flex items-center gap-3">
+              <AlertCircle className="w-5 h-5 text-red-500 shrink-0" />
+              <div className="flex-1">
+                <p className="text-sm font-medium text-red-600 dark:text-red-400">
+                  {statusInfo.label}
+                </p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  {project.status === "specsift_error"
+                    ? "The specification extraction failed. You can retry the process."
+                    : project.status === "planparser_baseline_error"
+                      ? "Plan classification failed during the baseline pass. You can retry."
+                      : "The spec-informed second pass failed. You can retry the process."}
+                </p>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => retryMutation.mutate()}
+                disabled={retryMutation.isPending}
+                data-testid="button-retry"
+              >
+                {retryMutation.isPending ? (
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                ) : (
+                  <RefreshCw className="w-4 h-4 mr-2" />
+                )}
+                Retry
+              </Button>
             </div>
           </CardContent>
         </Card>

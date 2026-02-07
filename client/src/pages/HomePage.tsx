@@ -1,7 +1,13 @@
+import { useMemo } from "react";
 import { Link } from "wouter";
 import { useQuery } from "@tanstack/react-query";
-import { FileSearch, ScanSearch, Wrench, Receipt, Settings, FolderPlus, ChevronRight, Clock, ClipboardList } from "lucide-react";
+import {
+  FileSearch, ScanSearch, Receipt, FolderPlus, ChevronRight,
+  Clock, ClipboardList, Settings, CheckCircle, AlertCircle,
+  Loader2, TrendingUp, FolderOpen, BarChart3
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import type { Project } from "@shared/schema";
 
@@ -49,19 +55,46 @@ const tools: ToolTile[] = [
   },
 ];
 
+function getStatusCategory(status: string | null): "processing" | "complete" | "error" | "created" {
+  if (!status) return "created";
+  if (status.includes("error")) return "error";
+  if (status === "outputs_ready" || status.includes("complete")) return "complete";
+  if (status.includes("running")) return "processing";
+  return "created";
+}
+
 export default function HomePage() {
   const { data: projects = [] } = useQuery<Project[]>({
     queryKey: ["/api/projects"],
   });
 
-  const recentProjects = projects
-    .sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime())
-    .slice(0, 5);
+  const stats = useMemo(() => {
+    const total = projects.length;
+    let processing = 0;
+    let complete = 0;
+    let errors = 0;
+
+    for (const p of projects) {
+      const cat = getStatusCategory(p.status);
+      if (cat === "processing") processing++;
+      else if (cat === "complete") complete++;
+      else if (cat === "error") errors++;
+    }
+
+    return { total, processing, complete, errors };
+  }, [projects]);
+
+  const recentProjects = useMemo(() =>
+    [...projects]
+      .sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime())
+      .slice(0, 8),
+    [projects]
+  );
 
   return (
     <div className="min-h-[calc(100vh-4rem)] flex flex-col">
       <div className="flex-1 flex flex-col items-center px-6 py-12">
-        <div className="text-center mb-12">
+        <div className="text-center mb-10">
           <h1 className="text-4xl font-light tracking-tight text-foreground mb-3">
             AiPM Tool Belt
           </h1>
@@ -70,6 +103,55 @@ export default function HomePage() {
           </p>
         </div>
 
+        {projects.length > 0 && (
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 max-w-3xl w-full mb-10">
+            <Card>
+              <CardContent className="p-4 flex items-center gap-3">
+                <div className="w-9 h-9 rounded-full bg-muted flex items-center justify-center shrink-0">
+                  <FolderOpen className="w-4 h-4 text-muted-foreground" />
+                </div>
+                <div>
+                  <p className="text-2xl font-semibold" data-testid="stat-total">{stats.total}</p>
+                  <p className="text-xs text-muted-foreground">Total Projects</p>
+                </div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="p-4 flex items-center gap-3">
+                <div className="w-9 h-9 rounded-full bg-yellow-500/10 flex items-center justify-center shrink-0">
+                  <Loader2 className="w-4 h-4 text-yellow-500" />
+                </div>
+                <div>
+                  <p className="text-2xl font-semibold" data-testid="stat-processing">{stats.processing}</p>
+                  <p className="text-xs text-muted-foreground">Processing</p>
+                </div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="p-4 flex items-center gap-3">
+                <div className="w-9 h-9 rounded-full bg-green-500/10 flex items-center justify-center shrink-0">
+                  <CheckCircle className="w-4 h-4 text-green-500" />
+                </div>
+                <div>
+                  <p className="text-2xl font-semibold" data-testid="stat-complete">{stats.complete}</p>
+                  <p className="text-xs text-muted-foreground">Complete</p>
+                </div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="p-4 flex items-center gap-3">
+                <div className="w-9 h-9 rounded-full bg-red-500/10 flex items-center justify-center shrink-0">
+                  <AlertCircle className="w-4 h-4 text-red-500" />
+                </div>
+                <div>
+                  <p className="text-2xl font-semibold" data-testid="stat-errors">{stats.errors}</p>
+                  <p className="text-xs text-muted-foreground">Errors</p>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 max-w-5xl w-full">
           {tools.map((tool) => (
             <ToolCard key={tool.id} tool={tool} />
@@ -77,42 +159,56 @@ export default function HomePage() {
         </div>
 
         {recentProjects.length > 0 && (
-          <div className="mt-12 max-w-5xl w-full">
-            <h2 className="text-lg font-medium text-foreground mb-4">Recent Projects</h2>
+          <div className="mt-10 max-w-5xl w-full">
+            <div className="flex items-center justify-between mb-4 gap-4 flex-wrap">
+              <h2 className="text-lg font-medium text-foreground">Recent Projects</h2>
+              <Link href="/project-log">
+                <Button variant="ghost" size="sm" className="gap-1 text-muted-foreground" data-testid="link-view-all-projects">
+                  <BarChart3 className="w-4 h-4" />
+                  View All
+                </Button>
+              </Link>
+            </div>
             <div className="space-y-2">
-              {recentProjects.map((project) => (
-                <Link
-                  key={project.id}
-                  href={`/projects/${project.id}`}
-                  className="block"
-                  data-testid={`link-project-${project.id}`}
-                >
-                  <div className="flex items-center justify-between gap-4 p-3 rounded-lg border bg-card hover-elevate">
-                    <div className="flex items-center gap-3 min-w-0">
-                      <Badge variant="outline" className="font-mono shrink-0">
-                        {project.projectId}
-                      </Badge>
-                      <span className="text-sm font-medium truncate" data-testid={`text-project-name-${project.id}`}>
-                        {project.projectName}
-                      </span>
-                      {project.regionCode && (
-                        <Badge variant="secondary" className="text-xs shrink-0">
-                          {project.regionCode}
+              {recentProjects.map((project) => {
+                const statusCat = getStatusCategory(project.status);
+                return (
+                  <Link
+                    key={project.id}
+                    href={`/projects/${project.id}`}
+                    className="block"
+                    data-testid={`link-project-${project.id}`}
+                  >
+                    <div className="flex items-center justify-between gap-4 p-3 rounded-lg border bg-card hover-elevate">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <Badge variant="outline" className="font-mono shrink-0">
+                          {project.projectId}
                         </Badge>
-                      )}
+                        <span className="text-sm font-medium truncate" data-testid={`text-project-name-${project.id}`}>
+                          {project.projectName}
+                        </span>
+                        {project.regionCode && (
+                          <Badge variant="secondary" className="text-xs shrink-0">
+                            {project.regionCode}
+                          </Badge>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        {statusCat === "processing" && (
+                          <Loader2 className="w-3.5 h-3.5 text-yellow-500 animate-spin" />
+                        )}
+                        <Badge
+                          variant={statusCat === "error" ? "destructive" : statusCat === "complete" ? "default" : "outline"}
+                          className="text-xs"
+                        >
+                          {project.status?.replace(/_/g, " ") || "created"}
+                        </Badge>
+                        <ChevronRight className="w-4 h-4 text-muted-foreground" />
+                      </div>
                     </div>
-                    <div className="flex items-center gap-2 shrink-0">
-                      <Badge
-                        variant={project.status?.includes("error") ? "destructive" : "outline"}
-                        className="text-xs"
-                      >
-                        {project.status?.replace(/_/g, " ") || "created"}
-                      </Badge>
-                      <ChevronRight className="w-4 h-4 text-muted-foreground" />
-                    </div>
-                  </div>
-                </Link>
-              ))}
+                  </Link>
+                );
+              })}
             </div>
           </div>
         )}

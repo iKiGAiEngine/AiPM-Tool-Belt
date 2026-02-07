@@ -1386,6 +1386,7 @@ function FolderTemplateSection() {
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [templateName, setTemplateName] = useState("Default Folder Template");
+  const [isDragOver, setIsDragOver] = useState(false);
 
   const { data: templates = [], isLoading } = useQuery<FolderTemplate[]>({
     queryKey: ["/api/templates/folders"],
@@ -1441,6 +1442,32 @@ function FolderTemplateSection() {
     if (file) uploadMutation.mutate(file);
   };
 
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragOver(false);
+    const file = e.dataTransfer.files?.[0];
+    if (!file) return;
+    if (!file.name.toLowerCase().endsWith(".zip")) {
+      toast({ title: "Please drop a ZIP file", variant: "destructive" });
+      return;
+    }
+    if (!templateName) {
+      toast({ title: "Please enter a template name first", variant: "destructive" });
+      return;
+    }
+    uploadMutation.mutate(file);
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragOver(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragOver(false);
+  };
+
   const formatFileSize = (bytes: number) => {
     if (bytes < 1024) return `${bytes} B`;
     if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
@@ -1457,41 +1484,59 @@ function FolderTemplateSection() {
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="flex items-end gap-4">
-            <div className="flex-1 space-y-2">
-              <Label htmlFor="templateName">Template Name</Label>
-              <Input
-                id="templateName"
-                value={templateName}
-                onChange={(e) => setTemplateName(e.target.value)}
-                placeholder="Default Folder Template"
-                data-testid="input-folder-template-name"
-              />
-            </div>
-            <div>
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept=".zip"
-                onChange={handleFileSelect}
-                className="hidden"
-                data-testid="input-folder-template-file"
-              />
-              <Button
-                onClick={() => fileInputRef.current?.click()}
-                disabled={uploadMutation.isPending || !templateName}
-                data-testid="button-upload-folder-template"
-              >
-                <Upload className="w-4 h-4 mr-2" />
-                {uploadMutation.isPending ? "Uploading..." : "Upload ZIP"}
-              </Button>
-            </div>
+          <div className="space-y-2">
+            <Label htmlFor="templateName">Template Name</Label>
+            <Input
+              id="templateName"
+              value={templateName}
+              onChange={(e) => setTemplateName(e.target.value)}
+              placeholder="Default Folder Template"
+              data-testid="input-folder-template-name"
+            />
+          </div>
+
+          <div
+            onDrop={handleDrop}
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onClick={() => !uploadMutation.isPending && templateName && fileInputRef.current?.click()}
+            className={`relative flex flex-col items-center justify-center gap-3 p-8 rounded-lg border-2 border-dashed cursor-pointer transition-colors ${
+              isDragOver
+                ? "border-primary bg-primary/5"
+                : "border-border hover:border-muted-foreground/50"
+            } ${uploadMutation.isPending || !templateName ? "opacity-50 cursor-not-allowed" : ""}`}
+            data-testid="dropzone-folder-template"
+          >
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".zip"
+              onChange={handleFileSelect}
+              className="hidden"
+              data-testid="input-folder-template-file"
+            />
+            {uploadMutation.isPending ? (
+              <>
+                <Upload className="w-8 h-8 text-primary animate-pulse" />
+                <p className="text-sm font-medium">Uploading...</p>
+              </>
+            ) : (
+              <>
+                <FolderArchive className={`w-8 h-8 ${isDragOver ? "text-primary" : "text-muted-foreground"}`} />
+                <div className="text-center">
+                  <p className="text-sm font-medium">
+                    {isDragOver ? "Drop ZIP file here" : "Drag and drop a ZIP file here"}
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-1">or click to browse</p>
+                </div>
+              </>
+            )}
           </div>
 
           {isLoading && <p className="text-sm text-muted-foreground">Loading templates...</p>}
 
           {templates.length === 0 && !isLoading && (
-            <p className="text-sm text-muted-foreground">No folder templates uploaded yet. Upload a ZIP file to get started.</p>
+            <p className="text-sm text-muted-foreground">No folder templates uploaded yet. Drop a ZIP file above to get started.</p>
           )}
 
           {templates.length > 0 && (
@@ -1564,6 +1609,7 @@ function EstimateTemplateSection() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [templateName, setTemplateName] = useState("Default Estimate Template");
   const [editingMappings, setEditingMappings] = useState<{ id: number; mappings: StampMapping[] } | null>(null);
+  const [isDragOver, setIsDragOver] = useState(false);
 
   const { data: templates = [], isLoading } = useQuery<EstimateTemplate[]>({
     queryKey: ["/api/templates/estimates"],
@@ -1633,6 +1679,33 @@ function EstimateTemplateSection() {
     if (file) uploadMutation.mutate(file);
   };
 
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragOver(false);
+    const file = e.dataTransfer.files?.[0];
+    if (!file) return;
+    const ext = file.name.toLowerCase();
+    if (!ext.endsWith(".xlsx") && !ext.endsWith(".xlsm")) {
+      toast({ title: "Please drop an Excel file (.xlsx or .xlsm)", variant: "destructive" });
+      return;
+    }
+    if (!templateName) {
+      toast({ title: "Please enter a template name first", variant: "destructive" });
+      return;
+    }
+    uploadMutation.mutate(file);
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragOver(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragOver(false);
+  };
+
   const formatFileSize = (bytes: number) => {
     if (bytes < 1024) return `${bytes} B`;
     if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
@@ -1672,35 +1745,53 @@ function EstimateTemplateSection() {
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="flex items-end gap-4">
-            <div className="flex-1 space-y-2">
-              <Label htmlFor="estimateName">Template Name</Label>
-              <Input
-                id="estimateName"
-                value={templateName}
-                onChange={(e) => setTemplateName(e.target.value)}
-                placeholder="Default Estimate Template"
-                data-testid="input-estimate-template-name"
-              />
-            </div>
-            <div>
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept=".xlsx,.xlsm"
-                onChange={handleFileSelect}
-                className="hidden"
-                data-testid="input-estimate-template-file"
-              />
-              <Button
-                onClick={() => fileInputRef.current?.click()}
-                disabled={uploadMutation.isPending || !templateName}
-                data-testid="button-upload-estimate-template"
-              >
-                <Upload className="w-4 h-4 mr-2" />
-                {uploadMutation.isPending ? "Uploading..." : "Upload Excel"}
-              </Button>
-            </div>
+          <div className="space-y-2">
+            <Label htmlFor="estimateName">Template Name</Label>
+            <Input
+              id="estimateName"
+              value={templateName}
+              onChange={(e) => setTemplateName(e.target.value)}
+              placeholder="Default Estimate Template"
+              data-testid="input-estimate-template-name"
+            />
+          </div>
+
+          <div
+            onDrop={handleDrop}
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onClick={() => !uploadMutation.isPending && templateName && fileInputRef.current?.click()}
+            className={`relative flex flex-col items-center justify-center gap-3 p-8 rounded-lg border-2 border-dashed cursor-pointer transition-colors ${
+              isDragOver
+                ? "border-primary bg-primary/5"
+                : "border-border hover:border-muted-foreground/50"
+            } ${uploadMutation.isPending || !templateName ? "opacity-50 cursor-not-allowed" : ""}`}
+            data-testid="dropzone-estimate-template"
+          >
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".xlsx,.xlsm"
+              onChange={handleFileSelect}
+              className="hidden"
+              data-testid="input-estimate-template-file"
+            />
+            {uploadMutation.isPending ? (
+              <>
+                <Upload className="w-8 h-8 text-primary animate-pulse" />
+                <p className="text-sm font-medium">Uploading...</p>
+              </>
+            ) : (
+              <>
+                <FileSpreadsheet className={`w-8 h-8 ${isDragOver ? "text-primary" : "text-muted-foreground"}`} />
+                <div className="text-center">
+                  <p className="text-sm font-medium">
+                    {isDragOver ? "Drop Excel file here" : "Drag and drop an Excel file here"}
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-1">or click to browse (.xlsx, .xlsm)</p>
+                </div>
+              </>
+            )}
           </div>
 
           {isLoading && <p className="text-sm text-muted-foreground">Loading templates...</p>}
