@@ -37,7 +37,17 @@ PDF buffers are stored on the filesystem (`/tmp/specsift_pdfs/` for specs, `/tmp
 
 ### Project Export
 - **ZIP Export**: `GET /api/projects/:id/export` generates a ZIP containing spec extract PDFs per section, plan pages organized by scope as PDFs, and text summaries (spec summary, plan summary, project summary). Available from the Project Detail page when processing is complete.
+- **Bookmarked PDF**: `GET /api/projects/:id/bookmarked-pdf` generates a single PDF with all relevant plan pages, bookmarked by scope name using pdf-lib low-level outline API for easy navigation in PDF readers.
+- **Per-Scope PDF**: `GET /api/projects/:id/scope-pdf/:scopeName` downloads individual scope's pages as a standalone PDF without needing the full ZIP.
+- **Plan Pages API**: `GET /api/projects/:id/plan-pages` returns all parsed page data for the project's Plan Parser job, used by the Project Detail page to show per-scope breakdowns.
 - **PDF Extraction**: Uses pdf-lib to extract page ranges from source PDFs for both spec sections and plan pages by scope.
+
+### Phase 4 Features (Plan Parser Upgrades)
+- **Baseline Snapshot**: When Plan Parser baseline completes, `baselineScopeCounts` and `baselineFlaggedPages` are saved to the project record for later comparison.
+- **Spec-Pass Comparison View**: After the spec-informed second pass completes, the Project Detail page shows side-by-side comparison of baseline vs. current results, including per-scope page count changes, new scopes found, and removed scopes.
+- **Expandable Plan Results**: The Project Detail page now shows a "Plan Parser Results" card with per-scope sections that expand to show individual pages with confidence scores and classification reasons.
+- **Per-Scope Downloads**: Each scope in the results section has a download button to get just that scope's pages as a PDF.
+- **Bookmarked PDF Button**: A "Bookmarked PDF" button generates a single navigable PDF with all relevant pages organized by scope bookmarks.
 
 ### Design System
 A system-based design approach, inspired by Linear/Notion, is utilized. It features a consistent typography (Inter, JetBrains Mono) and spacing primitives, aiming for a professional aesthetic suitable for the construction industry.

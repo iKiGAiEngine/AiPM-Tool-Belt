@@ -533,6 +533,8 @@ export const projects = pgTable("projects", {
   plansFilename: varchar("plans_filename", { length: 500 }),
   specsFilename: varchar("specs_filename", { length: 500 }),
   notes: text("notes"),
+  baselineScopeCounts: jsonb("baseline_scope_counts").$type<Record<string, number>>(),
+  baselineFlaggedPages: integer("baseline_flagged_pages"),
   createdBy: varchar("created_by", { length: 100 }).default("admin"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),

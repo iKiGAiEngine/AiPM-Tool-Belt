@@ -3,7 +3,7 @@ import multer from "multer";
 import fs from "fs";
 import path from "path";
 import JSZip from "jszip";
-import { PDFDocument } from "pdf-lib";
+import { PDFDocument, PDFDict, PDFString, PDFArray, PDFName, PDFNull, PDFNumber } from "pdf-lib";
 import { insertScopeDictionarySchema, insertRegionSchema, PLAN_PARSER_SCOPES } from "@shared/schema";
 import {
   getAllScopeDictionaries,
@@ -347,7 +347,16 @@ export function registerProjectRoutes(app: Express) {
             await processJob(planParserJobId, [
               { filename: plansFile.originalname, buffer: plansFile.buffer }
             ]);
-            await updateProject(project.id, { status: "planparser_baseline_complete" });
+            const completedJob = await planParserStorage.getJob(planParserJobId);
+            if (completedJob) {
+              await updateProject(project.id, {
+                status: "planparser_baseline_complete",
+                baselineScopeCounts: completedJob.scopeCounts || {},
+                baselineFlaggedPages: completedJob.flaggedPages,
+              });
+            } else {
+              await updateProject(project.id, { status: "planparser_baseline_complete" });
+            }
           } catch (err) {
             console.error("Plan Parser processing error:", err);
             await updateProject(project.id, { status: "planparser_baseline_error" });
@@ -429,6 +438,207 @@ export function registerProjectRoutes(app: Express) {
     } catch (error) {
       console.error("Spec-pass error:", error);
       res.status(500).json({ message: "Failed to start spec-informed pass" });
+    }
+  });
+
+  app.get("/api/projects/:id/bookmarked-pdf", async (req: Request, res: Response) => {
+    try {
+      const projectId = parseInt(req.params.id);
+      if (isNaN(projectId)) return res.status(400).json({ message: "Invalid project ID" });
+
+      const project = await getProjectById(projectId);
+      if (!project) return res.status(404).json({ message: "Project not found" });
+      if (!project.planparserJobId) return res.status(400).json({ message: "No Plan Parser job for this project" });
+
+      const job = await planParserStorage.getJob(project.planparserJobId);
+      if (!job || job.status !== "complete") return res.status(400).json({ message: "Plan Parser job not complete" });
+
+      const pages = await planParserStorage.getPagesByJob(project.planparserJobId);
+      const relevantPages = pages.filter(p => p.isRelevant);
+      if (relevantPages.length === 0) return res.status(400).json({ message: "No relevant pages to export" });
+
+      const jobDir = planParserStorage.getJobDirectory(project.planparserJobId);
+      const pdfsDir = path.join(jobDir, "pdfs");
+      if (!fs.existsSync(pdfsDir)) return res.status(400).json({ message: "Original PDFs not available" });
+
+      const pagesByScope: Record<string, { filename: string; pageNumber: number }[]> = {};
+      for (const page of relevantPages) {
+        for (const tag of page.tags) {
+          if (!pagesByScope[tag]) pagesByScope[tag] = [];
+          pagesByScope[tag].push({ filename: page.originalFilename, pageNumber: page.pageNumber });
+        }
+      }
+
+      const pdfCache: Record<string, PDFDocument> = {};
+      const loadPdf = async (filename: string): Promise<PDFDocument | null> => {
+        if (pdfCache[filename]) return pdfCache[filename];
+        const pdfPath = path.join(pdfsDir, filename);
+        if (!fs.existsSync(pdfPath)) return null;
+        try {
+          const pdfBytes = fs.readFileSync(pdfPath);
+          const doc = await PDFDocument.load(pdfBytes, { ignoreEncryption: true });
+          pdfCache[filename] = doc;
+          return doc;
+        } catch { return null; }
+      };
+
+      const masterPdf = await PDFDocument.create();
+      const outlineItems: { title: string; pageIndex: number }[] = [];
+      let currentPageIndex = 0;
+
+      const sortedScopes = Object.keys(pagesByScope).sort();
+      for (const scope of sortedScopes) {
+        const scopePages = pagesByScope[scope].sort((a, b) => a.pageNumber - b.pageNumber);
+        outlineItems.push({ title: scope, pageIndex: currentPageIndex });
+
+        for (const sp of scopePages) {
+          const srcDoc = await loadPdf(sp.filename);
+          if (!srcDoc) continue;
+          const pageIdx = sp.pageNumber - 1;
+          if (pageIdx < 0 || pageIdx >= srcDoc.getPageCount()) continue;
+          try {
+            const [copied] = await masterPdf.copyPages(srcDoc, [pageIdx]);
+            masterPdf.addPage(copied);
+            currentPageIndex++;
+          } catch (err) {
+            console.error(`Failed to copy page ${sp.pageNumber} from ${sp.filename}:`, err);
+          }
+        }
+      }
+
+      if (masterPdf.getPageCount() === 0) {
+        return res.status(400).json({ message: "No pages could be assembled" });
+      }
+
+      if (outlineItems.length > 0) {
+        const context = masterPdf.context;
+        const outlinesDictRef = context.nextRef();
+        const itemRefs = outlineItems.map(() => context.nextRef());
+
+        for (let i = 0; i < outlineItems.length; i++) {
+          const item = outlineItems[i];
+          const pageRef = masterPdf.getPage(item.pageIndex).ref;
+
+          const destArray = context.obj([pageRef, PDFName.of("Fit")]);
+
+          const itemDict = context.obj({});
+          itemDict.set(PDFName.of("Title"), PDFString.of(item.title));
+          itemDict.set(PDFName.of("Parent"), outlinesDictRef);
+          itemDict.set(PDFName.of("Dest"), destArray);
+
+          if (i > 0) itemDict.set(PDFName.of("Prev"), itemRefs[i - 1]);
+          if (i < outlineItems.length - 1) itemDict.set(PDFName.of("Next"), itemRefs[i + 1]);
+
+          context.assign(itemRefs[i], itemDict);
+        }
+
+        const outlinesDict = context.obj({});
+        outlinesDict.set(PDFName.of("Type"), PDFName.of("Outlines"));
+        outlinesDict.set(PDFName.of("First"), itemRefs[0]);
+        outlinesDict.set(PDFName.of("Last"), itemRefs[outlineItems.length - 1]);
+        outlinesDict.set(PDFName.of("Count"), PDFNumber.of(outlineItems.length));
+        context.assign(outlinesDictRef, outlinesDict);
+        masterPdf.catalog.set(PDFName.of("Outlines"), outlinesDictRef);
+      }
+
+      const pdfBytes = await masterPdf.save();
+      const sanitizedName = sanitizeForWindows(`${project.regionCode}_${project.projectName}`).replace(/\s+/g, "_");
+
+      res.setHeader("Content-Type", "application/pdf");
+      res.setHeader("Content-Disposition", `attachment; filename="${sanitizedName}_Plans_Bookmarked.pdf"`);
+      res.send(Buffer.from(pdfBytes));
+    } catch (error) {
+      console.error("Bookmarked PDF export error:", error);
+      res.status(500).json({ message: "Failed to generate bookmarked PDF" });
+    }
+  });
+
+  app.get("/api/projects/:id/scope-pdf/:scopeName", async (req: Request, res: Response) => {
+    try {
+      const projectId = parseInt(req.params.id);
+      if (isNaN(projectId)) return res.status(400).json({ message: "Invalid project ID" });
+
+      const scopeName = decodeURIComponent(req.params.scopeName);
+
+      const project = await getProjectById(projectId);
+      if (!project) return res.status(404).json({ message: "Project not found" });
+      if (!project.planparserJobId) return res.status(400).json({ message: "No Plan Parser job for this project" });
+
+      const job = await planParserStorage.getJob(project.planparserJobId);
+      if (!job || job.status !== "complete") return res.status(400).json({ message: "Plan Parser job not complete" });
+
+      const pages = await planParserStorage.getPagesByJob(project.planparserJobId);
+      const scopePages = pages
+        .filter(p => p.isRelevant && p.tags.includes(scopeName))
+        .sort((a, b) => a.pageNumber - b.pageNumber);
+
+      if (scopePages.length === 0) return res.status(404).json({ message: `No pages found for scope: ${scopeName}` });
+
+      const jobDir = planParserStorage.getJobDirectory(project.planparserJobId);
+      const pdfsDir = path.join(jobDir, "pdfs");
+      if (!fs.existsSync(pdfsDir)) return res.status(400).json({ message: "Original PDFs not available" });
+
+      const pdfCache: Record<string, PDFDocument> = {};
+      const loadPdf = async (filename: string): Promise<PDFDocument | null> => {
+        if (pdfCache[filename]) return pdfCache[filename];
+        const pdfPath = path.join(pdfsDir, filename);
+        if (!fs.existsSync(pdfPath)) return null;
+        try {
+          const pdfBytes = fs.readFileSync(pdfPath);
+          const doc = await PDFDocument.load(pdfBytes, { ignoreEncryption: true });
+          pdfCache[filename] = doc;
+          return doc;
+        } catch { return null; }
+      };
+
+      const scopePdf = await PDFDocument.create();
+      for (const sp of scopePages) {
+        const srcDoc = await loadPdf(sp.originalFilename);
+        if (!srcDoc) continue;
+        const pageIdx = sp.pageNumber - 1;
+        if (pageIdx < 0 || pageIdx >= srcDoc.getPageCount()) continue;
+        try {
+          const [copied] = await scopePdf.copyPages(srcDoc, [pageIdx]);
+          scopePdf.addPage(copied);
+        } catch (err) {
+          console.error(`Failed to copy page ${sp.pageNumber}:`, err);
+        }
+      }
+
+      if (scopePdf.getPageCount() === 0) return res.status(400).json({ message: "No pages could be assembled" });
+
+      const pdfBytes = await scopePdf.save();
+      const safeScope = sanitizeForWindows(scopeName).replace(/\s+/g, "_");
+      const sanitizedProject = sanitizeForWindows(`${project.regionCode}_${project.projectName}`).replace(/\s+/g, "_");
+
+      res.setHeader("Content-Type", "application/pdf");
+      res.setHeader("Content-Disposition", `attachment; filename="${sanitizedProject}_${safeScope}.pdf"`);
+      res.send(Buffer.from(pdfBytes));
+    } catch (error) {
+      console.error("Scope PDF export error:", error);
+      res.status(500).json({ message: "Failed to generate scope PDF" });
+    }
+  });
+
+  app.get("/api/projects/:id/plan-pages", async (req: Request, res: Response) => {
+    try {
+      const projectId = parseInt(req.params.id);
+      if (isNaN(projectId)) return res.status(400).json({ message: "Invalid project ID" });
+
+      const project = await getProjectById(projectId);
+      if (!project) return res.status(404).json({ message: "Project not found" });
+      if (!project.planparserJobId) return res.status(400).json({ message: "No Plan Parser job for this project" });
+
+      const pages = await planParserStorage.getPagesByJob(project.planparserJobId);
+      const pagesWithoutFullText = pages.map(({ ocrText, ...rest }) => ({
+        ...rest,
+        hasOcrText: ocrText.length > 0,
+      }));
+
+      res.json(pagesWithoutFullText);
+    } catch (error) {
+      console.error("Plan pages fetch error:", error);
+      res.status(500).json({ message: "Failed to fetch plan pages" });
     }
   });
 

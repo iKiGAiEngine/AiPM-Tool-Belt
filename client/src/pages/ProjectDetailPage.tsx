@@ -1,10 +1,11 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Link, useParams } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import {
   ArrowLeft, Loader2, CheckCircle, AlertCircle, Clock,
   FileText, ScanSearch, FolderOpen, ToggleLeft, ToggleRight,
-  Play, Factory, Hash, Layers, ChevronDown, ChevronRight, Download
+  Play, Factory, Hash, Layers, ChevronDown, ChevronRight, Download,
+  BookOpen, FileDown, TrendingUp, TrendingDown, Minus
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -12,7 +13,21 @@ import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import type { Project, ProjectScope } from "@shared/schema";
-import { useState } from "react";
+
+interface PlanPage {
+  id: string;
+  jobId: string;
+  originalFilename: string;
+  pageNumber: number;
+  isRelevant: boolean;
+  tags: string[];
+  confidence: number;
+  whyFlagged: string;
+  signageOverrideApplied: boolean;
+  ocrSnippet: string;
+  userModified: boolean;
+  hasOcrText: boolean;
+}
 
 const STATUS_MAP: Record<string, { label: string; color: string; icon: typeof Loader2 }> = {
   created: { label: "Created", color: "text-blue-500", icon: Clock },
@@ -43,12 +58,23 @@ function canRunSpecPass(status: string | null | undefined): boolean {
   );
 }
 
+function hasPlanResults(status: string | null | undefined): boolean {
+  return !!status && [
+    "planparser_baseline_complete", "outputs_ready",
+    "planparser_specpass_running", "planparser_specpass_complete",
+    "planparser_specpass_error", "scopes_selected"
+  ].includes(status);
+}
+
 export default function ProjectDetailPage() {
   const params = useParams();
   const projectId = parseInt(params.id || "0");
   const { toast } = useToast();
   const [expandedScopes, setExpandedScopes] = useState<Set<number>>(new Set());
+  const [expandedPlanScopes, setExpandedPlanScopes] = useState<Set<string>>(new Set());
   const [isExporting, setIsExporting] = useState(false);
+  const [isBookmarkExporting, setIsBookmarkExporting] = useState(false);
+  const [scopeDownloading, setScopeDownloading] = useState<string | null>(null);
 
   const { data: project, isLoading: projectLoading } = useQuery<Project>({
     queryKey: ["/api/projects", projectId],
@@ -67,9 +93,17 @@ export default function ProjectDetailPage() {
     },
   });
 
+  const { data: planPages = [] } = useQuery<PlanPage[]>({
+    queryKey: ["/api/projects", projectId, "plan-pages"],
+    enabled: projectId > 0 && !!project && hasPlanResults(project.status),
+  });
+
   useEffect(() => {
     if (project && !isProcessingStatus(project.status)) {
       queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "scopes"] });
+      if (hasPlanResults(project.status)) {
+        queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "plan-pages"] });
+      }
     }
   }, [project?.status]);
 
@@ -103,15 +137,6 @@ export default function ProjectDetailPage() {
     },
   });
 
-  const toggleExpanded = (scopeId: number) => {
-    setExpandedScopes(prev => {
-      const next = new Set(prev);
-      if (next.has(scopeId)) next.delete(scopeId);
-      else next.add(scopeId);
-      return next;
-    });
-  };
-
   const selectAllMutation = useMutation({
     mutationFn: async (selectAll: boolean) => {
       for (const scope of scopes) {
@@ -124,6 +149,24 @@ export default function ProjectDetailPage() {
       queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "scopes"] });
     },
   });
+
+  const toggleExpanded = (scopeId: number) => {
+    setExpandedScopes(prev => {
+      const next = new Set(prev);
+      if (next.has(scopeId)) next.delete(scopeId);
+      else next.add(scopeId);
+      return next;
+    });
+  };
+
+  const togglePlanScope = (scope: string) => {
+    setExpandedPlanScopes(prev => {
+      const next = new Set(prev);
+      if (next.has(scope)) next.delete(scope);
+      else next.add(scope);
+      return next;
+    });
+  };
 
   if (projectLoading) {
     return (
@@ -144,25 +187,29 @@ export default function ProjectDetailPage() {
     );
   }
 
+  const downloadFile = async (url: string, fallbackName: string) => {
+    const response = await fetch(url);
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({ message: "Download failed" }));
+      throw new Error(err.message || "Download failed");
+    }
+    const blob = await response.blob();
+    const blobUrl = window.URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = blobUrl;
+    const disposition = response.headers.get("Content-Disposition");
+    const filenameMatch = disposition?.match(/filename="(.+)"/);
+    a.download = filenameMatch?.[1] || fallbackName;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    window.URL.revokeObjectURL(blobUrl);
+  };
+
   const handleExport = async () => {
     setIsExporting(true);
     try {
-      const response = await fetch(`/api/projects/${projectId}/export`);
-      if (!response.ok) {
-        const err = await response.json();
-        throw new Error(err.message || "Export failed");
-      }
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      const disposition = response.headers.get("Content-Disposition");
-      const filenameMatch = disposition?.match(/filename="(.+)"/);
-      a.download = filenameMatch?.[1] || `${project?.projectId}_Export.zip`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      window.URL.revokeObjectURL(url);
+      await downloadFile(`/api/projects/${projectId}/export`, `${project?.projectId}_Export.zip`);
       toast({ title: "Export downloaded" });
     } catch (err: any) {
       toast({ title: "Export failed", description: err.message, variant: "destructive" });
@@ -171,15 +218,59 @@ export default function ProjectDetailPage() {
     }
   };
 
+  const handleBookmarkedPdf = async () => {
+    setIsBookmarkExporting(true);
+    try {
+      await downloadFile(`/api/projects/${projectId}/bookmarked-pdf`, `${project?.projectId}_Plans_Bookmarked.pdf`);
+      toast({ title: "Bookmarked PDF downloaded" });
+    } catch (err: any) {
+      toast({ title: "Download failed", description: err.message, variant: "destructive" });
+    } finally {
+      setIsBookmarkExporting(false);
+    }
+  };
+
+  const handleScopePdf = async (scopeName: string) => {
+    setScopeDownloading(scopeName);
+    try {
+      await downloadFile(
+        `/api/projects/${projectId}/scope-pdf/${encodeURIComponent(scopeName)}`,
+        `${scopeName.replace(/\s+/g, "_")}.pdf`
+      );
+      toast({ title: `${scopeName} PDF downloaded` });
+    } catch (err: any) {
+      toast({ title: "Download failed", description: err.message, variant: "destructive" });
+    } finally {
+      setScopeDownloading(null);
+    }
+  };
+
   const statusInfo = STATUS_MAP[project.status || "created"] || STATUS_MAP.created;
   const StatusIcon = statusInfo.icon;
   const isProcessing = isProcessingStatus(project.status);
   const selectedCount = scopes.filter(s => s.isSelected).length;
   const showSpecPassButton = canRunSpecPass(project.status) && scopes.length > 0;
+  const showPlanResults = hasPlanResults(project.status);
   const canExport = !!project.status && [
     "outputs_ready", "planparser_baseline_complete", "planparser_specpass_error",
     "specsift_complete"
   ].includes(project.status);
+
+  const relevantPages = planPages.filter(p => p.isRelevant);
+  const scopePageMap: Record<string, PlanPage[]> = {};
+  for (const page of relevantPages) {
+    for (const tag of page.tags) {
+      if (!scopePageMap[tag]) scopePageMap[tag] = [];
+      scopePageMap[tag].push(page);
+    }
+  }
+  const sortedPlanScopes = Object.keys(scopePageMap).sort();
+
+  const baselineScopeCounts = (project.baselineScopeCounts || {}) as Record<string, number>;
+  const baselineFlaggedPages = project.baselineFlaggedPages ?? null;
+  const isSpecPassComplete = project.status === "outputs_ready" || project.status === "planparser_specpass_complete";
+  const hasBaselineData = baselineFlaggedPages !== null && Object.keys(baselineScopeCounts).length > 0;
+  const showComparison = isSpecPassComplete && hasBaselineData;
 
   return (
     <div className="container max-w-4xl mx-auto py-8 px-4">
@@ -211,20 +302,22 @@ export default function ProjectDetailPage() {
             )}
           </div>
         </div>
-        {canExport && (
-          <Button
-            onClick={handleExport}
-            disabled={isExporting}
-            data-testid="button-export-project"
-          >
-            {isExporting ? (
-              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-            ) : (
-              <Download className="w-4 h-4 mr-2" />
-            )}
-            Export ZIP
-          </Button>
-        )}
+        <div className="flex items-center gap-2">
+          {canExport && (
+            <Button
+              onClick={handleExport}
+              disabled={isExporting}
+              data-testid="button-export-project"
+            >
+              {isExporting ? (
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              ) : (
+                <Download className="w-4 h-4 mr-2" />
+              )}
+              Export ZIP
+            </Button>
+          )}
+        </div>
       </div>
 
       {isProcessing && (
@@ -307,6 +400,216 @@ export default function ProjectDetailPage() {
             <div className="font-mono text-sm text-muted-foreground break-all" data-testid="text-folder-path">
               {project.folderPath}
             </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {showPlanResults && (
+        <Card className="mb-6">
+          <CardHeader>
+            <div className="flex items-center justify-between gap-4 flex-wrap">
+              <div>
+                <div className="flex items-center gap-2">
+                  <ScanSearch className="w-5 h-5 text-primary" />
+                  <CardTitle className="text-base">Plan Parser Results</CardTitle>
+                  {showComparison && (
+                    <Badge variant="secondary" className="text-xs">Spec-Pass Complete</Badge>
+                  )}
+                </div>
+                <CardDescription className="mt-1">
+                  {relevantPages.length} relevant page{relevantPages.length !== 1 ? "s" : ""} found
+                  {planPages.length > 0 && ` out of ${planPages.length} total`}
+                  {showComparison && baselineFlaggedPages !== null && (
+                    <span className="ml-1">
+                      (baseline: {baselineFlaggedPages})
+                    </span>
+                  )}
+                </CardDescription>
+              </div>
+              <div className="flex items-center gap-2">
+                {relevantPages.length > 0 && canExport && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleBookmarkedPdf}
+                    disabled={isBookmarkExporting}
+                    data-testid="button-bookmarked-pdf"
+                  >
+                    {isBookmarkExporting ? (
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    ) : (
+                      <BookOpen className="w-4 h-4 mr-2" />
+                    )}
+                    Bookmarked PDF
+                  </Button>
+                )}
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent>
+            {sortedPlanScopes.length === 0 ? (
+              <div className="text-center py-4 text-muted-foreground" data-testid="text-no-plan-results">
+                No relevant pages found
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {sortedPlanScopes.map(scope => {
+                  const pages = scopePageMap[scope];
+                  const isExpanded = expandedPlanScopes.has(scope);
+                  const avgConfidence = Math.round(
+                    pages.reduce((sum, p) => sum + p.confidence, 0) / pages.length
+                  );
+                  const baselineCount = baselineScopeCounts[scope] ?? 0;
+                  const currentCount = pages.length;
+                  const diff = showComparison ? currentCount - baselineCount : 0;
+
+                  return (
+                    <div
+                      key={scope}
+                      className="rounded-lg border"
+                      data-testid={`plan-scope-${scope.replace(/\s+/g, "-").toLowerCase()}`}
+                    >
+                      <div
+                        className="flex items-center gap-3 p-3 cursor-pointer"
+                        onClick={() => togglePlanScope(scope)}
+                      >
+                        <span className="text-muted-foreground">
+                          {isExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+                        </span>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="text-sm font-medium">{scope}</span>
+                            <Badge variant="secondary" className="text-xs">
+                              {currentCount} page{currentCount !== 1 ? "s" : ""}
+                            </Badge>
+                            <span className="text-xs text-muted-foreground">
+                              avg {avgConfidence}% confidence
+                            </span>
+                            {showComparison && diff !== 0 && (
+                              <Badge
+                                variant="outline"
+                                className={`text-xs ${diff > 0 ? "text-green-600 border-green-300" : "text-orange-600 border-orange-300"}`}
+                              >
+                                {diff > 0 ? (
+                                  <TrendingUp className="w-3 h-3 mr-1" />
+                                ) : (
+                                  <TrendingDown className="w-3 h-3 mr-1" />
+                                )}
+                                {diff > 0 ? "+" : ""}{diff} vs baseline
+                              </Badge>
+                            )}
+                            {showComparison && diff === 0 && baselineCount > 0 && (
+                              <Badge variant="outline" className="text-xs text-muted-foreground">
+                                <Minus className="w-3 h-3 mr-1" />
+                                no change
+                              </Badge>
+                            )}
+                          </div>
+                        </div>
+                        {canExport && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleScopePdf(scope);
+                            }}
+                            disabled={scopeDownloading === scope}
+                            data-testid={`button-download-scope-${scope.replace(/\s+/g, "-").toLowerCase()}`}
+                          >
+                            {scopeDownloading === scope ? (
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                            ) : (
+                              <FileDown className="w-4 h-4" />
+                            )}
+                          </Button>
+                        )}
+                      </div>
+
+                      {isExpanded && (
+                        <div className="border-t px-3 pb-3 pt-2">
+                          <div className="space-y-1.5">
+                            {pages
+                              .sort((a, b) => a.pageNumber - b.pageNumber)
+                              .map(page => (
+                                <div
+                                  key={page.id}
+                                  className="flex items-start gap-2 text-sm"
+                                  data-testid={`plan-page-${page.id}`}
+                                >
+                                  <span className="font-mono text-xs text-muted-foreground w-16 shrink-0 pt-0.5">
+                                    pg {page.pageNumber}
+                                  </span>
+                                  <div className="flex-1 min-w-0">
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                      <Badge
+                                        variant={page.confidence >= 75 ? "default" : page.confidence >= 40 ? "secondary" : "outline"}
+                                        className="text-xs"
+                                      >
+                                        {page.confidence}%
+                                      </Badge>
+                                      {page.userModified && (
+                                        <Badge variant="outline" className="text-xs">edited</Badge>
+                                      )}
+                                    </div>
+                                    {page.whyFlagged && (
+                                      <p className="text-xs text-muted-foreground mt-0.5 truncate">
+                                        {page.whyFlagged}
+                                      </p>
+                                    )}
+                                  </div>
+                                </div>
+                              ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+
+                {showComparison && hasBaselineData && (
+                  <div className="mt-4 p-3 rounded-lg bg-muted/50">
+                    <p className="text-xs font-medium text-muted-foreground mb-2">Spec-Pass Comparison</p>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <p className="text-2xl font-semibold" data-testid="text-current-flagged">{relevantPages.length}</p>
+                        <p className="text-xs text-muted-foreground">Current flagged pages</p>
+                      </div>
+                      <div>
+                        <p className="text-2xl font-semibold text-muted-foreground" data-testid="text-baseline-flagged">{baselineFlaggedPages}</p>
+                        <p className="text-xs text-muted-foreground">Baseline flagged pages</p>
+                      </div>
+                    </div>
+                    {(() => {
+                      const allScopesArr = Array.from(new Set(
+                        Object.keys(baselineScopeCounts).concat(Object.keys(scopePageMap))
+                      ));
+                      const newScopes = allScopesArr.filter(
+                        s => !baselineScopeCounts[s] && scopePageMap[s]?.length > 0
+                      );
+                      const removedScopes = allScopesArr.filter(
+                        s => baselineScopeCounts[s] && (!scopePageMap[s] || scopePageMap[s].length === 0)
+                      );
+                      if (newScopes.length === 0 && removedScopes.length === 0) return null;
+                      return (
+                        <div className="mt-3 space-y-1">
+                          {newScopes.length > 0 && (
+                            <p className="text-xs text-green-600">
+                              New scopes found: {newScopes.join(", ")}
+                            </p>
+                          )}
+                          {removedScopes.length > 0 && (
+                            <p className="text-xs text-orange-600">
+                              Scopes removed: {removedScopes.join(", ")}
+                            </p>
+                          )}
+                        </div>
+                      );
+                    })()}
+                  </div>
+                )}
+              </div>
+            )}
           </CardContent>
         </Card>
       )}
