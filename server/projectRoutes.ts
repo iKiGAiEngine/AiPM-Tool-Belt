@@ -28,6 +28,8 @@ import {
 } from "./scopeDictionaryStorage";
 import { storage } from "./storage";
 import { processPdf } from "./pdfParser";
+import { reprocessJobWithSpecBoost } from "./planparser/pdfProcessor";
+import type { SpecBoostData } from "./planparser/classificationConfig";
 import { processJob } from "./planparser/pdfProcessor";
 import { planParserStorage } from "./planparser/storage";
 
@@ -324,7 +326,7 @@ export function registerProjectRoutes(app: Express) {
                 materials: section.materials || [],
                 keywords: [],
                 confidenceScore: 80,
-                isSelected: false,
+                isSelected: true,
               });
             }
 
@@ -337,9 +339,7 @@ export function registerProjectRoutes(app: Express) {
             });
             await updateProject(project.id, { status: "specsift_error" });
           }
-        })();
 
-        (async () => {
           try {
             await updateProject(project.id, { status: "planparser_baseline_running" });
             await processJob(planParserJobId, [
@@ -370,6 +370,63 @@ export function registerProjectRoutes(app: Express) {
       res.json(scope);
     } catch (error) {
       res.status(500).json({ message: "Failed to update scope selection" });
+    }
+  });
+
+  app.post("/api/projects/:id/spec-pass", async (req: Request, res: Response) => {
+    try {
+      const projectId = parseInt(req.params.id);
+      if (isNaN(projectId)) return res.status(400).json({ message: "Invalid project ID" });
+
+      const project = await getProjectById(projectId);
+      if (!project) return res.status(404).json({ message: "Project not found" });
+
+      if (!project.planparserJobId) {
+        return res.status(400).json({ message: "No Plan Parser job associated with this project" });
+      }
+
+      const allowedStatuses = ["planparser_baseline_complete", "planparser_specpass_complete", "planparser_specpass_error", "specsift_complete"];
+      if (!project.status || !allowedStatuses.includes(project.status)) {
+        return res.status(409).json({ message: "Cannot run spec-pass yet. Baseline processing must complete first." });
+      }
+
+      const planJob = await planParserStorage.getJob(project.planparserJobId);
+      if (!planJob || planJob.status !== "complete") {
+        return res.status(409).json({ message: "Plan Parser baseline must finish before running the spec-informed pass." });
+      }
+
+      const scopes = await getProjectScopes(projectId);
+      const selectedScopes = scopes.filter(s => s.isSelected);
+
+      if (selectedScopes.length === 0) {
+        return res.status(400).json({ message: "No scopes selected. Please toggle at least one scope before running the second pass." });
+      }
+
+      await updateProject(projectId, { status: "scopes_selected" });
+
+      const specBoosts: SpecBoostData[] = selectedScopes.map(scope => ({
+        scopeType: scope.scopeType,
+        manufacturers: (scope.manufacturers as string[]) || [],
+        modelNumbers: (scope.modelNumbers as string[]) || [],
+        materials: (scope.materials as string[]) || [],
+        specSectionNumber: scope.specSectionNumber,
+      }));
+
+      res.json({ message: "Spec-informed second pass started", selectedScopes: selectedScopes.length });
+
+      (async () => {
+        try {
+          await updateProject(projectId, { status: "planparser_specpass_running" });
+          await reprocessJobWithSpecBoost(project.planparserJobId!, specBoosts);
+          await updateProject(projectId, { status: "outputs_ready" });
+        } catch (err) {
+          console.error("Spec-pass reprocessing error:", err);
+          await updateProject(projectId, { status: "planparser_specpass_error" });
+        }
+      })();
+    } catch (error) {
+      console.error("Spec-pass error:", error);
+      res.status(500).json({ message: "Failed to start spec-informed pass" });
     }
   });
 }

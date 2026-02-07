@@ -2,107 +2,7 @@
 
 ## Overview
 
-AiPM Tool Belt is a suite of construction document processing tools. The main landing page (`/`) displays a modern tile-based menu where users can select from available tools. Currently includes:
-
-- **Project Start** (`/project-start`): Unified project creation workflow. Upload both plans and specs PDFs, select a region code, and the system automatically creates a project folder structure, routes specs to SpecSift, and plans to Plan Parser. After SpecSift extracts scopes, users can confirm/deselect scopes on the project detail page (`/projects/:id`) before a spec-informed second pass of Plan Parser.
-
-- **SpecSift** (`/specsift`): Extracts Division 10 specifications from PDF files, parses section numbers/titles/content for toilet accessories, partitions, lockers, and more. Users upload PDFs, review extracted sections, edit titles, and export organized PDF packets.
-
-- **Plan Parser** (`/planparser`): OCR-based Division 10 page classifier for construction plan PDFs. Automatically identifies and classifies pages into 9 scope categories (Toilet Accessories, Toilet Partitions, Wall Protection, Fire Extinguisher Cabinets, Cubicle Curtains, Visual Display, Lockers, Shelving, Other Div10). Features signage exclusion (60% threshold) and millwork filtering for shelving scope. Now reads scope keywords from database (Scope Dictionaries) with fallback to hardcoded defaults.
-
-- **Quote Parser** (`/quoteparser`): Parses vendor quotes (PDF/image/text) into structured estimate tables. Features:
-  - Dual upload panels for vendor quote (required) and schedule reference (optional)
-  - Text paste option for email quotes
-  - Outputs exact 6-column format: PLAN CALLOUT | DESCRIPTION | MODEL NUMBER | ITEM QUANTITY | MATERIAL | FREIGHT
-  - Schedule matching with confidence scoring (Auto-trust 90-100%, Verify 70-89%, Caution 50-69%, Unmatched <50%)
-  - Three freight modes: leave as $-, add as separate line, or allocate pro-rata
-  - Lump sum detection when no itemized lines found
-  - Copy TSV (tab-separated) and Download CSV export
-  - Match Confidence panel with per-row analysis when schedule provided
-
-## Recent Changes (February 2026)
-
-### SpecSift Accuracy Improvements
-Major overhaul of PDF parsing engine based on proven Division 10 Spec Extractor methodology:
-
-- **TOC Detection & Exclusion**: Automatically detects Table of Contents by scanning for "TABLE OF CONTENTS" and dot leader patterns (`.....`), then excludes those pages from section detection to prevent false positives
-- **Zone-Based Scanning**: Only scans top 15 lines of each page for section headers (where they actually appear), instead of full-page scanning
-- **Multi-Line Title Parsing**: Handles cases where section number appears on one line and ALL CAPS title on the next line
-- **Title Cleaning**: Strips structural markers (PART 1, GENERAL, PRODUCTS, EXECUTION, REQUIREMENTS) from extracted titles
-- **Section Legitimacy Validation**: Checks for "PART 1 - GENERAL" markers to confirm real spec sections vs. references
-- **Section Start/End Detection**: 
-  - Looks backwards up to 10 pages to find actual section start
-  - Looks forward for "END OF SECTION" markers and next section headers to prevent page bleeding
-- **Index Page Filtering**: Skips pages with 3+ sections detected (likely index/TOC pages that slipped through)
-- **Equipment Reference Rejection**: Rejects patterns like "10 1400-11" which are product numbers, not section numbers
-- **Per-Page Text Array**: PDF extraction returns individual page text for accurate zone-based analysis
-
-### Project Start System
-- **Project Start Page** (`/project-start`): Form with region selector, project name, due date, and dual PDF upload zones (plans + specs)
-- **Project Detail Page** (`/projects/:id`): Shows project status, links to SpecSift and Plan Parser results, scope toggle list
-- **Project ID Generator**: Transaction-safe YY-#### format (e.g., 26-0001) using database sequence table
-- **Folder Structure**: Creates `{REGION} - {ProjectName}/` with subfolders: Plans/Original, Plans/Processed, Specs/Original, Specs/Processed, Vendor/Specs Extracts, Vendor/Plan Pages by Scope
-- **Automatic Routing**: Specs PDF routes to SpecSift, Plans PDF routes to Plan Parser simultaneously
-- **Scope Dictionaries**: DB-backed keyword dictionaries for Plan Parser classification, editable in Settings without code changes
-- **Regions Management**: Airport codes / region identifiers (LAX, DFW, ORD) used in project naming, managed in Settings
-- **Homepage Updates**: Project Start tile added, Recent Projects section shows created projects with status badges
-
-### Central Settings Hub
-- **Settings Page** (`/settings`): Central admin area for all AiPM tools, accessible via footer link on homepage
-- **Scope Dictionaries Tab**: View/add/edit/delete scope dictionaries with include keywords, boost phrases, exclude keywords, weights, spec section numbers
-- **Regions Tab**: Manage airport codes / region identifiers used in Project Start naming
-- **Vendor Profiles**: Manage vendor information, quote patterns, and model prefixes for better quote parsing
-  - Add/edit/delete vendors with name, short name, model prefixes, quote identification patterns
-  - Contact info (email, phone, website) and notes
-- **Division 10 Product Dictionary**: Build a knowledge base of known products organized by scope category
-  - Model numbers, descriptions, manufacturers, aliases
-  - Scope categories: Toilet Accessories, Partitions, Wall Protection, Fire Extinguisher Cabinets, etc.
-  - Products are matched during quote parsing for improved accuracy
-
-### Quote Parser Module
-- **New Tool**: Quote → Estimate Parser for vendor quote processing
-- **Simplified Summary Output**: Generates a single summary row per quote with:
-  - MODEL NUMBER: "Manufacturer - Quote #" format
-  - ITEM QUANTITY: Always "1"
-  - MATERIAL: Total material cost (Subtotal preferred over Grand Total)
-  - FREIGHT: Total freight cost
-- **PDF OCR Support**: PDFs are converted to images via pdftoppm and processed with Tesseract.js OCR
-- **Vendor Auto-Detection**: Automatically identifies vendors based on quote patterns and names stored in settings
-- **Manufacturer Extraction**: Detects manufacturer from vendor database or text patterns (JL Industries, Larsen's, etc.)
-- **Quote Number Extraction**: Parses quote/proposal/reference numbers from text
-- **Material Total Detection**: Prefers Subtotal over Grand Total; falls back to summing line item prices
-- **Freight Detection**: Extracts freight from lines starting with "Freight:", "Shipping:", or "Delivery:"
-- **Export Options**: Copy TSV for Excel paste and CSV download
-
-### Fire Protection Products Database
-- **Vendors**: JL Industries, Larsen's, Potter Roemer, Fire End & Croker, Modern Metal
-- **Suffix Decoders**: 24 manufacturer-specific codes for depth, fire-rating, material, door-style, trim-style
-- **Products**: 67+ fire extinguishers and cabinets across all major manufacturers
-
-## Recent Changes (January 2026)
-
-### PDF Packet Export System
-- **Document-Centric Output**: Export generates scope-specific PDF packets that preserve original spec pages
-- **Server-Side ZIP Generation**: ZIP files are built on the server and returned as binary data, avoiding browser memory limits
-- **Three-Part PDF Structure**: Each exported section contains:
-  1. **Cover Page (Short Order Form)**: Auto-filled with CSI section number, title, manufacturers, model numbers, materials, and notes
-  2. **Original Extracted Pages**: Verbatim pages from the uploaded PDF (visually identical to source)
-  3. **Summary/Risk Report**: Highlights conflicts, ambiguities, approved manufacturers, and items needing clarification
-
-### Enhanced Parsing
-- **Page Boundary Detection**: Parser now tracks start/end pages for each section
-- **Manufacturer Extraction**: Automatically identifies approved manufacturers from spec text
-- **Model Number Detection**: Extracts model numbers, series, and product references
-- **Material Requirements**: Identifies key material specs (stainless steel, finishes, mounting types)
-- **Conflict Detection**: Flags potential issues like multiple manufacturers, "or equal" clauses, sole source requirements
-
-### UI Improvements
-- **Page Range Editing**: Click on page range badges in table view to edit start/end pages inline
-- **Set Pages Button**: Sections without detected page ranges show a "Set pages" button to add them
-- **Validation**: Client-side validation disables save for invalid ranges; server validates positive numbers and start ≤ end
-- **Expanded Details**: Expandable rows show manufacturers, models, materials, and conflicts
-- **Loading States**: Export button shows progress during PDF packet generation
-- **Project Name**: User can specify project name for exported file naming
+AiPM Tool Belt is a suite of AI-assisted construction document processing tools designed to streamline project creation, specification extraction, plan classification, and quote parsing. The project aims to automate tedious manual tasks in the construction industry, improving efficiency and accuracy in managing project documentation. Key capabilities include a unified project creation workflow, automated extraction of Division 10 specifications (SpecSift), OCR-based classification of construction plan pages (Plan Parser), and structured parsing of vendor quotes (Quote Parser). The system supports a spec-informed second pass for Plan Parser, leveraging extracted specification data to enhance plan classification, and offers robust export functionalities for organized project documentation.
 
 ## User Preferences
 
@@ -111,94 +11,47 @@ Preferred communication style: Simple, everyday language.
 ## System Architecture
 
 ### Frontend Architecture
-- **Framework**: React 18 with TypeScript
-- **Routing**: Wouter (lightweight client-side routing)
-- **State Management**: TanStack React Query for server state
-- **Styling**: Tailwind CSS with CSS variables for theming (light/dark mode)
-- **Component Library**: shadcn/ui (Radix UI primitives with custom styling)
-- **Build Tool**: Vite
-
-The frontend follows a page-based structure:
-- `HomePage` (`/`): Modern tile-based menu for selecting tools
-- `UploadPage` (`/specsift`): File upload with drag-and-drop, processing status polling
-- `ReviewPage` (`/specsift/review`): Section review with grid/table view toggle, search, accessory matching panel
-- `PlanParserPage` (`/planparser`): Plan Parser tool with drag-drop upload, real-time progress, and results dashboard
+The frontend is built with **React 18** and **TypeScript**, using **Wouter** for routing and **TanStack React Query** for server state management. Styling is handled with **Tailwind CSS** and **CSS variables** for theming (light/dark mode). **shadcn/ui** provides a component library based on Radix UI primitives. The build process uses **Vite**. The UI follows a page-based structure for different tools like Project Start, SpecSift, Plan Parser, and Quote Parser, emphasizing data clarity and a professional construction industry aesthetic. Typography uses Inter and JetBrains Mono.
 
 ### Backend Architecture
-- **Framework**: Express.js with TypeScript
-- **File Handling**: Multer for PDF uploads (in-memory storage, 100MB limit)
-- **PDF Processing**: pdf-parse library for text extraction
-- **API Pattern**: RESTful endpoints under `/api/`
-
-Key backend modules:
-- `routes.ts`: API endpoint definitions and request handling
-- `pdfParser.ts`: PDF text extraction and Division 10 section parsing logic
-- `storage.ts`: Data persistence layer (currently in-memory with interface for future DB)
-- `planparser/`: Plan Parser module
-  - `routes.ts`: Plan Parser API endpoints (create job, upload, status, pages, delete)
-  - `pdfProcessor.ts`: PDF page extraction, OCR with tesseract.js, background processing
-  - `classifier.ts`: Keyword-based classification engine with configurable scopes
-  - `classificationConfig.ts`: Scope definitions, keywords, boost phrases, signage exclusions
-  - `storage.ts`: In-memory job/page storage with 2-hour TTL and auto-cleanup
+The backend is an **Express.js** application written in **TypeScript**. It uses **Multer** for PDF uploads (in-memory, 100MB limit) and **pdf-parse** for PDF text extraction. APIs are RESTful under `/api/`. Key modules include `pdfParser.ts` for spec section parsing, and `planparser/` for OCR processing with **tesseract.js** and keyword-based classification.
 
 ### Data Storage
-- **Current**: In-memory storage using Maps (MemStorage class)
-- **Schema**: Defined in `shared/schema.ts` using Zod for validation
-- **Database Ready**: Drizzle ORM configured with PostgreSQL dialect, migrations output to `./migrations`
+Currently, data is stored in-memory using Maps (`MemStorage` class), with schemas defined in `shared/schema.ts` using **Zod** for validation. The system is designed to be database-ready, with **Drizzle ORM** configured for PostgreSQL. Data models include `Session`, `ExtractedSection`, `AccessoryMatch`, `PlanParserJob`, and `ParsedPage`.
 
-Data models:
-- `Session`: Upload session tracking (id, filename, projectName, status, progress, message)
-- `ExtractedSection`: Parsed specification sections with enriched data:
-  - sectionNumber, title, content, pageNumber
-  - startPage, endPage (page range for the section)
-  - manufacturers, modelNumbers, materials (extracted from spec text)
-  - conflicts, notes (detected issues and requirements)
-  - isEdited (user modification flag)
-- `AccessoryMatch`: Keyword matches for accessory scopes (scopeName, matchedKeyword, context)
-- `PlanParserJob`: OCR processing job (id, status, progress, filenames, scopeCounts, timestamps)
-- `ParsedPage`: Classified page data (tags, confidence, whyFlagged, ocrText, signageOverride, isRelevant)
-
-### PDF Parsing Logic (SpecSift)
-The parser uses regex patterns to identify Division 10 section numbers (formats: `10 XX XX`, `10XXXX`, `101400`). It extracts section headers, content, and matches against predefined accessory keywords. The `canonize` function normalizes section number formats for consistent display.
-
-### Plan Parser Classification
-Uses keyword-based scoring with scope-specific configuration:
-- Keywords have individual weights and boost phrases for higher confidence matches
-- Signage exclusion: Pages with >60% signage-related terms are excluded
-- Millwork filter: Shelving scope excludes pages dominated by millwork references
-- OCR fallback: Pages with insufficient embedded text trigger Tesseract.js OCR
-- Schedule layout detection: Boosts confidence when schedule/table patterns detected
+### Core Logic
+- **SpecSift**: Employs advanced PDF parsing with TOC detection, zone-based scanning, multi-line title parsing, and legitimacy validation to accurately extract Division 10 specifications. It also identifies manufacturers, model numbers, and material requirements from spec text.
+- **Plan Parser**: Uses keyword-based scoring with configurable scope dictionaries, signage exclusion, and millwork filtering for classification. It incorporates an OCR fallback for pages with insufficient embedded text.
+- **Quote Parser**: Parses vendor quotes into a structured 6-column estimate table, featuring schedule matching with confidence scoring, vendor auto-detection, manufacturer and quote number extraction, and flexible freight handling.
+- **Project Start System**: Manages project creation, generates unique project IDs, sets up standardized folder structures, and orchestrates the sequential processing of plans and specs through SpecSift and Plan Parser, including a spec-informed second pass.
+- **Central Settings Hub**: Provides an administrative interface for managing scope dictionaries, regional identifiers, vendor profiles, and a Division 10 product dictionary, allowing for dynamic configuration without code changes.
 
 ### Design System
-Follows a system-based design approach inspired by Linear/Notion:
-- Typography: Inter (primary), JetBrains Mono (section numbers)
-- Spacing primitives: 2, 4, 6, 8, 12, 16, 20 (Tailwind units)
-- Professional construction industry aesthetic with emphasis on data clarity
+A system-based design approach, inspired by Linear/Notion, is utilized. It features a consistent typography (Inter, JetBrains Mono) and spacing primitives, aiming for a professional aesthetic suitable for the construction industry.
 
 ## External Dependencies
 
 ### Core Libraries
-- **pdfjs-dist**: PDF text extraction and page parsing (legacy build for Node.js)
-- **pdf-lib**: PDF page extraction and document assembly for export packets
-- **tesseract.js**: Browser/Node.js OCR engine for text extraction from images
-- **canvas**: Node.js canvas implementation for PDF page rendering
-- **Drizzle ORM**: Database toolkit (PostgreSQL ready)
-- **Zod**: Schema validation for API data
-- **TanStack Query**: Async state management
-- **JSZip**: ZIP file generation for export bundles
-- **file-saver**: Client-side file downloads
+- **pdfjs-dist**: PDF text extraction and page parsing (Node.js).
+- **pdf-lib**: PDF page extraction and document assembly.
+- **tesseract.js**: OCR engine for image text extraction.
+- **canvas**: Node.js canvas implementation for PDF rendering.
+- **Drizzle ORM**: Database toolkit (PostgreSQL ready).
+- **Zod**: Schema validation.
+- **TanStack Query**: Asynchronous state management.
+- **JSZip**: ZIP file generation.
+- **file-saver**: Client-side file downloads.
 
 ### UI Components
-- **Radix UI**: Accessible component primitives (dialog, dropdown, tabs, etc.)
-- **shadcn/ui**: Pre-styled component library
-- **Lucide React**: Icon library
-- **class-variance-authority**: Component variant management
+- **Radix UI**: Accessible component primitives.
+- **shadcn/ui**: Pre-styled component library.
+- **Lucide React**: Icon library.
+- **class-variance-authority**: Component variant management.
 
-### Development
-- **Vite**: Frontend build and dev server
-- **esbuild**: Server bundling for production
-- **TypeScript**: Full type safety across client/server
+### Development Tools
+- **Vite**: Frontend build and dev server.
+- **esbuild**: Server bundling.
+- **TypeScript**: For type safety.
 
-### Database (Provisioned via Replit)
-- PostgreSQL with `connect-pg-simple` for session storage
-- `DATABASE_URL` environment variable required for database operations
+### Database
+- **PostgreSQL**: Utilized via `connect-pg-simple` for session storage. Requires `DATABASE_URL` environment variable.

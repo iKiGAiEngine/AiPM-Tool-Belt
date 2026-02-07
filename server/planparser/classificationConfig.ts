@@ -138,6 +138,70 @@ export const DEFAULT_CLASSIFICATION_CONFIG: ClassificationConfig = {
   minConfidenceThreshold: 25
 };
 
+export interface SpecBoostData {
+  scopeType: string;
+  manufacturers: string[];
+  modelNumbers: string[];
+  materials: string[];
+  specSectionNumber: string | null;
+}
+
+export function mergeSpecBoostIntoConfig(
+  baseConfig: ClassificationConfig,
+  specBoosts: SpecBoostData[]
+): ClassificationConfig {
+  const boostedScopes = baseConfig.scopes.map(scope => {
+    const matchingBoosts = specBoosts.filter(boost => {
+      const normalizedBoostType = boost.scopeType.toLowerCase().trim();
+      const normalizedScopeName = scope.name.toLowerCase().trim();
+      return normalizedBoostType.includes(normalizedScopeName) ||
+        normalizedScopeName.includes(normalizedBoostType) ||
+        (boost.specSectionNumber && scope.includeKeywords.some(kw =>
+          kw.replace(/\s/g, '').includes(boost.specSectionNumber!.replace(/\s/g, ''))
+        ));
+    });
+
+    if (matchingBoosts.length === 0) return scope;
+
+    const extraKeywords: string[] = [];
+    const extraBoostPhrases: string[] = [];
+
+    for (const boost of matchingBoosts) {
+      for (const mfr of boost.manufacturers) {
+        if (mfr.length >= 3) {
+          extraKeywords.push(mfr.toLowerCase());
+          extraBoostPhrases.push(mfr.toLowerCase());
+        }
+      }
+      for (const model of boost.modelNumbers) {
+        if (model.length >= 3) {
+          extraKeywords.push(model.toLowerCase());
+        }
+      }
+      for (const mat of boost.materials) {
+        if (mat.length >= 3) {
+          extraKeywords.push(mat.toLowerCase());
+        }
+      }
+    }
+
+    const dedupedKeywords = Array.from(new Set([...scope.includeKeywords, ...extraKeywords]));
+    const dedupedBoosts = Array.from(new Set([...scope.boostPhrases, ...extraBoostPhrases]));
+
+    return {
+      ...scope,
+      includeKeywords: dedupedKeywords,
+      boostPhrases: dedupedBoosts,
+      weight: scope.weight * 1.2,
+    };
+  });
+
+  return {
+    ...baseConfig,
+    scopes: boostedScopes,
+  };
+}
+
 export async function getClassificationConfigFromDB(): Promise<ClassificationConfig> {
   try {
     const dictionaries = await getAllScopeDictionaries();

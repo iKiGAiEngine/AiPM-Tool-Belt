@@ -1,8 +1,10 @@
+import { useEffect } from "react";
 import { Link, useParams } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import {
   ArrowLeft, Loader2, CheckCircle, AlertCircle, Clock,
-  FileText, ScanSearch, FolderOpen, ToggleLeft, ToggleRight
+  FileText, ScanSearch, FolderOpen, ToggleLeft, ToggleRight,
+  Play, Factory, Hash, Layers, ChevronDown, ChevronRight
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -10,6 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import type { Project, ProjectScope } from "@shared/schema";
+import { useState } from "react";
 
 const STATUS_MAP: Record<string, { label: string; color: string; icon: typeof Loader2 }> = {
   created: { label: "Created", color: "text-blue-500", icon: Clock },
@@ -28,20 +31,46 @@ const STATUS_MAP: Record<string, { label: string; color: string; icon: typeof Lo
   outputs_ready: { label: "Outputs Ready", color: "text-green-600", icon: CheckCircle },
 };
 
+function isProcessingStatus(status: string | null | undefined): boolean {
+  return !!status && (status.includes("running") || status === "created");
+}
+
+function canRunSpecPass(status: string | null | undefined): boolean {
+  return !!status && (
+    status === "planparser_baseline_complete" ||
+    status === "outputs_ready" ||
+    status === "planparser_specpass_error"
+  );
+}
+
 export default function ProjectDetailPage() {
   const params = useParams();
   const projectId = parseInt(params.id || "0");
   const { toast } = useToast();
+  const [expandedScopes, setExpandedScopes] = useState<Set<number>>(new Set());
 
   const { data: project, isLoading: projectLoading } = useQuery<Project>({
     queryKey: ["/api/projects", projectId],
     enabled: projectId > 0,
+    refetchInterval: (query) => {
+      const data = query.state.data as Project | undefined;
+      return data && isProcessingStatus(data.status) ? 3000 : false;
+    },
   });
 
   const { data: scopes = [], isLoading: scopesLoading } = useQuery<ProjectScope[]>({
     queryKey: ["/api/projects", projectId, "scopes"],
     enabled: projectId > 0,
+    refetchInterval: (query) => {
+      return project && isProcessingStatus(project.status) ? 5000 : false;
+    },
   });
+
+  useEffect(() => {
+    if (project && !isProcessingStatus(project.status)) {
+      queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "scopes"] });
+    }
+  }, [project?.status]);
 
   const toggleScopeMutation = useMutation({
     mutationFn: async ({ scopeId, isSelected }: { scopeId: number; isSelected: boolean }) => {
@@ -52,6 +81,46 @@ export default function ProjectDetailPage() {
     },
     onError: () => {
       toast({ title: "Failed to update scope selection", variant: "destructive" });
+    },
+  });
+
+  const specPassMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", `/api/projects/${projectId}/spec-pass`);
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId] });
+      toast({ title: "Spec-informed second pass started" });
+    },
+    onError: (err: any) => {
+      toast({
+        title: "Failed to start second pass",
+        description: err.message || "Please try again",
+        variant: "destructive"
+      });
+    },
+  });
+
+  const toggleExpanded = (scopeId: number) => {
+    setExpandedScopes(prev => {
+      const next = new Set(prev);
+      if (next.has(scopeId)) next.delete(scopeId);
+      else next.add(scopeId);
+      return next;
+    });
+  };
+
+  const selectAllMutation = useMutation({
+    mutationFn: async (selectAll: boolean) => {
+      for (const scope of scopes) {
+        if (scope.isSelected !== selectAll) {
+          await apiRequest("PATCH", `/api/projects/${projectId}/scopes/${scope.id}/select`, { isSelected: selectAll });
+        }
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "scopes"] });
     },
   });
 
@@ -76,7 +145,9 @@ export default function ProjectDetailPage() {
 
   const statusInfo = STATUS_MAP[project.status || "created"] || STATUS_MAP.created;
   const StatusIcon = statusInfo.icon;
-  const isProcessing = project.status?.includes("running");
+  const isProcessing = isProcessingStatus(project.status);
+  const selectedCount = scopes.filter(s => s.isSelected).length;
+  const showSpecPassButton = canRunSpecPass(project.status) && scopes.length > 0;
 
   return (
     <div className="container max-w-4xl mx-auto py-8 px-4">
@@ -95,7 +166,7 @@ export default function ProjectDetailPage() {
               {project.projectId}
             </Badge>
           </div>
-          <div className="flex items-center gap-2 mt-1">
+          <div className="flex items-center gap-2 mt-1 flex-wrap">
             <StatusIcon className={`w-4 h-4 ${statusInfo.color} ${isProcessing ? "animate-spin" : ""}`} />
             <span className={`text-sm ${statusInfo.color}`} data-testid="text-project-status">
               {statusInfo.label}
@@ -109,6 +180,20 @@ export default function ProjectDetailPage() {
           </div>
         </div>
       </div>
+
+      {isProcessing && (
+        <Card className="mb-6 border-yellow-500/30">
+          <CardContent className="py-4">
+            <div className="flex items-center gap-3">
+              <Loader2 className="w-5 h-5 animate-spin text-yellow-500" />
+              <div>
+                <p className="text-sm font-medium">Processing in progress</p>
+                <p className="text-xs text-muted-foreground">This page refreshes automatically. Results will appear when ready.</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
         <Card>
@@ -182,60 +267,178 @@ export default function ProjectDetailPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Detected Scopes</CardTitle>
-          <CardDescription>
-            Spec sections extracted by SpecSift. Toggle scopes on/off before running the second pass of Plan Parser.
-          </CardDescription>
+          <div className="flex items-center justify-between gap-4 flex-wrap">
+            <div>
+              <CardTitle className="text-base">Detected Scopes</CardTitle>
+              <CardDescription>
+                Spec sections extracted by SpecSift. Toggle scopes on/off, then run the spec-informed second pass to boost Plan Parser accuracy.
+              </CardDescription>
+            </div>
+            {scopes.length > 0 && (
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => selectAllMutation.mutate(true)}
+                  disabled={selectAllMutation.isPending || scopes.every(s => s.isSelected)}
+                  data-testid="button-select-all"
+                >
+                  Select All
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => selectAllMutation.mutate(false)}
+                  disabled={selectAllMutation.isPending || scopes.every(s => !s.isSelected)}
+                  data-testid="button-deselect-all"
+                >
+                  Deselect All
+                </Button>
+              </div>
+            )}
+          </div>
         </CardHeader>
         <CardContent>
           {scopesLoading ? (
             <div className="text-center py-4 text-muted-foreground">Loading scopes...</div>
           ) : scopes.length === 0 ? (
             <div className="text-center py-4 text-muted-foreground" data-testid="text-no-scopes">
-              {project.status === "created" || project.status?.includes("running")
+              {isProcessing
                 ? "Scopes will appear after SpecSift completes"
                 : "No scopes detected"}
             </div>
           ) : (
-            <div className="space-y-2">
-              {scopes.map((scope) => (
-                <div
-                  key={scope.id}
-                  className="flex items-center justify-between gap-4 p-3 rounded-lg border"
-                  data-testid={`scope-row-${scope.id}`}
-                >
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-mono text-sm font-medium">{scope.specSectionNumber}</span>
-                      <span className="text-sm">{scope.specSectionTitle || scope.scopeType}</span>
+            <div className="space-y-3">
+              {scopes.map((scope) => {
+                const mfrs = (scope.manufacturers as string[]) || [];
+                const models = (scope.modelNumbers as string[]) || [];
+                const mats = (scope.materials as string[]) || [];
+                const hasDetails = mfrs.length > 0 || models.length > 0 || mats.length > 0;
+                const isExpanded = expandedScopes.has(scope.id);
+
+                return (
+                  <div
+                    key={scope.id}
+                    className={`rounded-lg border transition-colors ${scope.isSelected ? "border-primary/40 bg-primary/5" : ""}`}
+                    data-testid={`scope-row-${scope.id}`}
+                  >
+                    <div className="flex items-center gap-3 p-3">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => toggleScopeMutation.mutate({
+                          scopeId: scope.id,
+                          isSelected: !scope.isSelected,
+                        })}
+                        data-testid={`button-toggle-scope-${scope.id}`}
+                      >
+                        {scope.isSelected ? (
+                          <ToggleRight className="w-6 h-6 text-green-500" />
+                        ) : (
+                          <ToggleLeft className="w-6 h-6 text-muted-foreground" />
+                        )}
+                      </Button>
+
+                      <div className="flex-1 min-w-0 cursor-pointer" onClick={() => hasDetails && toggleExpanded(scope.id)}>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-mono text-sm font-medium">{scope.specSectionNumber}</span>
+                          <span className="text-sm">{scope.specSectionTitle || scope.scopeType}</span>
+                          {hasDetails && (
+                            <span className="text-muted-foreground">
+                              {isExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2 mt-1 flex-wrap">
+                          {mfrs.length > 0 && (
+                            <span className="text-xs text-muted-foreground flex items-center gap-1">
+                              <Factory className="w-3 h-3" /> {mfrs.length} manufacturer{mfrs.length !== 1 ? "s" : ""}
+                            </span>
+                          )}
+                          {models.length > 0 && (
+                            <span className="text-xs text-muted-foreground flex items-center gap-1">
+                              <Hash className="w-3 h-3" /> {models.length} model{models.length !== 1 ? "s" : ""}
+                            </span>
+                          )}
+                          {mats.length > 0 && (
+                            <span className="text-xs text-muted-foreground flex items-center gap-1">
+                              <Layers className="w-3 h-3" /> {mats.length} material{mats.length !== 1 ? "s" : ""}
+                            </span>
+                          )}
+                        </div>
+                      </div>
                     </div>
-                    {(scope.manufacturers || []).length > 0 && (
-                      <div className="mt-1 flex flex-wrap gap-1">
-                        {(scope.manufacturers || []).map((m, i) => (
-                          <Badge key={i} variant="outline" className="text-xs font-normal">{m}</Badge>
-                        ))}
+
+                    {isExpanded && hasDetails && (
+                      <div className="px-3 pb-3 pl-14 space-y-2 border-t pt-2">
+                        {mfrs.length > 0 && (
+                          <div>
+                            <span className="text-xs font-medium text-muted-foreground flex items-center gap-1 mb-1">
+                              <Factory className="w-3 h-3" /> Manufacturers
+                            </span>
+                            <div className="flex flex-wrap gap-1">
+                              {mfrs.map((m, i) => (
+                                <Badge key={i} variant="outline" className="text-xs font-normal">{m}</Badge>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                        {models.length > 0 && (
+                          <div>
+                            <span className="text-xs font-medium text-muted-foreground flex items-center gap-1 mb-1">
+                              <Hash className="w-3 h-3" /> Model Numbers
+                            </span>
+                            <div className="flex flex-wrap gap-1">
+                              {models.map((m, i) => (
+                                <Badge key={i} variant="secondary" className="text-xs font-mono">{m}</Badge>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                        {mats.length > 0 && (
+                          <div>
+                            <span className="text-xs font-medium text-muted-foreground flex items-center gap-1 mb-1">
+                              <Layers className="w-3 h-3" /> Materials
+                            </span>
+                            <div className="flex flex-wrap gap-1">
+                              {mats.map((m, i) => (
+                                <Badge key={i} variant="outline" className="text-xs font-normal">{m}</Badge>
+                              ))}
+                            </div>
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() =>
-                      toggleScopeMutation.mutate({
-                        scopeId: scope.id,
-                        isSelected: !scope.isSelected,
-                      })
-                    }
-                    data-testid={`button-toggle-scope-${scope.id}`}
-                  >
-                    {scope.isSelected ? (
-                      <ToggleRight className="w-6 h-6 text-green-500" />
-                    ) : (
-                      <ToggleLeft className="w-6 h-6 text-muted-foreground" />
-                    )}
-                  </Button>
+                );
+              })}
+
+              {showSpecPassButton && (
+                <div className="pt-4 border-t">
+                  <div className="flex items-center justify-between gap-4 flex-wrap">
+                    <div>
+                      <p className="text-sm font-medium">
+                        {selectedCount} scope{selectedCount !== 1 ? "s" : ""} selected
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        Manufacturer names, model numbers, and materials from selected scopes will be used to boost Plan Parser accuracy.
+                      </p>
+                    </div>
+                    <Button
+                      onClick={() => specPassMutation.mutate()}
+                      disabled={specPassMutation.isPending || selectedCount === 0}
+                      data-testid="button-run-spec-pass"
+                    >
+                      {specPassMutation.isPending ? (
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      ) : (
+                        <Play className="w-4 h-4 mr-2" />
+                      )}
+                      Run Spec-Informed Pass
+                    </Button>
+                  </div>
                 </div>
-              ))}
+              )}
             </div>
           )}
         </CardContent>

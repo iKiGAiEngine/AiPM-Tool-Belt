@@ -202,6 +202,83 @@ export async function processJob(
   }
 }
 
+export async function reprocessJobWithSpecBoost(
+  jobId: string,
+  specBoosts: import("./classificationConfig").SpecBoostData[]
+): Promise<void> {
+  const { mergeSpecBoostIntoConfig } = await import("./classificationConfig");
+
+  const job = await planParserStorage.getJob(jobId);
+  if (!job) throw new Error(`Job not found: ${jobId}`);
+
+  const pages = await planParserStorage.getPagesByJob(jobId);
+  if (pages.length === 0) throw new Error("No pages found for reprocessing");
+
+  const baseConfig = await getClassificationConfigFromDB();
+  const boostedConfig = mergeSpecBoostIntoConfig(baseConfig, specBoosts);
+
+  console.log(`[SpecPass] Reprocessing ${pages.length} pages with ${specBoosts.length} spec boosts`);
+  for (const boost of specBoosts) {
+    console.log(`  - ${boost.scopeType}: ${boost.manufacturers.length} mfrs, ${boost.modelNumbers.length} models, ${boost.materials.length} materials`);
+  }
+
+  await planParserStorage.updateJob(jobId, {
+    status: "processing",
+    processedPages: 0,
+    flaggedPages: 0,
+    scopeCounts: {},
+    message: "Running spec-informed second pass..."
+  });
+
+  let processedCount = 0;
+  let flaggedCount = 0;
+  const scopeCounts: Record<string, number> = {};
+  PLAN_PARSER_SCOPES.forEach(scope => { scopeCounts[scope] = 0; });
+
+  for (const page of pages) {
+    const ocrText = page.ocrText || page.ocrSnippet || "";
+
+    if (ocrText.trim().length < 20) {
+      processedCount++;
+      continue;
+    }
+
+    const classification = classifyPage(ocrText, boostedConfig);
+
+    await planParserStorage.updatePage(page.id, {
+      isRelevant: classification.isRelevant,
+      tags: classification.tags,
+      confidence: classification.confidence,
+      whyFlagged: classification.whyFlagged,
+      signageOverrideApplied: classification.signageOverrideApplied,
+    });
+
+    if (classification.isRelevant) {
+      flaggedCount++;
+      for (const tag of classification.tags) {
+        scopeCounts[tag] = (scopeCounts[tag] || 0) + 1;
+      }
+    }
+
+    processedCount++;
+    const progressPercent = Math.round((processedCount / pages.length) * 100);
+    await planParserStorage.updateJob(jobId, {
+      processedPages: processedCount,
+      flaggedPages: flaggedCount,
+      scopeCounts,
+      message: `Spec-pass: analyzing page ${processedCount} of ${pages.length}...`
+    });
+  }
+
+  await planParserStorage.updateJob(jobId, {
+    status: "complete",
+    processedPages: processedCount,
+    flaggedPages: flaggedCount,
+    scopeCounts,
+    message: `Spec-informed pass complete! Found ${flaggedCount} relevant pages.`
+  });
+}
+
 export async function cleanupOcrWorker(): Promise<void> {
   if (tesseractWorker) {
     await tesseractWorker.terminate();
