@@ -19,9 +19,46 @@ async function pdf(buffer: Buffer): Promise<PdfData> {
   for (let i = 1; i <= numPages; i++) {
     const page = await pdfDoc.getPage(i);
     const textContent = await page.getTextContent();
-    const pageText = textContent.items
-      .map((item: any) => item.str)
-      .join(" ");
+    const items = textContent.items as any[];
+    
+    if (items.length === 0) {
+      pages.push("");
+      fullText += "\n\f";
+      continue;
+    }
+    
+    const filteredItems = items
+      .filter((item: any) => item.str && item.str.trim().length > 0);
+    
+    const fontHeights = filteredItems
+      .map((item: any) => Math.abs(item.transform[3] || item.height || 0))
+      .filter((h: number) => h > 1);
+    const avgFontHeight = fontHeights.length > 0
+      ? fontHeights.reduce((sum: number, h: number) => sum + h, 0) / fontHeights.length
+      : 10;
+    const lineThreshold = Math.max(2, avgFontHeight * 0.4);
+    
+    const sortedItems = filteredItems
+      .sort((a: any, b: any) => {
+        const yDiff = b.transform[5] - a.transform[5];
+        if (Math.abs(yDiff) > lineThreshold) return yDiff;
+        return a.transform[4] - b.transform[4];
+      });
+    
+    let pageText = "";
+    let lastY: number | null = null;
+    
+    for (const item of sortedItems) {
+      const currentY = item.transform[5];
+      if (lastY !== null && Math.abs(currentY - lastY) > lineThreshold) {
+        pageText += "\n";
+      } else if (lastY !== null) {
+        pageText += " ";
+      }
+      pageText += item.str;
+      lastY = currentY;
+    }
+    
     fullText += pageText + "\n\f";
     pages.push(pageText);
   }
@@ -150,29 +187,17 @@ function findHeadersInTopZone(pageText: string, pageNumber: number, scopes: Reco
   const topZoneLines = lines.slice(0, 20);
   const topZone = topZoneLines.join("\n");
   
-  // Log first 100 chars of page for debugging (only for pages with SECTION in them)
-  if (pageText.toUpperCase().includes("SECTION 10 26") || pageText.toUpperCase().includes("SECTION 10 44")) {
-    console.log(`[DEBUG] Page ${pageNumber + 1} first 200 chars: ${pageText.slice(0, 200).replace(/\n/g, '\\n')}`);
+  if (/SECTION\s+10/i.test(pageText)) {
+    console.log(`[DEBUG] Page ${pageNumber + 1} first 300 chars: ${pageText.slice(0, 300).replace(/\n/g, '\\n')}`);
   }
   
-  // Enhanced patterns for header detection - MIXED CASE allowed for titles
-  // Note: \s+ matches any amount of whitespace including tabs
   const headerPatterns = [
-    // "SECTION 10 26 13                    CORNER GUARDS" (section + number + lots of whitespace + title)
-    /SECTION\s+(10[\s\-\._]*\d{2}[\s\-\._]*\d{2}(?:[\s\-\._]*\d{2})?)[\s\t]+([A-Z][A-Za-z\s,&\/\-]+)/gi,
-    
-    // "SECTION 10 1400 - SIGNAGE" or "SECTION 10 11 00 - Visual Display Units" (section + number + dash + title)
+    /SECTION\s+(10[\s\-\._]*\d{2}[\s\-\._]*\d{2}(?:[\s\-\._]*\d{2})?)[\s\t]+([A-Za-z][A-Za-z\s,&\/\-]+)/gi,
     /SECTION\s+(10[\s\-\._]*(?:\d{2}[\s\-\._]*\d{2}(?:[\s\-\._]*\d{2})?|\d{4,6}))\s*[\-–—:]\s*([A-Za-z][A-Za-z\s,&\/\-]+)/gi,
-    
-    // "10 26 13 CORNER GUARDS" (no SECTION prefix, just number + whitespace + title) - common in headers
-    // Mixed case allowed for title
     /(?:^|\n)\s*(10\s+\d{2}\s+\d{2})[\s\t]+([A-Za-z][A-Za-z\s,&\/\-]+)/gi,
-    
-    // "10 1400 - SIGNAGE" (no SECTION prefix, with dash)
+    /(?:^|\n)\s*(10[\-\._]\d{2}[\-\._]\d{2})[\s\t]+([A-Za-z][A-Za-z\s,&\/\-]+)/gi,
     /^(10[\s\-\._]*(?:\d{2}[\s\-\._]*\d{2}(?:[\s\-\._]*\d{2})?|\d{4,6}))\s*[\-–—:]\s*([A-Za-z][A-Za-z\s,&\/\-]+)/gim,
-    
-    // SECTION + number only (no title required) - use scopes lookup for title
-    /SECTION\s+(10[\s\-\._]*(?:\d{2}[\s\-\._]*\d{2}(?:[\s\-\._]*\d{2})?|\d{4,6}))(?:\s*$|\s+PART|\s+\d)/gi,
+    /SECTION\s+(10[\s\-\._]*(?:\d{2}[\s\-\._]*\d{2}(?:[\s\-\._]*\d{2})?|\d{4,6}))(?:\s*$|\s+PART|\s+\d)/gim,
   ];
   
   for (const pattern of headerPatterns) {
@@ -211,8 +236,8 @@ function findHeadersInTopZone(pageText: string, pageNumber: number, scopes: Reco
   for (let i = 0; i < topZoneLines.length; i++) {
     const line = topZoneLines[i].trim();
     
-    // Check for SECTION + number without title (or with separator but no title)
-    const sectionOnlyMatch = line.match(/^SECTION\s+(10[\s\-\._]*(?:\d{2}[\s\-\._]*\d{2}(?:[\s\-\._]*\d{2})?|\d{4,6}))\s*[\-–—:]?\s*$/i);
+    const hasSectionPrefix = /^SECTION\s+/i.test(line);
+    const sectionOnlyMatch = line.match(/^(?:SECTION\s+)?(10[\s\-\._]*(?:\d{2}[\s\-\._]*\d{2}(?:[\s\-\._]*\d{2})?|\d{4,6}))\s*[\-–—:]?\s*$/i);
     
     if (sectionOnlyMatch) {
       const secRaw = sectionOnlyMatch[1];
@@ -223,18 +248,20 @@ function findHeadersInTopZone(pageText: string, pageNumber: number, scopes: Reco
       
       let title = "";
       
-      // Check next line for title (mixed case allowed, just needs to start with a letter)
       if (i + 1 < topZoneLines.length) {
         const nextLine = topZoneLines[i + 1].trim();
-        // Accept title if it starts with a capital letter and has reasonable length
         if (/^[A-Z][A-Za-z\s,&\/\-]+/.test(nextLine) && nextLine.length > 3 && nextLine.length < 100) {
           title = cleanSectionTitle(nextLine);
         }
       }
       
-      // Fallback to scopes lookup
       if (!title || title.length < 3) {
         title = scopes[canon] || "";
+      }
+      
+      const isKnownScope = !!scopes[canon];
+      if (!hasSectionPrefix && !title && !isKnownScope) {
+        continue;
       }
       
       console.log(`[ZoneDetect:MultiLine] Found section ${canon} on page ${pageNumber + 1} with title "${title}"`);
@@ -248,11 +275,14 @@ function findHeadersInTopZone(pageText: string, pageNumber: number, scopes: Reco
     }
   }
   
-  // FALLBACK: If no headers found in zone, scan full page for SECTION headers
-  if (headers.length === 0) {
+  // FALLBACK: Scan full page for SECTION headers if top-zone missed or only found low-confidence ones
+  // Require either a known scope match or PART markers on the same page to reduce false positives
+  const hasHighConfidenceHeaders = headers.some(h => h.isLegitimate || (h.title && h.title.length > 3));
+  if (!hasHighConfidenceHeaders) {
+    const hasPartMarker = /PART\s*[123]\s*[\-–—:]?\s*(GENERAL|PRODUCTS|EXECUTION)/i.test(pageText);
     const fullPagePatterns = [
-      // "SECTION 10 26 13" followed by anything (capture section only)
       /SECTION\s+(10[\s\-\._]*\d{2}[\s\-\._]*\d{2}(?:[\s\-\._]*\d{2})?)/gi,
+      /SECTION\s+(10[\s\-\._]*\d{4,6})/gi,
     ];
     
     for (const pattern of fullPagePatterns) {
@@ -264,8 +294,13 @@ function findHeadersInTopZone(pageText: string, pageNumber: number, scopes: Reco
         if (!canon.startsWith("10 ") || canon.includes("-")) continue;
         if (headers.some(h => h.sectionNumber === canon)) continue;
         
-        // Use scopes lookup for title since we couldn't extract it
         const title = scopes[canon] || "";
+        const isKnownScope = !!scopes[canon];
+        
+        if (!isKnownScope && !hasPartMarker) {
+          console.log(`[ZoneDetect:Fallback] Skipping unrecognized section ${canon} on page ${pageNumber + 1} (no scope match, no PART markers)`);
+          continue;
+        }
         
         console.log(`[ZoneDetect:Fallback] Found section ${canon} on page ${pageNumber + 1} with title "${title}"`);
         
@@ -273,15 +308,14 @@ function findHeadersInTopZone(pageText: string, pageNumber: number, scopes: Reco
           sectionNumber: canon,
           title,
           pageNumber,
-          isLegitimate: false
+          isLegitimate: hasPartMarker
         });
       }
     }
   }
   
   // SECOND FALLBACK: Look for Division 10 section numbers with PART 1 - GENERAL in same page (strong indicator of real section)
-  // This catches cases where pdf.js text extraction puts text in unexpected order
-  if (headers.length === 0 && /PART\s*1\s*[\-–—:]?\s*GENERAL/i.test(pageText)) {
+  if (/PART\s*1\s*[\-–—:]?\s*GENERAL/i.test(pageText)) {
     // Find any Division 10 section number on this page - flexible patterns
     const secPatterns = [
       /\b(10\s+\d{2}\s+\d{2})\b/g,                    // "10 26 13" with spaces
