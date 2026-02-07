@@ -608,6 +608,64 @@ export const insertPlanIndexSchema = createInsertSchema(planIndex).omit({
 export type InsertPlanIndexInput = z.infer<typeof insertPlanIndexSchema>;
 
 // =====================================================
+// FOLDER TEMPLATES - Versioned folder structure templates
+// =====================================================
+
+export const folderTemplates = pgTable("folder_templates", {
+  id: serial("id").primaryKey(),
+  name: varchar("name", { length: 200 }).notNull(),
+  version: integer("version").notNull().default(1),
+  isActive: boolean("is_active").notNull().default(false),
+  filePath: varchar("file_path", { length: 1000 }).notNull(),
+  fileSize: integer("file_size").notNull().default(0),
+  folderStructure: jsonb("folder_structure").$type<string[]>().default([]),
+  uploadedBy: varchar("uploaded_by", { length: 100 }).default("admin"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export type FolderTemplate = typeof folderTemplates.$inferSelect;
+export type InsertFolderTemplate = typeof folderTemplates.$inferInsert;
+
+export const insertFolderTemplateSchema = createInsertSchema(folderTemplates).omit({
+  id: true,
+  createdAt: true,
+});
+export type InsertFolderTemplateInput = z.infer<typeof insertFolderTemplateSchema>;
+
+// =====================================================
+// ESTIMATE TEMPLATES - Versioned Excel estimate files
+// =====================================================
+
+export interface StampMapping {
+  cellRef: string;
+  fieldName: string;
+  label: string;
+}
+
+export const estimateTemplates = pgTable("estimate_templates", {
+  id: serial("id").primaryKey(),
+  name: varchar("name", { length: 200 }).notNull(),
+  version: integer("version").notNull().default(1),
+  isActive: boolean("is_active").notNull().default(false),
+  filePath: varchar("file_path", { length: 1000 }).notNull(),
+  originalFilename: varchar("original_filename", { length: 500 }).notNull(),
+  fileSize: integer("file_size").notNull().default(0),
+  sheetNames: jsonb("sheet_names").$type<string[]>().default([]),
+  stampMappings: jsonb("stamp_mappings").$type<StampMapping[]>().default([]),
+  uploadedBy: varchar("uploaded_by", { length: 100 }).default("admin"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export type EstimateTemplate = typeof estimateTemplates.$inferSelect;
+export type InsertEstimateTemplate = typeof estimateTemplates.$inferInsert;
+
+export const insertEstimateTemplateSchema = createInsertSchema(estimateTemplates).omit({
+  id: true,
+  createdAt: true,
+});
+export type InsertEstimateTemplateInput = z.infer<typeof insertEstimateTemplateSchema>;
+
+// =====================================================
 // SPECSIFT SESSIONS - Persistent session storage
 // =====================================================
 

@@ -1,6 +1,6 @@
 import { Link } from "wouter";
 import { useQuery } from "@tanstack/react-query";
-import { FileSearch, ScanSearch, Wrench, Receipt, Settings, FolderPlus, ChevronRight, Clock } from "lucide-react";
+import { FileSearch, ScanSearch, Wrench, Receipt, Settings, FolderPlus, ChevronRight, Clock, ClipboardList } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import type { Project } from "@shared/schema";
@@ -120,6 +120,12 @@ export default function HomePage() {
 
       <footer className="flex items-center justify-center gap-4 py-6">
         <span className="text-muted-foreground/60 text-sm">AiPM Tool Belt</span>
+        <Link href="/project-log">
+          <Button variant="ghost" size="sm" className="gap-2 text-muted-foreground" data-testid="link-project-log">
+            <ClipboardList className="w-4 h-4" />
+            Project Log
+          </Button>
+        </Link>
         <Link href="/settings">
           <Button variant="ghost" size="sm" className="gap-2 text-muted-foreground" data-testid="link-settings">
             <Settings className="w-4 h-4" />

@@ -1,7 +1,7 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { Link } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { ArrowLeft, Building2, Package, Plus, Pencil, Trash2, Search, X, BookOpen, MapPin } from "lucide-react";
+import { ArrowLeft, Building2, Package, Plus, Pencil, Trash2, Search, X, BookOpen, MapPin, FolderArchive, FileSpreadsheet, Upload, Download, Check, Star } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -13,7 +13,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
-import type { Vendor, Div10Product, ScopeDictionary, Region } from "@shared/schema";
+import type { Vendor, Div10Product, ScopeDictionary, Region, FolderTemplate, EstimateTemplate, StampMapping } from "@shared/schema";
 import { DIV10_SCOPE_CATEGORIES, PLAN_PARSER_SCOPES } from "@shared/schema";
 
 export default function CentralSettingsPage() {
@@ -29,12 +29,12 @@ export default function CentralSettingsPage() {
         </Link>
         <div>
           <h1 className="text-2xl font-semibold text-foreground">Settings</h1>
-          <p className="text-muted-foreground">Manage vendors, products, scope dictionaries, and regions</p>
+          <p className="text-muted-foreground">Manage vendors, products, scope dictionaries, regions, and templates</p>
         </div>
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        <TabsList className="grid w-full grid-cols-4 max-w-2xl">
+        <TabsList className="grid w-full grid-cols-6 max-w-4xl">
           <TabsTrigger value="vendors" className="gap-2" data-testid="tab-vendors">
             <Building2 className="w-4 h-4" />
             Vendors
@@ -45,11 +45,19 @@ export default function CentralSettingsPage() {
           </TabsTrigger>
           <TabsTrigger value="scopes" className="gap-2" data-testid="tab-scopes">
             <BookOpen className="w-4 h-4" />
-            Scope Dictionaries
+            Scopes
           </TabsTrigger>
           <TabsTrigger value="regions" className="gap-2" data-testid="tab-regions">
             <MapPin className="w-4 h-4" />
             Regions
+          </TabsTrigger>
+          <TabsTrigger value="folder-templates" className="gap-2" data-testid="tab-folder-templates">
+            <FolderArchive className="w-4 h-4" />
+            Folders
+          </TabsTrigger>
+          <TabsTrigger value="estimate-templates" className="gap-2" data-testid="tab-estimate-templates">
+            <FileSpreadsheet className="w-4 h-4" />
+            Estimates
           </TabsTrigger>
         </TabsList>
 
@@ -67,6 +75,14 @@ export default function CentralSettingsPage() {
 
         <TabsContent value="regions">
           <RegionSection />
+        </TabsContent>
+
+        <TabsContent value="folder-templates">
+          <FolderTemplateSection />
+        </TabsContent>
+
+        <TabsContent value="estimate-templates">
+          <EstimateTemplateSection />
         </TabsContent>
       </Tabs>
     </div>
@@ -1363,5 +1379,476 @@ function RegionEditDialog({ open, onOpenChange, region, onSave, isPending }: Reg
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+function FolderTemplateSection() {
+  const { toast } = useToast();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [templateName, setTemplateName] = useState("Default Folder Template");
+
+  const { data: templates = [], isLoading } = useQuery<FolderTemplate[]>({
+    queryKey: ["/api/templates/folders"],
+  });
+
+  const uploadMutation = useMutation({
+    mutationFn: async (file: File) => {
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("name", templateName);
+      const res = await fetch("/api/templates/folders", { method: "POST", body: formData });
+      if (!res.ok) throw new Error("Upload failed");
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/templates/folders"] });
+      toast({ title: "Folder template uploaded" });
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    },
+    onError: () => {
+      toast({ title: "Failed to upload template", variant: "destructive" });
+    },
+  });
+
+  const activateMutation = useMutation({
+    mutationFn: async (id: number) => {
+      await apiRequest("PUT", `/api/templates/folders/${id}/activate`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/templates/folders"] });
+      toast({ title: "Template activated" });
+    },
+    onError: () => {
+      toast({ title: "Failed to activate template", variant: "destructive" });
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: number) => {
+      await apiRequest("DELETE", `/api/templates/folders/${id}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/templates/folders"] });
+      toast({ title: "Template deleted" });
+    },
+    onError: () => {
+      toast({ title: "Failed to delete template", variant: "destructive" });
+    },
+  });
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) uploadMutation.mutate(file);
+  };
+
+  const formatFileSize = (bytes: number) => {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  };
+
+  return (
+    <div className="space-y-6">
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between gap-4">
+          <div>
+            <CardTitle>Folder Templates</CardTitle>
+            <CardDescription>Upload ZIP files that define the standard estimate folder structure. The active template is copied for every new project.</CardDescription>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-end gap-4">
+            <div className="flex-1 space-y-2">
+              <Label htmlFor="templateName">Template Name</Label>
+              <Input
+                id="templateName"
+                value={templateName}
+                onChange={(e) => setTemplateName(e.target.value)}
+                placeholder="Default Folder Template"
+                data-testid="input-folder-template-name"
+              />
+            </div>
+            <div>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".zip"
+                onChange={handleFileSelect}
+                className="hidden"
+                data-testid="input-folder-template-file"
+              />
+              <Button
+                onClick={() => fileInputRef.current?.click()}
+                disabled={uploadMutation.isPending || !templateName}
+                data-testid="button-upload-folder-template"
+              >
+                <Upload className="w-4 h-4 mr-2" />
+                {uploadMutation.isPending ? "Uploading..." : "Upload ZIP"}
+              </Button>
+            </div>
+          </div>
+
+          {isLoading && <p className="text-sm text-muted-foreground">Loading templates...</p>}
+
+          {templates.length === 0 && !isLoading && (
+            <p className="text-sm text-muted-foreground">No folder templates uploaded yet. Upload a ZIP file to get started.</p>
+          )}
+
+          {templates.length > 0 && (
+            <div className="space-y-3">
+              {templates.map((tmpl) => (
+                <Card key={tmpl.id} className={tmpl.isActive ? "border-primary" : ""}>
+                  <CardContent className="p-4">
+                    <div className="flex items-center justify-between gap-4 flex-wrap">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <FolderArchive className="w-5 h-5 text-muted-foreground shrink-0" />
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-medium truncate" data-testid={`text-folder-template-name-${tmpl.id}`}>{tmpl.name}</span>
+                            <Badge variant="outline">v{tmpl.version}</Badge>
+                            {tmpl.isActive && <Badge variant="default">Active</Badge>}
+                          </div>
+                          <div className="flex items-center gap-3 text-sm text-muted-foreground mt-1 flex-wrap">
+                            <span>{formatFileSize(tmpl.fileSize)}</span>
+                            <span>{new Date(tmpl.createdAt).toLocaleDateString()}</span>
+                            {tmpl.folderStructure && tmpl.folderStructure.length > 0 && (
+                              <span>{tmpl.folderStructure.length} folders</span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => window.open(`/api/templates/folders/${tmpl.id}/download`, "_blank")}
+                          data-testid={`button-download-folder-template-${tmpl.id}`}
+                        >
+                          <Download className="w-4 h-4" />
+                        </Button>
+                        {!tmpl.isActive && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => activateMutation.mutate(tmpl.id)}
+                            disabled={activateMutation.isPending}
+                            data-testid={`button-activate-folder-template-${tmpl.id}`}
+                          >
+                            <Star className="w-4 h-4" />
+                          </Button>
+                        )}
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => deleteMutation.mutate(tmpl.id)}
+                          disabled={deleteMutation.isPending}
+                          data-testid={`button-delete-folder-template-${tmpl.id}`}
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+function EstimateTemplateSection() {
+  const { toast } = useToast();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [templateName, setTemplateName] = useState("Default Estimate Template");
+  const [editingMappings, setEditingMappings] = useState<{ id: number; mappings: StampMapping[] } | null>(null);
+
+  const { data: templates = [], isLoading } = useQuery<EstimateTemplate[]>({
+    queryKey: ["/api/templates/estimates"],
+  });
+
+  const uploadMutation = useMutation({
+    mutationFn: async (file: File) => {
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("name", templateName);
+      const res = await fetch("/api/templates/estimates", { method: "POST", body: formData });
+      if (!res.ok) throw new Error("Upload failed");
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/templates/estimates"] });
+      toast({ title: "Estimate template uploaded" });
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    },
+    onError: () => {
+      toast({ title: "Failed to upload template", variant: "destructive" });
+    },
+  });
+
+  const activateMutation = useMutation({
+    mutationFn: async (id: number) => {
+      await apiRequest("PUT", `/api/templates/estimates/${id}/activate`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/templates/estimates"] });
+      toast({ title: "Template activated" });
+    },
+    onError: () => {
+      toast({ title: "Failed to activate template", variant: "destructive" });
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: number) => {
+      await apiRequest("DELETE", `/api/templates/estimates/${id}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/templates/estimates"] });
+      toast({ title: "Template deleted" });
+    },
+    onError: () => {
+      toast({ title: "Failed to delete template", variant: "destructive" });
+    },
+  });
+
+  const saveMappingsMutation = useMutation({
+    mutationFn: async ({ id, mappings }: { id: number; mappings: StampMapping[] }) => {
+      await apiRequest("PUT", `/api/templates/estimates/${id}/stamp-mappings`, { mappings });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/templates/estimates"] });
+      toast({ title: "Stamp mappings updated" });
+      setEditingMappings(null);
+    },
+    onError: () => {
+      toast({ title: "Failed to update mappings", variant: "destructive" });
+    },
+  });
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) uploadMutation.mutate(file);
+  };
+
+  const formatFileSize = (bytes: number) => {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  };
+
+  const addMapping = () => {
+    if (!editingMappings) return;
+    setEditingMappings({
+      ...editingMappings,
+      mappings: [...editingMappings.mappings, { cellRef: "", fieldName: "", label: "" }],
+    });
+  };
+
+  const updateMapping = (index: number, field: keyof StampMapping, value: string) => {
+    if (!editingMappings) return;
+    const updated = [...editingMappings.mappings];
+    updated[index] = { ...updated[index], [field]: value };
+    setEditingMappings({ ...editingMappings, mappings: updated });
+  };
+
+  const removeMapping = (index: number) => {
+    if (!editingMappings) return;
+    setEditingMappings({
+      ...editingMappings,
+      mappings: editingMappings.mappings.filter((_, i) => i !== index),
+    });
+  };
+
+  return (
+    <div className="space-y-6">
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between gap-4">
+          <div>
+            <CardTitle>Estimate File Templates</CardTitle>
+            <CardDescription>Upload Excel estimate templates (.xlsx/.xlsm). Configure which cells get stamped with project data when a new project is created.</CardDescription>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-end gap-4">
+            <div className="flex-1 space-y-2">
+              <Label htmlFor="estimateName">Template Name</Label>
+              <Input
+                id="estimateName"
+                value={templateName}
+                onChange={(e) => setTemplateName(e.target.value)}
+                placeholder="Default Estimate Template"
+                data-testid="input-estimate-template-name"
+              />
+            </div>
+            <div>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".xlsx,.xlsm"
+                onChange={handleFileSelect}
+                className="hidden"
+                data-testid="input-estimate-template-file"
+              />
+              <Button
+                onClick={() => fileInputRef.current?.click()}
+                disabled={uploadMutation.isPending || !templateName}
+                data-testid="button-upload-estimate-template"
+              >
+                <Upload className="w-4 h-4 mr-2" />
+                {uploadMutation.isPending ? "Uploading..." : "Upload Excel"}
+              </Button>
+            </div>
+          </div>
+
+          {isLoading && <p className="text-sm text-muted-foreground">Loading templates...</p>}
+
+          {templates.length === 0 && !isLoading && (
+            <p className="text-sm text-muted-foreground">No estimate templates uploaded yet. Upload an Excel file to get started.</p>
+          )}
+
+          {templates.length > 0 && (
+            <div className="space-y-3">
+              {templates.map((tmpl) => (
+                <Card key={tmpl.id} className={tmpl.isActive ? "border-primary" : ""}>
+                  <CardContent className="p-4">
+                    <div className="flex items-center justify-between gap-4 flex-wrap">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <FileSpreadsheet className="w-5 h-5 text-muted-foreground shrink-0" />
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-medium truncate" data-testid={`text-estimate-template-name-${tmpl.id}`}>{tmpl.name}</span>
+                            <Badge variant="outline">v{tmpl.version}</Badge>
+                            {tmpl.isActive && <Badge variant="default">Active</Badge>}
+                          </div>
+                          <div className="flex items-center gap-3 text-sm text-muted-foreground mt-1 flex-wrap">
+                            <span>{tmpl.originalFilename}</span>
+                            <span>{formatFileSize(tmpl.fileSize)}</span>
+                            <span>{new Date(tmpl.createdAt).toLocaleDateString()}</span>
+                          </div>
+                          {tmpl.sheetNames && tmpl.sheetNames.length > 0 && (
+                            <div className="flex items-center gap-1 mt-1 flex-wrap">
+                              {tmpl.sheetNames.map((name) => (
+                                <Badge key={name} variant="secondary" className="text-xs">{name}</Badge>
+                              ))}
+                            </div>
+                          )}
+                          {tmpl.stampMappings && tmpl.stampMappings.length > 0 && (
+                            <div className="text-xs text-muted-foreground mt-1">
+                              {tmpl.stampMappings.length} stamp mapping{tmpl.stampMappings.length !== 1 ? "s" : ""} configured
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setEditingMappings({ id: tmpl.id, mappings: [...(tmpl.stampMappings || [])] })}
+                          data-testid={`button-edit-mappings-${tmpl.id}`}
+                        >
+                          <Pencil className="w-4 h-4" />
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => window.open(`/api/templates/estimates/${tmpl.id}/download`, "_blank")}
+                          data-testid={`button-download-estimate-template-${tmpl.id}`}
+                        >
+                          <Download className="w-4 h-4" />
+                        </Button>
+                        {!tmpl.isActive && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => activateMutation.mutate(tmpl.id)}
+                            disabled={activateMutation.isPending}
+                            data-testid={`button-activate-estimate-template-${tmpl.id}`}
+                          >
+                            <Star className="w-4 h-4" />
+                          </Button>
+                        )}
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => deleteMutation.mutate(tmpl.id)}
+                          disabled={deleteMutation.isPending}
+                          data-testid={`button-delete-estimate-template-${tmpl.id}`}
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <Dialog open={!!editingMappings} onOpenChange={(open) => !open && setEditingMappings(null)}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Edit Stamp Mappings</DialogTitle>
+            <DialogDescription>Configure which cells in the Excel template get filled with project data when a new project is created.</DialogDescription>
+          </DialogHeader>
+          {editingMappings && (
+            <div className="space-y-4 max-h-96 overflow-y-auto">
+              {editingMappings.mappings.map((mapping, index) => (
+                <div key={index} className="flex items-end gap-2">
+                  <div className="flex-1 space-y-1">
+                    <Label className="text-xs">Cell Reference</Label>
+                    <Input
+                      value={mapping.cellRef}
+                      onChange={(e) => updateMapping(index, "cellRef", e.target.value)}
+                      placeholder="Summary Sheet!AB1"
+                      data-testid={`input-mapping-cell-${index}`}
+                    />
+                  </div>
+                  <div className="flex-1 space-y-1">
+                    <Label className="text-xs">Field</Label>
+                    <Select value={mapping.fieldName} onValueChange={(v) => updateMapping(index, "fieldName", v)}>
+                      <SelectTrigger data-testid={`select-mapping-field-${index}`}>
+                        <SelectValue placeholder="Select field" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="projectId">Project ID (Bid ID)</SelectItem>
+                        <SelectItem value="projectName">Project Name</SelectItem>
+                        <SelectItem value="regionCode">Region / Airport Code</SelectItem>
+                        <SelectItem value="dueDate">Due Date</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    onClick={() => removeMapping(index)}
+                    data-testid={`button-remove-mapping-${index}`}
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
+                </div>
+              ))}
+              <Button variant="outline" onClick={addMapping} className="w-full" data-testid="button-add-mapping">
+                <Plus className="w-4 h-4 mr-2" /> Add Mapping
+              </Button>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditingMappings(null)}>Cancel</Button>
+            <Button
+              onClick={() => editingMappings && saveMappingsMutation.mutate({ id: editingMappings.id, mappings: editingMappings.mappings })}
+              disabled={saveMappingsMutation.isPending}
+              data-testid="button-save-mappings"
+            >
+              Save Mappings
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
   );
 }

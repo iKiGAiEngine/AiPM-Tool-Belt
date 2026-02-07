@@ -34,6 +34,8 @@ import { reprocessJobWithSpecBoost } from "./planparser/pdfProcessor";
 import type { SpecBoostData } from "./planparser/classificationConfig";
 import { processJob } from "./planparser/pdfProcessor";
 import { planParserStorage } from "./planparser/storage";
+import { getActiveFolderTemplate, getActiveEstimateTemplate } from "./templateStorage";
+import ExcelJS from "exceljs";
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -242,7 +244,25 @@ export function registerProjectRoutes(app: Express) {
         const folderName = `${regionCode.toUpperCase()} - ${safeName}`;
         const projectDir = path.join(PROJECTS_DIR, folderName);
 
-        const subfolders = [
+        ensureDir(projectDir);
+
+        const activeFolderTemplate = await getActiveFolderTemplate();
+        if (activeFolderTemplate && fs.existsSync(activeFolderTemplate.filePath)) {
+          const zipBuffer = fs.readFileSync(activeFolderTemplate.filePath);
+          const zip = await JSZip.loadAsync(zipBuffer);
+          for (const [relativePath, zipEntry] of Object.entries(zip.files)) {
+            if (zipEntry.dir) {
+              ensureDir(path.join(projectDir, relativePath));
+            } else {
+              const fileDir = path.dirname(path.join(projectDir, relativePath));
+              ensureDir(fileDir);
+              const content = await zipEntry.async("nodebuffer");
+              fs.writeFileSync(path.join(projectDir, relativePath), content);
+            }
+          }
+        }
+
+        const requiredSubfolders = [
           "Plans/Original",
           "Plans/Processed",
           "Specs/Original",
@@ -251,10 +271,42 @@ export function registerProjectRoutes(app: Express) {
           "Vendor/Specs Extracts",
           "Vendor/Plan Pages by Scope",
         ];
-
-        ensureDir(projectDir);
-        for (const sub of subfolders) {
+        for (const sub of requiredSubfolders) {
           ensureDir(path.join(projectDir, sub));
+        }
+
+        const activeEstimateTemplate = await getActiveEstimateTemplate();
+        if (activeEstimateTemplate && fs.existsSync(activeEstimateTemplate.filePath)) {
+          try {
+            const workbook = new ExcelJS.Workbook();
+            await workbook.xlsx.readFile(activeEstimateTemplate.filePath);
+
+            const projectData: Record<string, string> = {
+              projectId: projectIdStr,
+              projectName: safeName,
+              regionCode: regionCode.toUpperCase(),
+              dueDate,
+            };
+
+            for (const mapping of (activeEstimateTemplate.stampMappings || [])) {
+              const value = projectData[mapping.fieldName];
+              if (value === undefined) continue;
+
+              const match = mapping.cellRef.match(/^(.+)!([A-Z]+\d+)$/);
+              if (!match) continue;
+
+              const [, sheetName, cellAddr] = match;
+              const sheet = workbook.getWorksheet(sheetName);
+              if (sheet) {
+                sheet.getCell(cellAddr).value = value;
+              }
+            }
+
+            const estimateFilename = `${projectIdStr} - ${safeName} Estimate.xlsx`;
+            await workbook.xlsx.writeFile(path.join(projectDir, estimateFilename));
+          } catch (err) {
+            console.error("Failed to stamp estimate template:", err);
+          }
         }
 
         fs.writeFileSync(path.join(projectDir, "Plans/Original", plansFile.originalname), plansFile.buffer);

@@ -49,6 +49,13 @@ PDF buffers are stored on the filesystem (`/tmp/specsift_pdfs/` for specs, `/tmp
 - **Per-Scope Downloads**: Each scope in the results section has a download button to get just that scope's pages as a PDF.
 - **Bookmarked PDF Button**: A "Bookmarked PDF" button generates a single navigable PDF with all relevant pages organized by scope bookmarks.
 
+### Phase 5 Features (Templates & Project Log)
+- **Folder Template Manager**: Settings tab for uploading ZIP files representing standard estimate folder structures. Supports versioning (v1, v2...) with active template selection. The active template is automatically extracted when creating new projects.
+- **Estimate File Template Manager**: Settings tab for uploading Excel estimate templates (.xlsx/.xlsm). Supports versioning, sheet name preview, and configurable stamp mappings that map project fields to specific cells (e.g., `Summary Sheet!AB1` = Project ID / Bid ID).
+- **Excel Stamping**: When a new project is created, the active estimate template is copied and stamped with project data (Bid ID, Name, Region, Due Date) into configured cells. Default mapping: `Summary Sheet!AB1` = Project ID.
+- **Project Log**: Dedicated page showing all projects in a sortable/filterable table with columns: Bid ID, Project Name, Region, Due Date, Status, Created At, Notes. Supports export to CSV and XLSX formats.
+- **Template API**: Full CRUD endpoints under `/api/templates/folders/` and `/api/templates/estimates/` for managing template versions, activation, and file downloads.
+
 ### Design System
 A system-based design approach, inspired by Linear/Notion, is utilized. It features a consistent typography (Inter, JetBrains Mono) and spacing primitives, aiming for a professional aesthetic suitable for the construction industry.
 
@@ -62,7 +69,9 @@ A system-based design approach, inspired by Linear/Notion, is utilized. It featu
 - **Drizzle ORM**: Database toolkit (PostgreSQL ready).
 - **Zod**: Schema validation.
 - **TanStack Query**: Asynchronous state management.
-- **JSZip**: ZIP file generation.
+- **ExcelJS**: Excel file reading and writing (server-side template stamping).
+- **xlsx**: Excel file generation (client-side XLSX export).
+- **JSZip**: ZIP file generation and extraction.
 - **file-saver**: Client-side file downloads.
 
 ### UI Components

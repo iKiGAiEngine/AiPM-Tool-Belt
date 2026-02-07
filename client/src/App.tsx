@@ -14,6 +14,7 @@ import CentralSettingsPage from "@/pages/CentralSettingsPage";
 import QuoteParserPage from "@/pages/QuoteParserPage";
 import ProjectStartPage from "@/pages/ProjectStartPage";
 import ProjectDetailPage from "@/pages/ProjectDetailPage";
+import ProjectLogPage from "@/pages/ProjectLogPage";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -28,6 +29,7 @@ function Router() {
       <Route path="/settings" component={CentralSettingsPage} />
       <Route path="/project-start" component={ProjectStartPage} />
       <Route path="/projects/:id" component={ProjectDetailPage} />
+      <Route path="/project-log" component={ProjectLogPage} />
       <Route component={NotFound} />
     </Switch>
   );

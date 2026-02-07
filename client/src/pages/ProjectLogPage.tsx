@@ -1,0 +1,302 @@
+import { useState, useMemo } from "react";
+import { Link } from "wouter";
+import { useQuery } from "@tanstack/react-query";
+import { ArrowLeft, Download, Search, ChevronUp, ChevronDown, FileSpreadsheet, FileText } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import type { Project } from "@shared/schema";
+import { saveAs } from "file-saver";
+import * as XLSX from "xlsx";
+
+type SortField = "projectId" | "projectName" | "regionCode" | "dueDate" | "status" | "createdAt";
+type SortDir = "asc" | "desc";
+
+function getStatusLabel(status: string | null): string {
+  if (!status) return "Created";
+  return status.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase());
+}
+
+function getStatusCategory(status: string | null): "specsift" | "planparser" | "complete" | "error" | "created" {
+  if (!status) return "created";
+  if (status.includes("error")) return "error";
+  if (status === "outputs_ready") return "complete";
+  if (status.startsWith("specsift")) return "specsift";
+  if (status.startsWith("planparser") || status === "scopes_selected") return "planparser";
+  return "created";
+}
+
+export default function ProjectLogPage() {
+  const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [sortField, setSortField] = useState<SortField>("createdAt");
+  const [sortDir, setSortDir] = useState<SortDir>("desc");
+
+  const { data: projects = [], isLoading } = useQuery<Project[]>({
+    queryKey: ["/api/projects"],
+  });
+
+  const filteredProjects = useMemo(() => {
+    let filtered = [...projects];
+
+    if (searchQuery) {
+      const q = searchQuery.toLowerCase();
+      filtered = filtered.filter(p =>
+        p.projectId.toLowerCase().includes(q) ||
+        p.projectName.toLowerCase().includes(q) ||
+        p.regionCode.toLowerCase().includes(q)
+      );
+    }
+
+    if (statusFilter !== "all") {
+      filtered = filtered.filter(p => getStatusCategory(p.status) === statusFilter);
+    }
+
+    filtered.sort((a, b) => {
+      let aVal: string | number = "";
+      let bVal: string | number = "";
+
+      switch (sortField) {
+        case "projectId": aVal = a.projectId; bVal = b.projectId; break;
+        case "projectName": aVal = a.projectName.toLowerCase(); bVal = b.projectName.toLowerCase(); break;
+        case "regionCode": aVal = a.regionCode; bVal = b.regionCode; break;
+        case "dueDate": aVal = a.dueDate; bVal = b.dueDate; break;
+        case "status": aVal = a.status || ""; bVal = b.status || ""; break;
+        case "createdAt": aVal = new Date(a.createdAt || 0).getTime(); bVal = new Date(b.createdAt || 0).getTime(); break;
+      }
+
+      if (aVal < bVal) return sortDir === "asc" ? -1 : 1;
+      if (aVal > bVal) return sortDir === "asc" ? 1 : -1;
+      return 0;
+    });
+
+    return filtered;
+  }, [projects, searchQuery, statusFilter, sortField, sortDir]);
+
+  const toggleSort = (field: SortField) => {
+    if (sortField === field) {
+      setSortDir(d => d === "asc" ? "desc" : "asc");
+    } else {
+      setSortField(field);
+      setSortDir("asc");
+    }
+  };
+
+  const SortIcon = ({ field }: { field: SortField }) => {
+    if (sortField !== field) return null;
+    return sortDir === "asc" ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />;
+  };
+
+  const exportToCSV = () => {
+    const headers = ["Bid ID", "Project Name", "Region", "Due Date", "Status", "Created At", "Created By", "Notes"];
+    const rows = filteredProjects.map(p => [
+      p.projectId,
+      p.projectName,
+      p.regionCode,
+      p.dueDate,
+      getStatusLabel(p.status),
+      p.createdAt ? new Date(p.createdAt).toLocaleString() : "",
+      p.createdBy || "admin",
+      p.notes || "",
+    ]);
+
+    const csvContent = [headers, ...rows]
+      .map(row => row.map(cell => `"${(cell || "").replace(/"/g, '""')}"`).join(","))
+      .join("\n");
+
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    saveAs(blob, `project_log_${new Date().toISOString().split("T")[0]}.csv`);
+  };
+
+  const exportToXLSX = () => {
+    const headers = ["Bid ID", "Project Name", "Region", "Due Date", "Status", "Created At", "Created By", "Notes"];
+    const rows = filteredProjects.map(p => [
+      p.projectId,
+      p.projectName,
+      p.regionCode,
+      p.dueDate,
+      getStatusLabel(p.status),
+      p.createdAt ? new Date(p.createdAt).toLocaleString() : "",
+      p.createdBy || "admin",
+      p.notes || "",
+    ]);
+
+    const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+    const colWidths = headers.map((_, i) => ({
+      wch: Math.max(headers[i].length, ...rows.map(r => (r[i] || "").toString().length)) + 2,
+    }));
+    ws["!cols"] = colWidths;
+
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Project Log");
+    const wbout = XLSX.write(wb, { bookType: "xlsx", type: "array" });
+    const blob = new Blob([wbout], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+    saveAs(blob, `project_log_${new Date().toISOString().split("T")[0]}.xlsx`);
+  };
+
+  return (
+    <div className="container max-w-7xl mx-auto py-8 px-4">
+      <div className="flex items-center gap-4 mb-8">
+        <Link href="/">
+          <Button variant="ghost" size="icon" data-testid="button-back">
+            <ArrowLeft className="w-5 h-5" />
+          </Button>
+        </Link>
+        <div className="flex-1">
+          <h1 className="text-2xl font-semibold text-foreground">Project Log</h1>
+          <p className="text-muted-foreground">Complete log of all projects with export capabilities</p>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={exportToCSV} data-testid="button-export-csv">
+            <FileText className="w-4 h-4 mr-2" />
+            CSV
+          </Button>
+          <Button variant="outline" size="sm" onClick={exportToXLSX} data-testid="button-export-xlsx">
+            <FileSpreadsheet className="w-4 h-4 mr-2" />
+            XLSX
+          </Button>
+        </div>
+      </div>
+
+      <Card>
+        <CardHeader className="pb-4">
+          <div className="flex items-center gap-4 flex-wrap">
+            <div className="relative flex-1 min-w-[200px]">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Input
+                placeholder="Search by Bid ID, name, or region..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-10"
+                data-testid="input-search-projects"
+              />
+            </div>
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger className="w-[180px]" data-testid="select-status-filter">
+                <SelectValue placeholder="All Statuses" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Statuses</SelectItem>
+                <SelectItem value="created">Created</SelectItem>
+                <SelectItem value="specsift">SpecSift</SelectItem>
+                <SelectItem value="planparser">Plan Parser</SelectItem>
+                <SelectItem value="complete">Complete</SelectItem>
+                <SelectItem value="error">Error</SelectItem>
+              </SelectContent>
+            </Select>
+            <Badge variant="secondary" className="text-xs">
+              {filteredProjects.length} project{filteredProjects.length !== 1 ? "s" : ""}
+            </Badge>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {isLoading ? (
+            <p className="text-sm text-muted-foreground py-8 text-center">Loading projects...</p>
+          ) : filteredProjects.length === 0 ? (
+            <p className="text-sm text-muted-foreground py-8 text-center">No projects found.</p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b">
+                    <th
+                      className="text-left py-3 px-3 font-medium text-muted-foreground cursor-pointer select-none"
+                      onClick={() => toggleSort("projectId")}
+                      data-testid="th-bid-id"
+                    >
+                      <span className="flex items-center gap-1">Bid ID <SortIcon field="projectId" /></span>
+                    </th>
+                    <th
+                      className="text-left py-3 px-3 font-medium text-muted-foreground cursor-pointer select-none"
+                      onClick={() => toggleSort("projectName")}
+                      data-testid="th-project-name"
+                    >
+                      <span className="flex items-center gap-1">Project Name <SortIcon field="projectName" /></span>
+                    </th>
+                    <th
+                      className="text-left py-3 px-3 font-medium text-muted-foreground cursor-pointer select-none"
+                      onClick={() => toggleSort("regionCode")}
+                      data-testid="th-region"
+                    >
+                      <span className="flex items-center gap-1">Region <SortIcon field="regionCode" /></span>
+                    </th>
+                    <th
+                      className="text-left py-3 px-3 font-medium text-muted-foreground cursor-pointer select-none"
+                      onClick={() => toggleSort("dueDate")}
+                      data-testid="th-due-date"
+                    >
+                      <span className="flex items-center gap-1">Due Date <SortIcon field="dueDate" /></span>
+                    </th>
+                    <th
+                      className="text-left py-3 px-3 font-medium text-muted-foreground cursor-pointer select-none"
+                      onClick={() => toggleSort("status")}
+                      data-testid="th-status"
+                    >
+                      <span className="flex items-center gap-1">Status <SortIcon field="status" /></span>
+                    </th>
+                    <th
+                      className="text-left py-3 px-3 font-medium text-muted-foreground cursor-pointer select-none"
+                      onClick={() => toggleSort("createdAt")}
+                      data-testid="th-created-at"
+                    >
+                      <span className="flex items-center gap-1">Created <SortIcon field="createdAt" /></span>
+                    </th>
+                    <th className="text-left py-3 px-3 font-medium text-muted-foreground">Notes</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredProjects.map((project) => {
+                    const statusCat = getStatusCategory(project.status);
+                    return (
+                      <tr key={project.id} className="border-b last:border-0 hover-elevate">
+                        <td className="py-3 px-3">
+                          <Link href={`/projects/${project.id}`}>
+                            <Badge variant="outline" className="font-mono cursor-pointer" data-testid={`text-bid-id-${project.id}`}>
+                              {project.projectId}
+                            </Badge>
+                          </Link>
+                        </td>
+                        <td className="py-3 px-3">
+                          <Link href={`/projects/${project.id}`}>
+                            <span className="cursor-pointer hover:underline" data-testid={`text-name-${project.id}`}>
+                              {project.projectName}
+                            </span>
+                          </Link>
+                        </td>
+                        <td className="py-3 px-3">
+                          <Badge variant="secondary" className="text-xs" data-testid={`text-region-${project.id}`}>
+                            {project.regionCode}
+                          </Badge>
+                        </td>
+                        <td className="py-3 px-3 text-muted-foreground" data-testid={`text-due-date-${project.id}`}>
+                          {project.dueDate}
+                        </td>
+                        <td className="py-3 px-3">
+                          <Badge
+                            variant={statusCat === "error" ? "destructive" : statusCat === "complete" ? "default" : "outline"}
+                            className="text-xs"
+                            data-testid={`text-status-${project.id}`}
+                          >
+                            {getStatusLabel(project.status)}
+                          </Badge>
+                        </td>
+                        <td className="py-3 px-3 text-muted-foreground text-xs" data-testid={`text-created-${project.id}`}>
+                          {project.createdAt ? new Date(project.createdAt).toLocaleDateString() : ""}
+                        </td>
+                        <td className="py-3 px-3 text-muted-foreground text-xs max-w-[200px] truncate" data-testid={`text-notes-${project.id}`}>
+                          {project.notes || "-"}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
