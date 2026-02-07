@@ -1,4 +1,5 @@
-import type { PlanParserScope } from "@shared/schema";
+import type { PlanParserScope, ScopeDictionary } from "@shared/schema";
+import { getAllScopeDictionaries } from "../scopeDictionaryStorage";
 
 export interface ScopeConfig {
   name: PlanParserScope;
@@ -136,3 +137,29 @@ export const DEFAULT_CLASSIFICATION_CONFIG: ClassificationConfig = {
   scheduleBoostMultiplier: 1.5,
   minConfidenceThreshold: 25
 };
+
+export async function getClassificationConfigFromDB(): Promise<ClassificationConfig> {
+  try {
+    const dictionaries = await getAllScopeDictionaries();
+    const activeDicts = dictionaries.filter(d => d.isActive);
+
+    if (activeDicts.length === 0) {
+      return DEFAULT_CLASSIFICATION_CONFIG;
+    }
+
+    const scopes: ScopeConfig[] = activeDicts.map((dict) => ({
+      name: dict.scopeName as PlanParserScope,
+      includeKeywords: dict.includeKeywords || [],
+      boostPhrases: dict.boostPhrases || [],
+      weight: (dict.weight ?? 100) / 100,
+    }));
+
+    return {
+      ...DEFAULT_CLASSIFICATION_CONFIG,
+      scopes,
+    };
+  } catch (err) {
+    console.error("Failed to load scope dictionaries from DB, using defaults:", err);
+    return DEFAULT_CLASSIFICATION_CONFIG;
+  }
+}

@@ -4,9 +4,11 @@
 
 AiPM Tool Belt is a suite of construction document processing tools. The main landing page (`/`) displays a modern tile-based menu where users can select from available tools. Currently includes:
 
+- **Project Start** (`/project-start`): Unified project creation workflow. Upload both plans and specs PDFs, select a region code, and the system automatically creates a project folder structure, routes specs to SpecSift, and plans to Plan Parser. After SpecSift extracts scopes, users can confirm/deselect scopes on the project detail page (`/projects/:id`) before a spec-informed second pass of Plan Parser.
+
 - **SpecSift** (`/specsift`): Extracts Division 10 specifications from PDF files, parses section numbers/titles/content for toilet accessories, partitions, lockers, and more. Users upload PDFs, review extracted sections, edit titles, and export organized PDF packets.
 
-- **Plan Parser** (`/planparser`): OCR-based Division 10 page classifier for construction plan PDFs. Automatically identifies and classifies pages into 9 scope categories (Toilet Accessories, Toilet Partitions, Wall Protection, Fire Extinguisher Cabinets, Cubicle Curtains, Visual Display, Lockers, Shelving, Other Div10). Features signage exclusion (60% threshold) and millwork filtering for shelving scope.
+- **Plan Parser** (`/planparser`): OCR-based Division 10 page classifier for construction plan PDFs. Automatically identifies and classifies pages into 9 scope categories (Toilet Accessories, Toilet Partitions, Wall Protection, Fire Extinguisher Cabinets, Cubicle Curtains, Visual Display, Lockers, Shelving, Other Div10). Features signage exclusion (60% threshold) and millwork filtering for shelving scope. Now reads scope keywords from database (Scope Dictionaries) with fallback to hardcoded defaults.
 
 - **Quote Parser** (`/quoteparser`): Parses vendor quotes (PDF/image/text) into structured estimate tables. Features:
   - Dual upload panels for vendor quote (required) and schedule reference (optional)
@@ -35,8 +37,20 @@ Major overhaul of PDF parsing engine based on proven Division 10 Spec Extractor 
 - **Equipment Reference Rejection**: Rejects patterns like "10 1400-11" which are product numbers, not section numbers
 - **Per-Page Text Array**: PDF extraction returns individual page text for accurate zone-based analysis
 
+### Project Start System
+- **Project Start Page** (`/project-start`): Form with region selector, project name, due date, and dual PDF upload zones (plans + specs)
+- **Project Detail Page** (`/projects/:id`): Shows project status, links to SpecSift and Plan Parser results, scope toggle list
+- **Project ID Generator**: Transaction-safe YY-#### format (e.g., 26-0001) using database sequence table
+- **Folder Structure**: Creates `{REGION} - {ProjectName}/` with subfolders: Plans/Original, Plans/Processed, Specs/Original, Specs/Processed, Vendor/Specs Extracts, Vendor/Plan Pages by Scope
+- **Automatic Routing**: Specs PDF routes to SpecSift, Plans PDF routes to Plan Parser simultaneously
+- **Scope Dictionaries**: DB-backed keyword dictionaries for Plan Parser classification, editable in Settings without code changes
+- **Regions Management**: Airport codes / region identifiers (LAX, DFW, ORD) used in project naming, managed in Settings
+- **Homepage Updates**: Project Start tile added, Recent Projects section shows created projects with status badges
+
 ### Central Settings Hub
 - **Settings Page** (`/settings`): Central admin area for all AiPM tools, accessible via footer link on homepage
+- **Scope Dictionaries Tab**: View/add/edit/delete scope dictionaries with include keywords, boost phrases, exclude keywords, weights, spec section numbers
+- **Regions Tab**: Manage airport codes / region identifiers used in Project Start naming
 - **Vendor Profiles**: Manage vendor information, quote patterns, and model prefixes for better quote parsing
   - Add/edit/delete vendors with name, short name, model prefixes, quote identification patterns
   - Contact info (email, phone, website) and notes

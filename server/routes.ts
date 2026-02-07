@@ -14,6 +14,7 @@ import os from "os";
 import { registerPlanParserRoutes } from "./planparser/routes";
 import { registerQuoteParserRoutes } from "./quoteparser/routes";
 import { registerCentralSettingsRoutes } from "./centralSettingsRoutes";
+import { registerProjectRoutes } from "./projectRoutes";
 import { 
   getActiveConfig, 
   getAllConfigVersions, 
@@ -47,6 +48,7 @@ export async function registerRoutes(
   registerPlanParserRoutes(app);
   registerQuoteParserRoutes(app);
   registerCentralSettingsRoutes(app);
+  registerProjectRoutes(app);
   
   app.post("/api/upload", upload.single("file"), async (req: Request, res: Response) => {
     try {

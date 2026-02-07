@@ -1,6 +1,9 @@
 import { Link } from "wouter";
-import { FileSearch, ScanSearch, Wrench, Receipt, Settings } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { FileSearch, ScanSearch, Wrench, Receipt, Settings, FolderPlus, ChevronRight, Clock } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import type { Project } from "@shared/schema";
 
 interface ToolTile {
   id: string;
@@ -12,6 +15,14 @@ interface ToolTile {
 }
 
 const tools: ToolTile[] = [
+  {
+    id: "projectstart",
+    title: "Project Start",
+    description: "Create a new project with plans and specs, route through SpecSift and Plan Parser",
+    icon: FolderPlus,
+    href: "/project-start",
+    available: true,
+  },
   {
     id: "specsift",
     title: "SpecSift",
@@ -36,20 +47,20 @@ const tools: ToolTile[] = [
     href: "/quoteparser",
     available: true,
   },
-  {
-    id: "tool4",
-    title: "Coming Soon",
-    description: "Additional tools for your team will appear here",
-    icon: Wrench,
-    href: "#",
-    available: false,
-  },
 ];
 
 export default function HomePage() {
+  const { data: projects = [] } = useQuery<Project[]>({
+    queryKey: ["/api/projects"],
+  });
+
+  const recentProjects = projects
+    .sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime())
+    .slice(0, 5);
+
   return (
     <div className="min-h-[calc(100vh-4rem)] flex flex-col">
-      <div className="flex-1 flex flex-col items-center justify-center px-6 py-12">
+      <div className="flex-1 flex flex-col items-center px-6 py-12">
         <div className="text-center mb-12">
           <h1 className="text-4xl font-light tracking-tight text-foreground mb-3">
             AiPM Tool Belt
@@ -64,6 +75,47 @@ export default function HomePage() {
             <ToolCard key={tool.id} tool={tool} />
           ))}
         </div>
+
+        {recentProjects.length > 0 && (
+          <div className="mt-12 max-w-5xl w-full">
+            <h2 className="text-lg font-medium text-foreground mb-4">Recent Projects</h2>
+            <div className="space-y-2">
+              {recentProjects.map((project) => (
+                <Link
+                  key={project.id}
+                  href={`/projects/${project.id}`}
+                  className="block"
+                  data-testid={`link-project-${project.id}`}
+                >
+                  <div className="flex items-center justify-between gap-4 p-3 rounded-lg border bg-card hover-elevate">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <Badge variant="outline" className="font-mono shrink-0">
+                        {project.projectId}
+                      </Badge>
+                      <span className="text-sm font-medium truncate" data-testid={`text-project-name-${project.id}`}>
+                        {project.projectName}
+                      </span>
+                      {project.regionCode && (
+                        <Badge variant="secondary" className="text-xs shrink-0">
+                          {project.regionCode}
+                        </Badge>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <Badge
+                        variant={project.status?.includes("error") ? "destructive" : "outline"}
+                        className="text-xs"
+                      >
+                        {project.status?.replace(/_/g, " ") || "created"}
+                      </Badge>
+                      <ChevronRight className="w-4 h-4 text-muted-foreground" />
+                    </div>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       <footer className="flex items-center justify-center gap-4 py-6">

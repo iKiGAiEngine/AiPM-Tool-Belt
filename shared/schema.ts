@@ -439,3 +439,168 @@ export const insertSpecialLineRuleSchema = createInsertSchema(specialLineRules).
   createdAt: true,
 });
 export type InsertSpecialLineRuleInput = z.infer<typeof insertSpecialLineRuleSchema>;
+
+// =====================================================
+// SCOPE DICTIONARIES - Editable keywords per scope type
+// =====================================================
+
+export const scopeDictionaries = pgTable("scope_dictionaries", {
+  id: serial("id").primaryKey(),
+  scopeName: varchar("scope_name", { length: 100 }).notNull(),
+  includeKeywords: jsonb("include_keywords").notNull().$type<string[]>().default([]),
+  boostPhrases: jsonb("boost_phrases").notNull().$type<string[]>().default([]),
+  excludeKeywords: jsonb("exclude_keywords").notNull().$type<string[]>().default([]),
+  weight: integer("weight").notNull().default(100),
+  specSectionNumbers: jsonb("spec_section_numbers").notNull().$type<string[]>().default([]),
+  isActive: boolean("is_active").notNull().default(true),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export type ScopeDictionary = typeof scopeDictionaries.$inferSelect;
+export type InsertScopeDictionary = typeof scopeDictionaries.$inferInsert;
+
+export const insertScopeDictionarySchema = createInsertSchema(scopeDictionaries).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type InsertScopeDictionaryInput = z.infer<typeof insertScopeDictionarySchema>;
+
+// =====================================================
+// REGIONS - Airport codes / region names
+// =====================================================
+
+export const regions = pgTable("regions", {
+  id: serial("id").primaryKey(),
+  code: varchar("code", { length: 20 }).notNull(),
+  name: varchar("name", { length: 200 }),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export type Region = typeof regions.$inferSelect;
+export type InsertRegion = typeof regions.$inferInsert;
+
+export const insertRegionSchema = createInsertSchema(regions).omit({
+  id: true,
+  createdAt: true,
+});
+export type InsertRegionInput = z.infer<typeof insertRegionSchema>;
+
+// =====================================================
+// PROJECT ID SEQUENCE - Transaction-safe YY-#### IDs
+// =====================================================
+
+export const projectIdSequence = pgTable("project_id_sequence", {
+  id: serial("id").primaryKey(),
+  year: integer("year").notNull(),
+  lastSequence: integer("last_sequence").notNull().default(0),
+});
+
+// =====================================================
+// PROJECTS - Main project records
+// =====================================================
+
+export const projectStatusSchema = z.enum([
+  "created",
+  "plans_uploaded",
+  "specs_uploaded",
+  "specsift_running",
+  "specsift_complete",
+  "specsift_error",
+  "planparser_baseline_running",
+  "planparser_baseline_complete",
+  "planparser_baseline_error",
+  "scopes_selected",
+  "planparser_specpass_running",
+  "planparser_specpass_complete",
+  "planparser_specpass_error",
+  "outputs_ready",
+]);
+export type ProjectStatus = z.infer<typeof projectStatusSchema>;
+
+export const projects = pgTable("projects", {
+  id: serial("id").primaryKey(),
+  projectId: varchar("project_id", { length: 20 }).notNull(),
+  projectName: varchar("project_name", { length: 500 }).notNull(),
+  regionCode: varchar("region_code", { length: 20 }).notNull(),
+  dueDate: varchar("due_date", { length: 20 }).notNull(),
+  status: varchar("status", { length: 50 }).notNull().default("created"),
+  specsiftSessionId: varchar("specsift_session_id", { length: 100 }),
+  planparserJobId: varchar("planparser_job_id", { length: 100 }),
+  folderPath: varchar("folder_path", { length: 1000 }),
+  plansFilename: varchar("plans_filename", { length: 500 }),
+  specsFilename: varchar("specs_filename", { length: 500 }),
+  notes: text("notes"),
+  createdBy: varchar("created_by", { length: 100 }).default("admin"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export type Project = typeof projects.$inferSelect;
+export type InsertProject = typeof projects.$inferInsert;
+
+export const insertProjectSchema = createInsertSchema(projects).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type InsertProjectInput = z.infer<typeof insertProjectSchema>;
+
+// =====================================================
+// PROJECT SCOPES - Selected scopes from SpecSift
+// =====================================================
+
+export const projectScopes = pgTable("project_scopes", {
+  id: serial("id").primaryKey(),
+  projectId: integer("project_id").notNull(),
+  scopeType: varchar("scope_type", { length: 100 }).notNull(),
+  specSectionNumber: varchar("spec_section_number", { length: 50 }),
+  specSectionTitle: varchar("spec_section_title", { length: 500 }),
+  keyRequirements: jsonb("key_requirements").$type<string[]>().default([]),
+  manufacturers: jsonb("manufacturers").$type<string[]>().default([]),
+  modelNumbers: jsonb("model_numbers").$type<string[]>().default([]),
+  materials: jsonb("materials").$type<string[]>().default([]),
+  keywords: jsonb("keywords").$type<string[]>().default([]),
+  confidenceScore: integer("confidence_score").default(0),
+  isSelected: boolean("is_selected").notNull().default(false),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export type ProjectScope = typeof projectScopes.$inferSelect;
+export type InsertProjectScope = typeof projectScopes.$inferInsert;
+
+export const insertProjectScopeSchema = createInsertSchema(projectScopes).omit({
+  id: true,
+  createdAt: true,
+});
+export type InsertProjectScopeInput = z.infer<typeof insertProjectScopeSchema>;
+
+// =====================================================
+// PLAN INDEX - Sheet-level index of plan pages
+// =====================================================
+
+export const planIndex = pgTable("plan_index", {
+  id: serial("id").primaryKey(),
+  projectId: integer("project_id").notNull(),
+  jobId: varchar("job_id", { length: 100 }).notNull(),
+  sheetNumber: varchar("sheet_number", { length: 50 }),
+  sheetTitle: varchar("sheet_title", { length: 500 }),
+  pageNumber: integer("page_number").notNull(),
+  inferredCategory: varchar("inferred_category", { length: 100 }),
+  confidence: integer("confidence").default(0),
+  isRelevant: boolean("is_relevant").default(false),
+  scopeType: varchar("scope_type", { length: 100 }),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export type PlanIndexEntry = typeof planIndex.$inferSelect;
+export type InsertPlanIndexEntry = typeof planIndex.$inferInsert;
+
+export const insertPlanIndexSchema = createInsertSchema(planIndex).omit({
+  id: true,
+  createdAt: true,
+});
+export type InsertPlanIndexInput = z.infer<typeof insertPlanIndexSchema>;

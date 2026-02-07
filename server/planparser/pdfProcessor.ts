@@ -5,6 +5,7 @@ import fs from "fs";
 import path from "path";
 import { planParserStorage } from "./storage";
 import { classifyPage } from "./classifier";
+import { getClassificationConfigFromDB } from "./classificationConfig";
 import type { PlanParserJob, ParsedPage, PlanParserScope } from "@shared/schema";
 import { PLAN_PARSER_SCOPES } from "@shared/schema";
 
@@ -108,6 +109,8 @@ export async function processJob(
     PLAN_PARSER_SCOPES.forEach(scope => {
       scopeCounts[scope] = 0;
     });
+
+    const classificationConfig = await getClassificationConfigFromDB();
     
     for (const { filename, doc } of pdfDocs) {
       for (let pageNum = 1; pageNum <= doc.numPages; pageNum++) {
@@ -133,7 +136,7 @@ export async function processJob(
             fs.writeFileSync(thumbnailPath, thumbnailBuffer);
           }
           
-          const classification = classifyPage(ocrText);
+          const classification = classifyPage(ocrText, classificationConfig);
           
           const ocrSnippet = ocrText.substring(0, 500).trim();
           

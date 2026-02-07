@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { ArrowLeft, Building2, Package, Plus, Pencil, Trash2, Search, X } from "lucide-react";
+import { ArrowLeft, Building2, Package, Plus, Pencil, Trash2, Search, X, BookOpen, MapPin } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -13,8 +13,8 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
-import type { Vendor, Div10Product } from "@shared/schema";
-import { DIV10_SCOPE_CATEGORIES } from "@shared/schema";
+import type { Vendor, Div10Product, ScopeDictionary, Region } from "@shared/schema";
+import { DIV10_SCOPE_CATEGORIES, PLAN_PARSER_SCOPES } from "@shared/schema";
 
 export default function CentralSettingsPage() {
   const [activeTab, setActiveTab] = useState("vendors");
@@ -29,19 +29,27 @@ export default function CentralSettingsPage() {
         </Link>
         <div>
           <h1 className="text-2xl font-semibold text-foreground">Settings</h1>
-          <p className="text-muted-foreground">Manage vendors and product dictionary</p>
+          <p className="text-muted-foreground">Manage vendors, products, scope dictionaries, and regions</p>
         </div>
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        <TabsList className="grid w-full grid-cols-2 max-w-md">
+        <TabsList className="grid w-full grid-cols-4 max-w-2xl">
           <TabsTrigger value="vendors" className="gap-2" data-testid="tab-vendors">
             <Building2 className="w-4 h-4" />
-            Vendor Profiles
+            Vendors
           </TabsTrigger>
           <TabsTrigger value="products" className="gap-2" data-testid="tab-products">
             <Package className="w-4 h-4" />
-            Product Dictionary
+            Products
+          </TabsTrigger>
+          <TabsTrigger value="scopes" className="gap-2" data-testid="tab-scopes">
+            <BookOpen className="w-4 h-4" />
+            Scope Dictionaries
+          </TabsTrigger>
+          <TabsTrigger value="regions" className="gap-2" data-testid="tab-regions">
+            <MapPin className="w-4 h-4" />
+            Regions
           </TabsTrigger>
         </TabsList>
 
@@ -51,6 +59,14 @@ export default function CentralSettingsPage() {
 
         <TabsContent value="products">
           <ProductSection />
+        </TabsContent>
+
+        <TabsContent value="scopes">
+          <ScopeDictionarySection />
+        </TabsContent>
+
+        <TabsContent value="regions">
+          <RegionSection />
         </TabsContent>
       </Tabs>
     </div>
@@ -762,6 +778,587 @@ function ProductDialog({ open, onOpenChange, product, vendors, mode }: ProductDi
             data-testid="button-save-product"
           >
             {mode === "add" ? "Add Product" : "Save Changes"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function ScopeDictionarySection() {
+  const { toast } = useToast();
+  const [editingScope, setEditingScope] = useState<ScopeDictionary | null>(null);
+  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+
+  const { data: dictionaries = [], isLoading } = useQuery<ScopeDictionary[]>({
+    queryKey: ["/api/scope-dictionaries"],
+  });
+
+  const seedMutation = useMutation({
+    mutationFn: async () => {
+      await apiRequest("POST", "/api/scope-dictionaries/seed");
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/scope-dictionaries"] });
+      toast({ title: "Default scope dictionaries loaded" });
+    },
+    onError: () => {
+      toast({ title: "Failed to seed defaults", variant: "destructive" });
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: number) => {
+      await apiRequest("DELETE", `/api/scope-dictionaries/${id}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/scope-dictionaries"] });
+      toast({ title: "Scope dictionary deleted" });
+    },
+    onError: () => {
+      toast({ title: "Failed to delete", variant: "destructive" });
+    },
+  });
+
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-center justify-between gap-4 flex-wrap">
+          <div>
+            <CardTitle>Scope Dictionaries</CardTitle>
+            <CardDescription>
+              Manage keywords per scope type for Plan Parser and SpecSift relevance scoring
+            </CardDescription>
+          </div>
+          <div className="flex items-center gap-2">
+            {dictionaries.length === 0 && (
+              <Button
+                variant="outline"
+                onClick={() => seedMutation.mutate()}
+                disabled={seedMutation.isPending}
+                data-testid="button-seed-scopes"
+              >
+                Load Defaults
+              </Button>
+            )}
+            <Button onClick={() => setIsAddDialogOpen(true)} data-testid="button-add-scope">
+              <Plus className="w-4 h-4 mr-2" />
+              Add Scope
+            </Button>
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent>
+        {isLoading ? (
+          <div className="text-center py-8 text-muted-foreground">Loading scope dictionaries...</div>
+        ) : dictionaries.length === 0 ? (
+          <div className="text-center py-8 text-muted-foreground">
+            No scope dictionaries configured. Click 'Load Defaults' to populate from built-in keywords, or add custom scopes.
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {dictionaries.map((dict) => (
+              <div
+                key={dict.id}
+                className="flex items-start justify-between gap-4 p-4 rounded-lg border bg-card"
+                data-testid={`scope-row-${dict.id}`}
+              >
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="font-medium">{dict.scopeName}</span>
+                    <Badge variant="secondary">Weight: {dict.weight}%</Badge>
+                    {!dict.isActive && (
+                      <Badge variant="outline" className="text-muted-foreground">Inactive</Badge>
+                    )}
+                  </div>
+                  <div className="mt-2 flex flex-wrap gap-1">
+                    {(dict.includeKeywords || []).slice(0, 8).map((kw, i) => (
+                      <Badge key={i} variant="outline" className="text-xs font-normal">{kw}</Badge>
+                    ))}
+                    {(dict.includeKeywords || []).length > 8 && (
+                      <Badge variant="outline" className="text-xs font-normal text-muted-foreground">
+                        +{(dict.includeKeywords || []).length - 8} more
+                      </Badge>
+                    )}
+                  </div>
+                  {(dict.boostPhrases || []).length > 0 && (
+                    <div className="mt-1 flex flex-wrap gap-1">
+                      <span className="text-xs text-muted-foreground mr-1">Boost:</span>
+                      {(dict.boostPhrases || []).map((bp, i) => (
+                        <Badge key={i} variant="secondary" className="text-xs font-normal">{bp}</Badge>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => setEditingScope(dict)}
+                    data-testid={`button-edit-scope-${dict.id}`}
+                  >
+                    <Pencil className="w-4 h-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => {
+                      if (confirm("Delete this scope dictionary?")) {
+                        deleteMutation.mutate(dict.id);
+                      }
+                    }}
+                    data-testid={`button-delete-scope-${dict.id}`}
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </CardContent>
+
+      <ScopeDictionaryDialog
+        open={isAddDialogOpen}
+        onOpenChange={setIsAddDialogOpen}
+        scopeDict={null}
+        mode="add"
+      />
+
+      {editingScope && (
+        <ScopeDictionaryDialog
+          open={!!editingScope}
+          onOpenChange={(open) => !open && setEditingScope(null)}
+          scopeDict={editingScope}
+          mode="edit"
+        />
+      )}
+    </Card>
+  );
+}
+
+interface ScopeDictionaryDialogProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  scopeDict: ScopeDictionary | null;
+  mode: "add" | "edit";
+}
+
+function ScopeDictionaryDialog({ open, onOpenChange, scopeDict, mode }: ScopeDictionaryDialogProps) {
+  const { toast } = useToast();
+  const [scopeName, setScopeName] = useState(scopeDict?.scopeName ?? "");
+  const [includeKeywords, setIncludeKeywords] = useState((scopeDict?.includeKeywords || []).join(", "));
+  const [boostPhrases, setBoostPhrases] = useState((scopeDict?.boostPhrases || []).join(", "));
+  const [excludeKeywords, setExcludeKeywords] = useState((scopeDict?.excludeKeywords || []).join(", "));
+  const [weight, setWeight] = useState(scopeDict?.weight?.toString() ?? "100");
+  const [specSectionNumbers, setSpecSectionNumbers] = useState((scopeDict?.specSectionNumbers || []).join(", "));
+  const [isActive, setIsActive] = useState(scopeDict?.isActive ?? true);
+
+  const createMutation = useMutation({
+    mutationFn: async (data: any) => {
+      await apiRequest("POST", "/api/scope-dictionaries", data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/scope-dictionaries"] });
+      toast({ title: "Scope dictionary created" });
+      onOpenChange(false);
+    },
+    onError: () => {
+      toast({ title: "Failed to create scope dictionary", variant: "destructive" });
+    },
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: async (data: any) => {
+      await apiRequest("PUT", `/api/scope-dictionaries/${scopeDict?.id}`, data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/scope-dictionaries"] });
+      toast({ title: "Scope dictionary updated" });
+      onOpenChange(false);
+    },
+    onError: () => {
+      toast({ title: "Failed to update scope dictionary", variant: "destructive" });
+    },
+  });
+
+  const handleSubmit = () => {
+    const data = {
+      scopeName,
+      includeKeywords: includeKeywords.split(",").map((s) => s.trim()).filter(Boolean),
+      boostPhrases: boostPhrases.split(",").map((s) => s.trim()).filter(Boolean),
+      excludeKeywords: excludeKeywords.split(",").map((s) => s.trim()).filter(Boolean),
+      weight: parseInt(weight) || 100,
+      specSectionNumbers: specSectionNumbers.split(",").map((s) => s.trim()).filter(Boolean),
+      isActive,
+    };
+
+    if (mode === "add") {
+      createMutation.mutate(data);
+    } else {
+      updateMutation.mutate(data);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>{mode === "add" ? "Add Scope Dictionary" : "Edit Scope Dictionary"}</DialogTitle>
+          <DialogDescription>
+            Define keywords and boost phrases used by Plan Parser and SpecSift for relevance scoring
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-4">
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="scopeName">Scope Name *</Label>
+              {mode === "add" ? (
+                <Select value={scopeName} onValueChange={setScopeName}>
+                  <SelectTrigger data-testid="select-scope-name">
+                    <SelectValue placeholder="Select scope" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {PLAN_PARSER_SCOPES.map((scope) => (
+                      <SelectItem key={scope} value={scope}>{scope}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              ) : (
+                <Input
+                  id="scopeName"
+                  value={scopeName}
+                  disabled
+                  data-testid="input-scope-name"
+                />
+              )}
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="weight">Weight (%)</Label>
+              <Input
+                id="weight"
+                type="number"
+                min="1"
+                max="200"
+                value={weight}
+                onChange={(e) => setWeight(e.target.value)}
+                data-testid="input-scope-weight"
+              />
+              <p className="text-xs text-muted-foreground">100 = normal, 50 = half weight, 150 = boosted</p>
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="includeKeywords">Include Keywords (comma-separated)</Label>
+            <Textarea
+              id="includeKeywords"
+              value={includeKeywords}
+              onChange={(e) => setIncludeKeywords(e.target.value)}
+              placeholder="toilet accessories, grab bar, soap dispenser, paper towel..."
+              rows={4}
+              data-testid="input-include-keywords"
+            />
+            <p className="text-xs text-muted-foreground">
+              Keywords that indicate a page belongs to this scope
+            </p>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="boostPhrases">Boost Phrases (comma-separated)</Label>
+            <Textarea
+              id="boostPhrases"
+              value={boostPhrases}
+              onChange={(e) => setBoostPhrases(e.target.value)}
+              placeholder="toilet accessory schedule, restroom accessory..."
+              rows={2}
+              data-testid="input-boost-phrases"
+            />
+            <p className="text-xs text-muted-foreground">
+              Phrases that strongly confirm this scope (double weight)
+            </p>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="excludeKeywords">Exclude Keywords (comma-separated)</Label>
+            <Textarea
+              id="excludeKeywords"
+              value={excludeKeywords}
+              onChange={(e) => setExcludeKeywords(e.target.value)}
+              placeholder="signage, wayfinding, room sign..."
+              rows={2}
+              data-testid="input-exclude-keywords"
+            />
+            <p className="text-xs text-muted-foreground">
+              Keywords that should reduce confidence for this scope
+            </p>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="specSectionNumbers">Spec Section Numbers (comma-separated)</Label>
+            <Input
+              id="specSectionNumbers"
+              value={specSectionNumbers}
+              onChange={(e) => setSpecSectionNumbers(e.target.value)}
+              placeholder="10 28, 102800"
+              data-testid="input-spec-sections"
+            />
+            <p className="text-xs text-muted-foreground">
+              CSI section numbers associated with this scope
+            </p>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              id="isActive"
+              checked={isActive}
+              onChange={(e) => setIsActive(e.target.checked)}
+              className="rounded"
+              data-testid="checkbox-scope-active"
+            />
+            <Label htmlFor="isActive">Active</Label>
+          </div>
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
+            Cancel
+          </Button>
+          <Button
+            onClick={handleSubmit}
+            disabled={!scopeName || createMutation.isPending || updateMutation.isPending}
+            data-testid="button-save-scope"
+          >
+            {mode === "add" ? "Add Scope" : "Save Changes"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function RegionSection() {
+  const { toast } = useToast();
+  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+  const [editingRegion, setEditingRegion] = useState<Region | null>(null);
+  const [newCode, setNewCode] = useState("");
+  const [newName, setNewName] = useState("");
+
+  const { data: allRegions = [], isLoading } = useQuery<Region[]>({
+    queryKey: ["/api/regions"],
+  });
+
+  const createMutation = useMutation({
+    mutationFn: async (data: { code: string; name: string }) => {
+      await apiRequest("POST", "/api/regions", data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/regions"] });
+      toast({ title: "Region added" });
+      setNewCode("");
+      setNewName("");
+      setIsAddDialogOpen(false);
+    },
+    onError: () => {
+      toast({ title: "Failed to add region", variant: "destructive" });
+    },
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: number; data: any }) => {
+      await apiRequest("PUT", `/api/regions/${id}`, data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/regions"] });
+      toast({ title: "Region updated" });
+      setEditingRegion(null);
+    },
+    onError: () => {
+      toast({ title: "Failed to update region", variant: "destructive" });
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: number) => {
+      await apiRequest("DELETE", `/api/regions/${id}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/regions"] });
+      toast({ title: "Region deleted" });
+    },
+    onError: () => {
+      toast({ title: "Failed to delete region", variant: "destructive" });
+    },
+  });
+
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <CardTitle>Regions / Airport Codes</CardTitle>
+            <CardDescription>
+              Manage region codes used in project naming (e.g., LAX, DFW, ORD)
+            </CardDescription>
+          </div>
+          <Button onClick={() => setIsAddDialogOpen(true)} data-testid="button-add-region">
+            <Plus className="w-4 h-4 mr-2" />
+            Add Region
+          </Button>
+        </div>
+      </CardHeader>
+      <CardContent>
+        {isLoading ? (
+          <div className="text-center py-8 text-muted-foreground">Loading regions...</div>
+        ) : allRegions.length === 0 ? (
+          <div className="text-center py-8 text-muted-foreground">
+            No regions added yet. Add airport codes or region identifiers for project naming.
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {allRegions.map((region) => (
+              <div
+                key={region.id}
+                className="flex items-center justify-between p-3 rounded-lg border bg-card"
+                data-testid={`region-row-${region.id}`}
+              >
+                <div className="flex items-center gap-2">
+                  <span className="font-mono font-medium">{region.code}</span>
+                  {region.name && (
+                    <span className="text-sm text-muted-foreground">{region.name}</span>
+                  )}
+                </div>
+                <div className="flex items-center gap-1">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => setEditingRegion(region)}
+                    data-testid={`button-edit-region-${region.id}`}
+                  >
+                    <Pencil className="w-4 h-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => {
+                      if (confirm("Delete this region?")) {
+                        deleteMutation.mutate(region.id);
+                      }
+                    }}
+                    data-testid={`button-delete-region-${region.id}`}
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </CardContent>
+
+      <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Add Region</DialogTitle>
+            <DialogDescription>Add an airport code or region identifier</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="regionCode">Code *</Label>
+              <Input
+                id="regionCode"
+                value={newCode}
+                onChange={(e) => setNewCode(e.target.value.toUpperCase())}
+                placeholder="LAX"
+                maxLength={20}
+                data-testid="input-region-code"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="regionName">Name</Label>
+              <Input
+                id="regionName"
+                value={newName}
+                onChange={(e) => setNewName(e.target.value)}
+                placeholder="Los Angeles International"
+                data-testid="input-region-name"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsAddDialogOpen(false)}>Cancel</Button>
+            <Button
+              onClick={() => createMutation.mutate({ code: newCode, name: newName })}
+              disabled={!newCode || createMutation.isPending}
+              data-testid="button-save-region"
+            >
+              Add Region
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {editingRegion && (
+        <RegionEditDialog
+          open={!!editingRegion}
+          onOpenChange={(open) => !open && setEditingRegion(null)}
+          region={editingRegion}
+          onSave={(data) => updateMutation.mutate({ id: editingRegion.id, data })}
+          isPending={updateMutation.isPending}
+        />
+      )}
+    </Card>
+  );
+}
+
+interface RegionEditDialogProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  region: Region;
+  onSave: (data: { code: string; name: string }) => void;
+  isPending: boolean;
+}
+
+function RegionEditDialog({ open, onOpenChange, region, onSave, isPending }: RegionEditDialogProps) {
+  const [code, setCode] = useState(region.code);
+  const [name, setName] = useState(region.name ?? "");
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-sm">
+        <DialogHeader>
+          <DialogTitle>Edit Region</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="editCode">Code *</Label>
+            <Input
+              id="editCode"
+              value={code}
+              onChange={(e) => setCode(e.target.value.toUpperCase())}
+              maxLength={20}
+              data-testid="input-edit-region-code"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="editName">Name</Label>
+            <Input
+              id="editName"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              data-testid="input-edit-region-name"
+            />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
+          <Button
+            onClick={() => onSave({ code, name })}
+            disabled={!code || isPending}
+            data-testid="button-save-edit-region"
+          >
+            Save Changes
           </Button>
         </DialogFooter>
       </DialogContent>
