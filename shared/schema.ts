@@ -604,3 +604,89 @@ export const insertPlanIndexSchema = createInsertSchema(planIndex).omit({
   createdAt: true,
 });
 export type InsertPlanIndexInput = z.infer<typeof insertPlanIndexSchema>;
+
+// =====================================================
+// SPECSIFT SESSIONS - Persistent session storage
+// =====================================================
+
+export const sessions = pgTable("sessions", {
+  id: varchar("id", { length: 100 }).primaryKey(),
+  filename: varchar("filename", { length: 500 }).notNull(),
+  projectName: varchar("project_name", { length: 500 }).notNull(),
+  status: varchar("status", { length: 50 }).notNull().default("idle"),
+  progress: integer("progress").notNull().default(0),
+  message: text("message").notNull().default(""),
+  createdAt: varchar("created_at", { length: 100 }).notNull(),
+});
+
+// =====================================================
+// EXTRACTED SECTIONS - Spec sections from SpecSift
+// =====================================================
+
+export const extractedSections = pgTable("extracted_sections", {
+  id: varchar("id", { length: 100 }).primaryKey(),
+  sessionId: varchar("session_id", { length: 100 }).notNull(),
+  sectionNumber: varchar("section_number", { length: 50 }).notNull(),
+  title: varchar("title", { length: 500 }).notNull(),
+  content: text("content"),
+  pageNumber: integer("page_number"),
+  startPage: integer("start_page"),
+  endPage: integer("end_page"),
+  manufacturers: jsonb("manufacturers").$type<string[]>().default([]),
+  modelNumbers: jsonb("model_numbers").$type<string[]>().default([]),
+  materials: jsonb("materials").$type<string[]>().default([]),
+  conflicts: jsonb("conflicts").$type<string[]>().default([]),
+  notes: jsonb("notes").$type<string[]>().default([]),
+  isEdited: boolean("is_edited").notNull().default(false),
+});
+
+// =====================================================
+// ACCESSORY MATCHES - Matched accessory scopes
+// =====================================================
+
+export const accessoryMatches = pgTable("accessory_matches", {
+  id: varchar("id", { length: 100 }).primaryKey(),
+  sessionId: varchar("session_id", { length: 100 }).notNull(),
+  scopeName: varchar("scope_name", { length: 200 }).notNull(),
+  matchedKeyword: varchar("matched_keyword", { length: 200 }).notNull(),
+  context: text("context").notNull(),
+  pageNumber: integer("page_number").notNull(),
+  sectionHint: varchar("section_hint", { length: 50 }).notNull(),
+});
+
+// =====================================================
+// PLAN PARSER JOBS - Persistent job storage
+// =====================================================
+
+export const planParserJobs = pgTable("plan_parser_jobs", {
+  id: varchar("id", { length: 100 }).primaryKey(),
+  status: varchar("status", { length: 50 }).notNull().default("pending"),
+  totalPages: integer("total_pages").notNull().default(0),
+  processedPages: integer("processed_pages").notNull().default(0),
+  flaggedPages: integer("flagged_pages").notNull().default(0),
+  filenames: jsonb("filenames").$type<string[]>().default([]),
+  message: text("message").notNull().default(""),
+  createdAt: varchar("created_at", { length: 100 }).notNull(),
+  expiresAt: varchar("expires_at", { length: 100 }).notNull(),
+  scopeCounts: jsonb("scope_counts").$type<Record<string, number>>().default({}),
+});
+
+// =====================================================
+// PARSED PAGES - Individual plan page results
+// =====================================================
+
+export const parsedPages = pgTable("parsed_pages", {
+  id: varchar("id", { length: 100 }).primaryKey(),
+  jobId: varchar("job_id", { length: 100 }).notNull(),
+  originalFilename: varchar("original_filename", { length: 500 }).notNull(),
+  pageNumber: integer("page_number").notNull(),
+  isRelevant: boolean("is_relevant").notNull().default(false),
+  tags: jsonb("tags").$type<string[]>().default([]),
+  confidence: integer("confidence").notNull().default(0),
+  whyFlagged: text("why_flagged").notNull().default(""),
+  signageOverrideApplied: boolean("signage_override_applied").notNull().default(false),
+  ocrSnippet: text("ocr_snippet").notNull().default(""),
+  ocrText: text("ocr_text").notNull().default(""),
+  thumbnailPath: varchar("thumbnail_path", { length: 500 }),
+  userModified: boolean("user_modified").notNull().default(false),
+});

@@ -4,7 +4,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import {
   ArrowLeft, Loader2, CheckCircle, AlertCircle, Clock,
   FileText, ScanSearch, FolderOpen, ToggleLeft, ToggleRight,
-  Play, Factory, Hash, Layers, ChevronDown, ChevronRight
+  Play, Factory, Hash, Layers, ChevronDown, ChevronRight, Download
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -48,6 +48,7 @@ export default function ProjectDetailPage() {
   const projectId = parseInt(params.id || "0");
   const { toast } = useToast();
   const [expandedScopes, setExpandedScopes] = useState<Set<number>>(new Set());
+  const [isExporting, setIsExporting] = useState(false);
 
   const { data: project, isLoading: projectLoading } = useQuery<Project>({
     queryKey: ["/api/projects", projectId],
@@ -143,11 +144,42 @@ export default function ProjectDetailPage() {
     );
   }
 
+  const handleExport = async () => {
+    setIsExporting(true);
+    try {
+      const response = await fetch(`/api/projects/${projectId}/export`);
+      if (!response.ok) {
+        const err = await response.json();
+        throw new Error(err.message || "Export failed");
+      }
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      const disposition = response.headers.get("Content-Disposition");
+      const filenameMatch = disposition?.match(/filename="(.+)"/);
+      a.download = filenameMatch?.[1] || `${project?.projectId}_Export.zip`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+      toast({ title: "Export downloaded" });
+    } catch (err: any) {
+      toast({ title: "Export failed", description: err.message, variant: "destructive" });
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
   const statusInfo = STATUS_MAP[project.status || "created"] || STATUS_MAP.created;
   const StatusIcon = statusInfo.icon;
   const isProcessing = isProcessingStatus(project.status);
   const selectedCount = scopes.filter(s => s.isSelected).length;
   const showSpecPassButton = canRunSpecPass(project.status) && scopes.length > 0;
+  const canExport = !!project.status && [
+    "outputs_ready", "planparser_baseline_complete", "planparser_specpass_error",
+    "specsift_complete"
+  ].includes(project.status);
 
   return (
     <div className="container max-w-4xl mx-auto py-8 px-4">
@@ -179,6 +211,20 @@ export default function ProjectDetailPage() {
             )}
           </div>
         </div>
+        {canExport && (
+          <Button
+            onClick={handleExport}
+            disabled={isExporting}
+            data-testid="button-export-project"
+          >
+            {isExporting ? (
+              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+            ) : (
+              <Download className="w-4 h-4 mr-2" />
+            )}
+            Export ZIP
+          </Button>
+        )}
       </div>
 
       {isProcessing && (

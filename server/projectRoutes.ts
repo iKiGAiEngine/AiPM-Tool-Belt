@@ -2,7 +2,9 @@ import type { Express, Request, Response } from "express";
 import multer from "multer";
 import fs from "fs";
 import path from "path";
-import { insertScopeDictionarySchema, insertRegionSchema } from "@shared/schema";
+import JSZip from "jszip";
+import { PDFDocument } from "pdf-lib";
+import { insertScopeDictionarySchema, insertRegionSchema, PLAN_PARSER_SCOPES } from "@shared/schema";
 import {
   getAllScopeDictionaries,
   getActiveScopeDictionaries,
@@ -427,6 +429,189 @@ export function registerProjectRoutes(app: Express) {
     } catch (error) {
       console.error("Spec-pass error:", error);
       res.status(500).json({ message: "Failed to start spec-informed pass" });
+    }
+  });
+
+  app.get("/api/projects/:id/export", async (req: Request, res: Response) => {
+    try {
+      const projectId = parseInt(req.params.id);
+      if (isNaN(projectId)) return res.status(400).json({ message: "Invalid project ID" });
+
+      const project = await getProjectById(projectId);
+      if (!project) return res.status(404).json({ message: "Project not found" });
+
+      const zip = new JSZip();
+      const projectName = sanitizeForWindows(project.projectName || "Project");
+      const rootFolder = `${project.regionCode} - ${projectName}`;
+
+      const scopes = await getProjectScopes(projectId);
+      const selectedScopes = scopes.filter(s => s.isSelected);
+
+      if (project.specsiftSessionId) {
+        const sections = await storage.getSectionsBySession(project.specsiftSessionId);
+        const pdfBuffer = await storage.getPdfBuffer(project.specsiftSessionId);
+
+        if (sections.length > 0 && pdfBuffer) {
+          let sourcePdf: PDFDocument;
+          try {
+            sourcePdf = await PDFDocument.load(pdfBuffer, { ignoreEncryption: true });
+          } catch {
+            sourcePdf = await PDFDocument.load(pdfBuffer);
+          }
+
+          for (const section of sections) {
+            const sStart = section.startPage ?? section.pageNumber;
+            if (sStart !== undefined) {
+              try {
+                const packet = await PDFDocument.create();
+                const totalPages = sourcePdf.getPageCount();
+                const start = Math.max(0, sStart - 1);
+                const end = Math.min(totalPages - 1, (section.endPage ?? sStart) - 1);
+
+                const pageIndices: number[] = [];
+                for (let i = start; i <= end; i++) {
+                  pageIndices.push(i);
+                }
+
+                if (pageIndices.length > 0) {
+                  const copiedPages = await packet.copyPages(sourcePdf, pageIndices);
+                  copiedPages.forEach(p => packet.addPage(p));
+                  const pdfBytes = await packet.save();
+                  const safeTitle = sanitizeForWindows(section.title);
+                  zip.file(
+                    `${rootFolder}/Specs Extracts/${section.sectionNumber} - ${safeTitle}.pdf`,
+                    pdfBytes
+                  );
+                }
+              } catch (err) {
+                console.error(`Failed to extract section ${section.sectionNumber}:`, err);
+              }
+            }
+          }
+        }
+
+        if (sections.length > 0) {
+          const summaryLines = sections.map(s => {
+            const mfrs = (s.manufacturers || []).join(", ");
+            const models = (s.modelNumbers || []).join(", ");
+            const mats = (s.materials || []).join(", ");
+            let line = `${s.sectionNumber} - ${s.title}`;
+            if (s.startPage) line += ` (Pages ${s.startPage}-${s.endPage || s.startPage})`;
+            if (mfrs) line += `\n  Manufacturers: ${mfrs}`;
+            if (models) line += `\n  Models: ${models}`;
+            if (mats) line += `\n  Materials: ${mats}`;
+            return line;
+          });
+          zip.file(
+            `${rootFolder}/Specs Extracts/_Spec_Summary.txt`,
+            `SpecSift Extraction Summary\nProject: ${project.projectName}\nProject ID: ${project.projectId}\nRegion: ${project.regionCode}\n\n${summaryLines.join("\n\n")}\n`
+          );
+        }
+      }
+
+      if (project.planparserJobId) {
+        const job = await planParserStorage.getJob(project.planparserJobId);
+        if (job && job.status === "complete") {
+          const pages = await planParserStorage.getPagesByJob(project.planparserJobId);
+          const relevantPages = pages.filter(p => p.isRelevant);
+
+          if (relevantPages.length > 0) {
+            const jobDir = planParserStorage.getJobDirectory(project.planparserJobId);
+            const pdfsDir = path.join(jobDir, "pdfs");
+
+            if (fs.existsSync(pdfsDir)) {
+              const pagesByScope: Record<string, { filename: string; pageNumber: number }[]> = {};
+
+              for (const page of relevantPages) {
+                for (const tag of page.tags) {
+                  if (!pagesByScope[tag]) pagesByScope[tag] = [];
+                  pagesByScope[tag].push({
+                    filename: page.originalFilename,
+                    pageNumber: page.pageNumber,
+                  });
+                }
+              }
+
+              const pdfCache: Record<string, PDFDocument> = {};
+              const loadPdf = async (filename: string): Promise<PDFDocument | null> => {
+                if (pdfCache[filename]) return pdfCache[filename];
+                const pdfPath = path.join(pdfsDir, filename);
+                if (!fs.existsSync(pdfPath)) return null;
+                try {
+                  const pdfBytes = fs.readFileSync(pdfPath);
+                  const doc = await PDFDocument.load(pdfBytes, { ignoreEncryption: true });
+                  pdfCache[filename] = doc;
+                  return doc;
+                } catch {
+                  return null;
+                }
+              };
+
+              for (const [scope, scopePages] of Object.entries(pagesByScope)) {
+                if (scopePages.length === 0) continue;
+                try {
+                  const scopePdf = await PDFDocument.create();
+                  const sorted = scopePages.sort((a, b) => a.pageNumber - b.pageNumber);
+
+                  for (const sp of sorted) {
+                    const srcDoc = await loadPdf(sp.filename);
+                    if (!srcDoc) continue;
+                    const pageIdx = sp.pageNumber - 1;
+                    if (pageIdx < 0 || pageIdx >= srcDoc.getPageCount()) continue;
+                    const [copied] = await scopePdf.copyPages(srcDoc, [pageIdx]);
+                    scopePdf.addPage(copied);
+                  }
+
+                  if (scopePdf.getPageCount() > 0) {
+                    const pdfBytes = await scopePdf.save();
+                    const safeScope = sanitizeForWindows(scope);
+                    zip.file(
+                      `${rootFolder}/Plan Pages by Scope/${safeScope}.pdf`,
+                      pdfBytes
+                    );
+                  }
+                } catch (err) {
+                  console.error(`Failed to build scope PDF for ${scope}:`, err);
+                }
+              }
+            }
+
+            const planSummaryLines = [`Plan Parser Results`, `Total Pages: ${job.totalPages}`, `Relevant Pages: ${relevantPages.length}`, ``];
+            const scopeCounts = job.scopeCounts || {};
+            for (const [scope, count] of Object.entries(scopeCounts)) {
+              if (count > 0) planSummaryLines.push(`  ${scope}: ${count} page${count !== 1 ? "s" : ""}`);
+            }
+            zip.file(
+              `${rootFolder}/Plan Pages by Scope/_Plan_Summary.txt`,
+              planSummaryLines.join("\n") + "\n"
+            );
+          }
+        }
+      }
+
+      const projectSummary = [
+        `Project Export Summary`,
+        `Project: ${project.projectName}`,
+        `Project ID: ${project.projectId}`,
+        `Region: ${project.regionCode}`,
+        `Due Date: ${project.dueDate}`,
+        `Status: ${project.status}`,
+        `Created: ${project.createdAt}`,
+        ``,
+        `Scopes (${selectedScopes.length} selected):`,
+        ...selectedScopes.map(s => `  - ${s.specSectionNumber || ""} ${s.scopeType}`),
+      ];
+      zip.file(`${rootFolder}/_Project_Summary.txt`, projectSummary.join("\n") + "\n");
+
+      const zipBuffer = await zip.generateAsync({ type: "nodebuffer" });
+
+      const sanitizedName = sanitizeForWindows(`${project.regionCode}_${project.projectName}`).replace(/\s+/g, "_");
+      res.setHeader("Content-Type", "application/zip");
+      res.setHeader("Content-Disposition", `attachment; filename="${sanitizedName}_Export.zip"`);
+      res.send(zipBuffer);
+    } catch (error) {
+      console.error("Project export error:", error);
+      res.status(500).json({ message: "Failed to export project" });
     }
   });
 }

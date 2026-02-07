@@ -1,5 +1,8 @@
 import { randomUUID } from "crypto";
 import type { PlanParserJob, InsertPlanParserJob, ParsedPage, InsertParsedPage } from "@shared/schema";
+import { planParserJobs, parsedPages } from "@shared/schema";
+import { db } from "../db";
+import { eq, desc, lt } from "drizzle-orm";
 import fs from "fs";
 import path from "path";
 
@@ -23,34 +26,82 @@ export interface IPlanParserStorage {
   cleanupExpiredJobs(): Promise<void>;
 }
 
-export class PlanParserMemStorage implements IPlanParserStorage {
-  private jobs: Map<string, PlanParserJob> = new Map();
-  private pages: Map<string, ParsedPage> = new Map();
-  
+function dbRowToJob(row: any): PlanParserJob {
+  return {
+    id: row.id,
+    status: row.status,
+    totalPages: row.totalPages ?? 0,
+    processedPages: row.processedPages ?? 0,
+    flaggedPages: row.flaggedPages ?? 0,
+    filenames: (row.filenames as string[]) || [],
+    message: row.message ?? "",
+    createdAt: row.createdAt,
+    expiresAt: row.expiresAt,
+    scopeCounts: (row.scopeCounts as Record<string, number>) || {},
+  };
+}
+
+function dbRowToPage(row: any): ParsedPage {
+  return {
+    id: row.id,
+    jobId: row.jobId,
+    originalFilename: row.originalFilename,
+    pageNumber: row.pageNumber,
+    isRelevant: row.isRelevant ?? false,
+    tags: (row.tags as string[]) || [],
+    confidence: row.confidence ?? 0,
+    whyFlagged: row.whyFlagged ?? "",
+    signageOverrideApplied: row.signageOverrideApplied ?? false,
+    ocrSnippet: row.ocrSnippet ?? "",
+    ocrText: row.ocrText ?? "",
+    thumbnailPath: row.thumbnailPath ?? undefined,
+    userModified: row.userModified ?? false,
+  };
+}
+
+export class PlanParserDbStorage implements IPlanParserStorage {
   async createJob(data: InsertPlanParserJob): Promise<PlanParserJob> {
     const id = randomUUID();
-    const job: PlanParserJob = { ...data, id };
-    this.jobs.set(id, job);
+    const result = await db.insert(planParserJobs).values({
+      id,
+      status: data.status,
+      totalPages: data.totalPages ?? 0,
+      processedPages: data.processedPages ?? 0,
+      flaggedPages: data.flaggedPages ?? 0,
+      filenames: data.filenames || [],
+      message: data.message ?? "",
+      createdAt: data.createdAt,
+      expiresAt: data.expiresAt,
+      scopeCounts: data.scopeCounts || {},
+    }).returning();
     await this.ensureJobDirectory(id);
-    return job;
+    return dbRowToJob(result[0]);
   }
   
   async getJob(id: string): Promise<PlanParserJob | undefined> {
-    return this.jobs.get(id);
+    const result = await db.select().from(planParserJobs).where(eq(planParserJobs.id, id)).limit(1);
+    return result[0] ? dbRowToJob(result[0]) : undefined;
   }
   
   async updateJob(id: string, data: Partial<PlanParserJob>): Promise<PlanParserJob | undefined> {
-    const job = this.jobs.get(id);
-    if (!job) return undefined;
-    const updated = { ...job, ...data };
-    this.jobs.set(id, updated);
-    return updated;
+    const updateData: Record<string, unknown> = {};
+    if (data.status !== undefined) updateData.status = data.status;
+    if (data.totalPages !== undefined) updateData.totalPages = data.totalPages;
+    if (data.processedPages !== undefined) updateData.processedPages = data.processedPages;
+    if (data.flaggedPages !== undefined) updateData.flaggedPages = data.flaggedPages;
+    if (data.filenames !== undefined) updateData.filenames = data.filenames;
+    if (data.message !== undefined) updateData.message = data.message;
+    if (data.scopeCounts !== undefined) updateData.scopeCounts = data.scopeCounts;
+
+    if (Object.keys(updateData).length === 0) {
+      return this.getJob(id);
+    }
+
+    const result = await db.update(planParserJobs).set(updateData).where(eq(planParserJobs.id, id)).returning();
+    return result[0] ? dbRowToJob(result[0]) : undefined;
   }
   
   async deleteJob(id: string): Promise<boolean> {
-    const job = this.jobs.get(id);
-    if (!job) return false;
-    
     await this.deletePagesByJob(id);
     
     const jobDir = this.getJobDirectory(id);
@@ -62,55 +113,69 @@ export class PlanParserMemStorage implements IPlanParserStorage {
       console.error(`Failed to delete job directory: ${jobDir}`, e);
     }
     
-    return this.jobs.delete(id);
+    const result = await db.delete(planParserJobs).where(eq(planParserJobs.id, id)).returning();
+    return result.length > 0;
   }
   
   async getAllJobs(): Promise<PlanParserJob[]> {
-    return Array.from(this.jobs.values()).sort(
-      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-    );
+    const result = await db.select().from(planParserJobs).orderBy(desc(planParserJobs.createdAt));
+    return result.map(dbRowToJob);
   }
   
   async createPage(data: InsertParsedPage): Promise<ParsedPage> {
     const id = randomUUID();
-    const page: ParsedPage = { ...data, id };
-    this.pages.set(id, page);
-    return page;
+    const result = await db.insert(parsedPages).values({
+      id,
+      jobId: data.jobId,
+      originalFilename: data.originalFilename,
+      pageNumber: data.pageNumber,
+      isRelevant: data.isRelevant ?? false,
+      tags: data.tags || [],
+      confidence: data.confidence ?? 0,
+      whyFlagged: data.whyFlagged ?? "",
+      signageOverrideApplied: data.signageOverrideApplied ?? false,
+      ocrSnippet: data.ocrSnippet ?? "",
+      ocrText: data.ocrText ?? "",
+      thumbnailPath: data.thumbnailPath ?? null,
+      userModified: data.userModified ?? false,
+    }).returning();
+    return dbRowToPage(result[0]);
   }
   
   async getPage(id: string): Promise<ParsedPage | undefined> {
-    return this.pages.get(id);
+    const result = await db.select().from(parsedPages).where(eq(parsedPages.id, id)).limit(1);
+    return result[0] ? dbRowToPage(result[0]) : undefined;
   }
   
   async getPagesByJob(jobId: string): Promise<ParsedPage[]> {
-    const pages = Array.from(this.pages.values())
-      .filter(p => p.jobId === jobId)
-      .sort((a, b) => {
-        if (a.originalFilename !== b.originalFilename) {
-          return a.originalFilename.localeCompare(b.originalFilename);
-        }
-        return a.pageNumber - b.pageNumber;
-      });
-    return pages;
+    const result = await db.select().from(parsedPages)
+      .where(eq(parsedPages.jobId, jobId))
+      .orderBy(parsedPages.originalFilename, parsedPages.pageNumber);
+    return result.map(dbRowToPage);
   }
   
   async updatePage(id: string, data: Partial<ParsedPage>): Promise<ParsedPage | undefined> {
-    const page = this.pages.get(id);
-    if (!page) return undefined;
-    const updated = { ...page, ...data };
-    this.pages.set(id, updated);
-    return updated;
+    const updateData: Record<string, unknown> = {};
+    if (data.isRelevant !== undefined) updateData.isRelevant = data.isRelevant;
+    if (data.tags !== undefined) updateData.tags = data.tags;
+    if (data.confidence !== undefined) updateData.confidence = data.confidence;
+    if (data.whyFlagged !== undefined) updateData.whyFlagged = data.whyFlagged;
+    if (data.signageOverrideApplied !== undefined) updateData.signageOverrideApplied = data.signageOverrideApplied;
+    if (data.ocrSnippet !== undefined) updateData.ocrSnippet = data.ocrSnippet;
+    if (data.ocrText !== undefined) updateData.ocrText = data.ocrText;
+    if (data.thumbnailPath !== undefined) updateData.thumbnailPath = data.thumbnailPath;
+    if (data.userModified !== undefined) updateData.userModified = data.userModified;
+
+    if (Object.keys(updateData).length === 0) {
+      return this.getPage(id);
+    }
+
+    const result = await db.update(parsedPages).set(updateData).where(eq(parsedPages.id, id)).returning();
+    return result[0] ? dbRowToPage(result[0]) : undefined;
   }
   
   async deletePagesByJob(jobId: string): Promise<boolean> {
-    const pageIds = Array.from(this.pages.entries())
-      .filter(([, p]) => p.jobId === jobId)
-      .map(([id]) => id);
-    
-    for (const id of pageIds) {
-      this.pages.delete(id);
-    }
-    
+    await db.delete(parsedPages).where(eq(parsedPages.jobId, jobId));
     return true;
   }
   
@@ -127,23 +192,19 @@ export class PlanParserMemStorage implements IPlanParserStorage {
   }
   
   async cleanupExpiredJobs(): Promise<void> {
-    const now = new Date();
-    const expiredJobs: string[] = [];
+    const now = new Date().toISOString();
+    const expiredJobs = await db.select({ id: planParserJobs.id })
+      .from(planParserJobs)
+      .where(lt(planParserJobs.expiresAt, now));
     
-    this.jobs.forEach((job, id) => {
-      if (new Date(job.expiresAt) < now) {
-        expiredJobs.push(id);
-      }
-    });
-    
-    for (let i = 0; i < expiredJobs.length; i++) {
-      await this.deleteJob(expiredJobs[i]);
-      console.log(`Cleaned up expired job: ${expiredJobs[i]}`);
+    for (const job of expiredJobs) {
+      await this.deleteJob(job.id);
+      console.log(`Cleaned up expired job: ${job.id}`);
     }
   }
 }
 
-export const planParserStorage = new PlanParserMemStorage();
+export const planParserStorage = new PlanParserDbStorage();
 
 setInterval(() => {
   planParserStorage.cleanupExpiredJobs().catch(console.error);

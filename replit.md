@@ -17,7 +17,16 @@ The frontend is built with **React 18** and **TypeScript**, using **Wouter** for
 The backend is an **Express.js** application written in **TypeScript**. It uses **Multer** for PDF uploads (in-memory, 100MB limit) and **pdf-parse** for PDF text extraction. APIs are RESTful under `/api/`. Key modules include `pdfParser.ts` for spec section parsing, and `planparser/` for OCR processing with **tesseract.js** and keyword-based classification.
 
 ### Data Storage
-Currently, data is stored in-memory using Maps (`MemStorage` class), with schemas defined in `shared/schema.ts` using **Zod** for validation. The system is designed to be database-ready, with **Drizzle ORM** configured for PostgreSQL. Data models include `Session`, `ExtractedSection`, `AccessoryMatch`, `PlanParserJob`, and `ParsedPage`.
+All data is now stored in **PostgreSQL** via **Drizzle ORM**. The following tables exist:
+- **sessions**: SpecSift processing sessions
+- **extracted_sections**: Spec sections extracted by SpecSift (with manufacturers, models, materials)
+- **accessory_matches**: Matched accessory scopes from specs
+- **plan_parser_jobs**: Plan Parser job metadata (status, page counts, scope counts)
+- **parsed_pages**: Individual plan page OCR results and classifications
+- **projects**, **project_scopes**, **project_id_sequence**: Project management
+- **scope_dictionaries**, **regions**: Settings/configuration
+- **vendors**, **div10_products**, **model_suffix_decoders**, **special_line_rules**, **specsift_config**, **plan_index**: Additional configuration tables
+PDF buffers are stored on the filesystem (`/tmp/specsift_pdfs/` for specs, `/tmp/planparser_jobs/` for plans) to avoid database bloat.
 
 ### Core Logic
 - **SpecSift**: Employs advanced PDF parsing with TOC detection, zone-based scanning, multi-line title parsing, and legitimacy validation to accurately extract Division 10 specifications. It also identifies manufacturers, model numbers, and material requirements from spec text.
@@ -25,6 +34,10 @@ Currently, data is stored in-memory using Maps (`MemStorage` class), with schema
 - **Quote Parser**: Parses vendor quotes into a structured 6-column estimate table, featuring schedule matching with confidence scoring, vendor auto-detection, manufacturer and quote number extraction, and flexible freight handling.
 - **Project Start System**: Manages project creation, generates unique project IDs, sets up standardized folder structures, and orchestrates the sequential processing of plans and specs through SpecSift and Plan Parser, including a spec-informed second pass.
 - **Central Settings Hub**: Provides an administrative interface for managing scope dictionaries, regional identifiers, vendor profiles, and a Division 10 product dictionary, allowing for dynamic configuration without code changes.
+
+### Project Export
+- **ZIP Export**: `GET /api/projects/:id/export` generates a ZIP containing spec extract PDFs per section, plan pages organized by scope as PDFs, and text summaries (spec summary, plan summary, project summary). Available from the Project Detail page when processing is complete.
+- **PDF Extraction**: Uses pdf-lib to extract page ranges from source PDFs for both spec sections and plan pages by scope.
 
 ### Design System
 A system-based design approach, inspired by Linear/Notion, is utilized. It features a consistent typography (Inter, JetBrains Mono) and spacing primitives, aiming for a professional aesthetic suitable for the construction industry.
