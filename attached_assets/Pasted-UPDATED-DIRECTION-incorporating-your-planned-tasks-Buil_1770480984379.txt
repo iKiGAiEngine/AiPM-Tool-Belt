@@ -1,0 +1,111 @@
+UPDATED DIRECTION (incorporating your planned tasks) — Build “Project Start” Command Center that orchestrates Folder Creator + SpecSift + Plan Parser, with Settings Templates + Versioning + Project Log + Spec→Plan communication layer.
+
+✅ Your understanding is correct. This is the intended flow:
+1) Project Start: Estimator clicks “New Project” in AiPM and enters Project Name, Region/Airport Code, Due Date
+2) Upload Plans + Specs together
+3) Folder creation: system creates estimate folder structure from a saved template
+4) Routing: specs auto-send to SpecSift; plans auto-send to Plan Parser
+5) SpecSift runs first: estimator reviews + selects scopes/spec sections to proceed
+6) Spec-informed Plan Parsing: selected scopes + extracted detail feed Plan Parser as a filter/lens
+7) Smarter extraction: plan pages are labeled/organized with spec-specific notes; only truly relevant pages get pulled
+
+Now implement it with the following exact features/outputs:
+
+--------------------------------------------
+A) SETTINGS (NEW) — Template Manager + Versioning + Preview + Logs
+--------------------------------------------
+Add a Settings section with 3 tabs:
+
+1) Template Estimate Folder (Folder Template)
+- Upload a zip that represents the “standard estimate folder” structure (the entire template folder).
+- Store versions (v1, v2, v3…) and allow selecting which version is Active.
+- Show: template name, version, uploaded date/time, uploaded by, download link.
+- This Active folder template is what gets copied for every new project.
+
+2) Estimate File Template (Excel Template)
+- Upload an estimate Excel template (xlsx/xlsm).
+- Store versions and allow selecting Active.
+- Show preview: at minimum filename + sheet names, and downloadable link.
+- Also store “stamping cell map” (configurable in Settings):
+  Example:
+  - Summary!B2 = Project ID
+  - Summary!B3 = Project Name
+  - Summary!B4 = Region/Airport Code
+  - Summary!B5 = Due Date
+
+3) Project Log + Export
+- A log page in Settings (or main nav) that stores ALL created projects and is exportable to CSV and XLSX.
+- Columns minimum:
+  Project ID, Project Name, Region/Airport Code, Due Date, Folder Path, Created By, Created At,
+  SpecSift Status, Plan Parser Status, Workflow Status, Notes (optional), Project Type (optional later)
+- Export button produces a clean Excel file.
+
+--------------------------------------------
+B) PROJECT ID RULES (“Estimate IP Address”)
+--------------------------------------------
+Generate a unique, sequential Project ID in format YY-#### (example 26-0041).
+- Must be transaction-safe to prevent duplicates.
+- Store year + sequence number in DB.
+- Project ID must be stamped into the estimate Excel file (using Settings mapping above).
+
+--------------------------------------------
+C) PROJECT START PAGE (NEW) — UI + Backend Orchestrator
+--------------------------------------------
+Project Start UI:
+- Inputs (required):
+  - Region/Airport Code (dropdown from Regions table; uppercase)
+  - Project Name (sanitize for Windows name)
+  - Due Date
+- Upload:
+  - Plans PDF (required)
+  - Specs PDF (required)
+- Create button triggers full orchestration and shows progress statuses.
+
+Project Start backend must:
+1) Create new project record + assign Project ID
+2) Copy Active Folder Template to destination
+3) Rename destination folder to: “AIRPORTCODE - Project Name” (example: LAX - Rivian Laguna)
+4) Ensure required subfolders exist (create if missing):
+   - Plans/Original
+   - Plans/Processed
+   - Specs/Original
+   - Specs/Processed
+   - Vendor/
+   - Vendor/Specs Extracts/
+   - Vendor/Plan Pages by Scope/
+5) Place active Estimate Excel Template into project folder (or replace placeholder) and stamp values:
+   Project ID, Project Name, Region, Due Date
+6) Save original uploaded plans/specs into:
+   - Plans/Original (original filename)
+   - Specs/Original (original filename)
+7) Route/trigger jobs:
+   - enqueue SpecSift job with specs file
+   - enqueue Plan Parser baseline job with plans file
+
+--------------------------------------------
+D) SPEC SIFT REQUIREMENTS — Outputs + “Select Scopes”
+--------------------------------------------
+SpecSift must output BOTH:
+1) Files:
+- Save extracted spec sections into:
+  Vendor/Specs Extracts/[section number + title]/
+- Save SpecSift summary into:
+  Vendor/Spec Summary/SpecSift Summary - [ProjectID].pdf (or txt/docx)
+
+2) Structured DB data (critical for Spec→Plan communication):
+- detected_scopes[] each containing:
+  - scope_type (Toilet Accessories, Partitions, Lockers, etc.)
+  - spec_section_number + title
+  - key requirements (short bullets)
+  - manufacturers / model numbers (if found)
+  - keywords (generated list)
+  - confidence score
+
+SpecSift UI must allow estimator to:
+- Review detected scopes
+- Check/select which scopes to proceed with
+- Save “Selected Scopes” to DB (this is the trigger for the next step)
+
+--------------------------------------------
+E) PLAN PARSER REQUIREMENTS — Baseline + Spec-Informed Second Pass
+-----------------------...
