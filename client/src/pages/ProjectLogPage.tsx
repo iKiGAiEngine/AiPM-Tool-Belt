@@ -1,7 +1,7 @@
 import { useState, useMemo } from "react";
 import { Link } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { ArrowLeft, Download, Search, ChevronUp, ChevronDown, FileSpreadsheet, FileText, Trash2 } from "lucide-react";
+import { ArrowLeft, Download, Search, ChevronUp, ChevronDown, FileSpreadsheet, FileText, Trash2, FlaskConical } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
+import { useTestMode } from "@/lib/testMode";
 import type { Project } from "@shared/schema";
 import { saveAs } from "file-saver";
 import * as XLSX from "xlsx";
@@ -39,11 +40,36 @@ export default function ProjectLogPage() {
   const [sortDir, setSortDir] = useState<SortDir>("desc");
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [showClearTestDialog, setShowClearTestDialog] = useState(false);
   const { toast } = useToast();
+  const { isTestMode } = useTestMode();
 
   const { data: projects = [], isLoading } = useQuery<Project[]>({
-    queryKey: ["/api/projects"],
+    queryKey: ["/api/projects", { includeTest: isTestMode }],
+    queryFn: async () => {
+      const url = isTestMode ? "/api/projects?includeTest=true" : "/api/projects";
+      const res = await fetch(url);
+      if (!res.ok) throw new Error("Failed to fetch projects");
+      return res.json();
+    },
   });
+
+  const clearTestDataMutation = useMutation({
+    mutationFn: async () => {
+      await apiRequest("POST", "/api/projects/clear-test-data");
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/projects"] });
+      setShowClearTestDialog(false);
+      setSelectedIds(new Set());
+      toast({ title: "Test data cleared", description: "All test projects have been removed." });
+    },
+    onError: () => {
+      toast({ title: "Error", description: "Failed to clear test data.", variant: "destructive" });
+    },
+  });
+
+  const testProjectCount = useMemo(() => projects.filter(p => p.isTest).length, [projects]);
 
   const bulkDeleteMutation = useMutation({
     mutationFn: async (ids: number[]) => {
@@ -188,6 +214,33 @@ export default function ProjectLogPage() {
           <p className="text-muted-foreground">Complete log of all projects with export capabilities</p>
         </div>
         <div className="flex items-center gap-2">
+          {isTestMode && testProjectCount > 0 && (
+            <AlertDialog open={showClearTestDialog} onOpenChange={setShowClearTestDialog}>
+              <AlertDialogTrigger asChild>
+                <Button variant="outline" size="sm" className="border-amber-500/50 text-amber-500" data-testid="button-clear-test-data-log">
+                  <FlaskConical className="w-4 h-4 mr-2" />
+                  Clear Test ({testProjectCount})
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Clear all test data?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    This will permanently delete {testProjectCount} test project{testProjectCount !== 1 ? "s" : ""} and all associated data. Real projects will not be affected.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction
+                    onClick={() => clearTestDataMutation.mutate()}
+                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                  >
+                    {clearTestDataMutation.isPending ? "Clearing..." : "Clear Test Data"}
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          )}
           {selectedIds.size > 0 && (
             <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
               <AlertDialogTrigger asChild>
@@ -341,11 +394,19 @@ export default function ProjectLogPage() {
                           </Link>
                         </td>
                         <td className="py-3 px-3">
-                          <Link href={`/projects/${project.id}`}>
-                            <span className="cursor-pointer hover:underline" data-testid={`text-name-${project.id}`}>
-                              {project.projectName}
-                            </span>
-                          </Link>
+                          <div className="flex items-center gap-2">
+                            <Link href={`/projects/${project.id}`}>
+                              <span className="cursor-pointer hover:underline" data-testid={`text-name-${project.id}`}>
+                                {project.projectName}
+                              </span>
+                            </Link>
+                            {project.isTest && (
+                              <Badge variant="outline" className="text-xs border-amber-500/50 text-amber-500">
+                                <FlaskConical className="w-3 h-3 mr-1" />
+                                Test
+                              </Badge>
+                            )}
+                          </div>
                         </td>
                         <td className="py-3 px-3">
                           <Badge variant="secondary" className="text-xs" data-testid={`text-region-${project.id}`}>

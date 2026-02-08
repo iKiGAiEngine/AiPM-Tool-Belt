@@ -535,6 +535,7 @@ export const projects = pgTable("projects", {
   notes: text("notes"),
   baselineScopeCounts: jsonb("baseline_scope_counts").$type<Record<string, number>>(),
   baselineFlaggedPages: integer("baseline_flagged_pages"),
+  isTest: boolean("is_test").default(false).notNull(),
   createdBy: varchar("created_by", { length: 100 }).default("admin"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),

@@ -56,6 +56,15 @@ PDF buffers are stored on the filesystem (`/tmp/specsift_pdfs/` for specs, `/tmp
 - **Project Log**: Dedicated page showing all projects in a sortable/filterable table with columns: Bid ID, Project Name, Region, Due Date, Status, Created At, Notes. Supports export to CSV and XLSX formats.
 - **Template API**: Full CRUD endpoints under `/api/templates/folders/` and `/api/templates/estimates/` for managing template versions, activation, and file downloads.
 
+### Test Mode (Phase 7)
+- **Toggle**: Switch in the app Header enables/disables Test Mode, persisted in localStorage via `TestModeProvider` (client/src/lib/testMode.tsx).
+- **Visual Indicator**: Amber banner below header when active: "Test Mode Active — Projects created now will be tagged as test data."
+- **Data Tagging**: Projects created in Test Mode have `isTest=true` in the database (`projects.is_test` column).
+- **Filtering**: `GET /api/projects` excludes test projects by default. Pass `?includeTest=true` to include them. When Test Mode is on, the frontend automatically includes test projects in views.
+- **Test Badge**: Test projects show an amber "Test" badge in the Home page recent projects list and the Project Log table.
+- **Clear Test Data**: `POST /api/projects/clear-test-data` deletes all test projects with full cleanup (sessions, jobs, scopes, plan index, files). "Clear Test Data" button appears on HomePage and Project Log when Test Mode is on and test projects exist.
+- **Data Isolation**: Each project is fully self-contained — no cross-contamination between projects.
+
 ### Design System
 A system-based design approach, inspired by Linear/Notion, is utilized. It features a consistent typography (Inter, JetBrains Mono) and spacing primitives, aiming for a professional aesthetic suitable for the construction industry.
 

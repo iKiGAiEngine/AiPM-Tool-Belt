@@ -1,14 +1,18 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { Link } from "wouter";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import {
   FileSearch, ScanSearch, Receipt, FolderPlus, ChevronRight,
   Clock, ClipboardList, Settings, CheckCircle, AlertCircle,
-  Loader2, TrendingUp, FolderOpen, BarChart3
+  Loader2, TrendingUp, FolderOpen, BarChart3, FlaskConical, Trash2
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import { useToast } from "@/hooks/use-toast";
+import { apiRequest, queryClient } from "@/lib/queryClient";
+import { useTestMode } from "@/lib/testMode";
 import type { Project } from "@shared/schema";
 
 interface ToolTile {
@@ -64,9 +68,35 @@ function getStatusCategory(status: string | null): "processing" | "complete" | "
 }
 
 export default function HomePage() {
+  const { isTestMode } = useTestMode();
+  const { toast } = useToast();
+  const [showClearDialog, setShowClearDialog] = useState(false);
+
   const { data: projects = [] } = useQuery<Project[]>({
-    queryKey: ["/api/projects"],
+    queryKey: ["/api/projects", { includeTest: isTestMode }],
+    queryFn: async () => {
+      const url = isTestMode ? "/api/projects?includeTest=true" : "/api/projects";
+      const res = await fetch(url);
+      if (!res.ok) throw new Error("Failed to fetch projects");
+      return res.json();
+    },
   });
+
+  const clearTestDataMutation = useMutation({
+    mutationFn: async () => {
+      await apiRequest("POST", "/api/projects/clear-test-data");
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/projects"] });
+      setShowClearDialog(false);
+      toast({ title: "Test data cleared", description: "All test projects and associated data have been removed." });
+    },
+    onError: () => {
+      toast({ title: "Error", description: "Failed to clear test data.", variant: "destructive" });
+    },
+  });
+
+  const testProjectCount = useMemo(() => projects.filter(p => p.isTest).length, [projects]);
 
   const stats = useMemo(() => {
     const total = projects.length;
@@ -158,6 +188,48 @@ export default function HomePage() {
           ))}
         </div>
 
+        {isTestMode && testProjectCount > 0 && (
+          <div className="max-w-5xl w-full mt-4">
+            <Card className="border-amber-500/30 bg-amber-500/5">
+              <CardContent className="p-4 flex items-center justify-between gap-4 flex-wrap">
+                <div className="flex items-center gap-3">
+                  <FlaskConical className="w-5 h-5 text-amber-500 shrink-0" />
+                  <div>
+                    <p className="text-sm font-medium">{testProjectCount} test project{testProjectCount !== 1 ? "s" : ""}</p>
+                    <p className="text-xs text-muted-foreground">Created while Test Mode was active</p>
+                  </div>
+                </div>
+                <AlertDialog open={showClearDialog} onOpenChange={setShowClearDialog}>
+                  <AlertDialogTrigger asChild>
+                    <Button variant="destructive" size="sm" data-testid="button-clear-test-data">
+                      <Trash2 className="w-4 h-4 mr-2" />
+                      Clear Test Data
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Clear all test data?</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        This will permanently delete {testProjectCount} test project{testProjectCount !== 1 ? "s" : ""} and all their associated data (spec sessions, plan parser jobs, files). Your real projects will not be affected.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel data-testid="button-cancel-clear">Cancel</AlertDialogCancel>
+                      <AlertDialogAction
+                        onClick={() => clearTestDataMutation.mutate()}
+                        className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                        data-testid="button-confirm-clear"
+                      >
+                        {clearTestDataMutation.isPending ? "Clearing..." : "Clear Test Data"}
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
         {recentProjects.length > 0 && (
           <div className="mt-10 max-w-5xl w-full">
             <div className="flex items-center justify-between mb-4 gap-4 flex-wrap">
@@ -190,6 +262,12 @@ export default function HomePage() {
                         {project.regionCode && (
                           <Badge variant="secondary" className="text-xs shrink-0">
                             {project.regionCode}
+                          </Badge>
+                        )}
+                        {project.isTest && (
+                          <Badge variant="outline" className="text-xs shrink-0 border-amber-500/50 text-amber-500">
+                            <FlaskConical className="w-3 h-3 mr-1" />
+                            Test
                           </Badge>
                         )}
                       </div>

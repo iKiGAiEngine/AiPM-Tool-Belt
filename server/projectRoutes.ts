@@ -20,6 +20,7 @@ import {
   deleteRegion,
   generateProjectId,
   getAllProjects,
+  getTestProjects,
   getProjectById,
   getProjectByProjectId,
   createProject,
@@ -188,7 +189,8 @@ export function registerProjectRoutes(app: Express) {
 
   app.get("/api/projects", async (req: Request, res: Response) => {
     try {
-      const allProjects = await getAllProjects();
+      const includeTest = req.query.includeTest === "true";
+      const allProjects = await getAllProjects(includeTest);
       res.json(allProjects);
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch projects" });
@@ -226,7 +228,7 @@ export function registerProjectRoutes(app: Express) {
     ]),
     async (req: Request, res: Response) => {
       try {
-        const { projectName, regionCode, dueDate } = req.body;
+        const { projectName, regionCode, dueDate, isTest } = req.body;
 
         if (!projectName || !regionCode || !dueDate) {
           return res.status(400).json({ message: "Project name, region code, and due date are required" });
@@ -347,6 +349,7 @@ export function registerProjectRoutes(app: Express) {
           folderPath: projectDir,
           plansFilename: plansFile.originalname,
           specsFilename: specsFile.originalname,
+          isTest: isTest === "true",
         });
 
         (async () => {
@@ -471,6 +474,44 @@ export function registerProjectRoutes(app: Express) {
     } catch (error) {
       console.error("Error deleting project:", error);
       res.status(500).json({ message: "Failed to delete project" });
+    }
+  });
+
+  app.post("/api/projects/clear-test-data", async (req: Request, res: Response) => {
+    try {
+      const testProjects = await getTestProjects();
+      let deleted = 0;
+
+      for (const project of testProjects) {
+        if (project.specsiftSessionId) {
+          try {
+            await storage.deleteSectionsBySession(project.specsiftSessionId);
+            await storage.deleteAccessoryMatchesBySession(project.specsiftSessionId);
+            await storage.deletePdfBuffer(project.specsiftSessionId);
+            await storage.deleteSession(project.specsiftSessionId);
+          } catch {}
+        }
+
+        if (project.planparserJobId) {
+          try {
+            await planParserStorage.deleteJob(project.planparserJobId);
+          } catch {}
+        }
+
+        if (project.folderPath) {
+          try {
+            fs.rmSync(project.folderPath, { recursive: true, force: true });
+          } catch {}
+        }
+
+        await deleteProject(project.id);
+        deleted++;
+      }
+
+      res.json({ success: true, deleted });
+    } catch (error) {
+      console.error("Error clearing test data:", error);
+      res.status(500).json({ message: "Failed to clear test data" });
     }
   });
 

@@ -158,8 +158,15 @@ export async function generateProjectId(): Promise<string> {
   return `${yearStr}-${seqStr}`;
 }
 
-export async function getAllProjects(): Promise<Project[]> {
-  return await db.select().from(projects).orderBy(desc(projects.createdAt));
+export async function getAllProjects(includeTest = false): Promise<Project[]> {
+  if (includeTest) {
+    return await db.select().from(projects).orderBy(desc(projects.createdAt));
+  }
+  return await db.select().from(projects).where(eq(projects.isTest, false)).orderBy(desc(projects.createdAt));
+}
+
+export async function getTestProjects(): Promise<Project[]> {
+  return await db.select().from(projects).where(eq(projects.isTest, true)).orderBy(desc(projects.createdAt));
 }
 
 export async function getProjectById(id: number): Promise<Project | null> {
@@ -185,6 +192,7 @@ export async function createProject(data: InsertProjectInput): Promise<Project> 
     plansFilename: data.plansFilename,
     specsFilename: data.specsFilename,
     notes: data.notes,
+    isTest: data.isTest ?? false,
     createdBy: data.createdBy ?? "admin",
   }).returning();
   return result[0];

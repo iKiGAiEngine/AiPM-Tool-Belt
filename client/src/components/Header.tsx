@@ -1,10 +1,13 @@
-import { FileText, Upload, List, Home, Wrench, Settings, Receipt } from "lucide-react";
+import { FileText, Upload, List, Home, Wrench, Settings, Receipt, FlaskConical } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { ThemeToggle } from "./ThemeToggle";
+import { Switch } from "@/components/ui/switch";
+import { useTestMode } from "@/lib/testMode";
 import { cn } from "@/lib/utils";
 
 export function Header() {
   const [location] = useLocation();
+  const { isTestMode, toggleTestMode } = useTestMode();
   const isHome = location === "/";
   const isSpecSift = location.startsWith("/specsift");
   const isQuoteParser = location.startsWith("/quoteparser");
@@ -16,73 +19,92 @@ export function Header() {
   ];
 
   return (
-    <header className="sticky top-0 z-50 h-16 border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-      <div className="mx-auto flex h-full max-w-7xl items-center justify-between px-6 lg:px-8">
-        <div className="flex items-center gap-4">
-          <Link href="/" className="flex items-center gap-2">
-            <div className="flex h-9 w-9 items-center justify-center rounded-md bg-primary">
-              <Wrench className="h-5 w-5 text-primary-foreground" />
-            </div>
-            <span className="text-xl font-semibold tracking-tight" data-testid="text-logo">
-              AiPM Tool Belt
-            </span>
-          </Link>
-          
-          {isSpecSift && (
-            <>
-              <div className="h-6 w-px bg-border" />
-              <div className="flex items-center gap-1.5">
-                <FileText className="h-4 w-4 text-primary" />
-                <span className="text-sm font-medium text-foreground">SpecSift</span>
+    <>
+      <header className="sticky top-0 z-50 h-16 border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+        <div className="mx-auto flex h-full max-w-7xl items-center justify-between px-6 lg:px-8">
+          <div className="flex items-center gap-4">
+            <Link href="/" className="flex items-center gap-2">
+              <div className="flex h-9 w-9 items-center justify-center rounded-md bg-primary">
+                <Wrench className="h-5 w-5 text-primary-foreground" />
               </div>
-            </>
-          )}
-          
-          {isQuoteParser && (
-            <>
-              <div className="h-6 w-px bg-border" />
-              <div className="flex items-center gap-1.5">
-                <Receipt className="h-4 w-4 text-primary" />
-                <span className="text-sm font-medium text-foreground">Quote Parser</span>
-              </div>
-            </>
-          )}
-        </div>
-
-        <nav className="hidden items-center gap-6 md:flex">
-          {!isHome && (
-            <Link
-              href="/"
-              className="flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
-              data-testid="link-nav-home"
-            >
-              <Home className="h-4 w-4" />
-              Home
+              <span className="text-xl font-semibold tracking-tight" data-testid="text-logo">
+                AiPM Tool Belt
+              </span>
             </Link>
-          )}
-          
-          {isSpecSift && specSiftNav.map((item) => (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={cn(
-                "flex items-center gap-2 text-sm font-medium transition-colors",
-                location === item.href
-                  ? "text-foreground"
-                  : "text-muted-foreground hover:text-foreground"
-              )}
-              data-testid={`link-nav-${item.label.toLowerCase()}`}
-            >
-              <item.icon className="h-4 w-4" />
-              {item.label}
-            </Link>
-          ))}
-        </nav>
+            
+            {isSpecSift && (
+              <>
+                <div className="h-6 w-px bg-border" />
+                <div className="flex items-center gap-1.5">
+                  <FileText className="h-4 w-4 text-primary" />
+                  <span className="text-sm font-medium text-foreground">SpecSift</span>
+                </div>
+              </>
+            )}
+            
+            {isQuoteParser && (
+              <>
+                <div className="h-6 w-px bg-border" />
+                <div className="flex items-center gap-1.5">
+                  <Receipt className="h-4 w-4 text-primary" />
+                  <span className="text-sm font-medium text-foreground">Quote Parser</span>
+                </div>
+              </>
+            )}
+          </div>
 
-        <div className="flex items-center gap-2">
-          <ThemeToggle />
+          <nav className="hidden items-center gap-6 md:flex">
+            {!isHome && (
+              <Link
+                href="/"
+                className="flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
+                data-testid="link-nav-home"
+              >
+                <Home className="h-4 w-4" />
+                Home
+              </Link>
+            )}
+            
+            {isSpecSift && specSiftNav.map((item) => (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={cn(
+                  "flex items-center gap-2 text-sm font-medium transition-colors",
+                  location === item.href
+                    ? "text-foreground"
+                    : "text-muted-foreground hover:text-foreground"
+                )}
+                data-testid={`link-nav-${item.label.toLowerCase()}`}
+              >
+                <item.icon className="h-4 w-4" />
+                {item.label}
+              </Link>
+            ))}
+          </nav>
+
+          <div className="flex items-center gap-3">
+            <label className="flex items-center gap-2 cursor-pointer" data-testid="toggle-test-mode">
+              <FlaskConical className={cn("h-4 w-4", isTestMode ? "text-amber-500" : "text-muted-foreground")} />
+              <span className={cn("text-xs font-medium select-none", isTestMode ? "text-amber-500" : "text-muted-foreground")}>
+                Test
+              </span>
+              <Switch
+                checked={isTestMode}
+                onCheckedChange={toggleTestMode}
+                className="data-[state=checked]:bg-amber-500"
+              />
+            </label>
+            <ThemeToggle />
+          </div>
         </div>
-      </div>
-    </header>
+      </header>
+      {isTestMode && (
+        <div className="sticky top-16 z-40 flex items-center justify-center gap-2 bg-amber-500 px-4 py-1.5 text-sm font-medium text-white" data-testid="banner-test-mode">
+          <FlaskConical className="h-4 w-4" />
+          Test Mode Active — Projects created now will be tagged as test data
+        </div>
+      )}
+    </>
   );
 }

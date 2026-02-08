@@ -2,6 +2,7 @@ import { useState, useCallback } from "react";
 import { Link, useLocation } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { ArrowLeft, Upload, FileText, Loader2, CheckCircle, AlertCircle, FolderOpen } from "lucide-react";
+import { useTestMode } from "@/lib/testMode";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -20,6 +21,7 @@ type UploadState = {
 export default function ProjectStartPage() {
   const { toast } = useToast();
   const [, navigate] = useLocation();
+  const { isTestMode } = useTestMode();
   const [projectName, setProjectName] = useState("");
   const [regionCode, setRegionCode] = useState("");
   const [dueDate, setDueDate] = useState("");
@@ -61,6 +63,9 @@ export default function ProjectStartPage() {
     formData.append("dueDate", dueDate);
     formData.append("plans", plans.file);
     formData.append("specs", specs.file);
+    if (isTestMode) {
+      formData.append("isTest", "true");
+    }
 
     createProjectMutation.mutate(formData);
   };
