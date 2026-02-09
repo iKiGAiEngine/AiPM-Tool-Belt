@@ -198,6 +198,11 @@ export function registerProjectRoutes(app: Express) {
     }
   });
 
+  app.get("/api/config/spec-extractor", (_req: Request, res: Response) => {
+    const url = process.env.SPEC_EXTRACTOR_URL || null;
+    res.json({ url, configured: !!url });
+  });
+
   app.get("/api/projects/:id", async (req: Request, res: Response) => {
     try {
       const id = parseInt(req.params.id);
@@ -249,6 +254,7 @@ export function registerProjectRoutes(app: Express) {
         planparser: planparserProgress,
         hasSpecs: !!project.specsiftSessionId,
         hasPlans: !!project.planparserJobId,
+        specExtractorUrl: process.env.SPEC_EXTRACTOR_URL || null,
       });
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch project progress" });
@@ -295,8 +301,10 @@ export function registerProjectRoutes(app: Express) {
 
         const activeFolderTemplate = await getActiveFolderTemplate();
         if (activeFolderTemplate && fs.existsSync(activeFolderTemplate.filePath)) {
+          console.log(`[ProjectCreate] Extracting folder template v${activeFolderTemplate.version} from ${activeFolderTemplate.filePath}`);
           const zipBuffer = fs.readFileSync(activeFolderTemplate.filePath);
           const zip = await JSZip.loadAsync(zipBuffer);
+          let extractedCount = 0;
           for (const [relativePath, zipEntry] of Object.entries(zip.files)) {
             if (zipEntry.dir) {
               ensureDir(path.join(projectDir, relativePath));
@@ -305,8 +313,12 @@ export function registerProjectRoutes(app: Express) {
               ensureDir(fileDir);
               const content = await zipEntry.async("nodebuffer");
               fs.writeFileSync(path.join(projectDir, relativePath), content);
+              extractedCount++;
             }
           }
+          console.log(`[ProjectCreate] Extracted ${extractedCount} files and ${Object.keys(zip.files).length - extractedCount} directories from folder template`);
+        } else {
+          console.warn(`[ProjectCreate] No active folder template found or file missing (template: ${activeFolderTemplate?.id || 'none'}, path: ${activeFolderTemplate?.filePath || 'none'})`);
         }
 
         const requiredSubfolders = [
@@ -325,6 +337,7 @@ export function registerProjectRoutes(app: Express) {
         const activeEstimateTemplate = await getActiveEstimateTemplate();
         if (activeEstimateTemplate && fs.existsSync(activeEstimateTemplate.filePath)) {
           try {
+            console.log(`[ProjectCreate] Stamping estimate template v${activeEstimateTemplate.version} from ${activeEstimateTemplate.filePath}`);
             const workbook = new ExcelJS.Workbook();
             await workbook.xlsx.readFile(activeEstimateTemplate.filePath);
 
@@ -335,6 +348,7 @@ export function registerProjectRoutes(app: Express) {
               dueDate,
             };
 
+            let stampedCount = 0;
             for (const mapping of (activeEstimateTemplate.stampMappings || [])) {
               const value = projectData[mapping.fieldName];
               if (value === undefined) continue;
@@ -346,14 +360,22 @@ export function registerProjectRoutes(app: Express) {
               const sheet = workbook.getWorksheet(sheetName);
               if (sheet) {
                 sheet.getCell(cellAddr).value = value;
+                stampedCount++;
+                console.log(`[ProjectCreate] Stamped ${mapping.label}: ${value} → ${mapping.cellRef}`);
+              } else {
+                console.warn(`[ProjectCreate] Sheet '${sheetName}' not found in estimate template`);
               }
             }
 
             const estimateFilename = `${projectIdStr} - ${safeName} Estimate.xlsx`;
-            await workbook.xlsx.writeFile(path.join(projectDir, estimateFilename));
+            const estimatePath = path.join(projectDir, estimateFilename);
+            await workbook.xlsx.writeFile(estimatePath);
+            console.log(`[ProjectCreate] Estimate file saved: ${estimateFilename} (${stampedCount} fields stamped)`);
           } catch (err) {
-            console.error("Failed to stamp estimate template:", err);
+            console.error("[ProjectCreate] Failed to stamp estimate template:", err);
           }
+        } else {
+          console.warn(`[ProjectCreate] No active estimate template found or file missing (template: ${activeEstimateTemplate?.id || 'none'}, path: ${activeEstimateTemplate?.filePath || 'none'})`);
         }
 
         if (plansFile) {

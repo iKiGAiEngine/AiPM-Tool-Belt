@@ -13,7 +13,7 @@ import type {
   InsertAccessoryMatch
 } from "@shared/schema";
 
-const PDF_BUFFER_DIR = "/tmp/specsift_pdfs";
+const PDF_BUFFER_DIR = path.join(process.cwd(), "data", "specsift_pdfs");
 
 function ensurePdfDir() {
   if (!fs.existsSync(PDF_BUFFER_DIR)) {

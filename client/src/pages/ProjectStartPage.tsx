@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import { Link, useLocation } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { ArrowLeft, Upload, FileText, Loader2, CheckCircle, AlertCircle, FolderOpen, CalendarIcon, X, Download } from "lucide-react";
+import { ArrowLeft, Upload, FileText, Loader2, CheckCircle, AlertCircle, FolderOpen, CalendarIcon, X, Download, ExternalLink } from "lucide-react";
 import { format } from "date-fns";
 import { useTestMode } from "@/lib/testMode";
 import { Button } from "@/components/ui/button";
@@ -49,6 +49,7 @@ interface ProgressData {
   planparser: { status: string; totalPages: number; processedPages: number; message: string } | null;
   hasSpecs?: boolean;
   hasPlans?: boolean;
+  specExtractorUrl?: string | null;
 }
 
 interface CreatedProjectResponse extends Project {
@@ -418,18 +419,45 @@ export default function ProjectStartPage() {
             />
 
             {showSpecSiftStep && (
-              <ProgressStep
-                step={++stepNumber}
-                label="Analyzing Specifications"
-                description={getSpecSiftDescription(phase, progressData)}
-                status={
-                  phase === "specsift_running" ? "active" :
-                  (phase === "uploading" || phase === "creating") ? "pending" : "done"
-                }
-                progress={progressData?.specsift?.progress ?? 0}
-                showProgress={phase === "specsift_running"}
-                testId="progress-specsift"
-              />
+              <>
+                <ProgressStep
+                  step={++stepNumber}
+                  label="Analyzing Specifications"
+                  description={getSpecSiftDescription(phase, progressData)}
+                  status={
+                    phase === "specsift_running" ? "active" :
+                    (phase === "uploading" || phase === "creating") ? "pending" : "done"
+                  }
+                  progress={progressData?.specsift?.progress ?? 0}
+                  showProgress={phase === "specsift_running"}
+                  testId="progress-specsift"
+                />
+                {progressData?.specExtractorUrl && (phase === "specsift_running" || phase === "planparser_running" || phase === "complete") && (
+                  <div className="ml-9 -mt-3 space-y-2" data-testid="spec-extractor-link-section">
+                    <div className="flex items-start gap-2 p-3 rounded-md bg-muted/50 border border-border">
+                      <ExternalLink className="w-4 h-4 mt-0.5 text-muted-foreground flex-shrink-0" />
+                      <div className="flex-1 min-w-0 space-y-2">
+                        <p className="text-xs text-muted-foreground">
+                          For a full interactive review of your specifications — including section selection and ZIP export — open the Spec Extractor tool.
+                        </p>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            const url = new URL(progressData.specExtractorUrl!);
+                            url.searchParams.set("project", projectName);
+                            window.open(url.toString(), "_blank", "noopener,noreferrer");
+                          }}
+                          data-testid="button-open-spec-extractor"
+                        >
+                          <ExternalLink className="w-3.5 h-3.5 mr-1.5" />
+                          Open Spec Extractor
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </>
             )}
 
             {showPlanParserStep && (

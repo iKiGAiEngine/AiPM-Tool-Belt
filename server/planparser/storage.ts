@@ -6,7 +6,7 @@ import { eq, desc, lt } from "drizzle-orm";
 import fs from "fs";
 import path from "path";
 
-const JOBS_DIR = "/tmp/planparser_jobs";
+const JOBS_DIR = path.join(process.cwd(), "data", "planparser_jobs");
 
 export interface IPlanParserStorage {
   createJob(data: InsertPlanParserJob): Promise<PlanParserJob>;

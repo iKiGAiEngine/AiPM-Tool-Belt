@@ -21,11 +21,37 @@ import {
   deleteEstimateTemplate,
 } from "./templateStorage";
 
-const FOLDER_TEMPLATE_DIR = "/tmp/folder_templates";
-const ESTIMATE_TEMPLATE_DIR = "/tmp/estimate_templates";
+const FOLDER_TEMPLATE_DIR = path.join(process.cwd(), "data", "templates", "folders");
+const ESTIMATE_TEMPLATE_DIR = path.join(process.cwd(), "data", "templates", "estimates");
 
 fs.mkdirSync(FOLDER_TEMPLATE_DIR, { recursive: true });
 fs.mkdirSync(ESTIMATE_TEMPLATE_DIR, { recursive: true });
+
+async function migrateLegacyTemplatePaths() {
+  const { updateFolderTemplatePath, updateEstimateTemplatePath } = await import("./templateStorage");
+  const allFolders = await getAllFolderTemplates();
+  for (const t of allFolders) {
+    if (t.filePath.startsWith("/tmp/folder_templates/")) {
+      const newPath = path.join(FOLDER_TEMPLATE_DIR, path.basename(t.filePath));
+      if (fs.existsSync(t.filePath) && !fs.existsSync(newPath)) {
+        fs.copyFileSync(t.filePath, newPath);
+      }
+      await updateFolderTemplatePath(t.id, newPath);
+      console.log(`[TemplateMigration] Folder template ${t.id} path updated to ${newPath}`);
+    }
+  }
+  const allEstimates = await getAllEstimateTemplates();
+  for (const t of allEstimates) {
+    if (t.filePath.startsWith("/tmp/estimate_templates/")) {
+      const newPath = path.join(ESTIMATE_TEMPLATE_DIR, path.basename(t.filePath));
+      if (fs.existsSync(t.filePath) && !fs.existsSync(newPath)) {
+        fs.copyFileSync(t.filePath, newPath);
+      }
+      await updateEstimateTemplatePath(t.id, newPath);
+      console.log(`[TemplateMigration] Estimate template ${t.id} path updated to ${newPath}`);
+    }
+  }
+}
 
 const templateUpload = multer({
   storage: multer.memoryStorage(),
@@ -33,6 +59,9 @@ const templateUpload = multer({
 });
 
 export function registerTemplateRoutes(app: Express) {
+  migrateLegacyTemplatePaths().catch(err => {
+    console.error("[TemplateMigration] Failed to migrate legacy paths:", err);
+  });
   app.get("/api/templates/folders", async (req: Request, res: Response) => {
     try {
       const templates = await getAllFolderTemplates();

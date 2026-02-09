@@ -5,7 +5,7 @@ import {
   ArrowLeft, Loader2, CheckCircle, AlertCircle, Clock,
   FileText, ScanSearch, FolderOpen, ToggleLeft, ToggleRight,
   Play, Factory, Hash, Layers, ChevronDown, ChevronRight, Download,
-  BookOpen, FileDown, TrendingUp, TrendingDown, Minus, RefreshCw
+  BookOpen, FileDown, TrendingUp, TrendingDown, Minus, RefreshCw, ExternalLink
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -98,6 +98,11 @@ export default function ProjectDetailPage() {
     queryKey: ["/api/projects", projectId, "plan-pages"],
     enabled: projectId > 0 && !!project && hasPlanResults(project.status),
   });
+
+  const { data: specExtractorConfig } = useQuery<{ url: string | null; configured: boolean }>({
+    queryKey: ["/api/config/spec-extractor"],
+  });
+  const specExtractorUrl = specExtractorConfig?.url || null;
 
   useEffect(() => {
     if (project && !isProcessingStatus(project.status)) {
@@ -419,11 +424,28 @@ export default function ProjectDetailPage() {
               </div>
             )}
             {project.specsiftSessionId ? (
-              <Link href={`/specsift/review?session=${project.specsiftSessionId}`}>
-                <Button variant="outline" size="sm" data-testid="button-view-specsift">
-                  View SpecSift Results
-                </Button>
-              </Link>
+              <div className="flex items-center gap-2 flex-wrap">
+                <Link href={`/specsift/review?session=${project.specsiftSessionId}`}>
+                  <Button variant="outline" size="sm" data-testid="button-view-specsift">
+                    View SpecSift Results
+                  </Button>
+                </Link>
+                {specExtractorUrl && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      const url = new URL(specExtractorUrl);
+                      url.searchParams.set("project", project.projectName || "");
+                      window.open(url.toString(), "_blank", "noopener,noreferrer");
+                    }}
+                    data-testid="button-open-spec-extractor-detail"
+                  >
+                    <ExternalLink className="w-3.5 h-3.5 mr-1.5" />
+                    Spec Extractor
+                  </Button>
+                )}
+              </div>
             ) : (
               <span className="text-sm text-muted-foreground">Not started</span>
             )}
