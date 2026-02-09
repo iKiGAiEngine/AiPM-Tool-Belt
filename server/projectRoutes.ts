@@ -433,14 +433,20 @@ export function registerProjectRoutes(app: Express) {
             const dueParts = dueDate.split("-");
             const formattedDueDate = `${dueParts[1]}.${dueParts[2]}.${dueParts[0].slice(2)}`;
             const ext = path.extname(activeEstimateTemplate.filePath) || ".xlsx";
-            const estimateFilename = `${regionCode.toUpperCase()} - ${safeName} - NBS Estimate - ${formattedDueDate}${ext}`;
+            const estimateFilename = `${safeName} - NBS Estimate - ${formattedDueDate}${ext}`;
 
             const renamedFolder = `${regionCode.toUpperCase()} - ${safeName}`;
             const estimateDir = path.join(projectDir, renamedFolder, "Estimate Folder", "Estimate");
             ensureDir(estimateDir);
             const estimatePath = path.join(estimateDir, estimateFilename);
-            await workbook.xlsx.writeFile(estimatePath);
-            console.log(`[ProjectCreate] Estimate file saved: ${estimateFilename} in ${renamedFolder}/Estimate Folder/Estimate/ (${stampedCount} fields stamped)`);
+
+            if (ext === ".xlsm") {
+              fs.copyFileSync(activeEstimateTemplate.filePath, estimatePath);
+              console.log(`[ProjectCreate] Estimate file copied as .xlsm (macros preserved): ${estimateFilename} (stamping skipped for macro-enabled format)`);
+            } else {
+              await workbook.xlsx.writeFile(estimatePath);
+              console.log(`[ProjectCreate] Estimate file saved: ${estimateFilename} in ${renamedFolder}/Estimate Folder/Estimate/ (${stampedCount} fields stamped)`);
+            }
           } catch (err) {
             console.error("[ProjectCreate] Failed to stamp estimate template:", err);
           }
