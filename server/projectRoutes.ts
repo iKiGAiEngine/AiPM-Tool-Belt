@@ -209,6 +209,49 @@ export function registerProjectRoutes(app: Express) {
     }
   });
 
+  app.get("/api/projects/:id/progress", async (req: Request, res: Response) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) return res.status(400).json({ message: "Invalid ID" });
+      const project = await getProjectById(id);
+      if (!project) return res.status(404).json({ message: "Not found" });
+
+      let specsiftProgress: { status: string; progress: number; message: string } | null = null;
+      if (project.specsiftSessionId) {
+        const session = await storage.getSession(project.specsiftSessionId);
+        if (session) {
+          specsiftProgress = {
+            status: session.status || "pending",
+            progress: session.progress ?? 0,
+            message: session.message || "",
+          };
+        }
+      }
+
+      let planparserProgress: { status: string; totalPages: number; processedPages: number; message: string } | null = null;
+      if (project.planparserJobId) {
+        const job = await planParserStorage.getJob(project.planparserJobId);
+        if (job) {
+          planparserProgress = {
+            status: job.status || "pending",
+            totalPages: job.totalPages ?? 0,
+            processedPages: job.processedPages ?? 0,
+            message: job.message || "",
+          };
+        }
+      }
+
+      res.json({
+        projectId: project.id,
+        projectStatus: project.status,
+        specsift: specsiftProgress,
+        planparser: planparserProgress,
+      });
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch project progress" });
+    }
+  });
+
   app.get("/api/projects/:id/scopes", async (req: Request, res: Response) => {
     try {
       const id = parseInt(req.params.id);

@@ -1,7 +1,7 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { Link, useLocation } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { ArrowLeft, Upload, FileText, Loader2, CheckCircle, AlertCircle, FolderOpen } from "lucide-react";
+import { ArrowLeft, Upload, FileText, Loader2, CheckCircle, AlertCircle, FolderOpen, ScanSearch, Layers } from "lucide-react";
 import { useTestMode } from "@/lib/testMode";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -9,14 +9,31 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import { Progress } from "@/components/ui/progress";
 import { useToast } from "@/hooks/use-toast";
-import { queryClient, apiRequest } from "@/lib/queryClient";
+import { queryClient } from "@/lib/queryClient";
 import type { Region, Project } from "@shared/schema";
 
 type UploadState = {
   file: File | null;
   isDragging: boolean;
 };
+
+type CreationPhase =
+  | "idle"
+  | "uploading"
+  | "creating"
+  | "specsift_running"
+  | "planparser_running"
+  | "complete"
+  | "error";
+
+interface ProgressData {
+  projectId: number;
+  projectStatus: string;
+  specsift: { status: string; progress: number; message: string } | null;
+  planparser: { status: string; totalPages: number; processedPages: number; message: string } | null;
+}
 
 export default function ProjectStartPage() {
   const { toast } = useToast();
@@ -28,33 +45,85 @@ export default function ProjectStartPage() {
   const [plans, setPlans] = useState<UploadState>({ file: null, isDragging: false });
   const [specs, setSpecs] = useState<UploadState>({ file: null, isDragging: false });
 
+  const [phase, setPhase] = useState<CreationPhase>("idle");
+  const [uploadPercent, setUploadPercent] = useState(0);
+  const [createdProject, setCreatedProject] = useState<Project | null>(null);
+  const [errorMessage, setErrorMessage] = useState("");
+  const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const xhrRef = useRef<XMLHttpRequest | null>(null);
+  const pollingStartTime = useRef<number>(0);
+  const [progressData, setProgressData] = useState<ProgressData | null>(null);
+
   const { data: regions = [] } = useQuery<Region[]>({
     queryKey: ["/api/regions"],
   });
 
-  const createProjectMutation = useMutation({
-    mutationFn: async (formData: FormData) => {
-      const response = await fetch("/api/projects", {
-        method: "POST",
-        body: formData,
-      });
-      if (!response.ok) {
-        const err = await response.json();
-        throw new Error(err.message || "Failed to create project");
+  useEffect(() => {
+    return () => {
+      if (pollingRef.current) clearInterval(pollingRef.current);
+      if (xhrRef.current) {
+        xhrRef.current.abort();
+        xhrRef.current = null;
       }
-      return response.json() as Promise<Project>;
-    },
-    onSuccess: (project) => {
-      queryClient.invalidateQueries({ queryKey: ["/api/projects"] });
-      toast({ title: `Project ${project.projectId} created` });
-      navigate(`/projects/${project.id}`);
-    },
-    onError: (error: Error) => {
-      toast({ title: error.message, variant: "destructive" });
-    },
-  });
+    };
+  }, []);
 
-  const handleSubmit = () => {
+  const stopPolling = useCallback(() => {
+    if (pollingRef.current) {
+      clearInterval(pollingRef.current);
+      pollingRef.current = null;
+    }
+  }, []);
+
+  const startProgressPolling = useCallback((projectId: number) => {
+    stopPolling();
+    pollingStartTime.current = Date.now();
+    const MAX_POLL_MS = 30 * 60 * 1000;
+
+    pollingRef.current = setInterval(async () => {
+      if (Date.now() - pollingStartTime.current > MAX_POLL_MS) {
+        stopPolling();
+        setPhase("error");
+        setErrorMessage("Processing is taking longer than expected. Check the project detail page for status.");
+        return;
+      }
+
+      try {
+        const res = await fetch(`/api/projects/${projectId}/progress`);
+        if (!res.ok) return;
+        const data: ProgressData = await res.json();
+        setProgressData(data);
+
+        const status = data.projectStatus;
+        if (!status) return;
+
+        if (status === "created" || status === "plans_uploaded" || status === "specs_uploaded") {
+          setPhase("creating");
+        } else if (status === "specsift_running") {
+          setPhase("specsift_running");
+        } else if (status === "specsift_complete") {
+          setPhase("planparser_running");
+        } else if (status === "planparser_baseline_running") {
+          setPhase("planparser_running");
+        } else if (
+          status === "planparser_baseline_complete" ||
+          status === "outputs_ready" ||
+          status === "planparser_specpass_complete" ||
+          status === "scopes_selected"
+        ) {
+          setPhase("complete");
+          stopPolling();
+        } else if (status.includes("error")) {
+          setPhase("error");
+          const stageName = status.replace(/_/g, " ").replace("error", "").trim();
+          setErrorMessage(`Processing failed during ${stageName}. You can view the project for details.`);
+          stopPolling();
+        }
+      } catch {}
+    }, 2000);
+  }, [stopPolling]);
+
+  const handleSubmit = useCallback(() => {
     if (!projectName || !regionCode || !dueDate || !plans.file || !specs.file) return;
 
     const formData = new FormData();
@@ -67,7 +136,87 @@ export default function ProjectStartPage() {
       formData.append("isTest", "true");
     }
 
-    createProjectMutation.mutate(formData);
+    setPhase("uploading");
+    setUploadPercent(0);
+    setErrorMessage("");
+    setProgressData(null);
+
+    if (xhrRef.current) {
+      xhrRef.current.abort();
+    }
+
+    const xhr = new XMLHttpRequest();
+    xhrRef.current = xhr;
+    xhr.open("POST", "/api/projects");
+
+    xhr.upload.addEventListener("progress", (e) => {
+      if (e.lengthComputable) {
+        const pct = Math.round((e.loaded / e.total) * 100);
+        setUploadPercent(pct);
+        if (pct >= 100) {
+          setPhase("creating");
+        }
+      }
+    });
+
+    xhr.addEventListener("load", () => {
+      xhrRef.current = null;
+      if (xhr.status >= 200 && xhr.status < 300) {
+        try {
+          const project: Project = JSON.parse(xhr.responseText);
+          setCreatedProject(project);
+          setPhase("creating");
+          queryClient.invalidateQueries({ queryKey: ["/api/projects"] });
+          startProgressPolling(project.id);
+        } catch {
+          setPhase("error");
+          setErrorMessage("Unexpected response from server");
+        }
+      } else {
+        try {
+          const err = JSON.parse(xhr.responseText);
+          setPhase("error");
+          setErrorMessage(err.message || "Failed to create project");
+        } catch {
+          setPhase("error");
+          setErrorMessage("Failed to create project");
+        }
+      }
+    });
+
+    xhr.addEventListener("error", () => {
+      xhrRef.current = null;
+      setPhase("error");
+      setErrorMessage("Network error — check your connection and try again");
+    });
+
+    xhr.addEventListener("timeout", () => {
+      xhrRef.current = null;
+      setPhase("error");
+      setErrorMessage("Upload timed out — the files may be too large for the connection speed");
+    });
+
+    xhr.timeout = 600000;
+    xhr.send(formData);
+  }, [projectName, regionCode, dueDate, plans.file, specs.file, isTestMode, startProgressPolling]);
+
+  const handleGoToProject = () => {
+    if (createdProject) {
+      navigate(`/projects/${createdProject.id}`);
+    }
+  };
+
+  const handleRetry = () => {
+    stopPolling();
+    if (xhrRef.current) {
+      xhrRef.current.abort();
+      xhrRef.current = null;
+    }
+    setPhase("idle");
+    setUploadPercent(0);
+    setCreatedProject(null);
+    setErrorMessage("");
+    setProgressData(null);
   };
 
   const createDropHandlers = useCallback(
@@ -98,6 +247,132 @@ export default function ProjectStartPage() {
   const specsHandlers = createDropHandlers(setSpecs);
 
   const isReady = projectName && regionCode && dueDate && plans.file && specs.file;
+  const isProcessing = phase !== "idle" && phase !== "complete" && phase !== "error";
+
+  if (phase !== "idle") {
+    return (
+      <div className="container max-w-2xl mx-auto py-8 px-4">
+        <div className="flex items-center gap-4 mb-8">
+          <Link href="/">
+            <Button variant="ghost" size="icon" data-testid="button-back" disabled={isProcessing}>
+              <ArrowLeft className="w-5 h-5" />
+            </Button>
+          </Link>
+          <div>
+            <h1 className="text-2xl font-semibold text-foreground">Project Start</h1>
+            <p className="text-muted-foreground">
+              {createdProject ? `Creating ${createdProject.projectId}` : "Creating project..."}
+            </p>
+          </div>
+        </div>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg" data-testid="text-progress-title">
+              {phase === "complete" ? "Project Created Successfully" : phase === "error" ? "Something Went Wrong" : "Creating Project"}
+            </CardTitle>
+            <CardDescription>
+              {phase === "complete"
+                ? "All processing stages are complete. Your project is ready."
+                : phase === "error"
+                ? errorMessage
+                : "Large files may take several minutes to upload and process."}
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <ProgressStep
+              step={1}
+              label="Uploading Files"
+              description={
+                phase === "uploading"
+                  ? `Sending ${formatSize(plans.file?.size)} plans + ${formatSize(specs.file?.size)} specs...`
+                  : "Files sent to server"
+              }
+              status={phase === "uploading" ? "active" : "done"}
+              progress={phase === "uploading" ? uploadPercent : 100}
+              showProgress={phase === "uploading"}
+              testId="progress-upload"
+            />
+
+            <ProgressStep
+              step={2}
+              label="Setting Up Project"
+              description={
+                phase === "creating"
+                  ? "Creating project folders and stamping estimate..."
+                  : "Folder structure and estimate template ready"
+              }
+              status={phase === "creating" ? "active" : phase === "uploading" ? "pending" : "done"}
+              testId="progress-setup"
+            />
+
+            <ProgressStep
+              step={3}
+              label="SpecSift — Extracting Specifications"
+              description={getSpecSiftDescription(phase, progressData)}
+              status={
+                phase === "specsift_running" ? "active" :
+                (phase === "uploading" || phase === "creating") ? "pending" : "done"
+              }
+              progress={progressData?.specsift?.progress ?? 0}
+              showProgress={phase === "specsift_running"}
+              testId="progress-specsift"
+            />
+
+            <ProgressStep
+              step={4}
+              label="Plan Parser — Classifying Pages"
+              description={getPlanParserDescription(phase, progressData)}
+              status={
+                phase === "planparser_running" ? "active" :
+                (phase === "uploading" || phase === "creating" || phase === "specsift_running") ? "pending" :
+                phase === "complete" ? "done" : "pending"
+              }
+              progress={
+                progressData?.planparser && progressData.planparser.totalPages > 0
+                  ? Math.round((progressData.planparser.processedPages / progressData.planparser.totalPages) * 100)
+                  : 0
+              }
+              showProgress={phase === "planparser_running"}
+              testId="progress-planparser"
+            />
+
+            {phase === "error" && (
+              <div className="flex items-center gap-3 p-3 rounded-md bg-destructive/10 text-destructive text-sm" data-testid="text-error-message">
+                <AlertCircle className="w-5 h-5 flex-shrink-0" />
+                <span>{errorMessage}</span>
+              </div>
+            )}
+
+            <div className="flex items-center gap-3 pt-2">
+              {phase === "complete" && (
+                <Button onClick={handleGoToProject} data-testid="button-go-to-project">
+                  <CheckCircle className="w-4 h-4 mr-2" />
+                  View Project
+                </Button>
+              )}
+              {phase === "error" && !createdProject && (
+                <Button onClick={handleRetry} variant="outline" data-testid="button-retry">
+                  Try Again
+                </Button>
+              )}
+              {phase === "error" && createdProject && (
+                <Button onClick={handleGoToProject} variant="outline" data-testid="button-go-to-project-error">
+                  View Project (partial)
+                </Button>
+              )}
+              {isProcessing && (
+                <p className="text-sm text-muted-foreground flex items-center gap-2">
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  This may take several minutes for large files. You can leave this page safely.
+                </p>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="container max-w-3xl mx-auto py-8 px-4">
@@ -209,19 +484,92 @@ export default function ProjectStartPage() {
           </div>
           <Button
             onClick={handleSubmit}
-            disabled={!isReady || createProjectMutation.isPending}
+            disabled={!isReady}
             data-testid="button-create-project"
           >
-            {createProjectMutation.isPending ? (
-              <>
-                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                Creating...
-              </>
-            ) : (
-              "Create Project"
-            )}
+            Create Project
           </Button>
         </div>
+      </div>
+    </div>
+  );
+}
+
+function formatSize(bytes: number | undefined): string {
+  if (!bytes) return "0 MB";
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function getSpecSiftDescription(phase: CreationPhase, data: ProgressData | null): string {
+  if (phase === "specsift_running" && data?.specsift) {
+    const msg = data.specsift.message || "Processing specifications...";
+    const pct = data.specsift.progress;
+    return pct > 0 ? `${msg} (${pct}%)` : msg;
+  }
+  if (phase === "planparser_running" || phase === "complete") {
+    return "Specification extraction complete";
+  }
+  return "Waiting to start...";
+}
+
+function getPlanParserDescription(phase: CreationPhase, data: ProgressData | null): string {
+  if (phase === "planparser_running" && data?.planparser) {
+    const { processedPages, totalPages, message } = data.planparser;
+    if (totalPages > 0) {
+      return `Page ${processedPages} of ${totalPages} — ${message || "Classifying..."}`;
+    }
+    return message || "Initializing...";
+  }
+  if (phase === "complete") {
+    return "Page classification complete";
+  }
+  return "Waiting for SpecSift to finish...";
+}
+
+interface ProgressStepProps {
+  step: number;
+  label: string;
+  description: string;
+  status: "pending" | "active" | "done";
+  progress?: number;
+  showProgress?: boolean;
+  testId: string;
+}
+
+function ProgressStep({ step, label, description, status, progress = 0, showProgress = false, testId }: ProgressStepProps) {
+  const icon =
+    status === "done" ? (
+      <CheckCircle className="w-5 h-5 text-green-500" />
+    ) : status === "active" ? (
+      <Loader2 className="w-5 h-5 text-primary animate-spin" />
+    ) : (
+      <div className="w-5 h-5 rounded-full border-2 border-muted-foreground/30 flex items-center justify-center">
+        <span className="text-[10px] text-muted-foreground/50 font-medium">{step}</span>
+      </div>
+    );
+
+  return (
+    <div
+      className={`flex gap-4 items-start transition-opacity ${status === "pending" ? "opacity-40" : "opacity-100"}`}
+      data-testid={testId}
+    >
+      <div className="flex-shrink-0 pt-0.5">{icon}</div>
+      <div className="flex-1 min-w-0 space-y-1.5">
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className={`text-sm font-medium ${status === "active" ? "text-foreground" : status === "done" ? "text-foreground" : "text-muted-foreground"}`}>
+            {label}
+          </span>
+          {status === "active" && showProgress && progress > 0 && (
+            <Badge variant="secondary" className="text-xs" data-testid={`${testId}-percent`}>
+              {progress}%
+            </Badge>
+          )}
+        </div>
+        <p className="text-xs text-muted-foreground" data-testid={`${testId}-description`}>{description}</p>
+        {status === "active" && showProgress && (
+          <Progress value={progress} className="h-1.5" data-testid={`${testId}-bar`} />
+        )}
       </div>
     </div>
   );
