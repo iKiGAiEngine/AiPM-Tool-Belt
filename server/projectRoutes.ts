@@ -246,6 +246,8 @@ export function registerProjectRoutes(app: Express) {
         projectStatus: project.status,
         specsift: specsiftProgress,
         planparser: planparserProgress,
+        hasSpecs: !!project.specsiftSessionId,
+        hasPlans: !!project.planparserJobId,
       });
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch project progress" });
@@ -278,12 +280,10 @@ export function registerProjectRoutes(app: Express) {
         }
 
         const files = req.files as { [fieldname: string]: Express.Multer.File[] };
-        const plansFile = files?.plans?.[0];
-        const specsFile = files?.specs?.[0];
-
-        if (!plansFile || !specsFile) {
-          return res.status(400).json({ message: "Both plans and specs PDFs are required" });
-        }
+        const plansFile = files?.plans?.[0] || null;
+        const specsFile = files?.specs?.[0] || null;
+        const hasPlans = !!plansFile;
+        const hasSpecs = !!specsFile;
 
         const projectIdStr = await generateProjectId();
         const safeName = sanitizeForWindows(projectName);
@@ -355,114 +355,141 @@ export function registerProjectRoutes(app: Express) {
           }
         }
 
-        fs.writeFileSync(path.join(projectDir, "Plans/Original", plansFile.originalname), plansFile.buffer);
-        fs.writeFileSync(path.join(projectDir, "Specs/Original", specsFile.originalname), specsFile.buffer);
+        if (plansFile) {
+          fs.writeFileSync(path.join(projectDir, "Plans/Original", plansFile.originalname), plansFile.buffer);
+        }
+        if (specsFile) {
+          fs.writeFileSync(path.join(projectDir, "Specs/Original", specsFile.originalname), specsFile.buffer);
+        }
 
-        const specsiftSession = await storage.createSession({
-          filename: specsFile.originalname,
-          projectName: safeName,
-          status: "processing",
-          progress: 0,
-          message: "Starting SpecSift extraction...",
-          createdAt: new Date().toISOString(),
-        });
-        await storage.storePdfBuffer(specsiftSession.id, specsFile.buffer);
+        let specsiftSessionId: string | undefined;
+        let planParserJobId: string | undefined;
 
-        const planParserJob = await planParserStorage.createJob({
-          status: "pending",
-          totalPages: 0,
-          processedPages: 0,
-          flaggedPages: 0,
-          filenames: [plansFile.originalname],
-          message: "Queued for processing",
-          createdAt: new Date().toISOString(),
-          expiresAt: new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString(),
-          scopeCounts: {},
-        });
-        const planParserJobId = planParserJob.id;
+        if (specsFile) {
+          const specsiftSession = await storage.createSession({
+            filename: specsFile.originalname,
+            projectName: safeName,
+            status: "processing",
+            progress: 0,
+            message: "Starting SpecSift extraction...",
+            createdAt: new Date().toISOString(),
+          });
+          await storage.storePdfBuffer(specsiftSession.id, specsFile.buffer);
+          specsiftSessionId = specsiftSession.id;
+        }
+
+        if (plansFile) {
+          const planParserJob = await planParserStorage.createJob({
+            status: "pending",
+            totalPages: 0,
+            processedPages: 0,
+            flaggedPages: 0,
+            filenames: [plansFile.originalname],
+            message: "Queued for processing",
+            createdAt: new Date().toISOString(),
+            expiresAt: new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString(),
+            scopeCounts: {},
+          });
+          planParserJobId = planParserJob.id;
+        }
+
+        const initialStatus = (!hasPlans && !hasSpecs) ? "folder_only" : "created";
 
         const project = await createProject({
           projectId: projectIdStr,
           projectName: safeName,
           regionCode: regionCode.toUpperCase(),
           dueDate,
-          status: "created",
-          specsiftSessionId: specsiftSession.id,
+          status: initialStatus,
+          specsiftSessionId: specsiftSessionId,
           planparserJobId: planParserJobId,
           folderPath: projectDir,
-          plansFilename: plansFile.originalname,
-          specsFilename: specsFile.originalname,
+          plansFilename: plansFile?.originalname,
+          specsFilename: specsFile?.originalname,
           isTest: isTest === "true",
         });
 
-        (async () => {
-          try {
-            await updateProject(project.id, { status: "specsift_running" });
+        if (hasSpecs || hasPlans) {
+          (async () => {
+            if (hasSpecs && specsFile && specsiftSessionId) {
+              try {
+                await updateProject(project.id, { status: "specsift_running" });
 
-            const result = await processPdf(specsFile.buffer, specsiftSession.id, (progress, message) => {
-              storage.updateSession(specsiftSession.id, { progress, message });
-            });
+                const result = await processPdf(specsFile.buffer, specsiftSessionId, (progress, message) => {
+                  storage.updateSession(specsiftSessionId!, { progress, message });
+                });
 
-            for (const section of result.sections) {
-              await storage.createSection(section);
+                for (const section of result.sections) {
+                  await storage.createSection(section);
+                }
+                for (const accessory of result.accessories) {
+                  await storage.createAccessoryMatch(accessory);
+                }
+
+                await storage.updateSession(specsiftSessionId, {
+                  status: "complete",
+                  progress: 100,
+                  message: `Extracted ${result.sections.length} sections`,
+                });
+
+                for (const section of result.sections) {
+                  await createProjectScope({
+                    projectId: project.id,
+                    scopeType: section.title || "Unknown",
+                    specSectionNumber: section.sectionNumber,
+                    specSectionTitle: section.title,
+                    manufacturers: section.manufacturers || [],
+                    modelNumbers: section.modelNumbers || [],
+                    materials: section.materials || [],
+                    keywords: [],
+                    confidenceScore: 80,
+                    isSelected: true,
+                  });
+                }
+
+                await updateProject(project.id, { status: "specsift_complete" });
+              } catch (err) {
+                console.error("SpecSift processing error:", err);
+                await storage.updateSession(specsiftSessionId!, {
+                  status: "error",
+                  message: err instanceof Error ? err.message : "Processing failed",
+                });
+                await updateProject(project.id, { status: "specsift_error" });
+              }
             }
-            for (const accessory of result.accessories) {
-              await storage.createAccessoryMatch(accessory);
+
+            if (hasPlans && plansFile && planParserJobId) {
+              try {
+                await updateProject(project.id, { status: "planparser_baseline_running" });
+                await processJob(planParserJobId, [
+                  { filename: plansFile.originalname, buffer: plansFile.buffer }
+                ]);
+                const completedJob = await planParserStorage.getJob(planParserJobId);
+                if (completedJob) {
+                  await updateProject(project.id, {
+                    status: "planparser_baseline_complete",
+                    baselineScopeCounts: completedJob.scopeCounts || {},
+                    baselineFlaggedPages: completedJob.flaggedPages,
+                  });
+                } else {
+                  await updateProject(project.id, { status: "planparser_baseline_complete" });
+                }
+              } catch (err) {
+                console.error("Plan Parser processing error:", err);
+                await updateProject(project.id, { status: "planparser_baseline_error" });
+              }
             }
 
-            await storage.updateSession(specsiftSession.id, {
-              status: "complete",
-              progress: 100,
-              message: `Extracted ${result.sections.length} sections`,
-            });
-
-            for (const section of result.sections) {
-              await createProjectScope({
-                projectId: project.id,
-                scopeType: section.title || "Unknown",
-                specSectionNumber: section.sectionNumber,
-                specSectionTitle: section.title,
-                manufacturers: section.manufacturers || [],
-                modelNumbers: section.modelNumbers || [],
-                materials: section.materials || [],
-                keywords: [],
-                confidenceScore: 80,
-                isSelected: true,
-              });
+            if (!hasPlans && hasSpecs) {
+              const currentProject = await getProjectById(project.id);
+              if (currentProject && !currentProject.status?.includes("error")) {
+                await updateProject(project.id, { status: "planparser_baseline_complete" });
+              }
             }
+          })();
+        }
 
-            await updateProject(project.id, { status: "specsift_complete" });
-          } catch (err) {
-            console.error("SpecSift processing error:", err);
-            await storage.updateSession(specsiftSession.id, {
-              status: "error",
-              message: err instanceof Error ? err.message : "Processing failed",
-            });
-            await updateProject(project.id, { status: "specsift_error" });
-          }
-
-          try {
-            await updateProject(project.id, { status: "planparser_baseline_running" });
-            await processJob(planParserJobId, [
-              { filename: plansFile.originalname, buffer: plansFile.buffer }
-            ]);
-            const completedJob = await planParserStorage.getJob(planParserJobId);
-            if (completedJob) {
-              await updateProject(project.id, {
-                status: "planparser_baseline_complete",
-                baselineScopeCounts: completedJob.scopeCounts || {},
-                baselineFlaggedPages: completedJob.flaggedPages,
-              });
-            } else {
-              await updateProject(project.id, { status: "planparser_baseline_complete" });
-            }
-          } catch (err) {
-            console.error("Plan Parser processing error:", err);
-            await updateProject(project.id, { status: "planparser_baseline_error" });
-          }
-        })();
-
-        res.status(201).json(project);
+        res.status(201).json({ ...project, hasPlans, hasSpecs });
       } catch (error) {
         console.error("Project creation error:", error);
         res.status(500).json({ message: "Failed to create project" });

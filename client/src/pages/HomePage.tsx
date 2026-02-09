@@ -62,9 +62,28 @@ const tools: ToolTile[] = [
 function getStatusCategory(status: string | null): "processing" | "complete" | "error" | "created" {
   if (!status) return "created";
   if (status.includes("error")) return "error";
-  if (status === "outputs_ready" || status.includes("complete")) return "complete";
+  if (status === "folder_only" || status === "outputs_ready" || status.includes("complete") || status === "scopes_selected") return "complete";
   if (status.includes("running")) return "processing";
   return "created";
+}
+
+function getStatusLabel(status: string | null): string {
+  if (!status) return "Created";
+  if (status === "folder_only") return "Folder Only";
+  if (status === "created") return "Created";
+  if (status === "specsift_running") return "Processing Specs";
+  if (status === "specsift_complete") return "Specs Done";
+  if (status === "specsift_error") return "Spec Error";
+  if (status === "planparser_baseline_running") return "Processing Plans";
+  if (status === "planparser_baseline_complete") return "Complete";
+  if (status === "planparser_baseline_error") return "Plan Error";
+  if (status === "planparser_specpass_complete") return "Complete";
+  if (status === "outputs_ready") return "Complete";
+  if (status === "scopes_selected") return "Complete";
+  if (status.includes("error")) return "Error";
+  if (status.includes("complete")) return "Complete";
+  if (status.includes("running")) return "Processing";
+  return status.replace(/_/g, " ");
 }
 
 export default function HomePage() {
@@ -278,8 +297,9 @@ export default function HomePage() {
                         <Badge
                           variant={statusCat === "error" ? "destructive" : statusCat === "complete" ? "default" : "outline"}
                           className="text-xs"
+                          data-testid={`badge-status-${project.id}`}
                         >
-                          {project.status?.replace(/_/g, " ") || "created"}
+                          {getStatusLabel(project.status)}
                         </Badge>
                         <ChevronRight className="w-4 h-4 text-muted-foreground" />
                       </div>

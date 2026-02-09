@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import { Link, useLocation } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { ArrowLeft, Upload, FileText, Loader2, CheckCircle, AlertCircle, FolderOpen, CalendarIcon } from "lucide-react";
+import { ArrowLeft, Upload, FileText, Loader2, CheckCircle, AlertCircle, FolderOpen, CalendarIcon, X } from "lucide-react";
 import { format } from "date-fns";
 import { useTestMode } from "@/lib/testMode";
 import { Button } from "@/components/ui/button";
@@ -47,6 +47,13 @@ interface ProgressData {
   projectStatus: string;
   specsift: { status: string; progress: number; message: string } | null;
   planparser: { status: string; totalPages: number; processedPages: number; message: string } | null;
+  hasSpecs?: boolean;
+  hasPlans?: boolean;
+}
+
+interface CreatedProjectResponse extends Project {
+  hasPlans?: boolean;
+  hasSpecs?: boolean;
 }
 
 export default function ProjectStartPage() {
@@ -64,12 +71,16 @@ export default function ProjectStartPage() {
 
   const [phase, setPhase] = useState<CreationPhase>("idle");
   const [uploadPercent, setUploadPercent] = useState(0);
-  const [createdProject, setCreatedProject] = useState<Project | null>(null);
+  const [createdProject, setCreatedProject] = useState<CreatedProjectResponse | null>(null);
   const [errorMessage, setErrorMessage] = useState("");
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const xhrRef = useRef<XMLHttpRequest | null>(null);
   const pollingStartTime = useRef<number>(0);
   const [progressData, setProgressData] = useState<ProgressData | null>(null);
+
+  const hasPlans = createdProject?.hasPlans ?? !!plans.file;
+  const hasSpecs = createdProject?.hasSpecs ?? !!specs.file;
+  const hasFiles = hasPlans || hasSpecs;
 
   const { data: regions = [] } = useQuery<Region[]>({
     queryKey: ["/api/regions"],
@@ -114,12 +125,20 @@ export default function ProjectStartPage() {
         const status = data.projectStatus;
         if (!status) return;
 
-        if (status === "created" || status === "plans_uploaded" || status === "specs_uploaded") {
+        if (status === "folder_only") {
+          setPhase("complete");
+          stopPolling();
+        } else if (status === "created" || status === "plans_uploaded" || status === "specs_uploaded") {
           setPhase("creating");
         } else if (status === "specsift_running") {
           setPhase("specsift_running");
         } else if (status === "specsift_complete") {
-          setPhase("planparser_running");
+          if (data.hasPlans) {
+            setPhase("planparser_running");
+          } else {
+            setPhase("complete");
+            stopPolling();
+          }
         } else if (status === "planparser_baseline_running") {
           setPhase("planparser_running");
         } else if (
@@ -141,19 +160,25 @@ export default function ProjectStartPage() {
   }, [stopPolling]);
 
   const handleSubmit = useCallback(() => {
-    if (!projectName || !regionCode || !dueDate || !plans.file || !specs.file) return;
+    if (!projectName || !regionCode || !dueDate) return;
 
     const formData = new FormData();
     formData.append("projectName", projectName);
     formData.append("regionCode", regionCode);
     formData.append("dueDate", format(dueDate, "yyyy-MM-dd"));
-    formData.append("plans", plans.file);
-    formData.append("specs", specs.file);
+    if (plans.file) {
+      formData.append("plans", plans.file);
+    }
+    if (specs.file) {
+      formData.append("specs", specs.file);
+    }
     if (isTestMode) {
       formData.append("isTest", "true");
     }
 
-    setPhase("uploading");
+    const isFolderOnly = !plans.file && !specs.file;
+
+    setPhase(isFolderOnly ? "creating" : "uploading");
     setUploadPercent(0);
     setErrorMessage("");
     setProgressData(null);
@@ -166,25 +191,32 @@ export default function ProjectStartPage() {
     xhrRef.current = xhr;
     xhr.open("POST", "/api/projects");
 
-    xhr.upload.addEventListener("progress", (e) => {
-      if (e.lengthComputable) {
-        const pct = Math.round((e.loaded / e.total) * 100);
-        setUploadPercent(pct);
-        if (pct >= 100) {
-          setPhase("creating");
+    if (!isFolderOnly) {
+      xhr.upload.addEventListener("progress", (e) => {
+        if (e.lengthComputable) {
+          const pct = Math.round((e.loaded / e.total) * 100);
+          setUploadPercent(pct);
+          if (pct >= 100) {
+            setPhase("creating");
+          }
         }
-      }
-    });
+      });
+    }
 
     xhr.addEventListener("load", () => {
       xhrRef.current = null;
       if (xhr.status >= 200 && xhr.status < 300) {
         try {
-          const project: Project = JSON.parse(xhr.responseText);
+          const project: CreatedProjectResponse = JSON.parse(xhr.responseText);
           setCreatedProject(project);
-          setPhase("creating");
           queryClient.invalidateQueries({ queryKey: ["/api/projects"] });
-          startProgressPolling(project.id);
+
+          if (isFolderOnly) {
+            setPhase("complete");
+          } else {
+            setPhase("creating");
+            startProgressPolling(project.id);
+          }
         } catch {
           setPhase("error");
           setErrorMessage("Unexpected response from server");
@@ -299,10 +331,35 @@ export default function ProjectStartPage() {
   const plansHandlers = createDropHandlers(setPlans);
   const specsHandlers = createDropHandlers(setSpecs);
 
-  const isReady = projectName && regionCode && dueDate && plans.file && specs.file;
+  const isReady = projectName && regionCode && dueDate;
   const isProcessing = phase !== "idle" && phase !== "complete" && phase !== "error";
 
   if (phase !== "idle") {
+    const showUploadStep = hasFiles;
+    const showSpecSiftStep = hasSpecs;
+    const showPlanParserStep = hasPlans;
+
+    const getProgressTitle = () => {
+      if (phase === "complete") return "Project Created Successfully";
+      if (phase === "error") {
+        return createdProject ? "Processing Error" : "Something Went Wrong";
+      }
+      return "Creating Project";
+    };
+
+    const getProgressSubtitle = () => {
+      if (phase === "complete") {
+        if (!hasFiles) return "Project folder has been created and is ready.";
+        return "All processing stages are complete. Your project is ready.";
+      }
+      if (phase === "error") return errorMessage;
+      return hasFiles
+        ? "Large files may take several minutes to upload and process."
+        : "Setting up project folder...";
+    };
+
+    let stepNumber = 0;
+
     return (
       <div className="container max-w-2xl mx-auto py-8 px-4">
         <div className="flex items-center gap-4 mb-8">
@@ -322,73 +379,78 @@ export default function ProjectStartPage() {
         <Card>
           <CardHeader>
             <CardTitle className="text-lg" data-testid="text-progress-title">
-              {phase === "complete" ? "Project Created Successfully" : phase === "error" ? "Something Went Wrong" : "Creating Project"}
+              {getProgressTitle()}
             </CardTitle>
             <CardDescription>
-              {phase === "complete"
-                ? "All processing stages are complete. Your project is ready."
-                : phase === "error"
-                ? errorMessage
-                : "Large files may take several minutes to upload and process."}
+              {getProgressSubtitle()}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
-            <ProgressStep
-              step={1}
-              label="Uploading Files"
-              description={
-                phase === "uploading"
-                  ? `Sending ${formatSize(plans.file?.size)} plans + ${formatSize(specs.file?.size)} specs...`
-                  : "Files sent to server"
-              }
-              status={phase === "uploading" ? "active" : "done"}
-              progress={phase === "uploading" ? uploadPercent : 100}
-              showProgress={phase === "uploading"}
-              testId="progress-upload"
-            />
+            {showUploadStep && (
+              <ProgressStep
+                step={++stepNumber}
+                label="Uploading Files"
+                description={
+                  phase === "uploading"
+                    ? `Sending ${plans.file ? formatSize(plans.file.size) + " plans" : ""}${plans.file && specs.file ? " + " : ""}${specs.file ? formatSize(specs.file.size) + " specs" : ""}...`
+                    : "Files sent to server"
+                }
+                status={phase === "uploading" ? "active" : "done"}
+                progress={phase === "uploading" ? uploadPercent : 100}
+                showProgress={phase === "uploading"}
+                testId="progress-upload"
+              />
+            )}
 
             <ProgressStep
-              step={2}
+              step={++stepNumber}
               label="Setting Up Project"
               description={
                 phase === "creating"
                   ? "Creating project folders and stamping estimate..."
                   : "Folder structure and estimate template ready"
               }
-              status={phase === "creating" ? "active" : phase === "uploading" ? "pending" : "done"}
+              status={
+                phase === "creating" ? "active" :
+                phase === "uploading" ? "pending" : "done"
+              }
               testId="progress-setup"
             />
 
-            <ProgressStep
-              step={3}
-              label="SpecSift — Extracting Specifications"
-              description={getSpecSiftDescription(phase, progressData)}
-              status={
-                phase === "specsift_running" ? "active" :
-                (phase === "uploading" || phase === "creating") ? "pending" : "done"
-              }
-              progress={progressData?.specsift?.progress ?? 0}
-              showProgress={phase === "specsift_running"}
-              testId="progress-specsift"
-            />
+            {showSpecSiftStep && (
+              <ProgressStep
+                step={++stepNumber}
+                label="SpecSift — Extracting Specifications"
+                description={getSpecSiftDescription(phase, progressData)}
+                status={
+                  phase === "specsift_running" ? "active" :
+                  (phase === "uploading" || phase === "creating") ? "pending" : "done"
+                }
+                progress={progressData?.specsift?.progress ?? 0}
+                showProgress={phase === "specsift_running"}
+                testId="progress-specsift"
+              />
+            )}
 
-            <ProgressStep
-              step={4}
-              label="Plan Parser — Classifying Pages"
-              description={getPlanParserDescription(phase, progressData)}
-              status={
-                phase === "planparser_running" ? "active" :
-                (phase === "uploading" || phase === "creating" || phase === "specsift_running") ? "pending" :
-                phase === "complete" ? "done" : "pending"
-              }
-              progress={
-                progressData?.planparser && progressData.planparser.totalPages > 0
-                  ? Math.round((progressData.planparser.processedPages / progressData.planparser.totalPages) * 100)
-                  : 0
-              }
-              showProgress={phase === "planparser_running"}
-              testId="progress-planparser"
-            />
+            {showPlanParserStep && (
+              <ProgressStep
+                step={++stepNumber}
+                label="Plan Parser — Classifying Pages"
+                description={getPlanParserDescription(phase, progressData, hasSpecs)}
+                status={
+                  phase === "planparser_running" ? "active" :
+                  (phase === "uploading" || phase === "creating" || phase === "specsift_running") ? "pending" :
+                  phase === "complete" ? "done" : "pending"
+                }
+                progress={
+                  progressData?.planparser && progressData.planparser.totalPages > 0
+                    ? Math.round((progressData.planparser.processedPages / progressData.planparser.totalPages) * 100)
+                    : 0
+                }
+                showProgress={phase === "planparser_running"}
+                testId="progress-planparser"
+              />
+            )}
 
             {phase === "error" && (
               <div className="flex items-center gap-3 p-3 rounded-md bg-destructive/10 text-destructive text-sm" data-testid="text-error-message">
@@ -397,7 +459,7 @@ export default function ProjectStartPage() {
               </div>
             )}
 
-            <div className="flex items-center gap-3 pt-2">
+            <div className="flex items-center gap-3 flex-wrap pt-2">
               {phase === "complete" && (
                 <Button onClick={handleGoToProject} data-testid="button-go-to-project">
                   <CheckCircle className="w-4 h-4 mr-2" />
@@ -410,9 +472,14 @@ export default function ProjectStartPage() {
                 </Button>
               )}
               {phase === "error" && createdProject && (
-                <Button onClick={handleGoToProject} variant="outline" data-testid="button-go-to-project-error">
-                  View Project (partial)
-                </Button>
+                <>
+                  <Button onClick={handleGoToProject} variant="outline" data-testid="button-go-to-project-error">
+                    View Project
+                  </Button>
+                  <Button onClick={handleRetry} variant="ghost" data-testid="button-retry">
+                    Try Again
+                  </Button>
+                </>
               )}
               {isProcessing && (
                 <p className="text-sm text-muted-foreground flex items-center gap-2">
@@ -437,7 +504,7 @@ export default function ProjectStartPage() {
         </Link>
         <div>
           <h1 className="text-2xl font-semibold text-foreground">Project Start</h1>
-          <p className="text-muted-foreground">Create a new project with plans and specs</p>
+          <p className="text-muted-foreground">Create a new project folder, optionally with plans and specs</p>
         </div>
       </div>
 
@@ -517,38 +584,53 @@ export default function ProjectStartPage() {
           </CardContent>
         </Card>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-          <UploadZone
-            label="Plans PDF"
-            description="Construction plan drawings"
-            file={plans.file}
-            isDragging={plans.isDragging}
-            onFileChange={(file) => setPlans({ file, isDragging: false })}
-            dropHandlers={plansHandlers}
-            testId="upload-plans"
-          />
-          <UploadZone
-            label="Specs PDF"
-            description="Specification documents"
-            file={specs.file}
-            isDragging={specs.isDragging}
-            onFileChange={(file) => setSpecs({ file, isDragging: false })}
-            dropHandlers={specsHandlers}
-            testId="upload-specs"
-          />
-        </div>
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg">Documents</CardTitle>
+            <CardDescription>
+              Upload plans and/or specs to process. Leave both empty to create just the project folder.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+              <UploadZone
+                label="Plans PDF"
+                description="Construction plan drawings"
+                file={plans.file}
+                isDragging={plans.isDragging}
+                onFileChange={(file) => setPlans({ file, isDragging: false })}
+                dropHandlers={plansHandlers}
+                testId="upload-plans"
+                optional
+              />
+              <UploadZone
+                label="Specs PDF"
+                description="Specification documents"
+                file={specs.file}
+                isDragging={specs.isDragging}
+                onFileChange={(file) => setSpecs({ file, isDragging: false })}
+                dropHandlers={specsHandlers}
+                testId="upload-specs"
+                optional
+              />
+            </div>
+          </CardContent>
+        </Card>
 
         <div className="flex items-center justify-between gap-4">
           <div className="text-sm text-muted-foreground">
             {isReady ? (
               <span className="flex items-center gap-1 text-green-600 dark:text-green-400">
                 <CheckCircle className="w-4 h-4" />
-                Ready to create project
+                {plans.file || specs.file
+                  ? `Ready — will process ${[plans.file && "plans", specs.file && "specs"].filter(Boolean).join(" & ")}`
+                  : "Ready — folder only (no documents to process)"
+                }
               </span>
             ) : (
               <span className="flex items-center gap-1">
                 <AlertCircle className="w-4 h-4" />
-                Fill all fields and upload both PDFs
+                Fill in region, due date, and project name
               </span>
             )}
           </div>
@@ -620,7 +702,7 @@ function getSpecSiftDescription(phase: CreationPhase, data: ProgressData | null)
   return "Waiting to start...";
 }
 
-function getPlanParserDescription(phase: CreationPhase, data: ProgressData | null): string {
+function getPlanParserDescription(phase: CreationPhase, data: ProgressData | null, hasSpecs: boolean): string {
   if (phase === "planparser_running" && data?.planparser) {
     const { processedPages, totalPages, message } = data.planparser;
     if (totalPages > 0) {
@@ -631,7 +713,10 @@ function getPlanParserDescription(phase: CreationPhase, data: ProgressData | nul
   if (phase === "complete") {
     return "Page classification complete";
   }
-  return "Waiting for SpecSift to finish...";
+  if (hasSpecs) {
+    return "Waiting for SpecSift to finish...";
+  }
+  return "Waiting to start...";
 }
 
 interface ProgressStepProps {
@@ -694,9 +779,10 @@ interface UploadZoneProps {
     onDrop: (e: React.DragEvent) => void;
   };
   testId: string;
+  optional?: boolean;
 }
 
-function UploadZone({ label, description, file, isDragging, onFileChange, dropHandlers, testId }: UploadZoneProps) {
+function UploadZone({ label, description, file, isDragging, onFileChange, dropHandlers, testId, optional }: UploadZoneProps) {
   const handleFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];
     if (f && f.type === "application/pdf") {
@@ -705,63 +791,62 @@ function UploadZone({ label, description, file, isDragging, onFileChange, dropHa
   };
 
   return (
-    <Card>
-      <CardHeader className="pb-3">
-        <CardTitle className="text-base">{label}</CardTitle>
-        <CardDescription className="text-xs">{description}</CardDescription>
-      </CardHeader>
-      <CardContent>
-        <div
-          className={`relative flex flex-col items-center justify-center p-6 rounded-lg border-2 border-dashed transition-colors cursor-pointer ${
-            isDragging
-              ? "border-primary bg-primary/5"
-              : file
-              ? "border-green-500 bg-green-50 dark:bg-green-950/20"
-              : "border-border hover:border-muted-foreground/50"
-          }`}
-          {...dropHandlers}
-          onClick={() => document.getElementById(`file-${testId}`)?.click()}
-          data-testid={testId}
-        >
-          <input
-            id={`file-${testId}`}
-            type="file"
-            accept=".pdf"
-            className="hidden"
-            onChange={handleFileInput}
-            data-testid={`input-${testId}`}
-          />
-          {file ? (
-            <div className="flex flex-col items-center gap-2 text-center">
-              <FileText className="w-8 h-8 text-green-600 dark:text-green-400" />
-              <span className="text-sm font-medium truncate max-w-full" data-testid={`text-filename-${testId}`}>
-                {file.name}
-              </span>
-              <Badge variant="secondary" className="text-xs">
-                {(file.size / (1024 * 1024)).toFixed(1)} MB
-              </Badge>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onFileChange(null);
-                }}
-                data-testid={`button-remove-${testId}`}
-              >
-                Remove
-              </Button>
-            </div>
-          ) : (
-            <div className="flex flex-col items-center gap-2 text-center">
-              <Upload className="w-8 h-8 text-muted-foreground" />
-              <span className="text-sm text-muted-foreground">
-                Drop PDF here or click to browse
-              </span>
-            </div>
-          )}
-        </div>
-      </CardContent>
-    </Card>
+    <div>
+      <div className="flex items-center gap-2 mb-2">
+        <span className="text-sm font-medium">{label}</span>
+        {optional && <Badge variant="secondary" className="text-xs">Optional</Badge>}
+      </div>
+      <p className="text-xs text-muted-foreground mb-2">{description}</p>
+      <div
+        className={`relative flex flex-col items-center justify-center p-6 rounded-lg border-2 border-dashed transition-colors cursor-pointer ${
+          isDragging
+            ? "border-primary bg-primary/5"
+            : file
+            ? "border-green-500 bg-green-50 dark:bg-green-950/20"
+            : "border-border hover:border-muted-foreground/50"
+        }`}
+        {...dropHandlers}
+        onClick={() => document.getElementById(`file-${testId}`)?.click()}
+        data-testid={testId}
+      >
+        <input
+          id={`file-${testId}`}
+          type="file"
+          accept=".pdf"
+          className="hidden"
+          onChange={handleFileInput}
+          data-testid={`input-${testId}`}
+        />
+        {file ? (
+          <div className="flex flex-col items-center gap-2 text-center">
+            <FileText className="w-8 h-8 text-green-600 dark:text-green-400" />
+            <span className="text-sm font-medium truncate max-w-full" data-testid={`text-filename-${testId}`}>
+              {file.name}
+            </span>
+            <Badge variant="secondary" className="text-xs">
+              {(file.size / (1024 * 1024)).toFixed(1)} MB
+            </Badge>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={(e) => {
+                e.stopPropagation();
+                onFileChange(null);
+              }}
+              data-testid={`button-remove-${testId}`}
+            >
+              Remove
+            </Button>
+          </div>
+        ) : (
+          <div className="flex flex-col items-center gap-2 text-center">
+            <Upload className="w-8 h-8 text-muted-foreground" />
+            <span className="text-sm text-muted-foreground">
+              Drop PDF here or click to browse
+            </span>
+          </div>
+        )}
+      </div>
+    </div>
   );
 }

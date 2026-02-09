@@ -1,16 +1,36 @@
-import { FileText, Upload, List, Home, Wrench, Settings, Receipt, FlaskConical } from "lucide-react";
+import { useMemo } from "react";
+import { FileText, Upload, List, Home, Wrench, Settings, Receipt, FlaskConical, Loader2 } from "lucide-react";
 import { Link, useLocation } from "wouter";
+import { useQuery } from "@tanstack/react-query";
 import { ThemeToggle } from "./ThemeToggle";
 import { Switch } from "@/components/ui/switch";
+import { Badge } from "@/components/ui/badge";
 import { useTestMode } from "@/lib/testMode";
 import { cn } from "@/lib/utils";
+import type { Project } from "@shared/schema";
 
 export function Header() {
-  const [location] = useLocation();
+  const [location, navigate] = useLocation();
   const { isTestMode, toggleTestMode } = useTestMode();
   const isHome = location === "/";
   const isSpecSift = location.startsWith("/specsift");
   const isQuoteParser = location.startsWith("/quoteparser");
+
+  const { data: projects = [] } = useQuery<Project[]>({
+    queryKey: ["/api/projects", { includeTest: isTestMode }],
+    queryFn: async () => {
+      const url = isTestMode ? "/api/projects?includeTest=true" : "/api/projects";
+      const res = await fetch(url);
+      if (!res.ok) throw new Error("Failed");
+      return res.json();
+    },
+    refetchInterval: 10000,
+  });
+
+  const processingProjects = useMemo(
+    () => projects.filter(p => p.status && p.status.includes("running")),
+    [projects]
+  );
 
   const specSiftNav = [
     { href: "/specsift", label: "Upload", icon: Upload },
@@ -84,6 +104,16 @@ export function Header() {
           </nav>
 
           <div className="flex items-center gap-3">
+            {processingProjects.length > 0 && (
+              <button
+                onClick={() => navigate(`/projects/${processingProjects[0].id}`)}
+                className="flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium text-yellow-600 dark:text-yellow-400 bg-yellow-500/10 hover-elevate cursor-pointer"
+                data-testid="button-processing-indicator"
+              >
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                <span>{processingProjects.length} processing</span>
+              </button>
+            )}
             <label className="flex items-center gap-2 cursor-pointer" data-testid="toggle-test-mode">
               <FlaskConical className={cn("h-4 w-4", isTestMode ? "text-amber-500" : "text-muted-foreground")} />
               <span className={cn("text-xs font-medium select-none", isTestMode ? "text-amber-500" : "text-muted-foreground")}>

@@ -65,6 +65,14 @@ PDF buffers are stored on the filesystem (`/tmp/specsift_pdfs/` for specs, `/tmp
 - **Clear Test Data**: `POST /api/projects/clear-test-data` deletes all test projects with full cleanup (sessions, jobs, scopes, plan index, files). "Clear Test Data" button appears on HomePage and Project Log when Test Mode is on and test projects exist.
 - **Data Isolation**: Each project is fully self-contained — no cross-contamination between projects.
 
+### Phase 8 Features (Flexible Project Creation & Background Tracking)
+- **Optional Plans & Specs**: Project Start no longer requires both plans and specs. Users can create a folder-only project (name, region, due date), or upload just plans, just specs, or both. The backend conditionally runs SpecSift and/or Plan Parser based on what files are uploaded.
+- **Adaptive Progress Overlay**: The progress overlay dynamically shows only the relevant steps based on which files were uploaded. Folder-only shows just "Setting Up Project" → Complete. Specs-only adds the SpecSift step. Plans-only adds the Plan Parser step. Both files show all steps.
+- **Status `folder_only`**: Projects created without any documents get status `folder_only` and are immediately marked complete.
+- **Friendly Status Labels**: Home page and Project Log show human-readable status labels ("Processing Specs", "Complete", "Folder Only", etc.) instead of raw database values like "planparser_baseline_complete".
+- **Processing Indicator in Header**: When any project is actively processing, a yellow spinning indicator appears in the header showing "N processing". Clicking it navigates to the first processing project. Auto-refreshes every 10 seconds.
+- **Improved Error Messages**: The progress overlay now distinguishes between creation failures and processing failures, showing "Processing Error" with a "View Project" button when the project was created but processing failed.
+
 ### Design System
 A system-based design approach, inspired by Linear/Notion, is utilized. It features a consistent typography (Inter, JetBrains Mono) and spacing primitives, aiming for a professional aesthetic suitable for the construction industry.
 
