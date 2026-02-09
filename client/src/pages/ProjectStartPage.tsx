@@ -1,7 +1,8 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import { Link, useLocation } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { ArrowLeft, Upload, FileText, Loader2, CheckCircle, AlertCircle, FolderOpen, ScanSearch, Layers } from "lucide-react";
+import { ArrowLeft, Upload, FileText, Loader2, CheckCircle, AlertCircle, FolderOpen, CalendarIcon } from "lucide-react";
+import { format } from "date-fns";
 import { useTestMode } from "@/lib/testMode";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -10,8 +11,21 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient } from "@/lib/queryClient";
+import { cn } from "@/lib/utils";
 import type { Region, Project } from "@shared/schema";
 
 type UploadState = {
@@ -41,7 +55,10 @@ export default function ProjectStartPage() {
   const { isTestMode } = useTestMode();
   const [projectName, setProjectName] = useState("");
   const [regionCode, setRegionCode] = useState("");
-  const [dueDate, setDueDate] = useState("");
+  const [dueDate, setDueDate] = useState<Date | undefined>(undefined);
+  const [calendarOpen, setCalendarOpen] = useState(false);
+  const [yearCheckOpen, setYearCheckOpen] = useState(false);
+  const [pendingDate, setPendingDate] = useState<Date | undefined>(undefined);
   const [plans, setPlans] = useState<UploadState>({ file: null, isDragging: false });
   const [specs, setSpecs] = useState<UploadState>({ file: null, isDragging: false });
 
@@ -129,7 +146,7 @@ export default function ProjectStartPage() {
     const formData = new FormData();
     formData.append("projectName", projectName);
     formData.append("regionCode", regionCode);
-    formData.append("dueDate", dueDate);
+    formData.append("dueDate", format(dueDate, "yyyy-MM-dd"));
     formData.append("plans", plans.file);
     formData.append("specs", specs.file);
     if (isTestMode) {
@@ -218,6 +235,42 @@ export default function ProjectStartPage() {
     setErrorMessage("");
     setProgressData(null);
   };
+
+  const handleDateSelect = useCallback((selectedDate: Date | undefined) => {
+    if (!selectedDate) return;
+
+    const currentMonth = new Date().getMonth();
+    const currentYear = new Date().getFullYear();
+    const selectedYear = selectedDate.getFullYear();
+
+    if (currentMonth === 10 && selectedYear === currentYear) {
+      setPendingDate(selectedDate);
+      setYearCheckOpen(true);
+    } else {
+      setDueDate(selectedDate);
+      setCalendarOpen(false);
+    }
+  }, []);
+
+  const handleYearCheckConfirm = useCallback(() => {
+    if (pendingDate) {
+      setDueDate(pendingDate);
+      setPendingDate(undefined);
+    }
+    setYearCheckOpen(false);
+    setCalendarOpen(false);
+  }, [pendingDate]);
+
+  const handleYearCheckNextYear = useCallback(() => {
+    if (pendingDate) {
+      const nextYearDate = new Date(pendingDate);
+      nextYearDate.setFullYear(nextYearDate.getFullYear() + 1);
+      setDueDate(nextYearDate);
+      setPendingDate(undefined);
+    }
+    setYearCheckOpen(false);
+    setCalendarOpen(false);
+  }, [pendingDate]);
 
   const createDropHandlers = useCallback(
     (setter: React.Dispatch<React.SetStateAction<UploadState>>) => ({
@@ -418,14 +471,31 @@ export default function ProjectStartPage() {
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="dueDate">Due Date *</Label>
-                <Input
-                  id="dueDate"
-                  type="date"
-                  value={dueDate}
-                  onChange={(e) => setDueDate(e.target.value)}
-                  data-testid="input-due-date"
-                />
+                <Label>Due Date *</Label>
+                <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className={cn(
+                        "w-full justify-start text-left font-normal",
+                        !dueDate && "text-muted-foreground"
+                      )}
+                      data-testid="input-due-date"
+                    >
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {dueDate ? formatDueDate(dueDate) : "Pick a date"}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar
+                      mode="single"
+                      selected={dueDate}
+                      onSelect={handleDateSelect}
+                      defaultMonth={dueDate || new Date()}
+                      data-testid="calendar-due-date"
+                    />
+                  </PopoverContent>
+                </Popover>
               </div>
             </div>
             <div className="space-y-2">
@@ -491,8 +561,45 @@ export default function ProjectStartPage() {
           </Button>
         </div>
       </div>
+
+      <AlertDialog open={yearCheckOpen} onOpenChange={setYearCheckOpen}>
+        <AlertDialogContent data-testid="dialog-year-check">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirm Due Date Year</AlertDialogTitle>
+            <AlertDialogDescription>
+              {pendingDate && (
+                <>
+                  You selected <span className="font-semibold">{format(pendingDate, "MMM d, ''yy")}</span>.
+                  Since it's November, is this due date for the current year or next year?
+                </>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => { setYearCheckOpen(false); setPendingDate(undefined); }} data-testid="button-year-cancel">
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleYearCheckNextYear}
+              className="bg-secondary text-secondary-foreground"
+              data-testid="button-year-next"
+            >
+              Next Year '{String(new Date().getFullYear() + 1).slice(-2)}
+            </AlertDialogAction>
+            <AlertDialogAction onClick={handleYearCheckConfirm} data-testid="button-year-current">
+              This Year '{String(new Date().getFullYear()).slice(-2)}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
+}
+
+function formatDueDate(date: Date): string {
+  const month = format(date, "MMM d");
+  const year = format(date, "yy");
+  return `${month}, '${year}`;
 }
 
 function formatSize(bytes: number | undefined): string {
