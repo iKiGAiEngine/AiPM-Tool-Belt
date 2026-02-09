@@ -29,7 +29,7 @@ All data is now stored in **PostgreSQL** via **Drizzle ORM**. The following tabl
 PDF buffers are stored on the filesystem (`/tmp/specsift_pdfs/` for specs, `/tmp/planparser_jobs/` for plans) to avoid database bloat.
 
 ### Core Logic
-- **SpecSift**: Employs advanced PDF parsing with TOC detection, zone-based scanning, multi-line title parsing, and legitimacy validation to accurately extract Division 10 specifications. It also identifies manufacturers, model numbers, and material requirements from spec text.
+- **Spec Extraction**: When `SPEC_EXTRACTOR_URL` is set, specs are sent to the external Spec Extractor app (`POST /webhook`) which returns extracted Division 10 sections with section numbers, titles, scopes, and page ranges. Results are mapped into AiPM's `extracted_sections` and `project_scopes` tables. Falls back to the built-in SpecSift parser (TOC detection, zone-based scanning, multi-line title parsing) when the env var is not configured.
 - **Plan Parser**: Uses keyword-based scoring with configurable scope dictionaries, signage exclusion, and millwork filtering for classification. It incorporates an OCR fallback for pages with insufficient embedded text.
 - **Quote Parser**: Parses vendor quotes into a structured 6-column estimate table, featuring schedule matching with confidence scoring, vendor auto-detection, manufacturer and quote number extraction, and flexible freight handling.
 - **Project Start System**: Manages project creation, generates unique project IDs, sets up standardized folder structures, and orchestrates the sequential processing of plans and specs through SpecSift and Plan Parser, including a spec-informed second pass.

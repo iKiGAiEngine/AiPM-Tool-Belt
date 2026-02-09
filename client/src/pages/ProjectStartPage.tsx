@@ -420,7 +420,7 @@ export default function ProjectStartPage() {
             {showSpecSiftStep && (
               <ProgressStep
                 step={++stepNumber}
-                label="SpecSift — Extracting Specifications"
+                label="Analyzing Specifications"
                 description={getSpecSiftDescription(phase, progressData)}
                 status={
                   phase === "specsift_running" ? "active" :

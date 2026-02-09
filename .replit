@@ -38,3 +38,8 @@ author = "agent"
 task = "shell.exec"
 args = "npm run dev"
 waitForPort = 5000
+
+[userenv]
+
+[userenv.shared]
+SPEC_EXTRACTOR_URL = "https://5d40cd1d-8149-45b2-bcbd-1f1606bffdab-00-3ftzms78i7wgr.picard.replit.dev"

@@ -32,6 +32,7 @@ import {
 } from "./scopeDictionaryStorage";
 import { storage } from "./storage";
 import { processPdf } from "./pdfParser";
+import { callSpecExtractor } from "./specExtractorClient";
 import { reprocessJobWithSpecBoost } from "./planparser/pdfProcessor";
 import type { SpecBoostData } from "./planparser/classificationConfig";
 import { processJob } from "./planparser/pdfProcessor";
@@ -414,37 +415,82 @@ export function registerProjectRoutes(app: Express) {
             if (hasSpecs && specsFile && specsiftSessionId) {
               try {
                 await updateProject(project.id, { status: "specsift_running" });
-
-                const result = await processPdf(specsFile.buffer, specsiftSessionId, (progress, message) => {
-                  storage.updateSession(specsiftSessionId!, { progress, message });
-                });
-
-                for (const section of result.sections) {
-                  await storage.createSection(section);
-                }
-                for (const accessory of result.accessories) {
-                  await storage.createAccessoryMatch(accessory);
-                }
-
                 await storage.updateSession(specsiftSessionId, {
-                  status: "complete",
-                  progress: 100,
-                  message: `Extracted ${result.sections.length} sections`,
+                  progress: 10,
+                  message: "Sending specs to Spec Extractor...",
                 });
 
-                for (const section of result.sections) {
-                  await createProjectScope({
-                    projectId: project.id,
-                    scopeType: section.title || "Unknown",
-                    specSectionNumber: section.sectionNumber,
-                    specSectionTitle: section.title,
-                    manufacturers: section.manufacturers || [],
-                    modelNumbers: section.modelNumbers || [],
-                    materials: section.materials || [],
-                    keywords: [],
-                    confidenceScore: 80,
-                    isSelected: true,
+                const useExternal = !!process.env.SPEC_EXTRACTOR_URL;
+
+                if (useExternal) {
+                  const result = await callSpecExtractor(
+                    specsFile.buffer,
+                    specsFile.originalname,
+                    safeName,
+                    specsiftSessionId,
+                  );
+
+                  await storage.updateSession(specsiftSessionId, {
+                    progress: 70,
+                    message: `Received ${result.sections.length} sections, saving...`,
                   });
+
+                  for (const section of result.sections) {
+                    await storage.createSection(section);
+                  }
+
+                  await storage.updateSession(specsiftSessionId, {
+                    status: "complete",
+                    progress: 100,
+                    message: `Extracted ${result.sections.length} sections via Spec Extractor`,
+                  });
+
+                  for (const item of result.rawItems) {
+                    await createProjectScope({
+                      projectId: project.id,
+                      scopeType: item.scope || item.title || "Unknown",
+                      specSectionNumber: item.section,
+                      specSectionTitle: item.title,
+                      manufacturers: [],
+                      modelNumbers: [],
+                      materials: [],
+                      keywords: [],
+                      confidenceScore: 90,
+                      isSelected: true,
+                    });
+                  }
+                } else {
+                  const result = await processPdf(specsFile.buffer, specsiftSessionId, (progress, message) => {
+                    storage.updateSession(specsiftSessionId!, { progress, message });
+                  });
+
+                  for (const section of result.sections) {
+                    await storage.createSection(section);
+                  }
+                  for (const accessory of result.accessories) {
+                    await storage.createAccessoryMatch(accessory);
+                  }
+
+                  await storage.updateSession(specsiftSessionId, {
+                    status: "complete",
+                    progress: 100,
+                    message: `Extracted ${result.sections.length} sections`,
+                  });
+
+                  for (const section of result.sections) {
+                    await createProjectScope({
+                      projectId: project.id,
+                      scopeType: section.title || "Unknown",
+                      specSectionNumber: section.sectionNumber,
+                      specSectionTitle: section.title,
+                      manufacturers: section.manufacturers || [],
+                      modelNumbers: section.modelNumbers || [],
+                      materials: section.materials || [],
+                      keywords: [],
+                      confidenceScore: 80,
+                      isSelected: true,
+                    });
+                  }
                 }
 
                 await updateProject(project.id, { status: "specsift_complete" });
