@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import { Link, useLocation } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { ArrowLeft, Upload, FileText, Loader2, CheckCircle, AlertCircle, FolderOpen, CalendarIcon, X, Download, ExternalLink } from "lucide-react";
+import { ArrowLeft, Upload, FileText, Loader2, CheckCircle, AlertCircle, FolderOpen, CalendarIcon, X, Download, ExternalLink, ImageIcon, Camera } from "lucide-react";
 import { format } from "date-fns";
 import { useTestMode } from "@/lib/testMode";
 import { Button } from "@/components/ui/button";
@@ -70,6 +70,18 @@ export default function ProjectStartPage() {
   const [plans, setPlans] = useState<UploadState>({ file: null, isDragging: false });
   const [specs, setSpecs] = useState<UploadState>({ file: null, isDragging: false });
 
+  const [screenshotPreview, setScreenshotPreview] = useState<string | null>(null);
+  const [isExtracting, setIsExtracting] = useState(false);
+  const [extractionResult, setExtractionResult] = useState<{
+    projectName: string | null;
+    dueDate: string | null;
+    location: string | null;
+    tradeName: string | null;
+    matchedRegionCode: string | null;
+  } | null>(null);
+  const [screenshotDragging, setScreenshotDragging] = useState(false);
+  const screenshotInputRef = useRef<HTMLInputElement>(null);
+
   const [phase, setPhase] = useState<CreationPhase>("idle");
   const [uploadPercent, setUploadPercent] = useState(0);
   const [createdProject, setCreatedProject] = useState<CreatedProjectResponse | null>(null);
@@ -95,6 +107,94 @@ export default function ProjectStartPage() {
         xhrRef.current = null;
       }
     };
+  }, []);
+
+  const handleScreenshotFile = useCallback(async (file: File) => {
+    if (!file.type.startsWith("image/")) {
+      toast({ title: "Only image files are accepted", variant: "destructive" });
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      setScreenshotPreview(e.target?.result as string);
+    };
+    reader.readAsDataURL(file);
+
+    setIsExtracting(true);
+    setExtractionResult(null);
+
+    try {
+      const formData = new FormData();
+      formData.append("screenshot", file);
+
+      const res = await fetch("/api/extract-project-details", {
+        method: "POST",
+        body: formData,
+      });
+
+      if (!res.ok) {
+        throw new Error("Failed to extract details");
+      }
+
+      const data = await res.json();
+      setExtractionResult(data);
+
+      if (data.projectName && !projectName) {
+        setProjectName(data.projectName);
+      }
+      if (data.dueDate && !dueDate) {
+        const [year, month, day] = data.dueDate.split("-").map(Number);
+        setDueDate(new Date(year, month - 1, day));
+      }
+      if (data.matchedRegionCode && !regionCode) {
+        setRegionCode(data.matchedRegionCode);
+      }
+
+      toast({
+        title: "Details extracted from screenshot",
+        description: data.projectName
+          ? `Found: ${data.projectName}`
+          : "Some fields were extracted. Please review and fill in any missing details.",
+      });
+    } catch (err) {
+      toast({
+        title: "Could not extract details",
+        description: "OCR processing failed. Please fill in the fields manually.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsExtracting(false);
+    }
+  }, [projectName, dueDate, regionCode, toast]);
+
+  useEffect(() => {
+    const handlePaste = (e: ClipboardEvent) => {
+      const items = e.clipboardData?.items;
+      if (!items) return;
+
+      for (const item of Array.from(items)) {
+        if (item.type.startsWith("image/")) {
+          e.preventDefault();
+          const file = item.getAsFile();
+          if (file) {
+            handleScreenshotFile(file);
+          }
+          return;
+        }
+      }
+    };
+
+    document.addEventListener("paste", handlePaste);
+    return () => document.removeEventListener("paste", handlePaste);
+  }, [handleScreenshotFile]);
+
+  const clearScreenshot = useCallback(() => {
+    setScreenshotPreview(null);
+    setExtractionResult(null);
+    if (screenshotInputRef.current) {
+      screenshotInputRef.current.value = "";
+    }
   }, []);
 
   const stopPolling = useCallback(() => {
@@ -557,6 +657,112 @@ export default function ProjectStartPage() {
       </div>
 
       <div className="space-y-6">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between gap-4 flex-wrap">
+            <div>
+              <CardTitle className="text-lg">Quick Fill from Screenshot</CardTitle>
+              <CardDescription>
+                Paste (Ctrl+V) or drop a BuildingConnected screenshot to auto-fill project details
+              </CardDescription>
+            </div>
+            {screenshotPreview && (
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={clearScreenshot}
+                data-testid="button-clear-screenshot"
+              >
+                <X className="w-4 h-4" />
+              </Button>
+            )}
+          </CardHeader>
+          <CardContent>
+            {!screenshotPreview ? (
+              <div
+                className={cn(
+                  "border-2 border-dashed rounded-md p-6 text-center cursor-pointer transition-colors",
+                  screenshotDragging
+                    ? "border-primary bg-primary/5"
+                    : "border-border hover-elevate"
+                )}
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  setScreenshotDragging(true);
+                }}
+                onDragLeave={(e) => {
+                  e.preventDefault();
+                  setScreenshotDragging(false);
+                }}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  setScreenshotDragging(false);
+                  const file = e.dataTransfer.files[0];
+                  if (file) handleScreenshotFile(file);
+                }}
+                onClick={() => screenshotInputRef.current?.click()}
+                data-testid="dropzone-screenshot"
+              >
+                <input
+                  ref={screenshotInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) handleScreenshotFile(file);
+                  }}
+                  data-testid="input-screenshot-file"
+                />
+                <Camera className="w-8 h-8 mx-auto mb-2 text-muted-foreground" />
+                <p className="text-sm text-muted-foreground">
+                  Drop a screenshot here, click to browse, or press <kbd className="px-1.5 py-0.5 rounded bg-muted text-xs font-mono">Ctrl+V</kbd> to paste
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <div className="relative rounded-md overflow-hidden border border-border bg-muted/30">
+                  <img
+                    src={screenshotPreview}
+                    alt="Uploaded screenshot"
+                    className="w-full max-h-48 object-contain"
+                    data-testid="img-screenshot-preview"
+                  />
+                  {isExtracting && (
+                    <div className="absolute inset-0 flex items-center justify-center bg-background/70">
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        Reading screenshot...
+                      </div>
+                    </div>
+                  )}
+                </div>
+                {extractionResult && (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm" data-testid="extraction-results">
+                    <div className="flex items-start gap-2 p-2 rounded-md bg-muted/50">
+                      <span className="text-muted-foreground whitespace-nowrap">Name:</span>
+                      <span className={cn("font-medium", extractionResult.projectName ? "text-foreground" : "text-muted-foreground")}>
+                        {extractionResult.projectName || "Not found"}
+                      </span>
+                    </div>
+                    <div className="flex items-start gap-2 p-2 rounded-md bg-muted/50">
+                      <span className="text-muted-foreground whitespace-nowrap">Due:</span>
+                      <span className={cn("font-medium", extractionResult.dueDate ? "text-foreground" : "text-muted-foreground")}>
+                        {extractionResult.dueDate || "Not found"}
+                      </span>
+                    </div>
+                    <div className="flex items-start gap-2 p-2 rounded-md bg-muted/50 sm:col-span-2">
+                      <span className="text-muted-foreground whitespace-nowrap">Location:</span>
+                      <span className={cn("font-medium", extractionResult.location ? "text-foreground" : "text-muted-foreground")}>
+                        {extractionResult.location || "Not found"}
+                      </span>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
         <Card>
           <CardHeader>
             <CardTitle className="text-lg">Project Details</CardTitle>

@@ -39,6 +39,7 @@ import { processJob } from "./planparser/pdfProcessor";
 import { planParserStorage } from "./planparser/storage";
 import { getActiveFolderTemplate, getActiveEstimateTemplate } from "./templateStorage";
 import ExcelJS from "exceljs";
+import { extractProjectDetailsFromScreenshot } from "./screenshotExtractor";
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -48,6 +49,18 @@ const upload = multer({
       cb(null, true);
     } else {
       cb(new Error("Only PDF files are allowed"));
+    }
+  },
+});
+
+const imageUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 20 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype.startsWith("image/")) {
+      cb(null, true);
+    } else {
+      cb(new Error("Only image files are allowed"));
     }
   },
 });
@@ -65,6 +78,49 @@ function ensureDir(dirPath: string): void {
 }
 
 export function registerProjectRoutes(app: Express) {
+
+  app.post("/api/extract-project-details", imageUpload.single("screenshot"), async (req: Request, res: Response) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ message: "No image uploaded" });
+      }
+
+      console.log(`[ScreenshotExtractor] Processing ${req.file.originalname} (${(req.file.size / 1024).toFixed(0)} KB)`);
+      const result = await extractProjectDetailsFromScreenshot(req.file.buffer);
+      console.log(`[ScreenshotExtractor] Extracted: name="${result.projectName}", date="${result.dueDate}", location="${result.location}"`);
+
+      const regions = await getAllRegions();
+      let matchedRegionCode: string | null = null;
+
+      if (result.location) {
+        const locLower = result.location.toLowerCase();
+        for (const region of regions) {
+          const regionNameLower = (region.name || "").toLowerCase();
+          const regionCodeLower = region.code.toLowerCase();
+          if (
+            locLower.includes(regionNameLower) ||
+            locLower.includes(regionCodeLower) ||
+            regionNameLower.includes(locLower.split(",")[0]?.trim() || "")
+          ) {
+            matchedRegionCode = region.code;
+            break;
+          }
+        }
+      }
+
+      res.json({
+        projectName: result.projectName,
+        dueDate: result.dueDate,
+        location: result.location,
+        tradeName: result.tradeName,
+        matchedRegionCode,
+      });
+    } catch (error) {
+      console.error("[ScreenshotExtractor] Error:", error);
+      res.status(500).json({ message: "Failed to extract project details from screenshot" });
+    }
+  });
+
   app.get("/api/scope-dictionaries", async (req: Request, res: Response) => {
     try {
       const activeOnly = req.query.active === "true";
