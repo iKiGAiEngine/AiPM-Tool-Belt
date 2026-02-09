@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import { Link, useLocation } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { ArrowLeft, Upload, FileText, Loader2, CheckCircle, AlertCircle, FolderOpen, CalendarIcon, X } from "lucide-react";
+import { ArrowLeft, Upload, FileText, Loader2, CheckCircle, AlertCircle, FolderOpen, CalendarIcon, X, Download } from "lucide-react";
 import { format } from "date-fns";
 import { useTestMode } from "@/lib/testMode";
 import { Button } from "@/components/ui/button";
@@ -460,11 +460,21 @@ export default function ProjectStartPage() {
             )}
 
             <div className="flex items-center gap-3 flex-wrap pt-2">
-              {phase === "complete" && (
-                <Button onClick={handleGoToProject} data-testid="button-go-to-project">
-                  <CheckCircle className="w-4 h-4 mr-2" />
-                  View Project
-                </Button>
+              {phase === "complete" && createdProject && (
+                <>
+                  <Button
+                    asChild
+                    data-testid="button-download-folder"
+                  >
+                    <a href={`/api/projects/${createdProject.id}/download-folder`} download>
+                      <Download className="w-4 h-4 mr-2" />
+                      Download Project Folder
+                    </a>
+                  </Button>
+                  <Button onClick={handleGoToProject} variant="outline" data-testid="button-go-to-project">
+                    View Project
+                  </Button>
+                </>
               )}
               {phase === "error" && !createdProject && (
                 <Button onClick={handleRetry} variant="outline" data-testid="button-retry">
@@ -473,6 +483,16 @@ export default function ProjectStartPage() {
               )}
               {phase === "error" && createdProject && (
                 <>
+                  <Button
+                    asChild
+                    variant="outline"
+                    data-testid="button-download-folder-error"
+                  >
+                    <a href={`/api/projects/${createdProject.id}/download-folder`} download>
+                      <Download className="w-4 h-4 mr-2" />
+                      Download Folder
+                    </a>
+                  </Button>
                   <Button onClick={handleGoToProject} variant="outline" data-testid="button-go-to-project-error">
                     View Project
                   </Button>

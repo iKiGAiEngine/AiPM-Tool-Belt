@@ -44,6 +44,7 @@ const STATUS_MAP: Record<string, { label: string; color: string; icon: typeof Lo
   planparser_specpass_complete: { label: "Spec-Pass Complete", color: "text-green-500", icon: CheckCircle },
   planparser_specpass_error: { label: "Spec-Pass Error", color: "text-red-500", icon: AlertCircle },
   outputs_ready: { label: "Outputs Ready", color: "text-green-600", icon: CheckCircle },
+  folder_only: { label: "Folder Only", color: "text-green-500", icon: FolderOpen },
 };
 
 function isProcessingStatus(status: string | null | undefined): boolean {
@@ -322,10 +323,20 @@ export default function ProjectDetailPage() {
           </div>
         </div>
         <div className="flex items-center gap-2">
+          <Button
+            asChild
+            data-testid="button-download-folder"
+          >
+            <a href={`/api/projects/${projectId}/download-folder`} download>
+              <FolderOpen className="w-4 h-4 mr-2" />
+              Download Folder
+            </a>
+          </Button>
           {canExport && (
             <Button
               onClick={handleExport}
               disabled={isExporting}
+              variant="outline"
               data-testid="button-export-project"
             >
               {isExporting ? (

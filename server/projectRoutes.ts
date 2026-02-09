@@ -1232,4 +1232,49 @@ export function registerProjectRoutes(app: Express) {
       res.status(500).json({ message: "Failed to export project" });
     }
   });
+
+  app.get("/api/projects/:id/download-folder", async (req: Request, res: Response) => {
+    try {
+      const projectId = parseInt(req.params.id);
+      if (isNaN(projectId)) return res.status(400).json({ message: "Invalid project ID" });
+
+      const project = await getProjectById(projectId);
+      if (!project) return res.status(404).json({ message: "Project not found" });
+
+      const projectDir = project.folderPath;
+      if (!projectDir || !fs.existsSync(projectDir)) {
+        return res.status(404).json({ message: "Project folder not found on disk" });
+      }
+
+      const zip = new JSZip();
+
+      const addDirToZip = (dirPath: string, zipFolder: JSZip) => {
+        const entries = fs.readdirSync(dirPath, { withFileTypes: true });
+        for (const entry of entries) {
+          const fullPath = path.join(dirPath, entry.name);
+          if (entry.isDirectory()) {
+            const subFolder = zipFolder.folder(entry.name)!;
+            addDirToZip(fullPath, subFolder);
+          } else {
+            zipFolder.file(entry.name, fs.readFileSync(fullPath));
+          }
+        }
+      };
+
+      const safeName = sanitizeForWindows(project.projectName || "Project");
+      const folderName = `${project.regionCode} - ${safeName}`;
+      const rootFolder = zip.folder(folderName)!;
+      addDirToZip(projectDir, rootFolder);
+
+      const zipBuffer = await zip.generateAsync({ type: "nodebuffer" });
+
+      const sanitizedZipName = sanitizeForWindows(`${project.regionCode}_${safeName}`).replace(/\s+/g, "_");
+      res.setHeader("Content-Type", "application/zip");
+      res.setHeader("Content-Disposition", `attachment; filename="${sanitizedZipName}_Folder.zip"`);
+      res.send(zipBuffer);
+    } catch (error) {
+      console.error("Project folder download error:", error);
+      res.status(500).json({ message: "Failed to download project folder" });
+    }
+  });
 }

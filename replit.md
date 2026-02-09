@@ -36,6 +36,7 @@ PDF buffers are stored on the filesystem (`/tmp/specsift_pdfs/` for specs, `/tmp
 - **Central Settings Hub**: Provides an administrative interface for managing scope dictionaries, regional identifiers, vendor profiles, and a Division 10 product dictionary, allowing for dynamic configuration without code changes.
 
 ### Project Export
+- **Download Project Folder**: `GET /api/projects/:id/download-folder` zips the entire project directory from disk (template folders, stamped estimate, uploaded files) and returns it as a downloadable ZIP. This is the primary output action — available immediately after project creation on the Project Start completion screen, and always available on the Project Detail page. Designed for users to drop the folder into their local 2026 project estimate folder structure.
 - **ZIP Export**: `GET /api/projects/:id/export` generates a ZIP containing spec extract PDFs per section, plan pages organized by scope as PDFs, and text summaries (spec summary, plan summary, project summary). Available from the Project Detail page when processing is complete.
 - **Bookmarked PDF**: `GET /api/projects/:id/bookmarked-pdf` generates a single PDF with all relevant plan pages, bookmarked by scope name using pdf-lib low-level outline API for easy navigation in PDF readers.
 - **Per-Scope PDF**: `GET /api/projects/:id/scope-pdf/:scopeName` downloads individual scope's pages as a standalone PDF without needing the full ZIP.
