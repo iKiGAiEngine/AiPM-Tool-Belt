@@ -173,7 +173,6 @@ export function registerSpecExtractorRoutes(app: Express) {
         return res.status(404).json({ message: "Source PDF not found" });
       }
 
-      const pdfBuffer = fs.readFileSync(pdfPath);
       const zip = new JSZip();
       const projectName = sanitizeFilename(session.projectName || session.suggestedProjectName || "Project");
       const errors: string[] = [];
@@ -181,7 +180,7 @@ export function registerSpecExtractorRoutes(app: Express) {
       for (const section of sections) {
         try {
           console.log(`[SpecExtractor Export] ${section.sectionNumber} - "${section.title}" pages ${section.startPage}-${section.endPage}`);
-          const sectionPdf = await extractSectionPdf(pdfBuffer, section.startPage, section.endPage);
+          const sectionPdf = await extractSectionPdf(pdfPath, section.startPage, section.endPage);
           if (!sectionPdf || sectionPdf.length === 0) {
             console.warn(`[SpecExtractor Export] Empty PDF for ${section.sectionNumber} (pages ${section.startPage}-${section.endPage})`);
             errors.push(`${section.sectionNumber}: Generated PDF was empty`);

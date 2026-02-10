@@ -1,6 +1,8 @@
 import * as pdfjsLib from "pdfjs-dist/legacy/build/pdf.mjs";
-import { PDFDocument } from "pdf-lib";
 import path from "path";
+import { execFileSync } from "child_process";
+import fs from "fs";
+import os from "os";
 
 const STANDARD_FONT_DATA_URL = path.join(process.cwd(), "node_modules/pdfjs-dist/standard_fonts/");
 
@@ -504,40 +506,53 @@ export async function runExtraction(
 }
 
 export async function extractSectionPdf(
-  sourcePdfBuffer: Buffer,
+  sourcePdfPath: string,
   startPage: number,
   endPage: number
 ): Promise<Uint8Array> {
-  const sourcePdf = await PDFDocument.load(sourcePdfBuffer, { ignoreEncryption: true });
-  const newPdf = await PDFDocument.create();
-
-  const totalPages = sourcePdf.getPageCount();
-
-  if (startPage < 0 || startPage >= totalPages) {
-    console.warn(`[SpecExtractor] startPage ${startPage} out of bounds (total: ${totalPages}), clamping`);
+  if (!fs.existsSync(sourcePdfPath)) {
+    throw new Error(`Source PDF not found: ${sourcePdfPath}`);
   }
-  if (endPage < 0 || endPage >= totalPages) {
-    console.warn(`[SpecExtractor] endPage ${endPage} out of bounds (total: ${totalPages}), clamping`);
+
+  let totalPages: number;
+  try {
+    const npagesOutput = execFileSync("qpdf", ["--show-npages", sourcePdfPath], { timeout: 10000 }).toString().trim();
+    totalPages = parseInt(npagesOutput, 10);
+  } catch {
+    totalPages = Infinity;
   }
 
   const validStart = Math.max(0, Math.min(startPage, totalPages - 1));
   const validEnd = Math.max(validStart, Math.min(endPage, totalPages - 1));
 
-  const pageIndices: number[] = [];
-  for (let i = validStart; i <= validEnd; i++) {
-    pageIndices.push(i);
+  if (validStart !== startPage || validEnd !== endPage) {
+    console.warn(`[SpecExtractor] Clamped page range ${startPage}-${endPage} to ${validStart}-${validEnd} (total: ${totalPages})`);
   }
 
-  console.log(`[SpecExtractor] Extracting pages ${validStart + 1}-${validEnd + 1} (${pageIndices.length} pages) from ${totalPages} total`);
+  const pageStart = validStart + 1;
+  const pageEnd = validEnd + 1;
+  const pageCount = pageEnd - pageStart + 1;
 
-  if (pageIndices.length > 0) {
-    const copiedPages = await newPdf.copyPages(sourcePdf, pageIndices);
-    for (const page of copiedPages) {
-      newPdf.addPage(page);
+  console.log(`[SpecExtractor] Extracting pages ${pageStart}-${pageEnd} (${pageCount} pages) using qpdf`);
+
+  const tmpOut = path.join(os.tmpdir(), `se_extract_${Date.now()}_${Math.random().toString(36).slice(2)}.pdf`);
+
+  try {
+    execFileSync("qpdf", [
+      sourcePdfPath,
+      "--pages", ".", `${pageStart}-${pageEnd}`, "--",
+      tmpOut,
+    ], { timeout: 30000 });
+
+    const result = fs.readFileSync(tmpOut);
+    if (result.length === 0) {
+      throw new Error(`qpdf produced empty output for pages ${pageStart}-${pageEnd}`);
     }
-  } else {
-    console.warn(`[SpecExtractor] No pages to extract for range ${startPage}-${endPage}`);
+    return new Uint8Array(result);
+  } catch (err: any) {
+    if (err.message?.includes("qpdf produced empty")) throw err;
+    throw new Error(`PDF extraction failed for pages ${pageStart}-${pageEnd}: ${err.message}`);
+  } finally {
+    try { fs.unlinkSync(tmpOut); } catch {}
   }
-
-  return newPdf.save();
 }
