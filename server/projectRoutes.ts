@@ -361,14 +361,13 @@ export function registerProjectRoutes(app: Express) {
           const zipBuffer = fs.readFileSync(activeFolderTemplate.filePath);
           const zip = await JSZip.loadAsync(zipBuffer);
           let extractedCount = 0;
-          const renamedFolder = `${regionCode.toUpperCase()} - ${safeName}`;
           for (const [relativePath, zipEntry] of Object.entries(zip.files)) {
-            let outputPath = relativePath;
             const parts = relativePath.split("/");
             if (parts[0] === "0000_Standard Folders" || parts[0] === "0000_Standard Folder") {
-              parts[0] = renamedFolder;
-              outputPath = parts.join("/");
+              parts.shift();
             }
+            const outputPath = parts.join("/");
+            if (!outputPath) continue;
             if (zipEntry.dir) {
               ensureDir(path.join(projectDir, outputPath));
             } else {
@@ -379,7 +378,7 @@ export function registerProjectRoutes(app: Express) {
               extractedCount++;
             }
           }
-          console.log(`[ProjectCreate] Extracted ${extractedCount} files and ${Object.keys(zip.files).length - extractedCount} directories from folder template (renamed root to "${renamedFolder}")`);
+          console.log(`[ProjectCreate] Extracted ${extractedCount} files and ${Object.keys(zip.files).length - extractedCount} directories from folder template (contents placed directly in project folder)`);
         } else {
           console.warn(`[ProjectCreate] No active folder template found or file missing (template: ${activeFolderTemplate?.id || 'none'}, path: ${activeFolderTemplate?.filePath || 'none'})`);
         }
@@ -435,8 +434,7 @@ export function registerProjectRoutes(app: Express) {
             const ext = path.extname(activeEstimateTemplate.filePath) || ".xlsx";
             const estimateFilename = `${safeName} - NBS Estimate - ${formattedDueDate}${ext}`;
 
-            const renamedFolder = `${regionCode.toUpperCase()} - ${safeName}`;
-            const estimateDir = path.join(projectDir, renamedFolder, "Estimate Folder", "Estimate");
+            const estimateDir = path.join(projectDir, "Estimate Folder", "Estimate");
             ensureDir(estimateDir);
             const estimatePath = path.join(estimateDir, estimateFilename);
 
@@ -445,7 +443,7 @@ export function registerProjectRoutes(app: Express) {
               console.log(`[ProjectCreate] Estimate file copied as .xlsm (macros preserved): ${estimateFilename} (stamping skipped for macro-enabled format)`);
             } else {
               await workbook.xlsx.writeFile(estimatePath);
-              console.log(`[ProjectCreate] Estimate file saved: ${estimateFilename} in ${renamedFolder}/Estimate Folder/Estimate/ (${stampedCount} fields stamped)`);
+              console.log(`[ProjectCreate] Estimate file saved: ${estimateFilename} in Estimate Folder/Estimate/ (${stampedCount} fields stamped)`);
             }
           } catch (err) {
             console.error("[ProjectCreate] Failed to stamp estimate template:", err);
