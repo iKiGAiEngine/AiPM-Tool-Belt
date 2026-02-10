@@ -73,7 +73,7 @@ export const ACCESSORY_SCOPES: AccessoryScope[] = [
   { name: "Expansion Joints", keywords: ["expansion joint", "control joint"], sectionHint: "07 95 13", divisionScope: [6, 7] },
   { name: "Window Shades", keywords: ["window shade", "roller shade", "blind"], sectionHint: "12 24 13", divisionScope: [11, 12] },
   { name: "Site Furnishings", keywords: ["site furnishing", "bench", "picnic table"], sectionHint: "12 93 00", divisionScope: [11, 12] },
-  { name: "Entrance Mats/Grilles", keywords: ["entrance mat", "entrance grille", "walk-off mat"], sectionHint: "12 48 13", divisionScope: [11, 12] },
+  { name: "Entrance Mats/Grilles", keywords: ["entrance mat", "entrance grille", "entrance floor grille", "entrance floor mat", "walk-off mat", "walk-off grille", "floor mat", "floor grille"], sectionHint: "12 48 13", divisionScope: [11, 12] },
   { name: "Flagpoles", keywords: ["flagpole", "flag pole"], sectionHint: "12 93 23", divisionScope: [11, 12] },
   { name: "Display Cases", keywords: ["display case", "trophy case", "exhibit case"], sectionHint: "11 11 13", divisionScope: [11, 12] },
   { name: "Wardrobe Closets/Shelving", keywords: ["wardrobe", "closet shelving", "wire shelving"], sectionHint: "10 56 00", divisionScope: [] },
@@ -133,6 +133,17 @@ function extractTitleFromHeader(topLines: string): string | null {
   return null;
 }
 
+function buildFlexibleKeywordRegex(keyword: string): RegExp {
+  const words = keyword.toLowerCase().trim().split(/\s+/);
+  const pattern = words
+    .map(w => {
+      const escaped = w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      return escaped + "(?:s|es)?";
+    })
+    .join("\\s+(?:\\w+\\s+)*");
+  return new RegExp(pattern, "i");
+}
+
 export function findAccessorySections(
   pages: string[],
   selectedAccessories: string[],
@@ -176,11 +187,11 @@ export function findAccessorySections(
       let score = 0;
 
       for (const kw of accessory.keywords) {
-        const kwLower = kw.toLowerCase();
-        if (topLinesLower.includes(kwLower)) {
+        const kwRegex = buildFlexibleKeywordRegex(kw);
+        if (kwRegex.test(topLinesLower)) {
           matchedKws.push(kw);
           score += 10;
-        } else if (fullPageLower.includes(kwLower)) {
+        } else if (kwRegex.test(fullPageLower)) {
           matchedKws.push(kw);
           score += 3;
         }
