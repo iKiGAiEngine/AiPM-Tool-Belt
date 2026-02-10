@@ -255,13 +255,14 @@ export async function identifySectionsWithAI(
           }
           if (allSections.some(s => s.sectionNumber === canon)) continue;
 
-          if (!verifySectionInText(pages, canon, sec.startPage, sec.endPage)) {
-            console.log(`[AI SpecSift] REJECTED hallucination: ${canon} - "${sec.title}" (number not found literally in PDF text near pages ${sec.startPage}-${sec.endPage})`);
+          if (!verifyHeaderOnPage(pages, canon, sec.startPage)) {
+            console.log(`[AI SpecSift] REJECTED: ${canon} - "${sec.title}" (header not found on/near start page ${sec.startPage})`);
             continue;
           }
 
-          if (!verifyHeaderOnPage(pages, canon, sec.startPage)) {
-            console.log(`[AI SpecSift] WARNING: ${canon} - header not found on declared start page ${sec.startPage}, accepting but flagging`);
+          if (!verifySectionInText(pages, canon, sec.startPage, sec.endPage)) {
+            console.log(`[AI SpecSift] REJECTED hallucination: ${canon} - "${sec.title}" (number not found literally in PDF text near pages ${sec.startPage}-${sec.endPage})`);
+            continue;
           }
 
           allSections.push({
