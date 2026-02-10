@@ -1,5 +1,7 @@
 import OpenAI from "openai";
 import { z } from "zod";
+import { getActiveConfiguration, clearConfigCache } from "./configService";
+import type { SpecsiftConfig, AccessoryScopeData } from "@shared/schema";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
@@ -46,12 +48,35 @@ export interface AISpecResult {
   modelUsed: string;
 }
 
-const SECTION_IDENT_PROMPT = `You are a construction specification parser. Your ONLY job is to find ACTUAL Division 10 specification sections in the provided text.
+function buildSectionIdentPrompt(config: SpecsiftConfig): string {
+  const defaultScopes = config.defaultScopes as Record<string, string>;
+  const scopeList = Object.entries(defaultScopes)
+    .map(([num, name]) => `  - ${num}: ${name}`)
+    .join("\n");
+
+  const accessoryScopes = config.accessoryScopes as AccessoryScopeData[];
+  const nonDiv10Examples = accessoryScopes
+    .filter(s => !s.sectionHint.startsWith("10"))
+    .slice(0, 5)
+    .map(s => `${s.sectionHint} (${s.name})`)
+    .join(", ");
+
+  return `You are a construction specification parser. Your ONLY job is to find ACTUAL Division 10 specification sections in the provided text.
+
+WHAT TO LOOK FOR — Section Headers:
+Section headers in construction specs follow a standard CSI format. They typically appear at the TOP of a page and contain:
+- The word "SECTION" followed by a 6-digit number (e.g., "SECTION 102613" or "SECTION 10 26 13")
+- A title in ALL CAPS following the number (e.g., "SECTION 102613 - WALL AND DOOR PROTECTION")
+- The section body then contains "PART 1 - GENERAL", "PART 2 - PRODUCTS", "PART 3 - EXECUTION"
+- Sections end with "END OF SECTION" on the last page
+
+KNOWN Division 10 section types you should look for:
+${scopeList}
 
 CRITICAL RULES — FOLLOW EXACTLY:
-1. ONLY report sections whose number LITERALLY starts with "10" (Division 10 - Specialties). Examples: 102613, 104413, 101400, 102113, 102800, 104416.
-2. DO NOT report sections from other divisions. Numbers starting with 11, 12, 13, 14, etc. are NOT Division 10. For example: 122200 (Curtains) and 124813 (Entrance Mats) are Division 12, NOT Division 10 — do NOT include them.
-3. ONLY report a section if you can see its EXACT section number literally written in the text. DO NOT invent, guess, or infer section numbers.
+1. ONLY report sections whose number LITERALLY starts with "10" (Division 10 - Specialties).
+2. DO NOT report sections from other divisions. Numbers starting with 11, 12, 13, 14, etc. are NOT Division 10.${nonDiv10Examples ? `\n   Examples of NON-Division 10 sections to IGNORE: ${nonDiv10Examples}` : ""}
+3. ONLY report a section if you can see its EXACT section number literally written in the text as a header (not just in a Table of Contents listing). DO NOT invent, guess, or infer section numbers.
 4. ONLY report sections that have actual body content — look for "PART 1 - GENERAL", "PART 2 - PRODUCTS", or "PART 3 - EXECUTION" markers. Do NOT report Table of Contents (TOC) entries.
 5. The section number you report MUST match EXACTLY what appears in the text (just reformat to "10 XX XX" spacing).
 6. If you find ZERO Division 10 sections, return {"sections": []}.
@@ -60,28 +85,60 @@ You will receive text from specification pages, each labeled with its 1-based pa
 
 For each Division 10 section found, provide:
 - sectionNumber: The literal number from the text, normalized to "10 XX XX" format
-- title: The exact title as written in the document
-- startPage: The page number where the section header appears
+- title: The exact title as written in the document header (e.g., "WALL AND DOOR PROTECTION")
+- startPage: The page number where the section header (containing "SECTION 10XXXX") appears
 - endPage: The page where "END OF SECTION" appears or where the next section begins
 
 Return ONLY valid JSON. No markdown fences, no explanation.
 Response schema: { "sections": [{ "sectionNumber": "10 XX XX", "title": "Section Title", "startPage": number, "endPage": number }] }`;
+}
 
-const DETAIL_EXTRACTION_PROMPT = `You are a construction specification analyst specializing in Division 10 (Specialties).
+function buildDetailExtractionPrompt(config: SpecsiftConfig): string {
+  const excludeTerms = config.manufacturerExcludeTerms as string[];
+  const materialKeywords = config.materialKeywords as string[];
+  const modelPatterns = config.modelPatterns as string[];
+  const conflictPatterns = config.conflictPatterns as string[];
+  const notePatterns = config.notePatterns as string[];
+
+  const excludeList = excludeTerms.length > 0
+    ? `Do NOT include these as manufacturer names (they are generic/spec terms): ${excludeTerms.slice(0, 30).join(", ")}`
+    : "Do NOT include generic specification language as manufacturer names.";
+
+  const materialHints = materialKeywords.length > 0
+    ? `Common material terms to look for include: ${materialKeywords.join(", ")}`
+    : "";
+
+  const modelHints = modelPatterns.length > 0
+    ? `Model numbers typically follow patterns like: ${modelPatterns.map(p => p.replace(/\\\\/g, "\\").replace(/\(\[.*?\]\[.*?\]\+\)/g, "XXX")).slice(0, 3).join("; ")}`
+    : "";
+
+  const conflictHints = conflictPatterns.length > 0
+    ? `Look specifically for these phrases that indicate conflicts: ${conflictPatterns.join(", ")}`
+    : "";
+
+  const noteHints = notePatterns.length > 0
+    ? `Look specifically for these topics in notes: ${notePatterns.join(", ")}`
+    : "";
+
+  return `You are a construction specification analyst specializing in Division 10 (Specialties).
 
 You will receive the full text of a single specification section. Extract the following details:
 
-1. **manufacturers**: List all manufacturer names mentioned as approved/acceptable/basis-of-design. Include company names like "Bobrick Washroom Equipment", "ASI Group", "Koala Kare Products", etc. Do NOT include generic terms like "manufacturer" or specification language.
+1. **manufacturers**: List all manufacturer names mentioned as approved/acceptable/basis-of-design. Include company names like "Bobrick Washroom Equipment", "ASI Group", "Koala Kare Products", etc.
+   ${excludeList}
 
 2. **modelNumbers**: List all specific product model numbers mentioned (e.g., "B-2621", "K-14367-CP", "0199-MBH", "Series 2850"). Include the full model designation.
+   ${modelHints}
 
 3. **materials**: List all materials specified (e.g., "Stainless Steel Type 304", "Solid Phenolic", "Powder-Coated Aluminum", "Tempered Glass"). Only include actual material types, not generic words.
+   ${materialHints}
 
 4. **conflicts**: Flag any potential issues:
    - "No substitutions allowed - sole source requirement" if sole source / no substitution language exists
    - "Single manufacturer specified without 'or equal'" if only one manufacturer is listed without alternatives
    - "Both performance and prescriptive requirements" if both specification types are mixed
    - Any contradictory requirements
+   ${conflictHints}
 
 5. **notes**: Extract important notes:
    - Warranty requirements (e.g., "5-year warranty required")
@@ -90,9 +147,11 @@ You will receive the full text of a single specification section. Extract the fo
    - Fire rating requirements
    - Color/finish selection requirements
    - Submittal requirements of note
+   ${noteHints}
 
 Return ONLY valid JSON, no markdown fences, no explanation.
 Response schema: { "manufacturers": [], "modelNumbers": [], "materials": [], "conflicts": [], "notes": [] }`;
+}
 
 function buildPageText(pages: string[], startIdx: number, endIdx: number): string {
   const parts: string[] = [];
@@ -183,7 +242,6 @@ function verifySectionInText(pages: string[], sectionNumber: string, startPage: 
   if (searchText.includes(dotted)) return true;
 
   if (d3 === "00") {
-    const short4 = `${d1}${d2}`;
     const looseShort = new RegExp(
       `(?:SECTION\\s+)?${d1}[\\s\\-\\._]*${d2}(?:\\s|$|[\\-\\._])`,
       "gm"
@@ -227,6 +285,12 @@ export async function identifySectionsWithAI(
   pages: string[],
   onProgress?: (progress: number, message: string) => void
 ): Promise<AISpecResult> {
+  clearConfigCache();
+  const config = await getActiveConfiguration();
+  console.log(`[AI SpecSift] Loaded fresh Settings config (${Object.keys(config.defaultScopes as Record<string, string>).length} default scopes, ${(config.accessoryScopes as AccessoryScopeData[]).length} accessory scopes)`);
+
+  const identPrompt = buildSectionIdentPrompt(config);
+
   const allSections: AIIdentifiedSection[] = [];
   const totalBatches = Math.ceil(pages.length / PAGES_PER_BATCH);
 
@@ -243,7 +307,7 @@ export async function identifySectionsWithAI(
     onProgress?.(progress, `AI scanning pages ${startIdx + 1}-${endIdx + 1} (batch ${batch + 1}/${totalBatches})...`);
 
     try {
-      const raw = await callOpenAI(SECTION_IDENT_PROMPT, pageText);
+      const raw = await callOpenAI(identPrompt, pageText);
       const parsed = parseJSON(raw, IdentResponseSchema);
 
       if (parsed) {
@@ -292,16 +356,26 @@ export async function extractSectionDetailsWithAI(
   sectionNumber: string,
   title: string
 ): Promise<AISectionDetails> {
+  clearConfigCache();
+  const config = await getActiveConfiguration();
+  const detailPrompt = buildDetailExtractionPrompt(config);
+
   const truncated = sectionText.slice(0, 12000);
   const userContent = `Section: ${sectionNumber} - ${title}\n\n${truncated}`;
 
   try {
-    const raw = await callOpenAI(DETAIL_EXTRACTION_PROMPT, userContent);
+    const raw = await callOpenAI(detailPrompt, userContent);
     const parsed = parseJSON(raw, SectionDetailSchema);
 
     if (parsed) {
+      const excludeTerms = config.manufacturerExcludeTerms as string[];
+      const filteredManufacturers = (parsed.manufacturers || []).filter(mfr => {
+        const lower = mfr.toLowerCase();
+        return !excludeTerms.some(term => lower === term.toLowerCase());
+      });
+
       const result: AISectionDetails = {
-        manufacturers: parsed.manufacturers || [],
+        manufacturers: filteredManufacturers,
         modelNumbers: parsed.modelNumbers || [],
         materials: parsed.materials || [],
         conflicts: parsed.conflicts || [],
