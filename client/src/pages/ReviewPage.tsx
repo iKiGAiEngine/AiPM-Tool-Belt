@@ -11,7 +11,8 @@ import {
   Search,
   Filter,
   CheckSquare,
-  Square
+  Square,
+  Zap
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -286,6 +287,12 @@ export default function ReviewPage() {
                 <Badge variant="secondary">
                   {filteredSections.length} section{filteredSections.length !== 1 ? "s" : ""}
                 </Badge>
+                {session?.message?.includes("(AI:") && (
+                  <Badge variant="outline" data-testid="badge-extraction-method">
+                    <Zap className="h-3 w-3 mr-1" />
+                    AI-Powered
+                  </Badge>
+                )}
               </div>
             </div>
 

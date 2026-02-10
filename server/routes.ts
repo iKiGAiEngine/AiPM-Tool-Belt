@@ -99,10 +99,11 @@ export async function registerRoutes(
         await storage.createAccessoryMatch(accessory);
       }
 
+      const methodLabel = result.extractionMethod === "ai" ? ` (AI: ${result.modelUsed || "gpt-4o-mini"})` : " (rule-based)";
       await storage.updateSession(sessionId, {
         status: "complete",
         progress: 100,
-        message: `Extracted ${result.sections.length} sections and found ${result.accessories.length} accessory matches`,
+        message: `Extracted ${result.sections.length} sections and found ${result.accessories.length} accessory matches${methodLabel}`,
       });
 
       processingStatus.delete(sessionId);

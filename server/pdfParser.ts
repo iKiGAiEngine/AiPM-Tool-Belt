@@ -68,6 +68,7 @@ async function pdf(buffer: Buffer): Promise<PdfData> {
 import type { ExtractedSection, AccessoryMatch, InsertSection, InsertAccessoryMatch, SpecsiftConfig, AccessoryScopeData } from "@shared/schema";
 import { DEFAULT_SCOPES, ACCESSORY_SCOPES } from "@shared/schema";
 import { getActiveConfiguration, getSectionRegex } from "./configService";
+import { identifySectionsWithAI, extractSectionDetailsWithAI } from "./openaiSpecExtractor";
 
 const SEC_RE = /\b10[\s\-\._]*(?:\d{2}[\s\-\._]*\d{2}(?:[\s\-\._]*\d{2})?|\d{4,6})\b/g;
 
@@ -1024,6 +1025,8 @@ function findAccessoryMatches(
 export interface ProcessingResult {
   sections: InsertSection[];
   accessories: InsertAccessoryMatch[];
+  extractionMethod?: string;
+  modelUsed?: string;
 }
 
 export async function processPdf(
@@ -1037,7 +1040,6 @@ export async function processPdf(
     onProgress?.(5, "Loading configuration...");
     
     const config = await getActiveConfiguration();
-    const dynamicSecRe = getSectionRegex(config.sectionPattern);
     const dynamicDefaultScopes = config.defaultScopes as Record<string, string>;
     const dynamicAccessoryScopes = config.accessoryScopes as AccessoryScopeData[];
     const dynamicExcludeTerms = config.manufacturerExcludeTerms as string[];
@@ -1049,24 +1051,114 @@ export async function processPdf(
     const data = await pdf(buffer);
     const fullText = data.text;
     const numPages = data.numpages;
-    const pages = data.pages; // Per-page text array for accurate scanning
+    const pages = data.pages;
+    const pageTexts = pages.length > 0 ? pages : fullText.split(/\f/);
+
+    // Always collect accessory matches using rule-based scanning
+    for (let pageNum = 0; pageNum < pageTexts.length; pageNum++) {
+      const pageText = pageTexts[pageNum];
+      const accessoryMatches = findAccessoryMatches(pageText, sessionId, pageNum + 1, dynamicAccessoryScopes);
+      accessories.push(...accessoryMatches);
+    }
+
+    // Deduplicate accessories
+    const deduplicatedAccessories: InsertAccessoryMatch[] = [];
+    const seenAccessoryKeys = new Set<string>();
+    for (const acc of accessories) {
+      const key = `${acc.scopeName}-${acc.matchedKeyword}-${acc.pageNumber}`;
+      if (!seenAccessoryKeys.has(key)) {
+        seenAccessoryKeys.add(key);
+        deduplicatedAccessories.push(acc);
+      }
+    }
+
+    // ============= TRY AI EXTRACTION FIRST =============
+    const hasOpenAIKey = !!process.env.OPENAI_API_KEY;
     
-    onProgress?.(15, "Detecting document structure...");
+    if (hasOpenAIKey) {
+      try {
+        onProgress?.(15, "Using AI to identify specification sections...");
+        console.log(`[ProcessPdf] AI extraction enabled, processing ${numPages} pages`);
+        
+        const aiResult = await identifySectionsWithAI(pageTexts, onProgress);
+        
+        if (aiResult.sections.length > 0) {
+          onProgress?.(60, `AI found ${aiResult.sections.length} sections, extracting details...`);
+          
+          const sections: InsertSection[] = [];
+          
+          for (let i = 0; i < aiResult.sections.length; i++) {
+            const aiSec = aiResult.sections[i];
+            const progress = 60 + Math.floor(((i + 1) / aiResult.sections.length) * 30);
+            onProgress?.(progress, `AI extracting details for ${aiSec.sectionNumber} (${i + 1}/${aiResult.sections.length})...`);
+            
+            let sectionText = "";
+            const startIdx = Math.max(0, aiSec.startPage - 1);
+            const endIdx = Math.min(pageTexts.length - 1, aiSec.endPage - 1);
+            for (let p = startIdx; p <= endIdx; p++) {
+              sectionText += pageTexts[p] + "\n";
+            }
+            
+            const details = await extractSectionDetailsWithAI(
+              sectionText,
+              aiSec.sectionNumber,
+              aiSec.title
+            );
+            
+            const contentMatch = sectionText.match(
+              new RegExp(`${aiSec.sectionNumber.replace(/ /g, "\\s*")}[\\s\\S]{0,500}`, "i")
+            );
+            
+            const clampedStart = Math.max(1, Math.min(aiSec.startPage, pageTexts.length));
+            const clampedEnd = Math.max(clampedStart, Math.min(aiSec.endPage, pageTexts.length));
+            
+            sections.push({
+              sessionId,
+              sectionNumber: aiSec.sectionNumber,
+              title: aiSec.title,
+              content: contentMatch ? contentMatch[0].slice(0, 500) : undefined,
+              pageNumber: clampedStart,
+              startPage: clampedStart,
+              endPage: clampedEnd,
+              manufacturers: details.manufacturers,
+              modelNumbers: details.modelNumbers,
+              materials: details.materials,
+              conflicts: details.conflicts,
+              notes: details.notes,
+              isEdited: false,
+            });
+          }
+          
+          sections.sort((a, b) => a.sectionNumber.localeCompare(b.sectionNumber));
+          
+          onProgress?.(100, `AI found ${sections.length} sections and ${deduplicatedAccessories.length} accessory matches`);
+          
+          return {
+            sections,
+            accessories: deduplicatedAccessories,
+            extractionMethod: "ai",
+            modelUsed: aiResult.modelUsed,
+          };
+        } else {
+          console.log("[ProcessPdf] AI found no sections, falling back to rule-based extraction");
+          onProgress?.(15, "AI found no sections, falling back to rule-based parsing...");
+        }
+      } catch (aiError) {
+        console.error("[ProcessPdf] AI extraction failed, falling back to rule-based:", aiError);
+        onProgress?.(15, "AI extraction failed, falling back to rule-based parsing...");
+      }
+    }
+
+    // ============= RULE-BASED FALLBACK =============
+    onProgress?.(15, "Detecting document structure (rule-based)...");
     
-    // ============= TOC DETECTION =============
-    // Detect and exclude Table of Contents pages to prevent false positives
-    const { tocStartPage, tocEndPage } = detectTocBoundaries(pages);
+    const { tocStartPage, tocEndPage } = detectTocBoundaries(pageTexts);
     if (tocEndPage >= 0) {
       console.log(`[ProcessPdf] Excluding TOC pages ${tocStartPage + 1} to ${tocEndPage + 1}`);
     }
     
     onProgress?.(20, `Parsing ${numPages} pages with zone-based scanning...`);
     
-    // Use per-page text from PDF function (more accurate than splitting by form-feed)
-    const pageTexts = pages.length > 0 ? pages : fullText.split(/\f/);
-    
-    // ============= ZONE-BASED HEADER DETECTION =============
-    // Collect all headers with page counts for index filtering
     const allHeaders: DetectedHeader[] = [];
     const pageHeaderCounts: Map<number, number> = new Map();
     
@@ -1075,57 +1167,38 @@ export async function processPdf(
       const progress = 20 + Math.floor((pageNum / pageTexts.length) * 30);
       onProgress?.(progress, `Scanning page ${pageNum + 1} of ${pageTexts.length}...`);
       
-      // Skip pages within TOC range (only between start and end, not all pages before end)
       if (tocStartPage >= 0 && tocEndPage >= 0 && pageNum >= tocStartPage && pageNum <= tocEndPage) {
         console.log(`[ProcessPdf] Skipping TOC page ${pageNum + 1}`);
         continue;
       }
       
-      // Use zone-based header detection (only top 15 lines)
       const headers = findHeadersInTopZone(pageText, pageNum, dynamicDefaultScopes);
-      
-      // Track how many headers found per page (for index filtering)
       pageHeaderCounts.set(pageNum, headers.length);
       
       for (const header of headers) {
-        // Validate section legitimacy (check for PART 1 - GENERAL markers)
         header.isLegitimate = validateSectionLegitimacy(pageText, header.sectionNumber);
         allHeaders.push(header);
       }
-      
-      // Collect accessory matches (still scan full page for accessories)
-      const accessoryMatches = findAccessoryMatches(pageText, sessionId, pageNum + 1, dynamicAccessoryScopes);
-      accessories.push(...accessoryMatches);
     }
     
     onProgress?.(55, "Filtering and validating sections...");
     
-    // ============= INDEX PAGE FILTERING & LEGITIMACY CHECK =============
-    // Skip pages with 3+ sections (likely index/TOC pages that slipped through)
-    // Also apply legitimacy validation
     const filteredHeaders: DetectedHeader[] = [];
     const seenSections = new Set<string>();
     
     for (const header of allHeaders) {
       const pageCount = pageHeaderCounts.get(header.pageNumber) || 0;
       
-      // Filter out index pages (3+ sections on same page)
       if (pageCount >= 3) {
         console.log(`[ProcessPdf] Skipping index page ${header.pageNumber + 1} (${pageCount} sections)`);
         continue;
       }
       
-      // Deduplicate - only keep first occurrence of each section
       if (seenSections.has(header.sectionNumber)) {
         continue;
       }
       
-      // Apply legitimacy filter - prefer legitimate sections but allow fallback
-      // If this is a duplicate and the existing one is legitimate, skip this one
-      // If this section is not legitimate and we have no other sections on this page, still include it
-      // (some valid spec pages may not have all the expected markers)
       if (!header.isLegitimate) {
-        // Log warning but still include - section legitimacy is advisory, not mandatory
         console.log(`[ProcessPdf] Section ${header.sectionNumber} on page ${header.pageNumber + 1} may not be legitimate (no PART 1 markers found)`);
       }
       
@@ -1137,20 +1210,15 @@ export async function processPdf(
     
     onProgress?.(65, "Determining section boundaries...");
     
-    // Sort by page number
     filteredHeaders.sort((a, b) => a.pageNumber - b.pageNumber);
     
-    // ============= SECTION START/END DETECTION =============
-    // Use smart boundary detection for accurate page ranges
     const sectionRanges: Map<string, { title: string; startPage: number; endPage: number }> = new Map();
     
     for (let i = 0; i < filteredHeaders.length; i++) {
       const header = filteredHeaders[i];
       
-      // Find actual start page (look backwards)
       const actualStartPage = findSectionStartPage(pageTexts, header.pageNumber, header.sectionNumber);
       
-      // Calculate max search range for end detection
       let maxEndPage: number;
       if (i < filteredHeaders.length - 1) {
         maxEndPage = filteredHeaders[i + 1].pageNumber - 1;
@@ -1158,13 +1226,12 @@ export async function processPdf(
         maxEndPage = numPages - 1;
       }
       
-      // Find actual end page (look for END OF SECTION markers)
       const actualEndPage = findSectionEndPage(pageTexts, actualStartPage, maxEndPage, header.sectionNumber);
       
       sectionRanges.set(header.sectionNumber, {
         title: header.title,
-        startPage: actualStartPage + 1, // Convert to 1-indexed
-        endPage: actualEndPage + 1,     // Convert to 1-indexed
+        startPage: actualStartPage + 1,
+        endPage: actualEndPage + 1,
       });
     }
     
@@ -1207,17 +1274,6 @@ export async function processPdf(
     
     onProgress?.(90, "Finalizing results...");
     
-    const deduplicatedAccessories: InsertAccessoryMatch[] = [];
-    const seenAccessoryKeys = new Set<string>();
-    
-    for (const acc of accessories) {
-      const key = `${acc.scopeName}-${acc.matchedKeyword}-${acc.pageNumber}`;
-      if (!seenAccessoryKeys.has(key)) {
-        seenAccessoryKeys.add(key);
-        deduplicatedAccessories.push(acc);
-      }
-    }
-    
     sections.sort((a, b) => a.sectionNumber.localeCompare(b.sectionNumber));
     
     onProgress?.(100, `Found ${sections.length} sections and ${deduplicatedAccessories.length} accessory matches`);
@@ -1225,6 +1281,7 @@ export async function processPdf(
     return {
       sections,
       accessories: deduplicatedAccessories,
+      extractionMethod: "rule-based",
     };
   } catch (error) {
     console.error("PDF parsing error:", error);
