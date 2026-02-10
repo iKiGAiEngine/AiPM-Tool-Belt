@@ -538,82 +538,6 @@ export default function SpecExtractorPage() {
         <div className="mt-12">
           {viewState === "upload" && (
             <div className="space-y-6">
-              <div className="mx-auto max-w-md">
-                <Label htmlFor="se-project-name" className="flex items-center gap-2 text-sm font-medium text-foreground mb-2">
-                  <Building2 className="h-4 w-4" />
-                  Project Name
-                  <span className="text-xs text-muted-foreground font-normal">(optional)</span>
-                </Label>
-                <Input
-                  id="se-project-name"
-                  type="text"
-                  placeholder="Leave blank to auto-detect from specs"
-                  value={projectName}
-                  onChange={(e) => setProjectName(e.target.value)}
-                  className="w-full"
-                  data-testid="input-se-project-name"
-                />
-                <p className="mt-1.5 text-xs text-muted-foreground">
-                  AI will suggest a project name from the spec content if left blank
-                </p>
-              </div>
-
-              {accessoryScopes.length > 0 && (
-                <div className="mx-auto max-w-2xl">
-                  <Label className="flex items-center gap-2 text-sm font-medium text-foreground mb-3">
-                    <Package className="h-4 w-4" />
-                    Accessory Scopes
-                    <span className="text-xs text-muted-foreground font-normal">(optional)</span>
-                  </Label>
-                  <p className="text-xs text-muted-foreground mb-3">
-                    Select accessory types to search for in the spec. Matched sections will be extracted alongside Division 10 sections.
-                  </p>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                    {accessoryScopes.map((scope) => {
-                      const isActive = selectedAccessories.has(scope.name);
-                      return (
-                        <button
-                          key={scope.name}
-                          type="button"
-                          onClick={() => toggleAccessory(scope.name)}
-                          className={cn(
-                            "flex items-center gap-2 rounded-md border px-3 py-2 text-left text-sm transition-colors",
-                            isActive
-                              ? "border-primary bg-primary/5 text-foreground"
-                              : "border-border text-muted-foreground hover-elevate"
-                          )}
-                          data-testid={`button-accessory-${scope.name.replace(/[\s\/]/g, "-").toLowerCase()}`}
-                        >
-                          <Checkbox
-                            checked={isActive}
-                            onCheckedChange={() => toggleAccessory(scope.name)}
-                            className="pointer-events-none"
-                            data-testid={`checkbox-accessory-${scope.name.replace(/[\s\/]/g, "-").toLowerCase()}`}
-                          />
-                          <div className="min-w-0">
-                            <span className="block truncate font-medium text-xs">{scope.name}</span>
-                            <span className="block truncate text-[10px] text-muted-foreground">{scope.sectionHint}</span>
-                          </div>
-                        </button>
-                      );
-                    })}
-                  </div>
-                  {selectedAccessories.size > 0 && (
-                    <div className="mt-2 flex items-center gap-2">
-                      <Badge variant="secondary">{selectedAccessories.size} selected</Badge>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => setSelectedAccessories(new Set())}
-                        data-testid="button-clear-accessories"
-                      >
-                        Clear
-                      </Button>
-                    </div>
-                  )}
-                </div>
-              )}
-
               <div
                 onDragOver={handleDragOver}
                 onDragLeave={handleDragLeave}
@@ -708,6 +632,79 @@ export default function SpecExtractorPage() {
                   </div>
                 )}
               </div>
+
+              <div className="mx-auto max-w-md">
+                <Label htmlFor="se-project-name" className="flex items-center gap-2 text-sm font-medium text-foreground mb-2">
+                  <Building2 className="h-4 w-4" />
+                  Project Name
+                  <span className="text-xs text-muted-foreground font-normal">(optional)</span>
+                </Label>
+                <Input
+                  id="se-project-name"
+                  type="text"
+                  placeholder="Leave blank to auto-detect from specs"
+                  value={projectName}
+                  onChange={(e) => setProjectName(e.target.value)}
+                  className="w-full"
+                  data-testid="input-se-project-name"
+                />
+                <p className="mt-1.5 text-xs text-muted-foreground">
+                  AI will suggest a project name from the spec content if left blank
+                </p>
+              </div>
+
+              {accessoryScopes.length > 0 && (
+                <div className="mx-auto max-w-2xl">
+                  <Label className="flex items-center gap-2 text-sm font-medium text-foreground mb-3">
+                    <Package className="h-4 w-4" />
+                    Accessory Scopes
+                    <span className="text-xs text-muted-foreground font-normal">(optional)</span>
+                  </Label>
+                  <p className="text-xs text-muted-foreground mb-3">
+                    Select accessory types to search for in the spec. Matched sections will be suggested alongside Division 10 sections for your review.
+                  </p>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                    {accessoryScopes.map((scope) => {
+                      const isActive = selectedAccessories.has(scope.name);
+                      return (
+                        <button
+                          key={scope.name}
+                          type="button"
+                          onClick={() => toggleAccessory(scope.name)}
+                          className={cn(
+                            "flex items-center gap-2 rounded-md border px-3 py-2 text-left text-sm transition-colors",
+                            isActive
+                              ? "border-primary bg-primary/5 text-foreground"
+                              : "border-border text-muted-foreground hover-elevate"
+                          )}
+                          data-testid={`button-accessory-${scope.name.replace(/[\s\/]/g, "-").toLowerCase()}`}
+                        >
+                          <Checkbox
+                            checked={isActive}
+                            onCheckedChange={() => toggleAccessory(scope.name)}
+                            className="pointer-events-none"
+                            data-testid={`checkbox-accessory-${scope.name.replace(/[\s\/]/g, "-").toLowerCase()}`}
+                          />
+                          <span className="block truncate font-medium text-xs">{scope.name}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {selectedAccessories.size > 0 && (
+                    <div className="mt-2 flex items-center gap-2">
+                      <Badge variant="secondary">{selectedAccessories.size} selected</Badge>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setSelectedAccessories(new Set())}
+                        data-testid="button-clear-accessories"
+                      >
+                        Clear
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              )}
 
               <div className="mt-16">
                 <div className="grid gap-8 md:grid-cols-3">

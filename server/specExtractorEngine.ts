@@ -73,13 +73,10 @@ export const ACCESSORY_SCOPES: AccessoryScope[] = [
   { name: "Expansion Joints", keywords: ["expansion joint", "control joint"], sectionHint: "07 95 13", divisionScope: [6, 7] },
   { name: "Window Shades", keywords: ["window shade", "roller shade", "blind"], sectionHint: "12 24 13", divisionScope: [11, 12] },
   { name: "Site Furnishings", keywords: ["site furnishing", "bench", "picnic table"], sectionHint: "12 93 00", divisionScope: [11, 12] },
-  { name: "Exterior Sun Screens", keywords: ["sun screen", "exterior screen", "solar screen"], sectionHint: "10 71 00", divisionScope: [11, 12] },
   { name: "Entrance Mats/Grilles", keywords: ["entrance mat", "entrance grille", "walk-off mat"], sectionHint: "12 48 13", divisionScope: [11, 12] },
   { name: "Flagpoles", keywords: ["flagpole", "flag pole"], sectionHint: "12 93 23", divisionScope: [11, 12] },
   { name: "Display Cases", keywords: ["display case", "trophy case", "exhibit case"], sectionHint: "11 11 13", divisionScope: [11, 12] },
-  { name: "Protective Covers/Canopies", keywords: ["protective cover", "canopy", "awning"], sectionHint: "12 93 33", divisionScope: [11, 12] },
-  { name: "Operable Partitions", keywords: ["operable partition", "movable partition", "folding partition"], sectionHint: "10 22 26", divisionScope: [11, 12] },
-  { name: "Wardrobe Closets/Shelving", keywords: ["wardrobe", "closet shelving", "wire shelving"], sectionHint: "10 56 00", divisionScope: [11, 12] },
+  { name: "Wardrobe Closets/Shelving", keywords: ["wardrobe", "closet shelving", "wire shelving"], sectionHint: "10 56 00", divisionScope: [] },
 ];
 
 export interface AccessoryMatch {
@@ -90,6 +87,50 @@ export interface AccessoryMatch {
   end: number;
   folderName: string;
   matchedKeywords: string[];
+}
+
+function extractDivisionFromHeader(topLines: string): number | null {
+  const headerMatch = topLines.match(
+    /(?:SECTION|SPEC)\s+(\d{2})[\s\-._]*\d{2}[\s\-._]*\d{2}/i
+  );
+  if (headerMatch) {
+    return parseInt(headerMatch[1], 10);
+  }
+  const standaloneSec = topLines.match(/^(\d{2})[\s\-._]*\d{2}[\s\-._]*\d{2}\s*[-–—:]/m);
+  if (standaloneSec) {
+    return parseInt(standaloneSec[1], 10);
+  }
+  return null;
+}
+
+function extractSectionNumberFromHeader(topLines: string): string | null {
+  const patterns = [
+    /(?:SECTION|SPEC)\s+(\d{2}[\s\-._]*\d{2}[\s\-._]*\d{2})\s*[-–—:]/i,
+    /^(\d{2}[\s\-._]*\d{2}[\s\-._]*\d{2})\s*[-–—:]/m,
+    /(?:SECTION|SPEC)\s+(\d{2}[\s\-._]*\d{2}[\s\-._]*\d{2})\s+[A-Z]/i,
+  ];
+  for (const pat of patterns) {
+    const m = topLines.match(pat);
+    if (m) {
+      return canonize(m[1]);
+    }
+  }
+  return null;
+}
+
+function extractTitleFromHeader(topLines: string): string | null {
+  const patterns = [
+    /(?:SECTION|SPEC)\s+\d{2}[\s\-._]*\d{2}[\s\-._]*\d{2}\s*[-–—:]\s*([A-Za-z][A-Za-z\s,&\/\-]+)/i,
+    /^\d{2}[\s\-._]*\d{2}[\s\-._]*\d{2}\s*[-–—:]\s*([A-Za-z][A-Za-z\s,&\/\-]+)/m,
+    /(?:SECTION|SPEC)\s+\d{2}[\s\-._]*\d{2}[\s\-._]*\d{2}\s+([A-Z][A-Z\s,&\/\-]{5,})/i,
+  ];
+  for (const pat of patterns) {
+    const m = topLines.match(pat);
+    if (m && m[1].trim().length >= 3) {
+      return cleanSectionTitle(m[1].trim());
+    }
+  }
+  return null;
 }
 
 export function findAccessorySections(
@@ -113,85 +154,82 @@ export function findAccessorySections(
   }
 
   for (const accessory of selected) {
-    const foundKeywords: string[] = [];
-    for (const kw of accessory.keywords) {
-      for (let pno = 0; pno < pages.length; pno++) {
-        if (tocBounds.end >= 0 && pno <= tocBounds.end) continue;
-        if (pages[pno].toLowerCase().includes(kw.toLowerCase())) {
-          foundKeywords.push(kw);
-          break;
-        }
-      }
-    }
-
-    if (foundKeywords.length === 0) continue;
-
-    const hintDigits = accessory.sectionHint.replace(/\s+/g, "");
-    const sectionHintFlex = hintDigits.split("").join("[\\s\\-._]*");
-    const hintPatterns = [
-      new RegExp(`(?:SECTION|SPEC)\\s+${sectionHintFlex}\\s*[-–—:]\\s*([A-Za-z][A-Za-z\\s,&\\/\\-]+)`, "i"),
-      new RegExp(`^${sectionHintFlex}\\s*[-–—:]\\s*([A-Za-z][A-Za-z\\s,&\\/\\-]+)`, "im"),
-      new RegExp(`(?:SECTION|SPEC)\\s+${sectionHintFlex}\\s+([A-Z][A-Z\\s,&\\/\\-]{5,})`, "i"),
-      new RegExp(`${sectionHintFlex}`, "i"),
-    ];
-
-    let sectionStart = -1;
-    let sectionTitle = accessory.name;
+    const candidatePages: { page: number; keywords: string[]; title: string; sectionNumber: string; score: number }[] = [];
 
     for (let pno = 0; pno < pages.length; pno++) {
       if (tocBounds.end >= 0 && pno <= tocBounds.end) continue;
 
-      const lines = pages[pno].split(/[\n\r]+/);
+      const pageText = pages[pno];
+      const lines = pageText.split(/[\n\r]+/);
       const topLines = lines.slice(0, 20).join("\n");
 
-      for (let pi = 0; pi < hintPatterns.length - 1; pi++) {
-        const match = hintPatterns[pi].exec(topLines);
-        if (match) {
-          sectionStart = pno;
-          const rawTitle = match[1]?.trim();
-          if (rawTitle && rawTitle.length >= 3) {
-            sectionTitle = cleanSectionTitle(rawTitle);
-          }
-          break;
+      if (accessory.divisionScope.length > 0) {
+        const pageDivision = extractDivisionFromHeader(topLines);
+        if (pageDivision !== null && !accessory.divisionScope.includes(pageDivision)) {
+          continue;
         }
       }
-      if (sectionStart >= 0) break;
-    }
 
-    if (sectionStart < 0) {
-      for (let pno = 0; pno < pages.length; pno++) {
-        if (tocBounds.end >= 0 && pno <= tocBounds.end) continue;
+      const topLinesLower = topLines.toLowerCase();
+      const fullPageLower = pageText.toLowerCase();
+      const matchedKws: string[] = [];
+      let score = 0;
 
-        const pageText = pages[pno];
-        const hasKeyword = accessory.keywords.some(kw => pageText.toLowerCase().includes(kw.toLowerCase()));
-        if (!hasKeyword) continue;
-
-        const lines = pageText.split(/[\n\r]+/);
-        const topLines = lines.slice(0, 20).join("\n");
-
-        const genericHeaderMatch = topLines.match(
-          /(?:SECTION|SPEC)\s+(\d{2}[\s\-._]*\d{2}[\s\-._]*\d{2})\s*[-–—:]\s*([A-Za-z][A-Za-z\s,&\/\-]+)/i
-        );
-        if (genericHeaderMatch) {
-          sectionStart = pno;
-          sectionTitle = cleanSectionTitle(genericHeaderMatch[2].trim());
-          break;
-        }
-
-        const partOneMatch = pageText.toUpperCase().includes("PART 1") && pageText.toUpperCase().includes("GENERAL");
-        if (partOneMatch) {
-          sectionStart = pno;
-          break;
+      for (const kw of accessory.keywords) {
+        const kwLower = kw.toLowerCase();
+        if (topLinesLower.includes(kwLower)) {
+          matchedKws.push(kw);
+          score += 10;
+        } else if (fullPageLower.includes(kwLower)) {
+          matchedKws.push(kw);
+          score += 3;
         }
       }
+
+      if (matchedKws.length === 0) continue;
+
+      const hasHeader = topLines.match(
+        /(?:SECTION|SPEC)\s+\d{2}[\s\-._]*\d{2}[\s\-._]*\d{2}/i
+      );
+      const hasStandaloneHeader = topLines.match(
+        /^\d{2}[\s\-._]*\d{2}[\s\-._]*\d{2}\s*[-–—:]/m
+      );
+      const hasPartOne = pageText.toUpperCase().includes("PART 1") && pageText.toUpperCase().includes("GENERAL");
+
+      if (hasHeader || hasStandaloneHeader) {
+        score += 20;
+      }
+      if (hasPartOne) {
+        score += 15;
+      }
+
+      const sectionNumber = extractSectionNumberFromHeader(topLines) || accessory.sectionHint;
+      const title = extractTitleFromHeader(topLines) || accessory.name;
+
+      candidatePages.push({
+        page: pno,
+        keywords: matchedKws,
+        title,
+        sectionNumber,
+        score,
+      });
     }
 
-    if (sectionStart < 0) {
-      console.log(`[SpecExtractor] Accessory "${accessory.name}": keywords found in spec but no section header located — skipping`);
+    if (candidatePages.length === 0) {
+      console.log(`[SpecExtractor] Accessory "${accessory.name}": no keyword matches found in spec`);
       continue;
     }
 
-    const sectionEnd = findSectionEndPage(pages, sectionStart, Math.min(sectionStart + 30, pages.length - 1), accessory.sectionHint);
+    candidatePages.sort((a, b) => b.score - a.score);
+    const best = candidatePages[0];
+
+    if (best.score < 10) {
+      console.log(`[SpecExtractor] Accessory "${accessory.name}": best match score too low (${best.score}), skipping`);
+      continue;
+    }
+
+    const sectionStart = best.page;
+    const sectionEnd = findSectionEndPage(pages, sectionStart, Math.min(sectionStart + 30, pages.length - 1), best.sectionNumber);
     const rangeKey = `${sectionStart}-${sectionEnd}`;
 
     if (seenPageRanges.has(rangeKey)) {
@@ -200,18 +238,18 @@ export function findAccessorySections(
     }
     seenPageRanges.add(rangeKey);
 
-    const folderName = `${accessory.sectionHint} - ${sectionTitle}`;
+    const folderName = `${best.sectionNumber} - ${best.title}`;
 
-    console.log(`[SpecExtractor] Accessory match: "${accessory.name}" -> ${accessory.sectionHint} pages ${sectionStart + 1}-${sectionEnd + 1}, keywords: [${foundKeywords.join(", ")}]`);
+    console.log(`[SpecExtractor] Accessory match: "${accessory.name}" -> ${best.sectionNumber} pages ${sectionStart + 1}-${sectionEnd + 1}, score: ${best.score}, keywords: [${best.keywords.join(", ")}]`);
 
     matches.push({
       accessoryName: accessory.name,
-      sectionNumber: accessory.sectionHint,
-      title: sectionTitle,
+      sectionNumber: best.sectionNumber,
+      title: best.title,
       start: sectionStart,
       end: sectionEnd,
       folderName,
-      matchedKeywords: foundKeywords,
+      matchedKeywords: best.keywords,
     });
   }
 
