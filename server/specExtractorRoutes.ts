@@ -57,7 +57,7 @@ function generateId(): string {
 }
 
 function sanitizeFilename(name: string): string {
-  return name.replace(/[^a-zA-Z0-9\s\-_().]/g, "").trim() || "Untitled";
+  return name.replace(/[\r\n\t]+/g, " ").replace(/\s{2,}/g, " ").replace(/[^a-zA-Z0-9 \-_().]/g, "").trim() || "Untitled";
 }
 
 export function registerSpecExtractorRoutes(app: Express) {
@@ -258,14 +258,14 @@ export function registerSpecExtractorRoutes(app: Express) {
 
   app.post("/api/spec-extractor/sessions/:id/ai-review", async (req: Request, res: Response) => {
     try {
-      const apiKey = process.env.OPENAI_API_KEY;
-      if (!apiKey) {
-        return res.status(400).json({ message: "OpenAI API key not configured" });
-      }
-
       const [session] = await db.select().from(specExtractorSessions).where(eq(specExtractorSessions.id, req.params.id));
       if (!session) {
         return res.status(404).json({ message: "Session not found" });
+      }
+
+      const apiKey = process.env.OPENAI_API_KEY;
+      if (!apiKey) {
+        return res.status(400).json({ message: "OpenAI API key not configured" });
       }
 
       const sections = await db.select().from(specExtractorSections).where(eq(specExtractorSections.sessionId, req.params.id));
@@ -273,74 +273,15 @@ export function registerSpecExtractorRoutes(app: Express) {
         return res.status(400).json({ message: "No sections to review" });
       }
 
-      const pages = await getCachedPages(req.params.id);
+      await runAiReview(req.params.id, session.projectName);
 
-      const sectionSummaries = sections.map(s => {
-        const startPage = Math.max(0, Math.min(s.startPage, pages.length - 1));
-        const firstPageText = (pages[startPage] || "").slice(0, 800);
-        return {
-          id: s.id,
-          sectionNumber: s.sectionNumber,
-          currentTitle: s.title,
-          folderName: s.folderName,
-          pages: `${s.startPage + 1}-${s.endPage + 1}`,
-          firstPageSnippet: firstPageText,
-        };
-      });
-
-      const openai = new OpenAI({ apiKey });
-      const response = await openai.chat.completions.create({
-        model: "gpt-4o-mini",
-        messages: [
-          {
-            role: "system",
-            content: `You are a construction specification reviewer. You will review extracted Division 10 specification section labels against their actual content. For each section, verify:
-1. The section number matches the content
-2. The title accurately describes the section content
-3. The scope classification (folder name) is correct
-
-Respond with a JSON array of objects. Each object must have:
-- "id": the section id (string)
-- "status": "correct" | "suggested_change" | "warning"
-- "suggestedTitle": the suggested title if you recommend a change, or the current title if correct
-- "notes": brief explanation of your assessment
-
-Be concise. Only suggest changes when the current label is clearly wrong or misleading.`,
-          },
-          {
-            role: "user",
-            content: `Project: "${session.projectName}"\n\nReview these extracted Division 10 sections:\n\n${JSON.stringify(sectionSummaries, null, 2)}`,
-          },
-        ],
-        temperature: 0.2,
-        max_tokens: 2000,
-      });
-
-      const content = response.choices[0]?.message?.content || "[]";
-      let reviews: any[];
-      try {
-        const cleaned = content.replace(/```json\s*/g, "").replace(/```\s*/g, "").trim();
-        const parsed = JSON.parse(cleaned);
-        if (!Array.isArray(parsed)) {
-          throw new Error("Expected array");
-        }
-        reviews = parsed
-          .filter((r: any) => r && typeof r === "object" && r.id && r.status)
-          .map((r: any) => ({
-            id: String(r.id),
-            status: ["correct", "suggested_change", "warning"].includes(r.status) ? r.status : "correct",
-            suggestedTitle: String(r.suggestedTitle || r.currentTitle || ""),
-            notes: String(r.notes || ""),
-          }));
-      } catch (parseErr) {
-        console.error("[SpecExtractor] Failed to parse AI response:", content);
-        reviews = sections.map(s => ({
-          id: s.id,
-          status: "correct",
-          suggestedTitle: s.title,
-          notes: "AI review could not parse response - manual review recommended",
-        }));
-      }
+      const updatedSections = await db.select().from(specExtractorSections).where(eq(specExtractorSections.sessionId, req.params.id));
+      const reviews = updatedSections.map(s => ({
+        id: s.id,
+        status: s.aiReviewStatus || "correct",
+        suggestedTitle: s.title,
+        notes: s.aiReviewNotes || "",
+      }));
 
       res.json({ reviews });
     } catch (error: any) {
@@ -389,6 +330,108 @@ Be concise. Only suggest changes when the current label is clearly wrong or misl
   });
 }
 
+async function runAiReview(sessionId: string, projectName: string): Promise<void> {
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) {
+    console.log("[SpecExtractor] Skipping AI review: no API key configured");
+    return;
+  }
+
+  const sections = await db.select().from(specExtractorSections).where(eq(specExtractorSections.sessionId, sessionId));
+  if (sections.length === 0) return;
+
+  const pages = await getCachedPages(sessionId);
+
+  const sectionSummaries = sections.map(s => {
+    const startPage = Math.max(0, Math.min(s.startPage, pages.length - 1));
+    const firstPageText = (pages[startPage] || "").slice(0, 800);
+    return {
+      id: s.id,
+      sectionNumber: s.sectionNumber,
+      currentTitle: s.title,
+      folderName: s.folderName,
+      pages: `${s.startPage + 1}-${s.endPage + 1}`,
+      firstPageSnippet: firstPageText,
+    };
+  });
+
+  const openai = new OpenAI({ apiKey });
+  const response = await openai.chat.completions.create({
+    model: "gpt-4o-mini",
+    messages: [
+      {
+        role: "system",
+        content: `You are a construction specification reviewer. You will review extracted Division 10 specification section labels against their actual content. For each section, verify:
+1. The section number matches the content
+2. The title accurately describes the section content
+3. The scope classification (folder name) is correct
+
+Respond with a JSON array of objects. Each object must have:
+- "id": the section id (string)
+- "status": "correct" | "suggested_change" | "warning"
+- "suggestedTitle": the suggested title if you recommend a change, or the current title if correct
+- "notes": brief explanation of your assessment
+
+Be concise. Only suggest changes when the current label is clearly wrong or misleading.`,
+      },
+      {
+        role: "user",
+        content: `Project: "${projectName}"\n\nReview these extracted Division 10 sections:\n\n${JSON.stringify(sectionSummaries, null, 2)}`,
+      },
+    ],
+    temperature: 0.2,
+    max_tokens: 2000,
+  });
+
+  const content = response.choices[0]?.message?.content || "[]";
+  let reviews: { id: string; status: string; suggestedTitle: string; notes: string }[];
+  try {
+    const cleaned = content.replace(/```json\s*/g, "").replace(/```\s*/g, "").trim();
+    const parsed = JSON.parse(cleaned);
+    if (!Array.isArray(parsed)) throw new Error("Expected array");
+    reviews = parsed
+      .filter((r: any) => r && typeof r === "object" && r.id && r.status)
+      .map((r: any) => ({
+        id: String(r.id),
+        status: ["correct", "suggested_change", "warning"].includes(r.status) ? r.status : "correct",
+        suggestedTitle: String(r.suggestedTitle || r.currentTitle || ""),
+        notes: String(r.notes || ""),
+      }));
+  } catch (parseErr) {
+    console.error("[SpecExtractor] Failed to parse AI response:", content);
+    reviews = sections.map(s => ({
+      id: s.id,
+      status: "correct",
+      suggestedTitle: s.title,
+      notes: "AI review could not parse response - manual review recommended",
+    }));
+  }
+
+  return applyAiReviews(reviews);
+}
+
+async function applyAiReviews(reviews: { id: string; status: string; suggestedTitle: string; notes: string }[]): Promise<void> {
+  for (const review of reviews) {
+    const [section] = await db.select().from(specExtractorSections).where(eq(specExtractorSections.id, review.id));
+    if (!section) continue;
+
+    const updates: Record<string, any> = {
+      aiReviewStatus: review.status,
+      aiReviewNotes: review.notes,
+      originalTitle: section.originalTitle || section.title,
+    };
+
+    if (review.status === "suggested_change" && review.suggestedTitle && review.suggestedTitle !== section.title) {
+      updates.title = review.suggestedTitle.trim();
+      updates.folderName = `${section.sectionNumber} - ${review.suggestedTitle.trim()}`;
+    }
+
+    await db.update(specExtractorSections)
+      .set(updates)
+      .where(eq(specExtractorSections.id, review.id));
+  }
+}
+
 async function processInBackground(sessionId: string, pdfBuffer: Buffer) {
   try {
     const result = await runExtraction(pdfBuffer, async (progress, message) => {
@@ -396,6 +439,9 @@ async function processInBackground(sessionId: string, pdfBuffer: Buffer) {
         .set({ progress, message })
         .where(eq(specExtractorSessions.id, sessionId));
     });
+
+    const [session] = await db.select().from(specExtractorSessions).where(eq(specExtractorSessions.id, sessionId));
+    const projectName = session?.projectName || "Project";
 
     for (const section of result.sections) {
       await db.insert(specExtractorSections).values({
@@ -412,12 +458,27 @@ async function processInBackground(sessionId: string, pdfBuffer: Buffer) {
 
     await db.update(specExtractorSessions)
       .set({
-        status: "complete",
-        progress: 100,
-        message: `Found ${result.sections.length} Division 10 sections`,
+        status: "reviewing",
+        progress: 95,
+        message: `Found ${result.sections.length} sections — running AI review...`,
         totalPages: result.totalPages,
         tocStart: result.tocBounds.start >= 0 ? result.tocBounds.start : null,
         tocEnd: result.tocBounds.end >= 0 ? result.tocBounds.end : null,
+      })
+      .where(eq(specExtractorSessions.id, sessionId));
+
+    try {
+      await runAiReview(sessionId, projectName);
+      console.log(`[SpecExtractor] AI review completed for session ${sessionId}`);
+    } catch (aiErr: any) {
+      console.error(`[SpecExtractor] AI review failed for ${sessionId}:`, aiErr.message);
+    }
+
+    await db.update(specExtractorSessions)
+      .set({
+        status: "complete",
+        progress: 100,
+        message: `Found ${result.sections.length} Division 10 sections`,
       })
       .where(eq(specExtractorSessions.id, sessionId));
 

@@ -72,9 +72,29 @@ export default function SpecExtractorPage() {
     enabled: viewState === "results" && !!sessionId,
   });
 
+  const hasInitializedSelection = useRef(false);
+
   useEffect(() => {
-    if (sections.length > 0 && selectedSections.size === 0) {
+    if (sections.length > 0 && !hasInitializedSelection.current) {
+      hasInitializedSelection.current = true;
       setSelectedSections(new Set(sections.map(s => s.id)));
+    }
+
+    if (sections.length > 0) {
+      const reviewMap = new Map<string, AiReview>();
+      for (const s of sections) {
+        if (s.aiReviewStatus) {
+          reviewMap.set(s.id, {
+            id: s.id,
+            status: s.aiReviewStatus as AiReview["status"],
+            suggestedTitle: s.title,
+            notes: s.aiReviewNotes || "",
+          });
+        }
+      }
+      if (reviewMap.size > 0) {
+        setAiReviews(reviewMap);
+      }
     }
   }, [sections]);
 
@@ -86,7 +106,7 @@ export default function SpecExtractorPage() {
         const data = await res.json();
         setSessionData(data);
 
-        if (data.status === "processing") {
+        if (data.status === "processing" || data.status === "reviewing") {
           pollRef.current = setTimeout(check, 500);
         } else if (data.status === "complete") {
           pollRef.current = null;
@@ -235,6 +255,7 @@ export default function SpecExtractorPage() {
     setPreviewSectionId(null);
     setPreviewData(null);
     setAiReviews(new Map());
+    hasInitializedSelection.current = false;
   };
 
   const toggleSection = (id: string) => {
@@ -300,6 +321,8 @@ export default function SpecExtractorPage() {
         reviewMap.set(r.id, r);
       }
       setAiReviews(reviewMap);
+
+      queryClient.invalidateQueries({ queryKey: ["/api/spec-extractor/sessions", sessionId, "sections"] });
 
       const changes = data.reviews.filter((r: AiReview) => r.status === "suggested_change").length;
       const warnings = data.reviews.filter((r: AiReview) => r.status === "warning").length;

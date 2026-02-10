@@ -105,6 +105,8 @@ function parentKey(canon: string): string {
 function cleanSectionTitle(title: string): string {
   let cleaned = title;
 
+  cleaned = cleaned.replace(/[\r\n\t]+/g, " ").replace(/\s{2,}/g, " ").trim();
+
   cleaned = cleaned.replace(/\s*SECTION\s+\d+.*$/i, "");
   cleaned = cleaned.replace(/\s*PART\s+\d+.*$/i, "");
 

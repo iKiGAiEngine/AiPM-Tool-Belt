@@ -762,6 +762,9 @@ export const specExtractorSections = pgTable("spec_extractor_sections", {
   endPage: integer("end_page").notNull(),
   pageCount: integer("page_count").notNull().default(1),
   folderName: varchar("folder_name", { length: 500 }).notNull(),
+  aiReviewStatus: varchar("ai_review_status", { length: 50 }),
+  aiReviewNotes: text("ai_review_notes"),
+  originalTitle: varchar("original_title", { length: 500 }),
 });
 
 export const specExtractorSessionSchema = z.object({
@@ -787,6 +790,9 @@ export const specExtractorSectionSchema = z.object({
   endPage: z.number(),
   pageCount: z.number(),
   folderName: z.string(),
+  aiReviewStatus: z.string().nullable().optional(),
+  aiReviewNotes: z.string().nullable().optional(),
+  originalTitle: z.string().nullable().optional(),
 });
 export type SpecExtractorSection = z.infer<typeof specExtractorSectionSchema>;
 
