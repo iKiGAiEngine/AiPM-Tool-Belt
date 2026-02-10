@@ -9,12 +9,6 @@ const DEFAULT_MODEL = "gpt-4o-mini";
 const MAX_TOKENS = 4096;
 const PAGES_PER_BATCH = 15;
 
-const HDR_PATTERNS = [
-  /(?:SECTION|SPEC)\s+(10[\s\-\._]*(?:\d{2}[\s\-\._]*\d{2}(?:[\s\-\._]*\d{2})?|\d{4,6}))\s*[–—\-:]*\s*([A-Z][A-Z\s,&/\-]+)/i,
-  /^(10[\s\-\._]*(?:\d{2}[\s\-\._]*\d{2}(?:[\s\-\._]*\d{2})?|\d{4,6}))\s*[–—\-:]+\s*([A-Z][A-Z\s,&/\-]+)/im,
-  /(?:SECTION|SPEC)\s+(10[\s\-\._]*(?:\d{2}[\s\-\._]*\d{2}(?:[\s\-\._]*\d{2})?|\d{4,6}))\s+([A-Z][A-Z\s,&/\-]{10,})/i,
-];
-
 const EQUIPMENT_REF_RE = /10\s*\d{4}-\d+/;
 
 const END_MARKERS = [
@@ -71,6 +65,7 @@ interface PreScanHeader {
   sectionNumber: string;
   title: string;
   page: number;
+  confidence: "high" | "medium" | "low";
 }
 
 interface TOCBounds {
@@ -100,7 +95,6 @@ function cleanSectionTitle(title: string): string {
   let cleaned = title.trim();
 
   cleaned = cleaned.replace(/\s*SECTION\s+\d+.*$/i, "");
-
   cleaned = cleaned.replace(/\s*PART\s+\d+.*$/i, "");
 
   for (const marker of CONTENT_MARKERS_TO_STRIP) {
@@ -108,8 +102,30 @@ function cleanSectionTitle(title: string): string {
   }
 
   cleaned = cleaned.replace(/[\-–—:]+\s*$/, "").trim();
+  cleaned = cleaned.replace(/\s{2,}/g, " ");
 
   return cleaned;
+}
+
+function isPageTOCLike(pageText: string): boolean {
+  const lines = pageText.split(/[\n\r]+/);
+
+  let dotLeaderCount = 0;
+  let sectionListingCount = 0;
+
+  for (const line of lines) {
+    if (/\.{3,}/.test(line)) {
+      dotLeaderCount++;
+    }
+    if (/(?:SECTION|DIVISION)\s+\d+.*\d+\s*$/i.test(line)) {
+      sectionListingCount++;
+    }
+  }
+
+  if (dotLeaderCount >= 3) return true;
+  if (sectionListingCount >= 3) return true;
+
+  return false;
 }
 
 function detectTOCBounds(pages: string[]): TOCBounds {
@@ -117,32 +133,38 @@ function detectTOCBounds(pages: string[]): TOCBounds {
   let tocEnd = -1;
 
   const scanLimit = Math.min(100, pages.length);
+
   for (let i = 0; i < scanLimit; i++) {
-    if (/TABLE\s+OF\s+CONTENTS/i.test(pages[i])) {
+    const pageUpper = pages[i].toUpperCase();
+    if (/TABLE\s+OF\s+CONTENTS/i.test(pages[i]) ||
+        /^CONTENTS\s*$/im.test(pages[i]) ||
+        /SPECIFICATION\s+INDEX/i.test(pages[i]) ||
+        /SPECIFICATIONS?\s+TABLE\s+OF\s+CONTENTS/i.test(pages[i]) ||
+        /INDEX\s+OF\s+SPECIFICATIONS/i.test(pages[i])) {
       tocStart = i;
+      console.log(`[TOC] Found TOC label on page ${i + 1}`);
       break;
     }
   }
 
   if (tocStart < 0) {
+    for (let i = 0; i < Math.min(50, pages.length); i++) {
+      if (isPageTOCLike(pages[i])) {
+        tocStart = i;
+        console.log(`[TOC] Detected TOC-like page ${i + 1} via dot-leaders/listings`);
+        break;
+      }
+    }
+  }
+
+  if (tocStart < 0) {
+    console.log(`[TOC] No Table of Contents detected`);
     return { start: -1, end: -1 };
   }
 
-  const tocPattern = /\.{3,}|(?:DIVISION|SECTION)\s+\d+.*\d+\s*$/gim;
   let lastTocPage = tocStart;
-
-  for (let i = tocStart; i < Math.min(tocStart + 30, pages.length); i++) {
-    const lines = pages[i].split("\n");
-    let tocLineCount = 0;
-
-    for (const line of lines) {
-      if (tocPattern.test(line)) {
-        tocLineCount++;
-      }
-      tocPattern.lastIndex = 0;
-    }
-
-    if (tocLineCount >= 5) {
+  for (let i = tocStart; i < Math.min(tocStart + 50, pages.length); i++) {
+    if (isPageTOCLike(pages[i])) {
       lastTocPage = i;
     } else if (i > tocStart + 1) {
       break;
@@ -150,11 +172,11 @@ function detectTOCBounds(pages: string[]): TOCBounds {
   }
 
   tocEnd = lastTocPage;
-  console.log(`[PreScan] TOC detected: pages ${tocStart + 1} to ${tocEnd + 1}`);
+  console.log(`[TOC] TOC detected: pages ${tocStart + 1} to ${tocEnd + 1}`);
   return { start: tocStart, end: tocEnd };
 }
 
-function countSectionNumbersOnPage(pageText: string): number {
+function countUniqueDiv10SectionsOnPage(pageText: string): number {
   const secNumberRe = /\b10[\s\-\._]*(?:\d{2}[\s\-\._]*\d{2}(?:[\s\-\._]*\d{2})?|\d{4,6})\b/g;
   const uniqueSections = new Set<string>();
   let match: RegExpExecArray | null;
@@ -167,25 +189,62 @@ function countSectionNumbersOnPage(pageText: string): number {
   return uniqueSections.size;
 }
 
-function findDiv10Headers(pages: string[], tocBounds: TOCBounds): PreScanHeader[] {
-  const headers: PreScanHeader[] = [];
-
-  const pageSectionCounts: Record<number, number> = {};
-  for (let pageIdx = 0; pageIdx < pages.length; pageIdx++) {
-    if (tocBounds.end >= 0 && pageIdx <= tocBounds.end) continue;
-    pageSectionCounts[pageIdx] = countSectionNumbersOnPage(pages[pageIdx]);
+function isExcludedPage(pageIdx: number, tocBounds: TOCBounds, pageText: string): string | null {
+  if (tocBounds.end >= 0 && pageIdx <= tocBounds.end) {
+    return "TOC page";
   }
 
+  if (isPageTOCLike(pageText)) {
+    return "TOC-like (dot leaders/section listings)";
+  }
+
+  return null;
+}
+
+function isIndexLikePage(pageText: string): boolean {
+  const uniqueCount = countUniqueDiv10SectionsOnPage(pageText);
+  if (uniqueCount > 2 && isPageTOCLike(pageText)) {
+    return true;
+  }
+  if (uniqueCount >= 5) {
+    return true;
+  }
+  return false;
+}
+
+function findDiv10Headers(pages: string[], tocBounds: TOCBounds): PreScanHeader[] {
+  const headers: PreScanHeader[] = [];
+  const excludedPages = new Set<number>();
+
   for (let pageIdx = 0; pageIdx < pages.length; pageIdx++) {
-    if (tocBounds.end >= 0 && pageIdx <= tocBounds.end) continue;
-    if ((pageSectionCounts[pageIdx] || 0) > 2) {
-      console.log(`[PreScan] SKIPPING index-like page ${pageIdx + 1} (${pageSectionCounts[pageIdx]} unique section numbers found)`);
+    const exclusion = isExcludedPage(pageIdx, tocBounds, pages[pageIdx]);
+    if (exclusion) {
+      excludedPages.add(pageIdx);
+      console.log(`[PreScan] SKIP page ${pageIdx + 1}: ${exclusion}`);
       continue;
     }
+    if (isIndexLikePage(pages[pageIdx])) {
+      excludedPages.add(pageIdx);
+      console.log(`[PreScan] SKIP page ${pageIdx + 1}: index-like (many section numbers)`);
+      continue;
+    }
+  }
+
+  const HDR_PATTERNS = [
+    /(?:SECTION|SPEC(?:IFICATION)?)\s+(10[\s\-\._]*\d{2}[\s\-\._]*\d{2}(?:[\s\-\._]*\d{2})?)\s*[\-–—:]+\s*([A-Za-z][A-Za-z\s,&\/\-]+)/i,
+    /(?:SECTION|SPEC(?:IFICATION)?)\s+(10[\s\-\._]*\d{4,6})\s*[\-–—:]+\s*([A-Za-z][A-Za-z\s,&\/\-]+)/i,
+    /(?:SECTION|SPEC(?:IFICATION)?)\s+(10[\s\-\._]*\d{2}[\s\-\._]*\d{2}(?:[\s\-\._]*\d{2})?)\s+([A-Z][A-Z\s,&\/\-]{5,})/i,
+    /(?:SECTION|SPEC(?:IFICATION)?)\s+(10[\s\-\._]*\d{4,6})\s+([A-Z][A-Z\s,&\/\-]{5,})/i,
+    /^(10[\s\-\._]*\d{2}[\s\-\._]*\d{2}(?:[\s\-\._]*\d{2})?)\s*[\-–—:]+\s*([A-Za-z][A-Za-z\s,&\/\-]+)/im,
+    /^(10[\s\-\._]*\d{4,6})\s*[\-–—:]+\s*([A-Za-z][A-Za-z\s,&\/\-]+)/im,
+  ];
+
+  for (let pageIdx = 0; pageIdx < pages.length; pageIdx++) {
+    if (excludedPages.has(pageIdx)) continue;
 
     const text = pages[pageIdx];
     const lines = text.split("\n");
-    const topZone = lines.slice(0, 15).join("\n");
+    const topZone = lines.slice(0, 20).join("\n");
 
     let foundOnPage = false;
 
@@ -203,10 +262,12 @@ function findDiv10Headers(pages: string[], tocBounds: TOCBounds): PreScanHeader[
         const cleaned = cleanSectionTitle(rawTitle);
         if (cleaned.length < 3) continue;
 
+        console.log(`[PreScan] FOUND header: ${canon} - "${cleaned}" on page ${pageIdx + 1} (pattern match)`);
         headers.push({
           sectionNumber: canon,
           title: cleaned,
           page: pageIdx,
+          confidence: "high",
         });
         foundOnPage = true;
         break;
@@ -214,8 +275,9 @@ function findDiv10Headers(pages: string[], tocBounds: TOCBounds): PreScanHeader[
     }
 
     if (!foundOnPage) {
-      for (let li = 0; li < Math.min(15, lines.length); li++) {
+      for (let li = 0; li < Math.min(20, lines.length); li++) {
         const line = lines[li].trim();
+
         const secMatch = line.match(/(?:SECTION\s+)?(10[\s\-\._]*(?:\d{2}[\s\-\._]*\d{2}(?:[\s\-\._]*\d{2})?|\d{4,6}))\b/i);
         if (secMatch) {
           const rawNum = secMatch[1];
@@ -225,20 +287,45 @@ function findDiv10Headers(pages: string[], tocBounds: TOCBounds): PreScanHeader[
 
           let title = "";
           const afterNum = line.substring(line.indexOf(rawNum) + rawNum.length).replace(/^[\s\-–—:]+/, "").trim();
-          if (afterNum.length >= 5 && /^[A-Z]/.test(afterNum)) {
+          if (afterNum.length >= 5 && /^[A-Za-z]/.test(afterNum)) {
             title = cleanSectionTitle(afterNum);
           } else if (li + 1 < lines.length) {
             const nextLine = lines[li + 1].trim();
-            if (/^[A-Z][A-Z\s,&/\-]+$/.test(nextLine) && nextLine.length >= 5) {
+            if (/^[A-Z][A-Za-z\s,&\/\-]+/.test(nextLine) && nextLine.length >= 5 && nextLine.length < 100) {
               title = cleanSectionTitle(nextLine);
             }
           }
 
           if (title.length < 3) continue;
 
-          headers.push({ sectionNumber: canon, title, page: pageIdx });
+          console.log(`[PreScan] FOUND header: ${canon} - "${title}" on page ${pageIdx + 1} (line scan)`);
+          headers.push({ sectionNumber: canon, title, page: pageIdx, confidence: "medium" });
+          foundOnPage = true;
           break;
         }
+      }
+    }
+
+    if (!foundOnPage && /PART\s*1\s*[\-–—:]?\s*GENERAL/i.test(text)) {
+      const secPatterns = [
+        /\b(10\s+\d{2}\s+\d{2})\b/g,
+        /\b(10[\-\._]\d{2}[\-\._]\d{2})\b/g,
+        /\b(10\d{4})\b/g,
+      ];
+
+      for (const secPattern of secPatterns) {
+        let match;
+        while ((match = secPattern.exec(text)) !== null) {
+          const canon = canonizeSection(match[1]);
+          if (!canon.startsWith("10 ") || EQUIPMENT_REF_RE.test(match[1])) continue;
+          if (headers.some(h => h.sectionNumber === canon)) continue;
+
+          console.log(`[PreScan] FOUND section ${canon} on page ${pageIdx + 1} via PART 1 marker fallback`);
+          headers.push({ sectionNumber: canon, title: "", page: pageIdx, confidence: "low" });
+          foundOnPage = true;
+          break;
+        }
+        if (foundOnPage) break;
       }
     }
   }
@@ -246,15 +333,26 @@ function findDiv10Headers(pages: string[], tocBounds: TOCBounds): PreScanHeader[
   return headers;
 }
 
-function isLegitimateSection(pageText: string, sectionNumber: string): boolean {
-  const upper = pageText.toUpperCase();
+function isLegitimateSection(pages: string[], pageIdx: number, sectionNumber: string): boolean {
+  for (let offset = 0; offset <= 1 && pageIdx + offset < pages.length; offset++) {
+    const pageText = pages[pageIdx + offset];
+    const upper = pageText.toUpperCase();
 
-  if (upper.includes("PART 1") || upper.includes("PART 2") || upper.includes("PART 3")) {
-    return true;
-  }
+    if (/PART\s*1\s*[\-–—:]?\s*GENERAL/i.test(pageText)) return true;
+    if (/PART\s*[23]\s*[\-–—:]?\s*(PRODUCTS|EXECUTION)/i.test(pageText)) return true;
 
-  if (upper.includes("GENERAL") && upper.includes("PRODUCTS")) {
-    return true;
+    if (upper.includes("GENERAL") && upper.includes("PRODUCTS")) return true;
+
+    const contentMarkers = [
+      "SCOPE", "RELATED SECTIONS", "REFERENCES", "SUBMITTALS",
+      "QUALITY ASSURANCE", "DELIVERY", "PROJECT CONDITIONS",
+      "MANUFACTURERS", "MATERIALS", "FABRICATION", "INSTALLATION"
+    ];
+    let markerCount = 0;
+    for (const marker of contentMarkers) {
+      if (upper.includes(marker)) markerCount++;
+    }
+    if (markerCount >= 3) return true;
   }
 
   const digits = sectionNumber.replace(/\s/g, "");
@@ -262,9 +360,7 @@ function isLegitimateSection(pageText: string, sectionNumber: string): boolean {
     `(?:SECTION|SPEC)\\s+${digits.slice(0, 2)}[\\s\\-\\._]*${digits.slice(2, 4)}[\\s\\-\\._]*${digits.length >= 6 ? digits.slice(4, 6) : "\\d{2}"}`,
     "i"
   );
-  if (sectionPattern.test(pageText)) {
-    return true;
-  }
+  if (sectionPattern.test(pages[pageIdx])) return true;
 
   return false;
 }
@@ -276,7 +372,7 @@ function findSectionStartPage(pages: string[], detectedPage: number, sectionNumb
     (digits.length >= 6 ? digits.slice(4, 6) : "(?:\\d{2})?");
 
   const headerPatterns = [
-    new RegExp(`SECTION\\s+${escapedDigits}\\s*[\\-–—:]`, "i"),
+    new RegExp(`(?:SECTION|SPEC)\\s+${escapedDigits}`, "i"),
     new RegExp(`^${escapedDigits}\\s*[\\-–—:]`, "im"),
   ];
 
@@ -286,18 +382,23 @@ function findSectionStartPage(pages: string[], detectedPage: number, sectionNumb
 
     const pageText = pages[checkPage];
     const lines = pageText.split("\n");
-    const topZone = lines.slice(0, 15).join("\n");
+    const topZone = lines.slice(0, 20).join("\n");
 
     for (const pattern of headerPatterns) {
       if (pattern.test(topZone)) {
+        if (lookBack > 0) {
+          console.log(`[StartPage] Section ${sectionNumber} start moved back from page ${detectedPage + 1} to ${checkPage + 1}`);
+        }
         return checkPage;
       }
     }
 
-    const pageUpper = pageText.toUpperCase();
-    if (pageUpper.includes("PART 1") && pageUpper.includes("GENERAL")) {
+    if (/PART\s*1\s*[\-–—:]?\s*GENERAL/i.test(topZone)) {
       const secRe = new RegExp(digits.slice(0, 2) + "[\\s\\-\\._]*" + digits.slice(2, 4), "i");
       if (secRe.test(pageText)) {
+        if (lookBack > 0) {
+          console.log(`[StartPage] Section ${sectionNumber} start moved back from page ${detectedPage + 1} to ${checkPage + 1} via PART 1`);
+        }
         return checkPage;
       }
     }
@@ -307,15 +408,19 @@ function findSectionStartPage(pages: string[], detectedPage: number, sectionNumb
 }
 
 function findSectionEndPage(pages: string[], startPage: number, maxSearchPage: number, sectionNumber: string): number {
-  for (let pageNum = startPage; pageNum <= Math.min(maxSearchPage, pages.length - 1); pageNum++) {
+  const effectiveMax = Math.min(maxSearchPage, pages.length - 1);
+  const digits = sectionNumber.replace(/\s/g, "");
+
+  for (let pageNum = startPage; pageNum <= effectiveMax; pageNum++) {
     const pageText = pages[pageNum];
     const lines = pageText.split("\n");
 
     for (const line of lines) {
       const lineLower = line.toLowerCase().trim();
       for (const marker of END_MARKERS) {
-        if (lineLower === marker || (lineLower.includes(marker) && lineLower.length < marker.length + 15)) {
+        if (lineLower === marker || (lineLower.includes(marker) && lineLower.length < marker.length + 20)) {
           if (pageNum > startPage || lines.indexOf(line) > 5) {
+            console.log(`[EndPage] Section ${sectionNumber} ends at page ${pageNum + 1} via END marker: "${lineLower}"`);
             return pageNum;
           }
         }
@@ -323,21 +428,41 @@ function findSectionEndPage(pages: string[], startPage: number, maxSearchPage: n
     }
 
     if (pageNum > startPage) {
-      const topZone = lines.slice(0, 15).join("\n");
-      const nextSectionMatch = topZone.match(
-        /(?:^|\n)\s*(?:SECTION\s+)?(\d{2})\s*[\s\-\._]*(\d{2})\s*[\s\-\._]*(\d{2})/i
-      );
+      const topZone = lines.slice(0, 20).join("\n");
 
-      if (nextSectionMatch) {
-        const newSecFull = `${nextSectionMatch[1]} ${nextSectionMatch[2]} ${nextSectionMatch[3]}`;
-        if (newSecFull !== sectionNumber) {
-          return pageNum - 1;
+      const nextSectionPatterns = [
+        /(?:^|\n)\s*SECTION\s+(\d{2})\s*[\s\-\._]*(\d{2})\s*[\s\-\._]*(\d{2})/im,
+        /(?:^|\n)\s*SECTION\s+(\d{2})(\d{2})(\d{2})/im,
+      ];
+
+      for (const nextPattern of nextSectionPatterns) {
+        const nextSectionMatch = topZone.match(nextPattern);
+        if (nextSectionMatch) {
+          const newSecFull = `${nextSectionMatch[1]} ${nextSectionMatch[2]} ${nextSectionMatch[3]}`;
+          if (newSecFull !== sectionNumber) {
+            console.log(`[EndPage] Section ${sectionNumber} ends at page ${pageNum} (next section ${newSecFull} starts on page ${pageNum + 1})`);
+            return pageNum - 1;
+          }
+        }
+      }
+
+      if (/PART\s*1\s*[\-–—:]?\s*GENERAL/i.test(topZone)) {
+        const secRe = new RegExp(`\\b${digits.slice(0, 2)}[\\s\\-\\._]*\\d{2}[\\s\\-\\._]*\\d{2}\\b`);
+        const topMatch = topZone.match(secRe);
+        if (topMatch) {
+          const foundCanon = canonizeSection(topMatch[0]);
+          if (foundCanon !== sectionNumber && foundCanon.startsWith("10 ")) {
+            console.log(`[EndPage] Section ${sectionNumber} ends at page ${pageNum} (new section ${foundCanon} with PART 1 on page ${pageNum + 1})`);
+            return pageNum - 1;
+          }
         }
       }
     }
   }
 
-  return Math.min(startPage + 10, maxSearchPage);
+  const defaultEnd = effectiveMax;
+  console.log(`[EndPage] Section ${sectionNumber} ends at page ${defaultEnd + 1} (reached max search boundary)`);
+  return defaultEnd;
 }
 
 function calculatePageRanges(
@@ -347,22 +472,31 @@ function calculatePageRanges(
 ): AIIdentifiedSection[] {
   const sections: AIIdentifiedSection[] = [];
 
-  for (let i = 0; i < headers.length; i++) {
-    const h = headers[i];
+  const sortedHeaders = [...headers].sort((a, b) => a.page - b.page);
+
+  for (let i = 0; i < sortedHeaders.length; i++) {
+    const h = sortedHeaders[i];
 
     const startPage = findSectionStartPage(pages, h.page, h.sectionNumber);
 
     let maxEnd: number;
-    if (i + 1 < headers.length) {
-      maxEnd = headers[i + 1].page - 1;
+    if (i + 1 < sortedHeaders.length) {
+      maxEnd = sortedHeaders[i + 1].page - 1;
     } else {
-      maxEnd = totalPages - 1;
+      maxEnd = Math.min(startPage + 80, totalPages - 1);
     }
+
+    if (maxEnd < startPage) maxEnd = startPage;
 
     const endPage = findSectionEndPage(pages, startPage, maxEnd, h.sectionNumber);
 
     const pageCount = endPage - startPage + 1;
-    const cappedEnd = pageCount > 50 ? startPage + 10 : endPage;
+    if (pageCount > 80) {
+      console.log(`[PageRange] WARNING: Section ${h.sectionNumber} has ${pageCount} pages, capping at 80`);
+    }
+    const cappedEnd = pageCount > 80 ? startPage + 79 : endPage;
+
+    console.log(`[PageRange] ${h.sectionNumber} - "${h.title}" pages ${startPage + 1} to ${cappedEnd + 1} (${cappedEnd - startPage + 1} pages)`);
 
     sections.push({
       sectionNumber: h.sectionNumber,
@@ -373,6 +507,57 @@ function calculatePageRanges(
   }
 
   return sections;
+}
+
+function verifySectionContent(pages: string[], section: AIIdentifiedSection): { valid: boolean; issue?: string } {
+  const startIdx = section.startPage - 1;
+  const endIdx = section.endPage - 1;
+
+  if (startIdx < 0 || startIdx >= pages.length) {
+    return { valid: false, issue: `Start page ${section.startPage} out of range` };
+  }
+
+  const digits = section.sectionNumber.replace(/\s/g, "");
+  const secPattern = new RegExp(
+    digits.slice(0, 2) + "[\\s\\-\\._]*" + digits.slice(2, 4) + "[\\s\\-\\._]*" +
+    (digits.length >= 6 ? digits.slice(4, 6) : "\\d{2}"),
+    "i"
+  );
+
+  let foundSectionRef = false;
+  let foundPartMarker = false;
+  const checkEnd = Math.min(startIdx + 2, endIdx, pages.length - 1);
+
+  for (let p = startIdx; p <= checkEnd; p++) {
+    const pageText = pages[p];
+    if (secPattern.test(pageText)) foundSectionRef = true;
+    if (/PART\s*[123]\s*[\-–—:]?\s*(GENERAL|PRODUCTS|EXECUTION)/i.test(pageText)) foundPartMarker = true;
+  }
+
+  if (!foundSectionRef) {
+    return { valid: false, issue: `Section number ${section.sectionNumber} not found in pages ${section.startPage}-${Math.min(section.startPage + 2, section.endPage)}` };
+  }
+
+  if (!foundPartMarker) {
+    const extendedCheck = Math.min(startIdx + 5, endIdx, pages.length - 1);
+    for (let p = checkEnd + 1; p <= extendedCheck; p++) {
+      if (/PART\s*[123]\s*[\-–—:]?\s*(GENERAL|PRODUCTS|EXECUTION)/i.test(pages[p])) {
+        foundPartMarker = true;
+        break;
+      }
+    }
+
+    if (!foundPartMarker) {
+      return { valid: false, issue: `No PART markers found for ${section.sectionNumber} within pages ${section.startPage}-${Math.min(section.startPage + 5, section.endPage)}` };
+    }
+  }
+
+  const exclusionReason = isExcludedPage(startIdx, { start: -1, end: -1 }, pages[startIdx]);
+  if (exclusionReason) {
+    return { valid: false, issue: `Start page is ${exclusionReason}` };
+  }
+
+  return { valid: true };
 }
 
 function buildSectionIdentPrompt(config: SpecsiftConfig): string {
@@ -411,6 +596,7 @@ CRITICAL RULES — FOLLOW EXACTLY:
 5. The section number you report MUST match EXACTLY what appears in the text (just reformat to "10 XX XX" spacing).
 6. REJECT equipment references like "10 1400-11" — these are product numbers, not section numbers.
 7. If you find ZERO Division 10 sections, return {"sections": []}.
+8. A page that lists MANY section numbers (like a table of contents or index) should NOT be treated as containing section headers. Only individual section start pages count.
 
 For each Division 10 section found, provide:
 - sectionNumber: The literal number from the text, normalized to "10 XX XX" format
@@ -496,7 +682,8 @@ function buildPageText(pages: string[], startIdx: number, endIdx: number): strin
 function buildFilteredPageText(pages: string[], startIdx: number, endIdx: number, tocBounds: TOCBounds): string {
   const parts: string[] = [];
   for (let i = startIdx; i <= endIdx && i < pages.length; i++) {
-    if (tocBounds.end >= 0 && i <= tocBounds.end) continue;
+    const exclusion = isExcludedPage(i, tocBounds, pages[i]);
+    if (exclusion) continue;
     const text = pages[i].trim();
     if (text.length > 0) {
       parts.push(`--- PAGE ${i + 1} ---\n${text}`);
@@ -595,7 +782,7 @@ function verifyHeaderOnPage(pages: string[], sectionNumber: string, startPage: n
   const checkPage = (idx: number): boolean => {
     if (idx < 0 || idx >= pages.length) return false;
     const lines = pages[idx].split("\n");
-    const topZone = lines.slice(0, 15).join("\n");
+    const topZone = lines.slice(0, 20).join("\n");
     return headerPattern.test(topZone);
   };
 
@@ -613,37 +800,54 @@ export async function identifySectionsWithAI(
   clearConfigCache();
   const config = await getActiveConfiguration();
   const defaultScopes = config.defaultScopes as Record<string, string>;
-  console.log(`[AI SpecSift] Loaded fresh Settings config (${Object.keys(defaultScopes).length} default scopes, ${(config.accessoryScopes as AccessoryScopeData[]).length} accessory scopes)`);
+  console.log(`[AI SpecSift] ===== EXTRACTION START =====`);
+  console.log(`[AI SpecSift] ${pages.length} total pages, ${Object.keys(defaultScopes).length} default scopes configured`);
+
+  for (let i = 0; i < Math.min(5, pages.length); i++) {
+    const preview = pages[i].slice(0, 150).replace(/\n/g, "\\n");
+    console.log(`[AI SpecSift] Page ${i + 1} preview: "${preview}"`);
+  }
 
   onProgress?.(5, "Detecting Table of Contents...");
   const tocBounds = detectTOCBounds(pages);
 
   onProgress?.(10, "Pre-scanning for Division 10 headers...");
   const preScanHeaders = findDiv10Headers(pages, tocBounds);
-  console.log(`[PreScan] Found ${preScanHeaders.length} Division 10 headers via regex`);
+  console.log(`[PreScan] ===== RESULTS: Found ${preScanHeaders.length} Division 10 headers via regex =====`);
 
   for (const h of preScanHeaders) {
-    console.log(`[PreScan] ${h.sectionNumber} - ${h.title} (page ${h.page + 1})`);
+    console.log(`[PreScan] ${h.sectionNumber} - "${h.title}" (page ${h.page + 1}, confidence: ${h.confidence})`);
   }
 
   let preScanSections: AIIdentifiedSection[] = [];
   if (preScanHeaders.length > 0) {
-    onProgress?.(15, `Calculating page ranges for ${preScanHeaders.length} sections...`);
+    onProgress?.(15, `Validating and calculating page ranges for ${preScanHeaders.length} sections...`);
 
     const validHeaders = preScanHeaders.filter(h => {
-      const pageText = pages[h.page];
-      if (!isLegitimateSection(pageText, h.sectionNumber)) {
-        console.log(`[PreScan] REJECTED non-legitimate: ${h.sectionNumber} on page ${h.page + 1}`);
+      const legitimate = isLegitimateSection(pages, h.page, h.sectionNumber);
+      if (!legitimate && h.confidence !== "high") {
+        console.log(`[PreScan] REJECTED: ${h.sectionNumber} on page ${h.page + 1} (not legitimate, confidence: ${h.confidence})`);
         return false;
+      }
+      if (!legitimate && h.confidence === "high") {
+        console.log(`[PreScan] KEPT despite no PART markers: ${h.sectionNumber} on page ${h.page + 1} (high confidence header match)`);
       }
       return true;
     });
 
     preScanSections = calculatePageRanges(validHeaders, pages.length, pages);
 
+    const verifiedSections: AIIdentifiedSection[] = [];
     for (const sec of preScanSections) {
-      console.log(`[PreScan] CONFIRMED: ${sec.sectionNumber} - ${sec.title} (pages ${sec.startPage}-${sec.endPage})`);
+      const verification = verifySectionContent(pages, sec);
+      if (verification.valid) {
+        console.log(`[PreScan] VERIFIED: ${sec.sectionNumber} - "${sec.title}" (pages ${sec.startPage}-${sec.endPage})`);
+        verifiedSections.push(sec);
+      } else {
+        console.log(`[PreScan] VERIFICATION FAILED: ${sec.sectionNumber} - ${verification.issue}`);
+      }
     }
+    preScanSections = verifiedSections;
   }
 
   onProgress?.(20, `Running AI verification on ${pages.length} pages...`);
@@ -670,22 +874,29 @@ export async function identifySectionsWithAI(
         for (const sec of parsed.sections) {
           const canon = canonizeSection(sec.sectionNumber);
           if (!canon.startsWith("10 ")) {
-            console.log(`[AI SpecSift] REJECTED non-Div10: ${sec.sectionNumber} (${sec.title})`);
+            console.log(`[AI] REJECTED non-Div10: ${sec.sectionNumber} (${sec.title})`);
             continue;
           }
           if (EQUIPMENT_REF_RE.test(sec.sectionNumber)) {
-            console.log(`[AI SpecSift] REJECTED equipment ref: ${sec.sectionNumber}`);
+            console.log(`[AI] REJECTED equipment ref: ${sec.sectionNumber}`);
             continue;
           }
           if (aiSections.some(s => s.sectionNumber === canon)) continue;
 
           if (!verifyHeaderOnPage(pages, canon, sec.startPage)) {
-            console.log(`[AI SpecSift] REJECTED: ${canon} - "${sec.title}" (header not in top zone of page ${sec.startPage})`);
+            console.log(`[AI] REJECTED: ${canon} - "${sec.title}" (header not in top zone of page ${sec.startPage})`);
             continue;
           }
 
           if (!verifySectionInText(pages, canon, sec.startPage, sec.endPage)) {
-            console.log(`[AI SpecSift] REJECTED hallucination: ${canon} - "${sec.title}" (not found in PDF near pages ${sec.startPage}-${sec.endPage})`);
+            console.log(`[AI] REJECTED hallucination: ${canon} - "${sec.title}" (not found in PDF near pages ${sec.startPage}-${sec.endPage})`);
+            continue;
+          }
+
+          const startPageIdx = Math.max(0, sec.startPage - 1);
+          const exclusion = isExcludedPage(startPageIdx, tocBounds, pages[startPageIdx]);
+          if (exclusion) {
+            console.log(`[AI] REJECTED: ${canon} - "${sec.title}" (start page ${sec.startPage} is ${exclusion})`);
             continue;
           }
 
@@ -697,11 +908,11 @@ export async function identifySectionsWithAI(
             startPage: sec.startPage,
             endPage: sec.endPage,
           });
-          console.log(`[AI SpecSift] AI VERIFIED: ${canon} - ${cleanedTitle} (pages ${sec.startPage}-${sec.endPage})`);
+          console.log(`[AI] VERIFIED: ${canon} - "${cleanedTitle}" (pages ${sec.startPage}-${sec.endPage})`);
         }
       }
     } catch (err) {
-      console.error(`[AI SpecSift] Batch ${batch + 1} identification error:`, err);
+      console.error(`[AI] Batch ${batch + 1} identification error:`, err);
     }
   }
 
@@ -715,15 +926,30 @@ export async function identifySectionsWithAI(
   for (const sec of aiSections) {
     if (!mergedMap.has(sec.sectionNumber)) {
       const preScanStart = findSectionStartPage(pages, sec.startPage - 1, sec.sectionNumber);
-      const preScanEnd = findSectionEndPage(pages, preScanStart, Math.min(preScanStart + 15, pages.length - 1), sec.sectionNumber);
+      let maxEnd: number;
+      const sortedExisting = Array.from(mergedMap.values()).sort((a, b) => a.startPage - b.startPage);
+      const nextSection = sortedExisting.find(s => s.startPage > preScanStart + 1);
+      if (nextSection) {
+        maxEnd = nextSection.startPage - 2;
+      } else {
+        maxEnd = Math.min(preScanStart + 80, pages.length - 1);
+      }
+      const preScanEnd = findSectionEndPage(pages, preScanStart, maxEnd, sec.sectionNumber);
 
-      mergedMap.set(sec.sectionNumber, {
+      const newSec: AIIdentifiedSection = {
         sectionNumber: sec.sectionNumber,
         title: sec.title,
         startPage: preScanStart + 1,
         endPage: preScanEnd + 1,
-      });
-      console.log(`[Merge] AI found additional section: ${sec.sectionNumber} - ${sec.title}`);
+      };
+
+      const verification = verifySectionContent(pages, newSec);
+      if (verification.valid) {
+        mergedMap.set(sec.sectionNumber, newSec);
+        console.log(`[Merge] AI found additional section: ${sec.sectionNumber} - "${sec.title}" (pages ${newSec.startPage}-${newSec.endPage})`);
+      } else {
+        console.log(`[Merge] AI section REJECTED after verification: ${sec.sectionNumber} - ${verification.issue}`);
+      }
     } else {
       const existing = mergedMap.get(sec.sectionNumber)!;
       if (sec.title.length > existing.title.length && sec.title.length > 5) {
@@ -736,17 +962,25 @@ export async function identifySectionsWithAI(
   allSections.sort((a, b) => a.sectionNumber.localeCompare(b.sectionNumber));
 
   for (const sec of allSections) {
-    const scopeName = defaultScopes[sec.sectionNumber];
-    if (!scopeName) {
-      const parentKey = sec.sectionNumber.split(" ").slice(0, 2).join(" ");
-      const parentMatch = Object.entries(defaultScopes).find(([k]) => k.startsWith(parentKey));
-      if (parentMatch && sec.title.length < 5) {
-        sec.title = parentMatch[1];
+    if (sec.title.length < 5) {
+      const scopeName = defaultScopes[sec.sectionNumber];
+      if (scopeName) {
+        sec.title = scopeName;
+      } else {
+        const parentKey = sec.sectionNumber.split(" ").slice(0, 2).join(" ");
+        const parentMatch = Object.entries(defaultScopes).find(([k]) => k.startsWith(parentKey));
+        if (parentMatch) {
+          sec.title = parentMatch[1];
+        }
       }
     }
   }
 
-  console.log(`[AI SpecSift] Final result: ${allSections.length} sections (${preScanSections.length} from regex, ${aiSections.length} from AI, merged to ${allSections.length})`);
+  console.log(`[AI SpecSift] ===== FINAL RESULTS =====`);
+  console.log(`[AI SpecSift] ${allSections.length} sections total (${preScanSections.length} from regex, ${aiSections.length} from AI)`);
+  for (const sec of allSections) {
+    console.log(`[AI SpecSift] ${sec.sectionNumber} - "${sec.title}" (pages ${sec.startPage}-${sec.endPage})`);
+  }
 
   return {
     sections: allSections,
@@ -799,3 +1033,5 @@ export async function extractSectionDetailsWithAI(
     notes: [],
   };
 }
+
+export { isExcludedPage, detectTOCBounds as detectTOCBoundsAI };

@@ -68,7 +68,7 @@ async function pdf(buffer: Buffer): Promise<PdfData> {
 import type { ExtractedSection, AccessoryMatch, InsertSection, InsertAccessoryMatch, SpecsiftConfig, AccessoryScopeData } from "@shared/schema";
 import { DEFAULT_SCOPES, ACCESSORY_SCOPES } from "@shared/schema";
 import { getActiveConfiguration, getSectionRegex } from "./configService";
-import { identifySectionsWithAI, extractSectionDetailsWithAI } from "./openaiSpecExtractor";
+import { identifySectionsWithAI, extractSectionDetailsWithAI, isExcludedPage, detectTOCBoundsAI } from "./openaiSpecExtractor";
 
 const SEC_RE = /\b10[\s\-\._]*(?:\d{2}[\s\-\._]*\d{2}(?:[\s\-\._]*\d{2})?|\d{4,6})\b/g;
 
@@ -1054,9 +1054,15 @@ export async function processPdf(
     const pages = data.pages;
     const pageTexts = pages.length > 0 ? pages : fullText.split(/\f/);
 
-    // Always collect accessory matches using rule-based scanning
+    const tocBoundsForAccessories = detectTOCBoundsAI(pageTexts);
+    
     for (let pageNum = 0; pageNum < pageTexts.length; pageNum++) {
       const pageText = pageTexts[pageNum];
+      const exclusionReason = isExcludedPage(pageNum, tocBoundsForAccessories, pageText);
+      if (exclusionReason) {
+        console.log(`[ProcessPdf] Skipping accessory scan on page ${pageNum + 1}: ${exclusionReason}`);
+        continue;
+      }
       const accessoryMatches = findAccessoryMatches(pageText, sessionId, pageNum + 1, dynamicAccessoryScopes);
       accessories.push(...accessoryMatches);
     }
@@ -1090,7 +1096,7 @@ export async function processPdf(
           for (let i = 0; i < aiResult.sections.length; i++) {
             const aiSec = aiResult.sections[i];
             const progress = 60 + Math.floor(((i + 1) / aiResult.sections.length) * 30);
-            onProgress?.(progress, `AI extracting details for ${aiSec.sectionNumber} (${i + 1}/${aiResult.sections.length})...`);
+            onProgress?.(progress, `AI extracting details for ${aiSec.sectionNumber} - ${aiSec.title} (${i + 1}/${aiResult.sections.length})...`);
             
             let sectionText = "";
             const startIdx = Math.max(0, aiSec.startPage - 1);
@@ -1098,6 +1104,10 @@ export async function processPdf(
             for (let p = startIdx; p <= endIdx; p++) {
               sectionText += pageTexts[p] + "\n";
             }
+            
+            console.log(`[ProcessPdf] Section ${aiSec.sectionNumber} text assembled from pages ${aiSec.startPage}-${aiSec.endPage} (${sectionText.length} chars)`);
+            const textPreview = sectionText.slice(0, 200).replace(/\n/g, "\\n");
+            console.log(`[ProcessPdf] Section ${aiSec.sectionNumber} text preview: "${textPreview}"`);
             
             const details = await extractSectionDetailsWithAI(
               sectionText,
@@ -1149,10 +1159,11 @@ export async function processPdf(
       }
     }
 
-    // ============= RULE-BASED FALLBACK =============
     onProgress?.(15, "Detecting document structure (rule-based)...");
     
-    const { tocStartPage, tocEndPage } = detectTocBoundaries(pageTexts);
+    const tocBoundsRuleBased = detectTOCBoundsAI(pageTexts);
+    const tocStartPage = tocBoundsRuleBased.start;
+    const tocEndPage = tocBoundsRuleBased.end;
     if (tocEndPage >= 0) {
       console.log(`[ProcessPdf] Excluding TOC pages ${tocStartPage + 1} to ${tocEndPage + 1}`);
     }
@@ -1167,8 +1178,9 @@ export async function processPdf(
       const progress = 20 + Math.floor((pageNum / pageTexts.length) * 30);
       onProgress?.(progress, `Scanning page ${pageNum + 1} of ${pageTexts.length}...`);
       
-      if (tocStartPage >= 0 && tocEndPage >= 0 && pageNum >= tocStartPage && pageNum <= tocEndPage) {
-        console.log(`[ProcessPdf] Skipping TOC page ${pageNum + 1}`);
+      const exclusionReason = isExcludedPage(pageNum, tocBoundsRuleBased, pageText);
+      if (exclusionReason) {
+        console.log(`[ProcessPdf] Skipping page ${pageNum + 1}: ${exclusionReason}`);
         continue;
       }
       

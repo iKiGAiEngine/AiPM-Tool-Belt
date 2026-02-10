@@ -448,6 +448,7 @@ export async function registerRoutes(
       const projectName = sanitizeFilename(session.projectName || "Untitled Project");
 
       for (const section of sections) {
+        console.log(`[Export] Generating PDF for ${section.sectionNumber} - "${section.title}" (pages ${section.startPage}-${section.endPage})`);
         const packet = await generateSectionPacket(sourcePdf, section, session.projectName, includeCover, includeSummary);
         const safeTitle = sanitizeFilename(section.title);
         const folderName = `${section.sectionNumber} - ${safeTitle}`;
@@ -456,6 +457,7 @@ export async function registerRoutes(
         const folder = zip.folder(folderName);
         if (folder) {
           folder.file(pdfFileName, packet);
+          console.log(`[Export] Added ${pdfFileName} to folder ${folderName}`);
         }
       }
 
