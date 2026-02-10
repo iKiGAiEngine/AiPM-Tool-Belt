@@ -1,5 +1,4 @@
-import * as pdfParseModule from "pdf-parse";
-const pdfParse = (pdfParseModule as any).default || pdfParseModule;
+import * as pdfjsLib from "pdfjs-dist/legacy/build/pdf.mjs";
 import { PDFDocument } from "pdf-lib";
 
 export interface ExtractedHeader {
@@ -412,30 +411,46 @@ function makeRangesFromHeaders(headers: ExtractedHeader[], totalPages: number, p
 }
 
 export async function extractPages(pdfBuffer: Buffer): Promise<string[]> {
-  const data = await pdfParse(pdfBuffer);
-  const rawText = data.text;
+  const uint8 = new Uint8Array(pdfBuffer);
+  const loadingTask = pdfjsLib.getDocument({ data: uint8 });
+  const pdfDoc = await loadingTask.promise;
+  const numPages = pdfDoc.numPages;
 
   const pageTexts: string[] = [];
-  const pageMarkerRe = /\f/g;
-  let lastIndex = 0;
-  let match: RegExpExecArray | null;
-
-  while ((match = pageMarkerRe.exec(rawText)) !== null) {
-    pageTexts.push(rawText.slice(lastIndex, match.index));
-    lastIndex = match.index + 1;
-  }
-  pageTexts.push(rawText.slice(lastIndex));
-
-  if (pageTexts.length <= 1) {
-    const numPages = data.numpages || 1;
-    if (numPages > 1) {
-      const avgLen = Math.floor(rawText.length / numPages);
-      const fallbackPages: string[] = [];
-      for (let i = 0; i < numPages; i++) {
-        fallbackPages.push(rawText.slice(i * avgLen, (i + 1) * avgLen));
-      }
-      return fallbackPages;
+  for (let i = 1; i <= numPages; i++) {
+    const page = await pdfDoc.getPage(i);
+    const textContent = await page.getTextContent();
+    const items = textContent.items as any[];
+    if (items.length === 0) {
+      pageTexts.push("");
+      continue;
     }
+    const filtered = items.filter((item: any) => item.str && item.str.trim().length > 0);
+    const fontHeights = filtered
+      .map((item: any) => Math.abs(item.transform[3] || item.height || 0))
+      .filter((h: number) => h > 1);
+    const avgFontHeight = fontHeights.length > 0
+      ? fontHeights.reduce((sum: number, h: number) => sum + h, 0) / fontHeights.length
+      : 10;
+    const lineThreshold = Math.max(2, avgFontHeight * 0.4);
+    const sorted = filtered.sort((a: any, b: any) => {
+      const yDiff = b.transform[5] - a.transform[5];
+      if (Math.abs(yDiff) > lineThreshold) return yDiff;
+      return a.transform[4] - b.transform[4];
+    });
+    let text = "";
+    let lastY: number | null = null;
+    for (const item of sorted) {
+      const y = item.transform[5];
+      if (lastY !== null && Math.abs(y - lastY) > lineThreshold) {
+        text += "\n";
+      } else if (lastY !== null) {
+        text += " ";
+      }
+      text += item.str;
+      lastY = y;
+    }
+    pageTexts.push(text);
   }
 
   return pageTexts;
