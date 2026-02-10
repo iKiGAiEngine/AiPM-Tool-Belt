@@ -3,12 +3,42 @@ import multer from "multer";
 import { db } from "./db";
 import { specExtractorSessions, specExtractorSections } from "@shared/schema";
 import { eq } from "drizzle-orm";
-import { runExtraction, extractSectionPdf } from "./specExtractorEngine";
+import { runExtraction, extractSectionPdf, extractPages } from "./specExtractorEngine";
 import JSZip from "jszip";
 import fs from "fs";
 import path from "path";
+import OpenAI from "openai";
 
 const DATA_DIR = path.join(process.cwd(), "data", "spec-extractor");
+
+const pageCache = new Map<string, { pages: string[]; timestamp: number }>();
+const CACHE_TTL_MS = 10 * 60 * 1000;
+
+async function getCachedPages(sessionId: string): Promise<string[]> {
+  const cached = pageCache.get(sessionId);
+  if (cached && Date.now() - cached.timestamp < CACHE_TTL_MS) {
+    return cached.pages;
+  }
+  const pdfPath = path.join(DATA_DIR, `${sessionId}.pdf`);
+  if (!fs.existsSync(pdfPath)) {
+    throw new Error("Source PDF not found");
+  }
+  const pdfBuffer = fs.readFileSync(pdfPath);
+  const pages = await extractPages(pdfBuffer);
+  pageCache.set(sessionId, { pages, timestamp: Date.now() });
+  if (pageCache.size > 20) {
+    let oldestKey: string | null = null;
+    let oldestTime = Infinity;
+    pageCache.forEach((val, key) => {
+      if (val.timestamp < oldestTime) {
+        oldestTime = val.timestamp;
+        oldestKey = key;
+      }
+    });
+    if (oldestKey) pageCache.delete(oldestKey);
+  }
+  return pages;
+}
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -116,14 +146,24 @@ export function registerSpecExtractorRoutes(app: Express) {
     }
   });
 
-  app.get("/api/spec-extractor/sessions/:id/export", async (req: Request, res: Response) => {
+  app.post("/api/spec-extractor/sessions/:id/export", async (req: Request, res: Response) => {
     try {
       const [session] = await db.select().from(specExtractorSessions).where(eq(specExtractorSessions.id, req.params.id));
       if (!session) {
         return res.status(404).json({ message: "Session not found" });
       }
 
-      const sections = await db.select().from(specExtractorSections).where(eq(specExtractorSections.sessionId, req.params.id));
+      const selectedIds: string[] | undefined = req.body?.sectionIds;
+
+      let sections;
+      if (selectedIds && Array.isArray(selectedIds) && selectedIds.length > 0) {
+        sections = await db.select().from(specExtractorSections)
+          .where(eq(specExtractorSections.sessionId, req.params.id));
+        sections = sections.filter(s => selectedIds.includes(s.id));
+      } else {
+        sections = await db.select().from(specExtractorSections).where(eq(specExtractorSections.sessionId, req.params.id));
+      }
+
       if (sections.length === 0) {
         return res.status(400).json({ message: "No sections to export" });
       }
@@ -136,16 +176,29 @@ export function registerSpecExtractorRoutes(app: Express) {
       const pdfBuffer = fs.readFileSync(pdfPath);
       const zip = new JSZip();
       const projectName = sanitizeFilename(session.projectName || "Project");
+      const errors: string[] = [];
 
       for (const section of sections) {
-        console.log(`[SpecExtractor Export] ${section.sectionNumber} - "${section.title}" pages ${section.startPage}-${section.endPage}`);
-        const sectionPdf = await extractSectionPdf(pdfBuffer, section.startPage, section.endPage);
-        const safeFolderName = sanitizeFilename(section.folderName);
-        const pdfFileName = `${section.sectionNumber} - ${sanitizeFilename(section.title)} - ${projectName}.pdf`;
+        try {
+          console.log(`[SpecExtractor Export] ${section.sectionNumber} - "${section.title}" pages ${section.startPage}-${section.endPage}`);
+          const sectionPdf = await extractSectionPdf(pdfBuffer, section.startPage, section.endPage);
+          if (!sectionPdf || sectionPdf.length === 0) {
+            console.warn(`[SpecExtractor Export] Empty PDF for ${section.sectionNumber} (pages ${section.startPage}-${section.endPage})`);
+            errors.push(`${section.sectionNumber}: Generated PDF was empty`);
+            continue;
+          }
+          const safeFolderName = sanitizeFilename(section.folderName);
+          const pdfFileName = `${section.sectionNumber} - ${sanitizeFilename(section.title)} - ${projectName}.pdf`;
 
-        const folder = zip.folder(safeFolderName);
-        if (folder) {
-          folder.file(pdfFileName, sectionPdf);
+          const folder = zip.folder(safeFolderName);
+          if (folder) {
+            folder.file(pdfFileName, sectionPdf);
+          } else {
+            zip.file(`${safeFolderName}/${pdfFileName}`, sectionPdf);
+          }
+        } catch (err: any) {
+          console.error(`[SpecExtractor Export] Failed to extract ${section.sectionNumber}: ${err.message}`);
+          errors.push(`${section.sectionNumber}: ${err.message}`);
         }
       }
 
@@ -153,9 +206,168 @@ export function registerSpecExtractorRoutes(app: Express) {
 
       res.setHeader("Content-Type", "application/zip");
       res.setHeader("Content-Disposition", `attachment; filename="${projectName} - Spec Extract.zip"`);
+      if (errors.length > 0) {
+        res.setHeader("X-Export-Warnings", JSON.stringify(errors));
+      }
       res.send(zipBuffer);
     } catch (error: any) {
       console.error("[SpecExtractor] Export error:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+
+  app.get("/api/spec-extractor/sessions/:id/preview/:sectionId", async (req: Request, res: Response) => {
+    try {
+      const [section] = await db.select().from(specExtractorSections)
+        .where(eq(specExtractorSections.id, req.params.sectionId));
+      if (!section || section.sessionId !== req.params.id) {
+        return res.status(404).json({ message: "Section not found" });
+      }
+
+      const pages = await getCachedPages(req.params.id);
+
+      const startPage = Math.max(0, Math.min(section.startPage, pages.length - 1));
+      const endPage = Math.max(startPage, Math.min(section.endPage, pages.length - 1));
+
+      const previewPages: { pageNumber: number; text: string }[] = [];
+      const maxPreviewPages = Math.min(3, endPage - startPage + 1);
+
+      for (let i = startPage; i < startPage + maxPreviewPages; i++) {
+        const rawText = pages[i] || "";
+        const trimmed = rawText.slice(0, 1500);
+        previewPages.push({
+          pageNumber: i + 1,
+          text: trimmed + (rawText.length > 1500 ? "\n... (truncated)" : ""),
+        });
+      }
+
+      res.json({
+        sectionNumber: section.sectionNumber,
+        title: section.title,
+        startPage: section.startPage + 1,
+        endPage: section.endPage + 1,
+        pageCount: section.pageCount,
+        previewPages,
+      });
+    } catch (error: any) {
+      console.error("[SpecExtractor] Preview error:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.post("/api/spec-extractor/sessions/:id/ai-review", async (req: Request, res: Response) => {
+    try {
+      const apiKey = process.env.OPENAI_API_KEY;
+      if (!apiKey) {
+        return res.status(400).json({ message: "OpenAI API key not configured" });
+      }
+
+      const [session] = await db.select().from(specExtractorSessions).where(eq(specExtractorSessions.id, req.params.id));
+      if (!session) {
+        return res.status(404).json({ message: "Session not found" });
+      }
+
+      const sections = await db.select().from(specExtractorSections).where(eq(specExtractorSections.sessionId, req.params.id));
+      if (sections.length === 0) {
+        return res.status(400).json({ message: "No sections to review" });
+      }
+
+      const pages = await getCachedPages(req.params.id);
+
+      const sectionSummaries = sections.map(s => {
+        const startPage = Math.max(0, Math.min(s.startPage, pages.length - 1));
+        const firstPageText = (pages[startPage] || "").slice(0, 800);
+        return {
+          id: s.id,
+          sectionNumber: s.sectionNumber,
+          currentTitle: s.title,
+          folderName: s.folderName,
+          pages: `${s.startPage + 1}-${s.endPage + 1}`,
+          firstPageSnippet: firstPageText,
+        };
+      });
+
+      const openai = new OpenAI({ apiKey });
+      const response = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: [
+          {
+            role: "system",
+            content: `You are a construction specification reviewer. You will review extracted Division 10 specification section labels against their actual content. For each section, verify:
+1. The section number matches the content
+2. The title accurately describes the section content
+3. The scope classification (folder name) is correct
+
+Respond with a JSON array of objects. Each object must have:
+- "id": the section id (string)
+- "status": "correct" | "suggested_change" | "warning"
+- "suggestedTitle": the suggested title if you recommend a change, or the current title if correct
+- "notes": brief explanation of your assessment
+
+Be concise. Only suggest changes when the current label is clearly wrong or misleading.`,
+          },
+          {
+            role: "user",
+            content: `Project: "${session.projectName}"\n\nReview these extracted Division 10 sections:\n\n${JSON.stringify(sectionSummaries, null, 2)}`,
+          },
+        ],
+        temperature: 0.2,
+        max_tokens: 2000,
+      });
+
+      const content = response.choices[0]?.message?.content || "[]";
+      let reviews: any[];
+      try {
+        const cleaned = content.replace(/```json\s*/g, "").replace(/```\s*/g, "").trim();
+        const parsed = JSON.parse(cleaned);
+        if (!Array.isArray(parsed)) {
+          throw new Error("Expected array");
+        }
+        reviews = parsed
+          .filter((r: any) => r && typeof r === "object" && r.id && r.status)
+          .map((r: any) => ({
+            id: String(r.id),
+            status: ["correct", "suggested_change", "warning"].includes(r.status) ? r.status : "correct",
+            suggestedTitle: String(r.suggestedTitle || r.currentTitle || ""),
+            notes: String(r.notes || ""),
+          }));
+      } catch (parseErr) {
+        console.error("[SpecExtractor] Failed to parse AI response:", content);
+        reviews = sections.map(s => ({
+          id: s.id,
+          status: "correct",
+          suggestedTitle: s.title,
+          notes: "AI review could not parse response - manual review recommended",
+        }));
+      }
+
+      res.json({ reviews });
+    } catch (error: any) {
+      console.error("[SpecExtractor] AI Review error:", error);
+      res.status(500).json({ message: error.message || "AI review failed" });
+    }
+  });
+
+  app.patch("/api/spec-extractor/sections/:sectionId", async (req: Request, res: Response) => {
+    try {
+      const { title } = req.body;
+      if (!title || typeof title !== "string") {
+        return res.status(400).json({ message: "Title is required" });
+      }
+
+      const [section] = await db.select().from(specExtractorSections)
+        .where(eq(specExtractorSections.id, req.params.sectionId));
+      if (!section) {
+        return res.status(404).json({ message: "Section not found" });
+      }
+
+      await db.update(specExtractorSections)
+        .set({ title: title.trim() })
+        .where(eq(specExtractorSections.id, req.params.sectionId));
+
+      res.json({ success: true, title: title.trim() });
+    } catch (error: any) {
       res.status(500).json({ message: error.message });
     }
   });

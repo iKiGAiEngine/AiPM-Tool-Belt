@@ -503,6 +503,14 @@ export async function extractSectionPdf(
   const newPdf = await PDFDocument.create();
 
   const totalPages = sourcePdf.getPageCount();
+
+  if (startPage < 0 || startPage >= totalPages) {
+    console.warn(`[SpecExtractor] startPage ${startPage} out of bounds (total: ${totalPages}), clamping`);
+  }
+  if (endPage < 0 || endPage >= totalPages) {
+    console.warn(`[SpecExtractor] endPage ${endPage} out of bounds (total: ${totalPages}), clamping`);
+  }
+
   const validStart = Math.max(0, Math.min(startPage, totalPages - 1));
   const validEnd = Math.max(validStart, Math.min(endPage, totalPages - 1));
 
@@ -511,11 +519,15 @@ export async function extractSectionPdf(
     pageIndices.push(i);
   }
 
+  console.log(`[SpecExtractor] Extracting pages ${validStart + 1}-${validEnd + 1} (${pageIndices.length} pages) from ${totalPages} total`);
+
   if (pageIndices.length > 0) {
     const copiedPages = await newPdf.copyPages(sourcePdf, pageIndices);
     for (const page of copiedPages) {
       newPdf.addPage(page);
     }
+  } else {
+    console.warn(`[SpecExtractor] No pages to extract for range ${startPage}-${endPage}`);
   }
 
   return newPdf.save();

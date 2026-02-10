@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Upload, FileText, X, AlertCircle, CheckCircle2, Loader2,
   Download, ArrowLeft, Building2, FolderOpen, FileStack, Trash2,
+  Eye, EyeOff, Sparkles, Check, Minus, SquareCheck,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,14 +11,32 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
+import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import type { SpecExtractorSession, SpecExtractorSection } from "@shared/schema";
 
 type ViewState = "upload" | "processing" | "results";
 
+interface PreviewData {
+  sectionNumber: string;
+  title: string;
+  startPage: number;
+  endPage: number;
+  pageCount: number;
+  previewPages: { pageNumber: number; text: string }[];
+}
+
+interface AiReview {
+  id: string;
+  status: "correct" | "suggested_change" | "warning";
+  suggestedTitle: string;
+  notes: string;
+}
+
 export default function SpecExtractorPage() {
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const [viewState, setViewState] = useState<ViewState>("upload");
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [projectName, setProjectName] = useState("");
@@ -28,6 +47,13 @@ export default function SpecExtractorPage() {
   const [fileError, setFileError] = useState<string | null>(null);
   const [sessionData, setSessionData] = useState<{ status: string; progress: number; message: string } | null>(null);
   const pollRef = useRef<NodeJS.Timeout | null>(null);
+
+  const [selectedSections, setSelectedSections] = useState<Set<string>>(new Set());
+  const [previewSectionId, setPreviewSectionId] = useState<string | null>(null);
+  const [previewData, setPreviewData] = useState<PreviewData | null>(null);
+  const [isLoadingPreview, setIsLoadingPreview] = useState(false);
+  const [aiReviews, setAiReviews] = useState<Map<string, AiReview>>(new Map());
+  const [isReviewing, setIsReviewing] = useState(false);
 
   useEffect(() => {
     return () => {
@@ -45,6 +71,12 @@ export default function SpecExtractorPage() {
     },
     enabled: viewState === "results" && !!sessionId,
   });
+
+  useEffect(() => {
+    if (sections.length > 0 && selectedSections.size === 0) {
+      setSelectedSections(new Set(sections.map(s => s.id)));
+    }
+  }, [sections]);
 
   const pollStatus = useCallback((sid: string) => {
     const check = async () => {
@@ -144,6 +176,10 @@ export default function SpecExtractorPage() {
       setSessionId(session.id);
       setSessionData({ status: "processing", progress: 0, message: "Starting extraction..." });
       setViewState("processing");
+      setSelectedSections(new Set());
+      setAiReviews(new Map());
+      setPreviewSectionId(null);
+      setPreviewData(null);
       pollStatus(session.id);
     } catch (err: any) {
       if (err instanceof DOMException && err.name === "AbortError") {
@@ -160,7 +196,12 @@ export default function SpecExtractorPage() {
     if (!sessionId) return;
     setIsExporting(true);
     try {
-      const res = await fetch(`/api/spec-extractor/sessions/${sessionId}/export`);
+      const sectionIds = Array.from(selectedSections);
+      const res = await fetch(`/api/spec-extractor/sessions/${sessionId}/export`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sectionIds }),
+      });
       if (!res.ok) {
         const err = await res.json().catch(() => ({ message: "Export failed" }));
         throw new Error(err.message);
@@ -174,7 +215,7 @@ export default function SpecExtractorPage() {
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
-      toast({ title: "Export Complete", description: "ZIP file downloaded successfully." });
+      toast({ title: "Export Complete", description: `Downloaded ${sectionIds.length} sections as ZIP.` });
     } catch (err: any) {
       toast({ title: "Export Failed", description: err.message, variant: "destructive" });
     } finally {
@@ -190,9 +231,121 @@ export default function SpecExtractorPage() {
     setProjectName("");
     setSessionData(null);
     setFileError(null);
+    setSelectedSections(new Set());
+    setPreviewSectionId(null);
+    setPreviewData(null);
+    setAiReviews(new Map());
   };
 
+  const toggleSection = (id: string) => {
+    setSelectedSections(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
+
+  const toggleAll = () => {
+    if (selectedSections.size === sections.length) {
+      setSelectedSections(new Set());
+    } else {
+      setSelectedSections(new Set(sections.map(s => s.id)));
+    }
+  };
+
+  const handlePreview = async (sectionId: string) => {
+    if (previewSectionId === sectionId) {
+      setPreviewSectionId(null);
+      setPreviewData(null);
+      return;
+    }
+
+    setPreviewSectionId(sectionId);
+    setIsLoadingPreview(true);
+    setPreviewData(null);
+
+    try {
+      const res = await fetch(`/api/spec-extractor/sessions/${sessionId}/preview/${sectionId}`);
+      if (!res.ok) throw new Error("Failed to load preview");
+      const data = await res.json();
+      setPreviewData(data);
+    } catch (err: any) {
+      toast({ title: "Preview Failed", description: err.message, variant: "destructive" });
+      setPreviewSectionId(null);
+    } finally {
+      setIsLoadingPreview(false);
+    }
+  };
+
+  const handleAiReview = async () => {
+    if (!sessionId) return;
+    setIsReviewing(true);
+
+    try {
+      const res = await fetch(`/api/spec-extractor/sessions/${sessionId}/ai-review`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ message: "AI review failed" }));
+        throw new Error(err.message);
+      }
+      const data = await res.json();
+      const reviewMap = new Map<string, AiReview>();
+      for (const r of data.reviews) {
+        reviewMap.set(r.id, r);
+      }
+      setAiReviews(reviewMap);
+
+      const changes = data.reviews.filter((r: AiReview) => r.status === "suggested_change").length;
+      const warnings = data.reviews.filter((r: AiReview) => r.status === "warning").length;
+      if (changes > 0 || warnings > 0) {
+        toast({ title: "AI Review Complete", description: `${changes} suggested changes, ${warnings} warnings` });
+      } else {
+        toast({ title: "AI Review Complete", description: "All labels look accurate" });
+      }
+    } catch (err: any) {
+      toast({ title: "AI Review Failed", description: err.message, variant: "destructive" });
+    } finally {
+      setIsReviewing(false);
+    }
+  };
+
+  const applyAiSuggestion = async (sectionId: string, suggestedTitle: string) => {
+    try {
+      const res = await fetch(`/api/spec-extractor/sections/${sectionId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title: suggestedTitle }),
+      });
+      if (!res.ok) throw new Error("Failed to update title");
+
+      queryClient.invalidateQueries({ queryKey: ["/api/spec-extractor/sessions", sessionId, "sections"] });
+
+      setAiReviews(prev => {
+        const next = new Map(prev);
+        const review = next.get(sectionId);
+        if (review) {
+          next.set(sectionId, { ...review, status: "correct", notes: "Applied" });
+        }
+        return next;
+      });
+
+      toast({ title: "Title Updated", description: `Updated to "${suggestedTitle}"` });
+    } catch (err: any) {
+      toast({ title: "Update Failed", description: err.message, variant: "destructive" });
+    }
+  };
+
+  const sortedSections = [...sections].sort((a, b) => a.sectionNumber.localeCompare(b.sectionNumber));
   const totalPages = sections.reduce((sum, s) => sum + s.pageCount, 0);
+  const selectedCount = selectedSections.size;
+  const allSelected = sections.length > 0 && selectedCount === sections.length;
+  const someSelected = selectedCount > 0 && selectedCount < sections.length;
 
   return (
     <div className="min-h-[calc(100vh-4rem)]">
@@ -403,21 +556,48 @@ export default function SpecExtractorPage() {
                   <div className="flex items-center gap-2">
                     <Badge variant="secondary" data-testid="badge-se-section-count">{sections.length} sections</Badge>
                     <Badge variant="secondary" data-testid="badge-se-page-count">{totalPages} pages</Badge>
+                    {selectedCount < sections.length && (
+                      <Badge variant="outline" data-testid="badge-se-selected-count">{selectedCount} selected</Badge>
+                    )}
                   </div>
                 </div>
-                <Button onClick={handleExport} disabled={isExporting || sections.length === 0} data-testid="button-se-export">
-                  {isExporting ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Exporting...
-                    </>
-                  ) : (
-                    <>
-                      <Download className="mr-2 h-4 w-4" />
-                      Download ZIP
-                    </>
-                  )}
-                </Button>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <Button
+                    variant="outline"
+                    onClick={handleAiReview}
+                    disabled={isReviewing || sections.length === 0}
+                    data-testid="button-se-ai-review"
+                  >
+                    {isReviewing ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Reviewing...
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="mr-2 h-4 w-4" />
+                        AI Review Labels
+                      </>
+                    )}
+                  </Button>
+                  <Button
+                    onClick={handleExport}
+                    disabled={isExporting || selectedCount === 0}
+                    data-testid="button-se-export"
+                  >
+                    {isExporting ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Exporting...
+                      </>
+                    ) : (
+                      <>
+                        <Download className="mr-2 h-4 w-4" />
+                        Download ZIP ({selectedCount})
+                      </>
+                    )}
+                  </Button>
+                </div>
               </div>
 
               {sections.length === 0 ? (
@@ -432,38 +612,160 @@ export default function SpecExtractorPage() {
                 </Card>
               ) : (
                 <div className="grid gap-3">
-                  {sections
-                    .sort((a, b) => a.sectionNumber.localeCompare(b.sectionNumber))
-                    .map((section) => (
-                      <Card key={section.id} data-testid={`card-se-section-${section.sectionNumber.replace(/\s/g, "")}`}>
-                        <CardContent className="p-4">
-                          <div className="flex items-center justify-between gap-3 flex-wrap">
-                            <div className="flex items-center gap-3 min-w-0">
-                              <div className="flex h-9 w-9 items-center justify-center rounded-md bg-primary/10 shrink-0">
-                                <FileText className="h-4 w-4 text-primary" />
+                  <div className="flex items-center gap-3 px-1">
+                    <Checkbox
+                      checked={allSelected ? true : someSelected ? "indeterminate" : false}
+                      onCheckedChange={toggleAll}
+                      data-testid="checkbox-se-select-all"
+                    />
+                    <span className="text-sm text-muted-foreground">
+                      {allSelected ? "Deselect all" : "Select all"}
+                    </span>
+                  </div>
+
+                  {sortedSections.map((section) => {
+                    const isSelected = selectedSections.has(section.id);
+                    const isPreviewing = previewSectionId === section.id;
+                    const review = aiReviews.get(section.id);
+
+                    return (
+                      <div key={section.id}>
+                        <Card
+                          className={cn(
+                            "transition-colors",
+                            !isSelected && "opacity-60"
+                          )}
+                          data-testid={`card-se-section-${section.sectionNumber.replace(/\s/g, "")}`}
+                        >
+                          <CardContent className="p-4">
+                            <div className="flex items-start gap-3">
+                              <div className="flex items-center pt-0.5">
+                                <Checkbox
+                                  checked={isSelected}
+                                  onCheckedChange={() => toggleSection(section.id)}
+                                  data-testid={`checkbox-se-section-${section.sectionNumber.replace(/\s/g, "")}`}
+                                />
                               </div>
-                              <div className="min-w-0">
-                                <div className="flex items-center gap-2 flex-wrap">
-                                  <span className="font-mono text-sm font-semibold text-foreground" data-testid={`text-se-secnum-${section.sectionNumber.replace(/\s/g, "")}`}>
-                                    {section.sectionNumber}
-                                  </span>
-                                  <span className="text-sm text-foreground truncate" data-testid={`text-se-title-${section.sectionNumber.replace(/\s/g, "")}`}>
-                                    {section.title}
-                                  </span>
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center justify-between gap-3 flex-wrap">
+                                  <div className="flex items-center gap-3 min-w-0">
+                                    <div className="flex h-9 w-9 items-center justify-center rounded-md bg-primary/10 shrink-0">
+                                      <FileText className="h-4 w-4 text-primary" />
+                                    </div>
+                                    <div className="min-w-0">
+                                      <div className="flex items-center gap-2 flex-wrap">
+                                        <span className="font-mono text-sm font-semibold text-foreground" data-testid={`text-se-secnum-${section.sectionNumber.replace(/\s/g, "")}`}>
+                                          {section.sectionNumber}
+                                        </span>
+                                        <span className="text-sm text-foreground truncate" data-testid={`text-se-title-${section.sectionNumber.replace(/\s/g, "")}`}>
+                                          {section.title}
+                                        </span>
+                                      </div>
+                                      <p className="text-xs text-muted-foreground mt-0.5">
+                                        Pages {section.startPage + 1}–{section.endPage + 1} ({section.pageCount} {section.pageCount === 1 ? "page" : "pages"})
+                                      </p>
+                                    </div>
+                                  </div>
+                                  <div className="flex items-center gap-2 shrink-0">
+                                    {review && review.status !== "correct" && (
+                                      <Badge
+                                        variant={review.status === "suggested_change" ? "default" : "secondary"}
+                                        className="shrink-0"
+                                      >
+                                        {review.status === "suggested_change" ? "Suggestion" : "Warning"}
+                                      </Badge>
+                                    )}
+                                    {review && review.status === "correct" && (
+                                      <Badge variant="outline" className="shrink-0">
+                                        <Check className="mr-1 h-3 w-3" />
+                                        Verified
+                                      </Badge>
+                                    )}
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      onClick={() => handlePreview(section.id)}
+                                      data-testid={`button-se-preview-${section.sectionNumber.replace(/\s/g, "")}`}
+                                    >
+                                      {isPreviewing ? (
+                                        <EyeOff className="h-4 w-4" />
+                                      ) : (
+                                        <Eye className="h-4 w-4" />
+                                      )}
+                                    </Button>
+                                    <Badge variant="outline" className="shrink-0">
+                                      <FolderOpen className="mr-1 h-3 w-3" />
+                                      {section.folderName}
+                                    </Badge>
+                                  </div>
                                 </div>
-                                <p className="text-xs text-muted-foreground mt-0.5">
-                                  Pages {section.startPage + 1}–{section.endPage + 1} ({section.pageCount} {section.pageCount === 1 ? "page" : "pages"})
-                                </p>
+
+                                {review && review.status === "suggested_change" && (
+                                  <div className="mt-2 flex items-center gap-2 rounded-md bg-muted/50 px-3 py-2 text-sm flex-wrap">
+                                    <Sparkles className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                                    <span className="text-muted-foreground">{review.notes}</span>
+                                    {review.suggestedTitle !== section.title && (
+                                      <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => applyAiSuggestion(section.id, review.suggestedTitle)}
+                                        data-testid={`button-se-apply-${section.sectionNumber.replace(/\s/g, "")}`}
+                                      >
+                                        Apply: "{review.suggestedTitle}"
+                                      </Button>
+                                    )}
+                                  </div>
+                                )}
+
+                                {review && review.status === "warning" && (
+                                  <div className="mt-2 flex items-center gap-2 rounded-md bg-muted/50 px-3 py-2 text-sm">
+                                    <AlertCircle className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                                    <span className="text-muted-foreground">{review.notes}</span>
+                                  </div>
+                                )}
                               </div>
                             </div>
-                            <Badge variant="outline" className="shrink-0">
-                              <FolderOpen className="mr-1 h-3 w-3" />
-                              {section.folderName}
-                            </Badge>
-                          </div>
-                        </CardContent>
-                      </Card>
-                    ))}
+                          </CardContent>
+                        </Card>
+
+                        {isPreviewing && (
+                          <Card className="ml-10 mt-1 mb-2">
+                            <CardContent className="p-4">
+                              {isLoadingPreview ? (
+                                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                  Loading preview...
+                                </div>
+                              ) : previewData ? (
+                                <div className="space-y-3">
+                                  <div className="flex items-center justify-between gap-2 flex-wrap">
+                                    <p className="text-xs font-medium text-muted-foreground">
+                                      Preview: Pages {previewData.startPage}–{previewData.endPage} ({previewData.pageCount} total)
+                                    </p>
+                                  </div>
+                                  {previewData.previewPages.map((pp) => (
+                                    <div key={pp.pageNumber} className="space-y-1">
+                                      <p className="text-xs font-semibold text-muted-foreground">
+                                        Page {pp.pageNumber}
+                                      </p>
+                                      <pre
+                                        className="rounded-md bg-muted/50 p-3 text-xs text-foreground overflow-x-auto whitespace-pre-wrap max-h-48 overflow-y-auto font-mono leading-relaxed"
+                                        data-testid={`text-se-preview-page-${pp.pageNumber}`}
+                                      >
+                                        {pp.text || "(No text content on this page)"}
+                                      </pre>
+                                    </div>
+                                  ))}
+                                </div>
+                              ) : (
+                                <p className="text-sm text-muted-foreground">No preview available</p>
+                              )}
+                            </CardContent>
+                          </Card>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </div>
