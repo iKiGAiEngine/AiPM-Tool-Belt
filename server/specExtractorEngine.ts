@@ -76,7 +76,7 @@ export const ACCESSORY_SCOPES: AccessoryScope[] = [
   { name: "Entrance Mats/Grilles", keywords: ["entrance mat", "entrance grille", "entrance floor grille", "entrance floor mat", "walk-off mat", "walk-off grille", "floor mat", "floor grille"], sectionHint: "12 48 13", divisionScope: [11, 12] },
   { name: "Flagpoles", keywords: ["flagpole", "flag pole"], sectionHint: "12 93 23", divisionScope: [11, 12] },
   { name: "Display Cases", keywords: ["display case", "trophy case", "exhibit case"], sectionHint: "11 11 13", divisionScope: [11, 12] },
-  { name: "Wardrobe Closets/Shelving", keywords: ["wardrobe", "closet shelving", "wire shelving"], sectionHint: "10 56 00", divisionScope: [] },
+  { name: "Wardrobe Closets/Shelving", keywords: ["wardrobe", "closet shelving", "wire shelving"], sectionHint: "10 56 00", divisionScope: [11, 12] },
 ];
 
 export interface AccessoryMatch {
@@ -148,11 +148,13 @@ export function findAccessorySections(
   pages: string[],
   selectedAccessories: string[],
   tocBounds: TOCBounds,
-  existingDiv10Sections?: SectionRange[]
+  existingDiv10Sections?: SectionRange[],
+  scopeOverrides?: AccessoryScope[]
 ): AccessoryMatch[] {
   if (!selectedAccessories || selectedAccessories.length === 0) return [];
 
-  const selected = ACCESSORY_SCOPES.filter(a => selectedAccessories.includes(a.name));
+  const scopeSource = scopeOverrides && scopeOverrides.length > 0 ? scopeOverrides : ACCESSORY_SCOPES;
+  const selected = scopeSource.filter(a => selectedAccessories.includes(a.name));
   if (selected.length === 0) return [];
 
   const matches: AccessoryMatch[] = [];

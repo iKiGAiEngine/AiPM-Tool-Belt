@@ -3,7 +3,8 @@ import multer from "multer";
 import { db } from "./db";
 import { specExtractorSessions, specExtractorSections } from "@shared/schema";
 import { eq } from "drizzle-orm";
-import { runExtraction, extractSectionPdf, extractPages, isSignageSection, findAccessorySections, ACCESSORY_SCOPES } from "./specExtractorEngine";
+import { runExtraction, extractSectionPdf, extractPages, isSignageSection, findAccessorySections, ACCESSORY_SCOPES, type AccessoryScope } from "./specExtractorEngine";
+import { getActiveConfiguration } from "./configService";
 import JSZip from "jszip";
 import fs from "fs";
 import path from "path";
@@ -351,12 +352,24 @@ export function registerSpecExtractorRoutes(app: Express) {
     }
   });
 
-  app.get("/api/spec-extractor/accessory-scopes", (_req: Request, res: Response) => {
-    res.json(ACCESSORY_SCOPES.map(a => ({
-      name: a.name,
-      keywords: a.keywords,
-      sectionHint: a.sectionHint,
-    })));
+  app.get("/api/spec-extractor/accessory-scopes", async (_req: Request, res: Response) => {
+    try {
+      const config = await getActiveConfiguration();
+      const scopes = config.accessoryScopes && config.accessoryScopes.length > 0
+        ? config.accessoryScopes
+        : ACCESSORY_SCOPES;
+      res.json(scopes.map((a: any) => ({
+        name: a.name,
+        keywords: a.keywords,
+        sectionHint: a.sectionHint,
+      })));
+    } catch (error) {
+      res.json(ACCESSORY_SCOPES.map(a => ({
+        name: a.name,
+        keywords: a.keywords,
+        sectionHint: a.sectionHint,
+      })));
+    }
   });
 
   app.delete("/api/spec-extractor/sessions/:id", async (req: Request, res: Response) => {
@@ -561,7 +574,21 @@ async function processInBackground(sessionId: string, pdfBuffer: Buffer) {
         .where(eq(specExtractorSessions.id, sessionId));
 
       const pages = await extractPages(pdfBuffer);
-      const accessoryMatches = findAccessorySections(pages, selectedAccessories, result.tocBounds, result.sections);
+      let configScopes: AccessoryScope[] | undefined;
+      try {
+        const config = await getActiveConfiguration();
+        if (config.accessoryScopes && config.accessoryScopes.length > 0) {
+          configScopes = config.accessoryScopes.map((s: any) => ({
+            name: s.name,
+            keywords: Array.isArray(s.keywords) ? s.keywords : [],
+            sectionHint: s.sectionHint || "",
+            divisionScope: Array.isArray(s.divisionScope) ? s.divisionScope : [],
+          }));
+        }
+      } catch (e) {
+        console.log("[SpecExtractor] Could not load config scopes, using defaults");
+      }
+      const accessoryMatches = findAccessorySections(pages, selectedAccessories, result.tocBounds, result.sections, configScopes);
 
       for (const match of accessoryMatches) {
         await db.insert(specExtractorSections).values({
