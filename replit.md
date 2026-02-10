@@ -74,6 +74,18 @@ PDF buffers and templates are stored on the persistent filesystem (`data/specsif
 - **Processing Indicator in Header**: When any project is actively processing, a yellow spinning indicator appears in the header showing "N processing". Clicking it navigates to the first processing project. Auto-refreshes every 10 seconds.
 - **Improved Error Messages**: The progress overlay now distinguishes between creation failures and processing failures, showing "Processing Error" with a "View Project" button when the project was created but processing failed.
 
+### Schedule Converter (Phase 9)
+- **Tool Tile**: "Schedule → Estimate Converter" tile on home page, route `/schedule-converter`.
+- **Image Upload**: Drag-and-drop PNG/JPG/WebP schedule screenshots (20MB limit via multer).
+- **OCR Extraction**: Uses Tesseract.js (separate worker from Plan Parser) to OCR schedule images, then rule-based parser extracts plan callouts, descriptions, manufacturers, model numbers, and quantities.
+- **Model Number Rules**: Combines Manufacturer + Model by default (e.g., "Kohler K-14367-CP"). Bobrick exception: if model starts with "B-", outputs model only (e.g., "B-2621"). Flags missing manufacturer/model.
+- **Confidence & Flags**: Each row gets 0-100 confidence score. Flags include: "Callout uncertain", "Model uncertain", "Quantity uncertain", "Manufacturer missing", "Model missing", "Possible duplicate callout". Rows with confidence < 90 auto-flagged for review.
+- **Review Table**: Interactive table with inline editing, review checkboxes, confidence badges. Users can edit any field directly.
+- **Copy/Paste Output**: "Copy All (TSV)" copies all rows, "Approve & Copy" copies only non-flagged rows. TSV format: `PLAN CALLOUT\tDESCRIPTION\tMODEL NUMBER\tITEM QUANTITY` for direct paste into Excel.
+- **Raw OCR Debug**: Collapsible section shows raw OCR text for debugging.
+- **API**: `POST /api/schedule-converter/extract` accepts image file, returns `{ items: ScheduleItem[], rawText, processingTimeMs }`.
+- **Known Manufacturers List**: Built-in list of ~40 common construction manufacturers for intelligent field splitting when OCR loses column spacing.
+
 ### Design System
 A system-based design approach, inspired by Linear/Notion, is utilized. It features a consistent typography (Inter, JetBrains Mono) and spacing primitives, aiming for a professional aesthetic suitable for the construction industry.
 

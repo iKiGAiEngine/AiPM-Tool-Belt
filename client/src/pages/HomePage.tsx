@@ -4,7 +4,8 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import {
   FileSearch, ScanSearch, Receipt, FolderPlus, ChevronRight,
   Clock, ClipboardList, Settings, CheckCircle, AlertCircle,
-  Loader2, TrendingUp, FolderOpen, BarChart3, FlaskConical, Trash2
+  Loader2, TrendingUp, FolderOpen, BarChart3, FlaskConical, Trash2,
+  TableProperties
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -55,6 +56,14 @@ const tools: ToolTile[] = [
     description: "Parse vendor quotes into structured estimate tables with optional schedule matching",
     icon: Receipt,
     href: "/quoteparser",
+    available: true,
+  },
+  {
+    id: "scheduleconverter",
+    title: "Schedule Converter",
+    description: "Extract line items from schedule screenshots into copy/paste-ready estimate tables",
+    icon: TableProperties,
+    href: "/schedule-converter",
     available: true,
   },
 ];
@@ -201,7 +210,7 @@ export default function HomePage() {
           </div>
         )}
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 max-w-5xl w-full">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-6 max-w-6xl w-full">
           {tools.map((tool) => (
             <ToolCard key={tool.id} tool={tool} />
           ))}
