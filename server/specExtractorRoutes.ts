@@ -68,7 +68,7 @@ export function registerSpecExtractorRoutes(app: Express) {
       }
 
       const sessionId = generateId();
-      const projectName = (req.body.projectName as string) || "Untitled Project";
+      const projectName = (req.body.projectName as string)?.trim() || "";
       const now = new Date().toISOString();
 
       if (!fs.existsSync(DATA_DIR)) {
@@ -175,7 +175,7 @@ export function registerSpecExtractorRoutes(app: Express) {
 
       const pdfBuffer = fs.readFileSync(pdfPath);
       const zip = new JSZip();
-      const projectName = sanitizeFilename(session.projectName || "Project");
+      const projectName = sanitizeFilename(session.projectName || session.suggestedProjectName || "Project");
       const errors: string[] = [];
 
       for (const section of sections) {
@@ -292,9 +292,9 @@ export function registerSpecExtractorRoutes(app: Express) {
 
   app.patch("/api/spec-extractor/sections/:sectionId", async (req: Request, res: Response) => {
     try {
-      const { title } = req.body;
-      if (!title || typeof title !== "string") {
-        return res.status(400).json({ message: "Title is required" });
+      const { title, folderName } = req.body;
+      if ((!title || typeof title !== "string") && (!folderName || typeof folderName !== "string")) {
+        return res.status(400).json({ message: "Title or folderName is required" });
       }
 
       const [section] = await db.select().from(specExtractorSections)
@@ -303,11 +303,41 @@ export function registerSpecExtractorRoutes(app: Express) {
         return res.status(404).json({ message: "Section not found" });
       }
 
+      const updates: Record<string, any> = {};
+      if (title && typeof title === "string") {
+        updates.title = title.trim();
+      }
+      if (folderName && typeof folderName === "string") {
+        updates.folderName = folderName.trim();
+      }
+
       await db.update(specExtractorSections)
-        .set({ title: title.trim() })
+        .set(updates)
         .where(eq(specExtractorSections.id, req.params.sectionId));
 
-      res.json({ success: true, title: title.trim() });
+      res.json({ success: true, ...updates });
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.patch("/api/spec-extractor/sessions/:id/project-name", async (req: Request, res: Response) => {
+    try {
+      const { projectName } = req.body;
+      if (!projectName || typeof projectName !== "string") {
+        return res.status(400).json({ message: "Project name is required" });
+      }
+
+      const [session] = await db.select().from(specExtractorSessions).where(eq(specExtractorSessions.id, req.params.id));
+      if (!session) {
+        return res.status(404).json({ message: "Session not found" });
+      }
+
+      await db.update(specExtractorSessions)
+        .set({ projectName: projectName.trim() })
+        .where(eq(specExtractorSessions.id, req.params.id));
+
+      res.json({ success: true, projectName: projectName.trim() });
     } catch (error: any) {
       res.status(500).json({ message: error.message });
     }
@@ -432,6 +462,55 @@ async function applyAiReviews(reviews: { id: string; status: string; suggestedTi
   }
 }
 
+async function suggestProjectName(sessionId: string): Promise<void> {
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) {
+    console.log("[SpecExtractor] Skipping project name suggestion: no API key configured");
+    return;
+  }
+
+  const pages = await getCachedPages(sessionId);
+  const sampleText = pages.slice(0, Math.min(5, pages.length)).map((p, i) => `--- Page ${i + 1} ---\n${p.slice(0, 1200)}`).join("\n\n");
+
+  const openai = new OpenAI({ apiKey });
+  const response = await openai.chat.completions.create({
+    model: "gpt-4o-mini",
+    messages: [
+      {
+        role: "system",
+        content: `You are an expert at reading construction specification documents. Your task is to identify the project name from the spec document text. Look for:
+1. The project title on the cover page or title page
+2. Project name in headers/footers
+3. Building or facility name references
+
+Respond with ONLY a JSON object: {"projectName": "The Project Name"}
+If you cannot determine a project name, respond: {"projectName": null}
+Be concise - just the project name without extra descriptions like "for" or "at".`,
+      },
+      {
+        role: "user",
+        content: `Extract the project name from this construction specification document:\n\n${sampleText}`,
+      },
+    ],
+    temperature: 0.1,
+    max_tokens: 200,
+  });
+
+  const content = response.choices[0]?.message?.content || "{}";
+  try {
+    const cleaned = content.replace(/```json\s*/g, "").replace(/```\s*/g, "").trim();
+    const parsed = JSON.parse(cleaned);
+    if (parsed.projectName && typeof parsed.projectName === "string") {
+      await db.update(specExtractorSessions)
+        .set({ suggestedProjectName: parsed.projectName.trim() })
+        .where(eq(specExtractorSessions.id, sessionId));
+      console.log(`[SpecExtractor] Suggested project name for ${sessionId}: "${parsed.projectName.trim()}"`);
+    }
+  } catch (parseErr) {
+    console.error("[SpecExtractor] Failed to parse project name response:", content);
+  }
+}
+
 async function processInBackground(sessionId: string, pdfBuffer: Buffer) {
   try {
     const result = await runExtraction(pdfBuffer, async (progress, message) => {
@@ -472,6 +551,20 @@ async function processInBackground(sessionId: string, pdfBuffer: Buffer) {
       console.log(`[SpecExtractor] AI review completed for session ${sessionId}`);
     } catch (aiErr: any) {
       console.error(`[SpecExtractor] AI review failed for ${sessionId}:`, aiErr.message);
+    }
+
+    try {
+      await suggestProjectName(sessionId);
+    } catch (nameErr: any) {
+      console.error(`[SpecExtractor] Project name suggestion failed for ${sessionId}:`, nameErr.message);
+    }
+
+    const [updatedSession] = await db.select().from(specExtractorSessions).where(eq(specExtractorSessions.id, sessionId));
+    const suggestedName = updatedSession?.suggestedProjectName;
+    if (suggestedName && !updatedSession?.projectName) {
+      await db.update(specExtractorSessions)
+        .set({ projectName: suggestedName })
+        .where(eq(specExtractorSessions.id, sessionId));
     }
 
     await db.update(specExtractorSessions)

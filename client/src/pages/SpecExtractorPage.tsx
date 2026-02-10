@@ -3,7 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Upload, FileText, X, AlertCircle, CheckCircle2, Loader2,
   Download, ArrowLeft, Building2, FolderOpen, FileStack, Trash2,
-  Eye, EyeOff, Sparkles, Check, Minus, SquareCheck,
+  Eye, EyeOff, Sparkles, Check, Minus, SquareCheck, Pencil,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -40,6 +40,9 @@ export default function SpecExtractorPage() {
   const [viewState, setViewState] = useState<ViewState>("upload");
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [projectName, setProjectName] = useState("");
+  const [resultsProjectName, setResultsProjectName] = useState("");
+  const [isEditingProjectName, setIsEditingProjectName] = useState(false);
+  const [suggestedProjectName, setSuggestedProjectName] = useState<string | null>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
@@ -54,6 +57,11 @@ export default function SpecExtractorPage() {
   const [isLoadingPreview, setIsLoadingPreview] = useState(false);
   const [aiReviews, setAiReviews] = useState<Map<string, AiReview>>(new Map());
   const [isReviewing, setIsReviewing] = useState(false);
+
+  const [editingFolderId, setEditingFolderId] = useState<string | null>(null);
+  const [editingFolderValue, setEditingFolderValue] = useState("");
+  const folderInputRef = useRef<HTMLInputElement>(null);
+  const projectNameInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     return () => {
@@ -98,6 +106,23 @@ export default function SpecExtractorPage() {
     }
   }, [sections]);
 
+  const loadSessionData = useCallback(async (sid: string) => {
+    try {
+      const res = await fetch(`/api/spec-extractor/sessions/${sid}`);
+      if (!res.ok) return;
+      const session = await res.json();
+      if (session.projectName) {
+        setResultsProjectName(session.projectName);
+      }
+      if (session.suggestedProjectName) {
+        setSuggestedProjectName(session.suggestedProjectName);
+        if (!session.projectName) {
+          setResultsProjectName(session.suggestedProjectName);
+        }
+      }
+    } catch {}
+  }, []);
+
   const pollStatus = useCallback((sid: string) => {
     const check = async () => {
       try {
@@ -111,6 +136,7 @@ export default function SpecExtractorPage() {
         } else if (data.status === "complete") {
           pollRef.current = null;
           setViewState("results");
+          loadSessionData(sid);
           toast({ title: "Extraction Complete", description: data.message });
         } else if (data.status === "error") {
           pollRef.current = null;
@@ -122,7 +148,7 @@ export default function SpecExtractorPage() {
     };
     if (pollRef.current) clearTimeout(pollRef.current);
     check();
-  }, [toast]);
+  }, [toast, loadSessionData]);
 
   const validateFile = (file: File): boolean => {
     setFileError(null);
@@ -174,7 +200,9 @@ export default function SpecExtractorPage() {
     try {
       const formData = new FormData();
       formData.append("file", selectedFile);
-      formData.append("projectName", projectName || "Untitled Project");
+      if (projectName.trim()) {
+        formData.append("projectName", projectName.trim());
+      }
 
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 120000);
@@ -194,12 +222,14 @@ export default function SpecExtractorPage() {
 
       const session = await response.json();
       setSessionId(session.id);
+      setResultsProjectName(projectName.trim());
       setSessionData({ status: "processing", progress: 0, message: "Starting extraction..." });
       setViewState("processing");
       setSelectedSections(new Set());
       setAiReviews(new Map());
       setPreviewSectionId(null);
       setPreviewData(null);
+      setSuggestedProjectName(null);
       pollStatus(session.id);
     } catch (err: any) {
       if (err instanceof DOMException && err.name === "AbortError") {
@@ -230,7 +260,8 @@ export default function SpecExtractorPage() {
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `${projectName || "Project"} - Spec Extract.zip`;
+      const exportName = resultsProjectName || suggestedProjectName || "Project";
+      a.download = `${exportName} - Spec Extract.zip`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -249,6 +280,8 @@ export default function SpecExtractorPage() {
     setSessionId(null);
     setSelectedFile(null);
     setProjectName("");
+    setResultsProjectName("");
+    setSuggestedProjectName(null);
     setSessionData(null);
     setFileError(null);
     setSelectedSections(new Set());
@@ -256,6 +289,8 @@ export default function SpecExtractorPage() {
     setPreviewData(null);
     setAiReviews(new Map());
     hasInitializedSelection.current = false;
+    setEditingFolderId(null);
+    setIsEditingProjectName(false);
   };
 
   const toggleSection = (id: string) => {
@@ -364,6 +399,93 @@ export default function SpecExtractorPage() {
     }
   };
 
+  const startEditingFolder = (sectionId: string, currentFolderName: string) => {
+    setEditingFolderId(sectionId);
+    setEditingFolderValue(currentFolderName);
+    setTimeout(() => folderInputRef.current?.focus(), 50);
+  };
+
+  const saveFolder = async (sectionId: string) => {
+    const trimmed = editingFolderValue.trim();
+    if (!trimmed) {
+      setEditingFolderId(null);
+      return;
+    }
+
+    try {
+      const res = await fetch(`/api/spec-extractor/sections/${sectionId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ folderName: trimmed }),
+      });
+      if (!res.ok) throw new Error("Failed to update folder name");
+      queryClient.invalidateQueries({ queryKey: ["/api/spec-extractor/sessions", sessionId, "sections"] });
+      toast({ title: "Folder Name Updated" });
+    } catch (err: any) {
+      toast({ title: "Update Failed", description: err.message, variant: "destructive" });
+    } finally {
+      setEditingFolderId(null);
+    }
+  };
+
+  const handleFolderKeyDown = (e: React.KeyboardEvent, sectionId: string) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      saveFolder(sectionId);
+    } else if (e.key === "Escape") {
+      setEditingFolderId(null);
+    }
+  };
+
+  const startEditingProjectName = () => {
+    setIsEditingProjectName(true);
+    setTimeout(() => projectNameInputRef.current?.focus(), 50);
+  };
+
+  const saveProjectName = async () => {
+    const trimmed = resultsProjectName.trim();
+    setIsEditingProjectName(false);
+
+    if (!sessionId || !trimmed) return;
+
+    try {
+      const res = await fetch(`/api/spec-extractor/sessions/${sessionId}/project-name`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ projectName: trimmed }),
+      });
+      if (!res.ok) throw new Error("Failed to update project name");
+      setResultsProjectName(trimmed);
+      toast({ title: "Project Name Updated" });
+    } catch (err: any) {
+      toast({ title: "Update Failed", description: err.message, variant: "destructive" });
+    }
+  };
+
+  const applySuggestedProjectName = async () => {
+    if (!suggestedProjectName) return;
+    setResultsProjectName(suggestedProjectName);
+
+    if (!sessionId) return;
+    try {
+      await fetch(`/api/spec-extractor/sessions/${sessionId}/project-name`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ projectName: suggestedProjectName }),
+      });
+      toast({ title: "Project Name Applied", description: `Set to "${suggestedProjectName}"` });
+    } catch {}
+  };
+
+  const handleProjectNameKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      saveProjectName();
+    } else if (e.key === "Escape") {
+      setIsEditingProjectName(false);
+    }
+  };
+
   const sortedSections = [...sections].sort((a, b) => a.sectionNumber.localeCompare(b.sectionNumber));
   const totalPages = sections.reduce((sum, s) => sum + s.pageCount, 0);
   const selectedCount = selectedSections.size;
@@ -392,18 +514,19 @@ export default function SpecExtractorPage() {
                 <Label htmlFor="se-project-name" className="flex items-center gap-2 text-sm font-medium text-foreground mb-2">
                   <Building2 className="h-4 w-4" />
                   Project Name
+                  <span className="text-xs text-muted-foreground font-normal">(optional)</span>
                 </Label>
                 <Input
                   id="se-project-name"
                   type="text"
-                  placeholder="e.g., Fountain Valley School"
+                  placeholder="Leave blank to auto-detect from specs"
                   value={projectName}
                   onChange={(e) => setProjectName(e.target.value)}
                   className="w-full"
                   data-testid="input-se-project-name"
                 />
                 <p className="mt-1.5 text-xs text-muted-foreground">
-                  Used in exported PDF filenames and folder structure
+                  AI will suggest a project name from the spec content if left blank
                 </p>
               </div>
 
@@ -623,6 +746,65 @@ export default function SpecExtractorPage() {
                 </div>
               </div>
 
+              <Card>
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-3 flex-wrap">
+                    <Building2 className="h-4 w-4 text-muted-foreground shrink-0" />
+                    <span className="text-sm font-medium text-muted-foreground shrink-0">Project Name:</span>
+                    {isEditingProjectName ? (
+                      <div className="flex items-center gap-2 flex-1 min-w-0">
+                        <Input
+                          ref={projectNameInputRef}
+                          value={resultsProjectName}
+                          onChange={(e) => setResultsProjectName(e.target.value)}
+                          onBlur={saveProjectName}
+                          onKeyDown={handleProjectNameKeyDown}
+                          className="flex-1 min-w-0"
+                          placeholder="Enter project name"
+                          data-testid="input-se-results-project-name"
+                        />
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span
+                          className={cn(
+                            "text-sm font-semibold truncate",
+                            resultsProjectName ? "text-foreground" : "text-muted-foreground italic"
+                          )}
+                          data-testid="text-se-results-project-name"
+                        >
+                          {resultsProjectName || "No project name set"}
+                        </span>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={startEditingProjectName}
+                          data-testid="button-se-edit-project-name"
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    )}
+                    {suggestedProjectName && suggestedProjectName !== resultsProjectName && (
+                      <div className="flex items-center gap-2 ml-auto">
+                        <Badge variant="outline" className="shrink-0">
+                          <Sparkles className="mr-1 h-3 w-3" />
+                          AI Suggested
+                        </Badge>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={applySuggestedProjectName}
+                          data-testid="button-se-apply-suggested-name"
+                        >
+                          Use: "{suggestedProjectName}"
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+
               {sections.length === 0 ? (
                 <Card>
                   <CardContent className="p-8 text-center">
@@ -650,6 +832,7 @@ export default function SpecExtractorPage() {
                     const isSelected = selectedSections.has(section.id);
                     const isPreviewing = previewSectionId === section.id;
                     const review = aiReviews.get(section.id);
+                    const isEditingThisFolder = editingFolderId === section.id;
 
                     return (
                       <div key={section.id}>
@@ -716,11 +899,36 @@ export default function SpecExtractorPage() {
                                         <Eye className="h-4 w-4" />
                                       )}
                                     </Button>
-                                    <Badge variant="outline" className="shrink-0">
-                                      <FolderOpen className="mr-1 h-3 w-3" />
-                                      {section.folderName}
-                                    </Badge>
                                   </div>
+                                </div>
+
+                                <div className="mt-2 flex items-center gap-2">
+                                  <FolderOpen className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                                  {isEditingThisFolder ? (
+                                    <Input
+                                      ref={folderInputRef}
+                                      value={editingFolderValue}
+                                      onChange={(e) => setEditingFolderValue(e.target.value)}
+                                      onBlur={() => saveFolder(section.id)}
+                                      onKeyDown={(e) => handleFolderKeyDown(e, section.id)}
+                                      className="flex-1 text-xs"
+                                      data-testid={`input-se-folder-${section.sectionNumber.replace(/\s/g, "")}`}
+                                    />
+                                  ) : (
+                                    <div className="flex items-center gap-1.5 min-w-0">
+                                      <span className="text-xs text-muted-foreground truncate" data-testid={`text-se-folder-${section.sectionNumber.replace(/\s/g, "")}`}>
+                                        {section.folderName}
+                                      </span>
+                                      <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        onClick={() => startEditingFolder(section.id, section.folderName)}
+                                        data-testid={`button-se-edit-folder-${section.sectionNumber.replace(/\s/g, "")}`}
+                                      >
+                                        <Pencil className="h-3 w-3" />
+                                      </Button>
+                                    </div>
+                                  )}
                                 </div>
 
                                 {review && review.status === "suggested_change" && (
