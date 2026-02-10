@@ -4,6 +4,7 @@ import {
   Upload, FileText, X, AlertCircle, CheckCircle2, Loader2,
   Download, ArrowLeft, Building2, FolderOpen, FileStack, Trash2,
   Eye, EyeOff, Sparkles, Check, Minus, SquareCheck, Pencil,
+  Package, Tag, Ban,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -63,6 +64,12 @@ export default function SpecExtractorPage() {
   const folderInputRef = useRef<HTMLInputElement>(null);
   const projectNameInputRef = useRef<HTMLInputElement>(null);
 
+  const [selectedAccessories, setSelectedAccessories] = useState<Set<string>>(new Set());
+
+  const { data: accessoryScopes = [] } = useQuery<{ name: string; keywords: string[]; sectionHint: string }[]>({
+    queryKey: ["/api/spec-extractor/accessory-scopes"],
+  });
+
   useEffect(() => {
     return () => {
       if (pollRef.current) clearTimeout(pollRef.current);
@@ -85,7 +92,7 @@ export default function SpecExtractorPage() {
   useEffect(() => {
     if (sections.length > 0 && !hasInitializedSelection.current) {
       hasInitializedSelection.current = true;
-      setSelectedSections(new Set(sections.map(s => s.id)));
+      setSelectedSections(new Set(sections.filter(s => !s.isSignage).map(s => s.id)));
     }
 
     if (sections.length > 0) {
@@ -203,6 +210,9 @@ export default function SpecExtractorPage() {
       if (projectName.trim()) {
         formData.append("projectName", projectName.trim());
       }
+      if (selectedAccessories.size > 0) {
+        formData.append("selectedAccessories", JSON.stringify(Array.from(selectedAccessories)));
+      }
 
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 120000);
@@ -291,6 +301,19 @@ export default function SpecExtractorPage() {
     hasInitializedSelection.current = false;
     setEditingFolderId(null);
     setIsEditingProjectName(false);
+    setSelectedAccessories(new Set());
+  };
+
+  const toggleAccessory = (name: string) => {
+    setSelectedAccessories(prev => {
+      const next = new Set(prev);
+      if (next.has(name)) {
+        next.delete(name);
+      } else {
+        next.add(name);
+      }
+      return next;
+    });
   };
 
   const toggleSection = (id: string) => {
@@ -486,11 +509,16 @@ export default function SpecExtractorPage() {
     }
   };
 
-  const sortedSections = [...sections].sort((a, b) => a.sectionNumber.localeCompare(b.sectionNumber));
+  const div10Sections = sections.filter(s => s.sectionType !== "accessory");
+  const accessorySections = sections.filter(s => s.sectionType === "accessory");
+  const sortedDiv10 = [...div10Sections].sort((a, b) => a.sectionNumber.localeCompare(b.sectionNumber));
+  const sortedAccessory = [...accessorySections].sort((a, b) => a.sectionNumber.localeCompare(b.sectionNumber));
+  const sortedSections = [...sortedDiv10, ...sortedAccessory];
   const totalPages = sections.reduce((sum, s) => sum + s.pageCount, 0);
   const selectedCount = selectedSections.size;
   const allSelected = sections.length > 0 && selectedCount === sections.length;
   const someSelected = selectedCount > 0 && selectedCount < sections.length;
+  const signageCount = sections.filter(s => s.isSignage).length;
 
   return (
     <div className="min-h-[calc(100vh-4rem)]">
@@ -529,6 +557,62 @@ export default function SpecExtractorPage() {
                   AI will suggest a project name from the spec content if left blank
                 </p>
               </div>
+
+              {accessoryScopes.length > 0 && (
+                <div className="mx-auto max-w-2xl">
+                  <Label className="flex items-center gap-2 text-sm font-medium text-foreground mb-3">
+                    <Package className="h-4 w-4" />
+                    Accessory Scopes
+                    <span className="text-xs text-muted-foreground font-normal">(optional)</span>
+                  </Label>
+                  <p className="text-xs text-muted-foreground mb-3">
+                    Select accessory types to search for in the spec. Matched sections will be extracted alongside Division 10 sections.
+                  </p>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                    {accessoryScopes.map((scope) => {
+                      const isActive = selectedAccessories.has(scope.name);
+                      return (
+                        <button
+                          key={scope.name}
+                          type="button"
+                          onClick={() => toggleAccessory(scope.name)}
+                          className={cn(
+                            "flex items-center gap-2 rounded-md border px-3 py-2 text-left text-sm transition-colors",
+                            isActive
+                              ? "border-primary bg-primary/5 text-foreground"
+                              : "border-border text-muted-foreground hover-elevate"
+                          )}
+                          data-testid={`button-accessory-${scope.name.replace(/[\s\/]/g, "-").toLowerCase()}`}
+                        >
+                          <Checkbox
+                            checked={isActive}
+                            onCheckedChange={() => toggleAccessory(scope.name)}
+                            className="pointer-events-none"
+                            data-testid={`checkbox-accessory-${scope.name.replace(/[\s\/]/g, "-").toLowerCase()}`}
+                          />
+                          <div className="min-w-0">
+                            <span className="block truncate font-medium text-xs">{scope.name}</span>
+                            <span className="block truncate text-[10px] text-muted-foreground">{scope.sectionHint}</span>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {selectedAccessories.size > 0 && (
+                    <div className="mt-2 flex items-center gap-2">
+                      <Badge variant="secondary">{selectedAccessories.size} selected</Badge>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setSelectedAccessories(new Set())}
+                        data-testid="button-clear-accessories"
+                      >
+                        Clear
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              )}
 
               <div
                 onDragOver={handleDragOver}
@@ -699,9 +783,18 @@ export default function SpecExtractorPage() {
                     <ArrowLeft className="mr-2 h-4 w-4" />
                     New Extraction
                   </Button>
-                  <div className="flex items-center gap-2">
-                    <Badge variant="secondary" data-testid="badge-se-section-count">{sections.length} sections</Badge>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <Badge variant="secondary" data-testid="badge-se-section-count">{div10Sections.length} Div 10</Badge>
+                    {accessorySections.length > 0 && (
+                      <Badge variant="secondary" data-testid="badge-se-accessory-count">{accessorySections.length} Accessory</Badge>
+                    )}
                     <Badge variant="secondary" data-testid="badge-se-page-count">{totalPages} pages</Badge>
+                    {signageCount > 0 && (
+                      <Badge variant="outline" data-testid="badge-se-signage-excluded">
+                        <Ban className="mr-1 h-3 w-3" />
+                        {signageCount} signage excluded
+                      </Badge>
+                    )}
                     {selectedCount < sections.length && (
                       <Badge variant="outline" data-testid="badge-se-selected-count">{selectedCount} selected</Badge>
                     )}
@@ -828,14 +921,28 @@ export default function SpecExtractorPage() {
                     </span>
                   </div>
 
-                  {sortedSections.map((section) => {
+                  {sortedDiv10.length > 0 && accessorySections.length > 0 && (
+                    <div className="flex items-center gap-2 px-1 pt-1">
+                      <FileText className="h-4 w-4 text-muted-foreground" />
+                      <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Division 10 Sections</span>
+                    </div>
+                  )}
+
+                  {sortedSections.map((section, idx) => {
                     const isSelected = selectedSections.has(section.id);
                     const isPreviewing = previewSectionId === section.id;
                     const review = aiReviews.get(section.id);
                     const isEditingThisFolder = editingFolderId === section.id;
+                    const showAccessoryHeader = section.sectionType === "accessory" && (idx === 0 || sortedSections[idx - 1]?.sectionType !== "accessory");
 
                     return (
                       <div key={section.id}>
+                        {showAccessoryHeader && (
+                          <div className="flex items-center gap-2 px-1 pt-4 pb-1">
+                            <Package className="h-4 w-4 text-muted-foreground" />
+                            <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Accessory Sections</span>
+                          </div>
+                        )}
                         <Card
                           className={cn(
                             "transition-colors",
@@ -873,6 +980,24 @@ export default function SpecExtractorPage() {
                                     </div>
                                   </div>
                                   <div className="flex items-center gap-2 shrink-0">
+                                    {section.isSignage && (
+                                      <Badge variant="outline" className="shrink-0 text-muted-foreground">
+                                        <Ban className="mr-1 h-3 w-3" />
+                                        Signage
+                                      </Badge>
+                                    )}
+                                    {section.sectionType === "accessory" && (
+                                      <Badge variant="secondary" className="shrink-0">
+                                        <Package className="mr-1 h-3 w-3" />
+                                        Accessory
+                                      </Badge>
+                                    )}
+                                    {section.matchedKeywords && section.matchedKeywords.length > 0 && (
+                                      <Badge variant="outline" className="shrink-0">
+                                        <Tag className="mr-1 h-3 w-3" />
+                                        {section.matchedKeywords.join(", ")}
+                                      </Badge>
+                                    )}
                                     {review && review.status !== "correct" && (
                                       <Badge
                                         variant={review.status === "suggested_change" ? "default" : "secondary"}

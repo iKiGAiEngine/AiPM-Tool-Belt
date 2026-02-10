@@ -751,6 +751,7 @@ export const specExtractorSessions = pgTable("spec_extractor_sessions", {
   totalPages: integer("total_pages").notNull().default(0),
   tocStart: integer("toc_start"),
   tocEnd: integer("toc_end"),
+  selectedAccessories: jsonb("selected_accessories").$type<string[]>().default([]),
   createdAt: varchar("created_at", { length: 100 }).notNull(),
 });
 
@@ -766,6 +767,9 @@ export const specExtractorSections = pgTable("spec_extractor_sections", {
   aiReviewStatus: varchar("ai_review_status", { length: 50 }),
   aiReviewNotes: text("ai_review_notes"),
   originalTitle: varchar("original_title", { length: 500 }),
+  sectionType: varchar("section_type", { length: 50 }).notNull().default("div10"),
+  isSignage: boolean("is_signage").notNull().default(false),
+  matchedKeywords: jsonb("matched_keywords").$type<string[]>().default([]),
 });
 
 export const specExtractorSessionSchema = z.object({
@@ -779,6 +783,7 @@ export const specExtractorSessionSchema = z.object({
   totalPages: z.number(),
   tocStart: z.number().nullable().optional(),
   tocEnd: z.number().nullable().optional(),
+  selectedAccessories: z.array(z.string()).optional().default([]),
   createdAt: z.string(),
 });
 export type SpecExtractorSession = z.infer<typeof specExtractorSessionSchema>;
@@ -795,6 +800,9 @@ export const specExtractorSectionSchema = z.object({
   aiReviewStatus: z.string().nullable().optional(),
   aiReviewNotes: z.string().nullable().optional(),
   originalTitle: z.string().nullable().optional(),
+  sectionType: z.string().default("div10"),
+  isSignage: z.boolean().default(false),
+  matchedKeywords: z.array(z.string()).optional().default([]),
 });
 export type SpecExtractorSection = z.infer<typeof specExtractorSectionSchema>;
 

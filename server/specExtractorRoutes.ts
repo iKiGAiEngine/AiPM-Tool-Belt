@@ -3,7 +3,7 @@ import multer from "multer";
 import { db } from "./db";
 import { specExtractorSessions, specExtractorSections } from "@shared/schema";
 import { eq } from "drizzle-orm";
-import { runExtraction, extractSectionPdf, extractPages } from "./specExtractorEngine";
+import { runExtraction, extractSectionPdf, extractPages, isSignageSection, findAccessorySections, ACCESSORY_SCOPES } from "./specExtractorEngine";
 import JSZip from "jszip";
 import fs from "fs";
 import path from "path";
@@ -69,6 +69,13 @@ export function registerSpecExtractorRoutes(app: Express) {
 
       const sessionId = generateId();
       const projectName = (req.body.projectName as string)?.trim() || "";
+      let selectedAccessories: string[] = [];
+      try {
+        const raw = req.body.selectedAccessories;
+        if (raw) {
+          selectedAccessories = JSON.parse(raw);
+        }
+      } catch {}
       const now = new Date().toISOString();
 
       if (!fs.existsSync(DATA_DIR)) {
@@ -82,6 +89,7 @@ export function registerSpecExtractorRoutes(app: Express) {
         id: sessionId,
         filename: req.file.originalname,
         projectName,
+        selectedAccessories,
         status: "processing",
         progress: 0,
         message: "Starting extraction...",
@@ -93,6 +101,7 @@ export function registerSpecExtractorRoutes(app: Express) {
         id: sessionId,
         filename: req.file.originalname,
         projectName,
+        selectedAccessories,
         status: "processing",
         progress: 0,
         message: "Starting extraction...",
@@ -342,6 +351,14 @@ export function registerSpecExtractorRoutes(app: Express) {
     }
   });
 
+  app.get("/api/spec-extractor/accessory-scopes", (_req: Request, res: Response) => {
+    res.json(ACCESSORY_SCOPES.map(a => ({
+      name: a.name,
+      keywords: a.keywords,
+      sectionHint: a.sectionHint,
+    })));
+  });
+
   app.delete("/api/spec-extractor/sessions/:id", async (req: Request, res: Response) => {
     try {
       await db.delete(specExtractorSections).where(eq(specExtractorSections.sessionId, req.params.id));
@@ -520,8 +537,10 @@ async function processInBackground(sessionId: string, pdfBuffer: Buffer) {
 
     const [session] = await db.select().from(specExtractorSessions).where(eq(specExtractorSessions.id, sessionId));
     const projectName = session?.projectName || "Project";
+    const selectedAccessories = (session?.selectedAccessories as string[]) || [];
 
     for (const section of result.sections) {
+      const signage = isSignageSection(section.section);
       await db.insert(specExtractorSections).values({
         id: generateId(),
         sessionId,
@@ -531,7 +550,36 @@ async function processInBackground(sessionId: string, pdfBuffer: Buffer) {
         endPage: section.end,
         pageCount: section.end - section.start + 1,
         folderName: section.folderName,
+        sectionType: "div10",
+        isSignage: signage,
       });
+    }
+
+    if (selectedAccessories.length > 0) {
+      await db.update(specExtractorSessions)
+        .set({ progress: 80, message: "Scanning for accessory sections..." })
+        .where(eq(specExtractorSessions.id, sessionId));
+
+      const pages = await extractPages(pdfBuffer);
+      const accessoryMatches = findAccessorySections(pages, selectedAccessories, result.tocBounds, result.sections);
+
+      for (const match of accessoryMatches) {
+        await db.insert(specExtractorSections).values({
+          id: generateId(),
+          sessionId,
+          sectionNumber: match.sectionNumber,
+          title: match.title,
+          startPage: match.start,
+          endPage: match.end,
+          pageCount: match.end - match.start + 1,
+          folderName: match.folderName,
+          sectionType: "accessory",
+          isSignage: false,
+          matchedKeywords: match.matchedKeywords,
+        });
+      }
+
+      console.log(`[SpecExtractor] Found ${accessoryMatches.length} accessory matches for session ${sessionId}`);
     }
 
     await db.update(specExtractorSessions)
