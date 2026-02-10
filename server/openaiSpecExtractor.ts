@@ -46,31 +46,25 @@ export interface AISpecResult {
   modelUsed: string;
 }
 
-const SECTION_IDENT_PROMPT = `You are a construction specification parser specializing in Division 10 (Specialties) of CSI MasterFormat specs.
+const SECTION_IDENT_PROMPT = `You are a construction specification parser. Your ONLY job is to find ACTUAL Division 10 specification sections in the provided text.
 
-You will receive text extracted from pages of a specification document. Each page is labeled with its 1-based page number.
+CRITICAL RULES — FOLLOW EXACTLY:
+1. ONLY report sections whose number LITERALLY starts with "10" (Division 10 - Specialties). Examples: 102613, 104413, 101400, 102113, 102800, 104416.
+2. DO NOT report sections from other divisions. Numbers starting with 11, 12, 13, 14, etc. are NOT Division 10. For example: 122200 (Curtains) and 124813 (Entrance Mats) are Division 12, NOT Division 10 — do NOT include them.
+3. ONLY report a section if you can see its EXACT section number literally written in the text. DO NOT invent, guess, or infer section numbers.
+4. ONLY report sections that have actual body content — look for "PART 1 - GENERAL", "PART 2 - PRODUCTS", or "PART 3 - EXECUTION" markers. Do NOT report Table of Contents (TOC) entries.
+5. The section number you report MUST match EXACTLY what appears in the text (just reformat to "10 XX XX" spacing).
+6. If you find ZERO Division 10 sections, return {"sections": []}.
 
-Your task: Identify ALL Division 10 specification sections present. Division 10 sections have numbers starting with "10" followed by additional digits in formats like:
-- "10 21 13" (six digits, space-separated pairs)
-- "10 28 00" 
-- "10 44 16"
-- "SECTION 101400" or "SECTION 10 14 00"
+You will receive text from specification pages, each labeled with its 1-based page number.
 
-For each section you find, provide:
-- sectionNumber: Normalized to "10 XX XX" format (e.g., "10 21 13")
-- title: The section title (e.g., "Toilet Compartments", "Signage")
-- startPage: The page number where this section starts (1-based)
-- endPage: The page number where this section ends (1-based). Look for "END OF SECTION" markers or the start of the next section.
+For each Division 10 section found, provide:
+- sectionNumber: The literal number from the text, normalized to "10 XX XX" format
+- title: The exact title as written in the document
+- startPage: The page number where the section header appears
+- endPage: The page where "END OF SECTION" appears or where the next section begins
 
-IMPORTANT RULES:
-1. Only include Division 10 sections (numbers starting with 10).
-2. Do NOT include Table of Contents entries — only actual specification sections with body text containing PART 1, PART 2, or PART 3.
-3. A real section will have structured content like "PART 1 - GENERAL", "PART 2 - PRODUCTS", "PART 3 - EXECUTION", manufacturer listings, material specs, etc.
-4. Normalize all section numbers to "10 XX XX" format with spaces.
-5. If a section spans multiple pages, the startPage is where the header appears and endPage is where "END OF SECTION" appears or where the next section begins.
-6. Do not duplicate sections. If the same section number appears in a TOC and as an actual section, only report the actual section.
-
-Return ONLY valid JSON, no markdown fences, no explanation.
+Return ONLY valid JSON. No markdown fences, no explanation.
 Response schema: { "sections": [{ "sectionNumber": "10 XX XX", "title": "Section Title", "startPage": number, "endPage": number }] }`;
 
 const DETAIL_EXTRACTION_PROMPT = `You are a construction specification analyst specializing in Division 10 (Specialties).
@@ -164,6 +158,71 @@ function canonizeSection(raw: string): string {
   return raw.trim();
 }
 
+function verifySectionInText(pages: string[], sectionNumber: string, startPage: number, endPage: number): boolean {
+  const digits = sectionNumber.replace(/\s/g, "");
+  if (digits.length < 4) return false;
+
+  const d1 = digits.slice(0, 2);
+  const d2 = digits.slice(2, 4);
+  const d3 = digits.length >= 6 ? digits.slice(4, 6) : "00";
+
+  const searchStart = Math.max(0, startPage - 3);
+  const searchEnd = Math.min(pages.length - 1, endPage + 1);
+  const searchText = pages.slice(searchStart, searchEnd + 1).join("\n");
+
+  const compact = `${d1}${d2}${d3}`;
+  if (searchText.includes(compact)) return true;
+
+  const spaced = `${d1} ${d2} ${d3}`;
+  if (searchText.includes(spaced)) return true;
+
+  const dashed = `${d1}-${d2}-${d3}`;
+  if (searchText.includes(dashed)) return true;
+
+  const dotted = `${d1}.${d2}.${d3}`;
+  if (searchText.includes(dotted)) return true;
+
+  if (d3 === "00") {
+    const short4 = `${d1}${d2}`;
+    const looseShort = new RegExp(
+      `(?:SECTION\\s+)?${d1}[\\s\\-\\._]*${d2}(?:\\s|$|[\\-\\._])`,
+      "gm"
+    );
+    if (looseShort.test(searchText)) return true;
+  }
+
+  const loosePattern = new RegExp(
+    d1 + "[\\s\\-\\._]*" + d2 + "[\\s\\-\\._]*" + d3,
+    "g"
+  );
+  if (loosePattern.test(searchText)) return true;
+
+  return false;
+}
+
+function verifyHeaderOnPage(pages: string[], sectionNumber: string, startPage: number): boolean {
+  const pageIdx = Math.max(0, startPage - 1);
+  if (pageIdx >= pages.length) return false;
+
+  const digits = sectionNumber.replace(/\s/g, "");
+  const pageText = pages[pageIdx];
+
+  const headerPattern = new RegExp(
+    `(?:SECTION\\s+)?` + 
+    digits.slice(0, 2) + `[\\s\\-\\._]*` +
+    digits.slice(2, 4) + `[\\s\\-\\._]*` +
+    (digits.length >= 6 ? digits.slice(4, 6) : `(?:\\d{2})?`),
+    "i"
+  );
+
+  if (headerPattern.test(pageText)) return true;
+
+  if (pageIdx + 1 < pages.length && headerPattern.test(pages[pageIdx + 1])) return true;
+  if (pageIdx - 1 >= 0 && headerPattern.test(pages[pageIdx - 1])) return true;
+
+  return false;
+}
+
 export async function identifySectionsWithAI(
   pages: string[],
   onProgress?: (progress: number, message: string) => void
@@ -190,8 +249,20 @@ export async function identifySectionsWithAI(
       if (parsed) {
         for (const sec of parsed.sections) {
           const canon = canonizeSection(sec.sectionNumber);
-          if (!canon.startsWith("10 ")) continue;
+          if (!canon.startsWith("10 ")) {
+            console.log(`[AI SpecSift] REJECTED non-Div10: ${sec.sectionNumber} (${sec.title})`);
+            continue;
+          }
           if (allSections.some(s => s.sectionNumber === canon)) continue;
+
+          if (!verifySectionInText(pages, canon, sec.startPage, sec.endPage)) {
+            console.log(`[AI SpecSift] REJECTED hallucination: ${canon} - "${sec.title}" (number not found literally in PDF text near pages ${sec.startPage}-${sec.endPage})`);
+            continue;
+          }
+
+          if (!verifyHeaderOnPage(pages, canon, sec.startPage)) {
+            console.log(`[AI SpecSift] WARNING: ${canon} - header not found on declared start page ${sec.startPage}, accepting but flagging`);
+          }
 
           allSections.push({
             sectionNumber: canon,
@@ -199,7 +270,7 @@ export async function identifySectionsWithAI(
             startPage: sec.startPage,
             endPage: sec.endPage,
           });
-          console.log(`[AI SpecSift] Identified: ${canon} - ${sec.title} (pages ${sec.startPage}-${sec.endPage})`);
+          console.log(`[AI SpecSift] VERIFIED: ${canon} - ${sec.title} (pages ${sec.startPage}-${sec.endPage})`);
         }
       }
     } catch (err) {
