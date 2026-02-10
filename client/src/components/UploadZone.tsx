@@ -29,6 +29,10 @@ export function UploadZone({ onUpload, isUploading }: UploadZoneProps) {
       setError("Please upload a PDF file");
       return false;
     }
+    if (file.size === 0) {
+      setError("This file appears to be empty (0 bytes). Please re-select or try a different file.");
+      return false;
+    }
     if (file.size > 100 * 1024 * 1024) {
       setError("File size must be less than 100MB");
       return false;

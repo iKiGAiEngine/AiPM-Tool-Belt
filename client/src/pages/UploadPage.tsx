@@ -33,21 +33,48 @@ export default function UploadPage() {
 
   const uploadMutation = useMutation({
     mutationFn: async ({ file, projectName }: { file: File; projectName: string }) => {
+      if (file.size === 0) {
+        throw new Error("File is empty (0 bytes). Please re-select the file.");
+      }
+
       const formData = new FormData();
       formData.append("file", file);
       formData.append("projectName", projectName || "Untitled Project");
       
-      const response = await fetch("/api/upload", {
-        method: "POST",
-        body: formData,
-      });
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 120000);
       
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.message || "Upload failed");
+      try {
+        const response = await fetch("/api/upload", {
+          method: "POST",
+          body: formData,
+          signal: controller.signal,
+        });
+        
+        clearTimeout(timeoutId);
+        
+        if (!response.ok) {
+          let errorMessage = "Upload failed";
+          try {
+            const error = await response.json();
+            errorMessage = error.message || errorMessage;
+          } catch {
+            errorMessage = `Server error (${response.status})`;
+          }
+          throw new Error(errorMessage);
+        }
+        
+        return response.json() as Promise<Session>;
+      } catch (err: unknown) {
+        clearTimeout(timeoutId);
+        if (err instanceof DOMException && err.name === "AbortError") {
+          throw new Error("Upload timed out. The file may be too large. Try opening the app in a new browser tab instead of the embedded preview.");
+        }
+        if (err instanceof TypeError && (err.message === "Failed to fetch" || err.message.includes("NetworkError"))) {
+          throw new Error("Network error during upload. Try opening the app in a new browser tab (click the icon in the top-right of the preview) and upload from there.");
+        }
+        throw err;
       }
-      
-      return response.json() as Promise<Session>;
     },
     onSuccess: (session) => {
       setActiveSession(session);
