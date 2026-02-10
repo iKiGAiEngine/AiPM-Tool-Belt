@@ -1,108 +1,59 @@
 # AiPM Tool Belt - Your Ai Assisted APM
 
 ## Overview
-
-AiPM Tool Belt is a suite of AI-assisted construction document processing tools designed to streamline project creation, specification extraction, plan classification, and quote parsing. The project aims to automate tedious manual tasks in the construction industry, improving efficiency and accuracy in managing project documentation. Key capabilities include a unified project creation workflow, automated extraction of Division 10 specifications (SpecSift), OCR-based classification of construction plan pages (Plan Parser), and structured parsing of vendor quotes (Quote Parser). The system supports a spec-informed second pass for Plan Parser, leveraging extracted specification data to enhance plan classification, and offers robust export functionalities for organized project documentation.
+AiPM Tool Belt is an AI-assisted suite of construction document processing tools. It streamlines project creation, extracts specifications, classifies plans, and parses vendor quotes. The project aims to automate manual tasks in the construction industry, enhancing efficiency and accuracy in managing project documentation. Key capabilities include a unified project creation workflow, automated extraction of Division 10 specifications (SpecSift), OCR-based classification of construction plan pages (Plan Parser), and structured parsing of vendor quotes (Quote Parser). The system supports a spec-informed second pass for Plan Parser and offers robust export functionalities.
 
 ## User Preferences
-
 Preferred communication style: Simple, everyday language.
 
 ## System Architecture
 
-### Frontend Architecture
-The frontend is built with **React 18** and **TypeScript**, using **Wouter** for routing and **TanStack React Query** for server state management. Styling is handled with **Tailwind CSS** and **CSS variables** for theming (light/dark mode). **shadcn/ui** provides a component library based on Radix UI primitives. The build process uses **Vite**. The UI follows a page-based structure for different tools like Project Start, SpecSift, Plan Parser, and Quote Parser, emphasizing data clarity and a professional construction industry aesthetic. Typography uses Inter and JetBrains Mono.
+### Frontend
+The frontend uses React 18 with TypeScript, Wouter for routing, and TanStack React Query for state management. Styling is handled with Tailwind CSS and CSS variables for theming, using shadcn/ui for components. The build process uses Vite. The UI follows a page-based structure for tools like Project Start, SpecSift, Plan Parser, and Quote Parser, prioritizing data clarity and a professional aesthetic with Inter and JetBrains Mono typography.
 
-### Backend Architecture
-The backend is an **Express.js** application written in **TypeScript**. It uses **Multer** for PDF uploads (in-memory, 100MB limit) and **pdf-parse** for PDF text extraction. APIs are RESTful under `/api/`. Key modules include `pdfParser.ts` for spec section parsing, and `planparser/` for OCR processing with **tesseract.js** and keyword-based classification.
+### Backend
+The backend is an Express.js application written in TypeScript. It uses Multer for PDF uploads and pdf-parse for PDF text extraction. APIs are RESTful. Key modules include `pdfParser.ts` for spec section parsing and `planparser/` for OCR processing with tesseract.js and keyword-based classification.
 
 ### Data Storage
-All data is now stored in **PostgreSQL** via **Drizzle ORM**. The following tables exist:
-- **sessions**: SpecSift processing sessions
-- **extracted_sections**: Spec sections extracted by SpecSift (with manufacturers, models, materials)
-- **accessory_matches**: Matched accessory scopes from specs
-- **plan_parser_jobs**: Plan Parser job metadata (status, page counts, scope counts)
-- **parsed_pages**: Individual plan page OCR results and classifications
-- **projects**, **project_scopes**, **project_id_sequence**: Project management
-- **scope_dictionaries**, **regions**: Settings/configuration
-- **vendors**, **div10_products**, **model_suffix_decoders**, **special_line_rules**, **specsift_config**, **plan_index**: Additional configuration tables
-PDF buffers and templates are stored on the persistent filesystem (`data/specsift_pdfs/` for specs, `data/planparser_jobs/` for plans, `data/templates/folders/` for folder templates, `data/templates/estimates/` for estimate templates) to survive server restarts. The `data/` directory is gitignored.
+All data is stored in PostgreSQL via Drizzle ORM. Tables include `sessions`, `extracted_sections`, `accessory_matches`, `plan_parser_jobs`, `parsed_pages`, `projects`, `project_scopes`, `scope_dictionaries`, `regions`, `vendors`, `div10_products`, and various configuration tables. PDF buffers and templates are stored on the persistent filesystem to survive server restarts.
 
 ### Core Logic
-- **Spec Extraction**: Dual-mode spec extraction controlled by `SPEC_EXTRACTOR_URL` environment variable. When set, specs are sent to the external Spec Extractor app (`POST /webhook`) which returns extracted Division 10 sections with section numbers, titles, scopes, and page ranges. Results are mapped into AiPM's `extracted_sections` and `project_scopes` tables. Falls back to the built-in SpecSift parser (TOC detection, zone-based scanning, multi-line title parsing) when the env var is not configured. The Project Start progress overlay and Project Detail page include an "Open Spec Extractor" button that opens the external app in a new window for full interactive review (section selection, ZIP export). The `GET /api/config/spec-extractor` endpoint provides the configured URL to the frontend.
-- **Plan Parser**: Uses keyword-based scoring with configurable scope dictionaries, signage exclusion, and millwork filtering for classification. It incorporates an OCR fallback for pages with insufficient embedded text.
-- **Quote Parser**: Parses vendor quotes into a structured 6-column estimate table, featuring schedule matching with confidence scoring, vendor auto-detection, manufacturer and quote number extraction, and flexible freight handling.
-- **Project Start System**: Manages project creation, generates unique project IDs, sets up standardized folder structures, and orchestrates the sequential processing of plans and specs through SpecSift and Plan Parser, including a spec-informed second pass.
-- **Central Settings Hub**: Provides an administrative interface for managing scope dictionaries, regional identifiers, vendor profiles, and a Division 10 product dictionary, allowing for dynamic configuration without code changes.
+- **Spec Extraction**: Supports dual-mode extraction, either via an external Spec Extractor app or a built-in SpecSift parser (TOC detection, zone-based scanning).
+- **Plan Parser**: Employs keyword-based scoring with configurable scope dictionaries, signage exclusion, millwork filtering, and an OCR fallback. Features include baseline snapshots and a spec-pass comparison view for results.
+- **Quote Parser**: Parses vendor quotes into a structured 6-column estimate table, including schedule matching, vendor auto-detection, and manufacturer/quote number extraction.
+- **Project Start System**: Manages project creation, generates unique IDs, sets up folder structures, and orchestrates sequential processing of plans and specs, including an optional spec-informed second pass. Supports flexible project creation where plans and specs are optional.
+- **Central Settings Hub**: Provides an administrative interface for managing scope dictionaries, regional identifiers, vendor profiles, and a Division 10 product dictionary.
+- **Template Management**: Includes Folder Template Manager and Estimate File Template Manager for uploading and versioning standard project structures and Excel templates. Supports Excel stamping with project data.
+- **Project Log**: A dedicated page displays all projects in a sortable/filterable table with detailed status and export options.
+- **Schedule Converter**: A tool tile for converting schedule screenshots into structured data using AI vision models (OpenAI GPT-4o-mini/GPT-4o) for extraction, with a Tesseract.js OCR fallback. It provides confidence scores, flags for review, and interactive inline editing.
+- **Test Mode**: A toggleable feature for creating and managing test projects, allowing for data isolation and easy cleanup of test data.
+- **Processing Indicators**: Dynamic progress overlays, friendly status labels, and a header indicator show the real-time status of project processing.
 
 ### Project Export
-- **Download Project Folder**: `GET /api/projects/:id/download-folder` zips the entire project directory from disk (template folders, stamped estimate, uploaded files) and returns it as a downloadable ZIP. This is the primary output action — available immediately after project creation on the Project Start completion screen, and always available on the Project Detail page. Designed for users to drop the folder into their local 2026 project estimate folder structure.
-- **ZIP Export**: `GET /api/projects/:id/export` generates a ZIP containing spec extract PDFs per section, plan pages organized by scope as PDFs, and text summaries (spec summary, plan summary, project summary). Available from the Project Detail page when processing is complete.
-- **Bookmarked PDF**: `GET /api/projects/:id/bookmarked-pdf` generates a single PDF with all relevant plan pages, bookmarked by scope name using pdf-lib low-level outline API for easy navigation in PDF readers.
-- **Per-Scope PDF**: `GET /api/projects/:id/scope-pdf/:scopeName` downloads individual scope's pages as a standalone PDF without needing the full ZIP.
-- **Plan Pages API**: `GET /api/projects/:id/plan-pages` returns all parsed page data for the project's Plan Parser job, used by the Project Detail page to show per-scope breakdowns.
-- **PDF Extraction**: Uses pdf-lib to extract page ranges from source PDFs for both spec sections and plan pages by scope.
-
-### Phase 4 Features (Plan Parser Upgrades)
-- **Baseline Snapshot**: When Plan Parser baseline completes, `baselineScopeCounts` and `baselineFlaggedPages` are saved to the project record for later comparison.
-- **Spec-Pass Comparison View**: After the spec-informed second pass completes, the Project Detail page shows side-by-side comparison of baseline vs. current results, including per-scope page count changes, new scopes found, and removed scopes.
-- **Expandable Plan Results**: The Project Detail page now shows a "Plan Parser Results" card with per-scope sections that expand to show individual pages with confidence scores and classification reasons.
-- **Per-Scope Downloads**: Each scope in the results section has a download button to get just that scope's pages as a PDF.
-- **Bookmarked PDF Button**: A "Bookmarked PDF" button generates a single navigable PDF with all relevant pages organized by scope bookmarks.
-
-### Phase 5 Features (Templates & Project Log)
-- **Folder Template Manager**: Settings tab for uploading ZIP files representing standard estimate folder structures. Supports versioning (v1, v2...) with active template selection. The active template is automatically extracted when creating new projects.
-- **Estimate File Template Manager**: Settings tab for uploading Excel estimate templates (.xlsx/.xlsm). Supports versioning, sheet name preview, and configurable stamp mappings that map project fields to specific cells (e.g., `Summary Sheet!AB1` = Project ID / Bid ID).
-- **Excel Stamping**: When a new project is created, the active estimate template is copied and stamped with project data (Bid ID, Name, Region, Due Date) into configured cells. Default mapping: `Summary Sheet!AB1` = Project ID.
-- **Project Log**: Dedicated page showing all projects in a sortable/filterable table with columns: Bid ID, Project Name, Region, Due Date, Status, Created At, Notes. Supports export to CSV and XLSX formats.
-- **Template API**: Full CRUD endpoints under `/api/templates/folders/` and `/api/templates/estimates/` for managing template versions, activation, and file downloads.
-
-### Test Mode (Phase 7)
-- **Toggle**: Switch in the app Header enables/disables Test Mode, persisted in localStorage via `TestModeProvider` (client/src/lib/testMode.tsx).
-- **Visual Indicator**: Amber banner below header when active: "Test Mode Active — Projects created now will be tagged as test data."
-- **Data Tagging**: Projects created in Test Mode have `isTest=true` in the database (`projects.is_test` column).
-- **Filtering**: `GET /api/projects` excludes test projects by default. Pass `?includeTest=true` to include them. When Test Mode is on, the frontend automatically includes test projects in views.
-- **Test Badge**: Test projects show an amber "Test" badge in the Home page recent projects list and the Project Log table.
-- **Clear Test Data**: `POST /api/projects/clear-test-data` deletes all test projects with full cleanup (sessions, jobs, scopes, plan index, files). "Clear Test Data" button appears on HomePage and Project Log when Test Mode is on and test projects exist.
-- **Data Isolation**: Each project is fully self-contained — no cross-contamination between projects.
-
-### Phase 8 Features (Flexible Project Creation & Background Tracking)
-- **Optional Plans & Specs**: Project Start no longer requires both plans and specs. Users can create a folder-only project (name, region, due date), or upload just plans, just specs, or both. The backend conditionally runs SpecSift and/or Plan Parser based on what files are uploaded.
-- **Adaptive Progress Overlay**: The progress overlay dynamically shows only the relevant steps based on which files were uploaded. Folder-only shows just "Setting Up Project" → Complete. Specs-only adds the SpecSift step. Plans-only adds the Plan Parser step. Both files show all steps.
-- **Status `folder_only`**: Projects created without any documents get status `folder_only` and are immediately marked complete.
-- **Friendly Status Labels**: Home page and Project Log show human-readable status labels ("Processing Specs", "Complete", "Folder Only", etc.) instead of raw database values like "planparser_baseline_complete".
-- **Processing Indicator in Header**: When any project is actively processing, a yellow spinning indicator appears in the header showing "N processing". Clicking it navigates to the first processing project. Auto-refreshes every 10 seconds.
-- **Improved Error Messages**: The progress overlay now distinguishes between creation failures and processing failures, showing "Processing Error" with a "View Project" button when the project was created but processing failed.
-
-### Schedule Converter (Phase 9)
-- **Tool Tile**: "Schedule → Estimate Converter" tile on home page, route `/schedule-converter`.
-- **Image Upload**: Drag-and-drop PNG/JPG/WebP schedule screenshots (20MB limit via multer).
-- **OCR Extraction**: Uses Tesseract.js (separate worker from Plan Parser) to OCR schedule images, then rule-based parser extracts plan callouts, descriptions, manufacturers, model numbers, and quantities.
-- **Model Number Rules**: Combines Manufacturer + Model by default (e.g., "Kohler K-14367-CP"). Bobrick exception: if model starts with "B-", outputs model only (e.g., "B-2621"). Flags missing manufacturer/model.
-- **Confidence & Flags**: Each row gets 0-100 confidence score. Flags include: "Callout uncertain", "Model uncertain", "Quantity uncertain", "Manufacturer missing", "Model missing", "Possible duplicate callout". Rows with confidence < 90 auto-flagged for review.
-- **Review Table**: Interactive table with inline editing, review checkboxes, confidence badges. Users can edit any field directly.
-- **Copy/Paste Output**: "Copy All (TSV)" copies all rows, "Approve & Copy" copies only non-flagged rows. TSV format: `PLAN CALLOUT\tDESCRIPTION\tMODEL NUMBER\tITEM QUANTITY` for direct paste into Excel.
-- **Raw OCR Debug**: Collapsible section shows raw OCR text for debugging.
-- **API**: `POST /api/schedule-converter/extract` accepts image file, returns `{ items: ScheduleItem[], rawText, processingTimeMs }`.
-- **Known Manufacturers List**: Built-in list of ~40 common construction manufacturers for intelligent field splitting when OCR loses column spacing.
+The system provides various export functionalities:
+- **Download Project Folder**: Zips the entire project directory.
+- **ZIP Export**: Generates a ZIP with spec extract PDFs, plan pages organized by scope, and text summaries.
+- **Bookmarked PDF**: Creates a single navigable PDF with plan pages bookmarked by scope name.
+- **Per-Scope PDF**: Downloads individual scope's pages as a standalone PDF.
 
 ### Design System
-A system-based design approach, inspired by Linear/Notion, is utilized. It features a consistent typography (Inter, JetBrains Mono) and spacing primitives, aiming for a professional aesthetic suitable for the construction industry.
+A system-based design approach, inspired by Linear/Notion, features consistent typography (Inter, JetBrains Mono) and spacing for a professional aesthetic.
 
 ## External Dependencies
 
 ### Core Libraries
-- **pdfjs-dist**: PDF text extraction and page parsing (Node.js).
+- **pdfjs-dist**: PDF text extraction.
 - **pdf-lib**: PDF page extraction and document assembly.
-- **tesseract.js**: OCR engine for image text extraction.
-- **canvas**: Node.js canvas implementation for PDF rendering.
-- **Drizzle ORM**: Database toolkit (PostgreSQL ready).
+- **tesseract.js**: OCR engine.
+- **canvas**: Node.js canvas implementation.
+- **Drizzle ORM**: PostgreSQL ORM.
 - **Zod**: Schema validation.
 - **TanStack Query**: Asynchronous state management.
-- **ExcelJS**: Excel file reading and writing (server-side template stamping).
-- **xlsx**: Excel file generation (client-side XLSX export).
-- **JSZip**: ZIP file generation and extraction.
+- **ExcelJS**: Excel file reading/writing (server-side).
+- **xlsx**: Excel file generation (client-side).
+- **JSZip**: ZIP file generation.
 - **file-saver**: Client-side file downloads.
+- **OpenAI GPT-4o-mini/GPT-4o**: AI vision model for schedule extraction.
 
 ### UI Components
 - **Radix UI**: Accessible component primitives.
@@ -111,9 +62,9 @@ A system-based design approach, inspired by Linear/Notion, is utilized. It featu
 - **class-variance-authority**: Component variant management.
 
 ### Development Tools
-- **Vite**: Frontend build and dev server.
+- **Vite**: Frontend build.
 - **esbuild**: Server bundling.
-- **TypeScript**: For type safety.
+- **TypeScript**: Type safety.
 
 ### Database
-- **PostgreSQL**: Utilized via `connect-pg-simple` for session storage. Requires `DATABASE_URL` environment variable.
+- **PostgreSQL**: Used for data storage via `connect-pg-simple`.

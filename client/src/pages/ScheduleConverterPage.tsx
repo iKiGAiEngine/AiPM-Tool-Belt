@@ -47,6 +47,8 @@ interface ExtractionResult {
   items: ScheduleItem[];
   rawText: string;
   processingTimeMs: number;
+  modelUsed?: string;
+  retried?: boolean;
 }
 
 export default function ScheduleConverterPage() {
@@ -73,7 +75,7 @@ export default function ScheduleConverterPage() {
     mutationFn: async (file: File) => {
       const formData = new FormData();
       formData.append("image", file);
-      const response = await fetch("/api/schedule-converter/extract", {
+      const response = await fetch("/api/toolbelt/schedule-to-estimate", {
         method: "POST",
         body: formData,
       });
@@ -86,9 +88,11 @@ export default function ScheduleConverterPage() {
     onSuccess: (data) => {
       setResult(data);
       setEditedItems(data.items.map(item => ({ ...item })));
+      const modelInfo = data.modelUsed ? ` via ${data.modelUsed}` : "";
+      const retriedInfo = data.retried ? " (auto-upgraded)" : "";
       toast({
         title: "Schedule Extracted",
-        description: `Found ${data.items.length} line item${data.items.length !== 1 ? "s" : ""} in ${(data.processingTimeMs / 1000).toFixed(1)}s`,
+        description: `Found ${data.items.length} line item${data.items.length !== 1 ? "s" : ""} in ${(data.processingTimeMs / 1000).toFixed(1)}s${modelInfo}${retriedInfo}`,
       });
     },
     onError: (error: Error) => {
@@ -509,11 +513,14 @@ export default function ScheduleConverterPage() {
               <Card className="p-4">
                 <details>
                   <summary className="cursor-pointer text-sm font-medium text-muted-foreground" data-testid="toggle-raw-text">
-                    Raw OCR Text ({result.rawText.length} characters)
+                    Extraction Details
                   </summary>
-                  <pre className="mt-3 p-3 bg-muted/50 rounded-md text-xs font-mono whitespace-pre-wrap max-h-60 overflow-y-auto" data-testid="text-raw-ocr">
-                    {result.rawText}
-                  </pre>
+                  <div className="mt-3 p-3 bg-muted/50 rounded-md text-xs font-mono space-y-1">
+                    <p>Model: {result.modelUsed || "unknown"}</p>
+                    <p>Items extracted: {result.items.length}</p>
+                    <p>Processing time: {(result.processingTimeMs / 1000).toFixed(1)}s</p>
+                    {result.retried && <p className="text-amber-600 dark:text-amber-400">Auto-upgraded model for better accuracy</p>}
+                  </div>
                 </details>
               </Card>
             )}
@@ -524,10 +531,10 @@ export default function ScheduleConverterPage() {
           <Card className="p-8 text-center">
             <Loader2 className="w-8 h-8 animate-spin text-primary mx-auto mb-4" />
             <p className="text-muted-foreground">
-              Running OCR on your schedule screenshot...
+              Analyzing schedule with AI vision...
             </p>
             <p className="text-xs text-muted-foreground mt-1">
-              This may take 10-30 seconds depending on image size
+              This may take 5-15 seconds
             </p>
           </Card>
         )}
