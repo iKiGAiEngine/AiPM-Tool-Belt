@@ -1,4 +1,7 @@
 import * as pdfjsLib from "pdfjs-dist/legacy/build/pdf.mjs";
+import path from "path";
+
+const STANDARD_FONT_DATA_URL = path.join(process.cwd(), "node_modules/pdfjs-dist/standard_fonts/");
 
 // Returns full text and also per-page text array for zone-based scanning
 interface PdfData {
@@ -9,7 +12,11 @@ interface PdfData {
 
 async function pdf(buffer: Buffer): Promise<PdfData> {
   const data = new Uint8Array(buffer);
-  const loadingTask = pdfjsLib.getDocument({ data });
+  const loadingTask = pdfjsLib.getDocument({
+    data,
+    standardFontDataUrl: STANDARD_FONT_DATA_URL,
+    useSystemFonts: true,
+  });
   const pdfDoc = await loadingTask.promise;
   const numPages = pdfDoc.numPages;
   

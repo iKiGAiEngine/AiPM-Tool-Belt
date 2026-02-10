@@ -1,5 +1,8 @@
 import * as pdfjsLib from "pdfjs-dist/legacy/build/pdf.mjs";
 import { PDFDocument } from "pdf-lib";
+import path from "path";
+
+const STANDARD_FONT_DATA_URL = path.join(process.cwd(), "node_modules/pdfjs-dist/standard_fonts/");
 
 export interface ExtractedHeader {
   section: string;
@@ -414,7 +417,11 @@ function makeRangesFromHeaders(headers: ExtractedHeader[], totalPages: number, p
 
 export async function extractPages(pdfBuffer: Buffer): Promise<string[]> {
   const uint8 = new Uint8Array(pdfBuffer);
-  const loadingTask = pdfjsLib.getDocument({ data: uint8 });
+  const loadingTask = pdfjsLib.getDocument({
+    data: uint8,
+    standardFontDataUrl: STANDARD_FONT_DATA_URL,
+    useSystemFonts: true,
+  });
   const pdfDoc = await loadingTask.promise;
   const numPages = pdfDoc.numPages;
 

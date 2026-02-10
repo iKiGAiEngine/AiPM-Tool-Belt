@@ -11,6 +11,8 @@ import { PLAN_PARSER_SCOPES } from "@shared/schema";
 
 pdfjs.GlobalWorkerOptions.workerSrc = "";
 
+const STANDARD_FONT_DATA_URL = path.join(process.cwd(), "node_modules/pdfjs-dist/standard_fonts/");
+
 interface ProcessingOptions {
   onProgress?: (processed: number, total: number, message: string) => void;
 }
@@ -83,7 +85,7 @@ export async function processJob(
     for (const { filename, buffer } of pdfBuffers) {
       try {
         const uint8Array = new Uint8Array(buffer);
-        const doc = await pdfjs.getDocument({ data: uint8Array }).promise;
+        const doc = await pdfjs.getDocument({ data: uint8Array, standardFontDataUrl: STANDARD_FONT_DATA_URL, useSystemFonts: true }).promise;
         totalPages += doc.numPages;
         pdfDocs.push({ filename, doc });
       } catch (error) {
