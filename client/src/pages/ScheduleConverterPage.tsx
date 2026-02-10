@@ -57,6 +57,17 @@ export default function ScheduleConverterPage() {
   const [editedItems, setEditedItems] = useState<ScheduleItem[]>([]);
   const [editingRow, setEditingRow] = useState<number | null>(null);
   const [editDraft, setEditDraft] = useState<Partial<ScheduleItem>>({});
+  const [isFocused, setIsFocused] = useState(false);
+
+  const handleImageFile = useCallback((file: File) => {
+    setImageFile(file);
+    setResult(null);
+    setEditedItems([]);
+    setEditingRow(null);
+    const reader = new FileReader();
+    reader.onload = (e) => setImagePreview(e.target?.result as string);
+    reader.readAsDataURL(file);
+  }, []);
 
   const extractMutation = useMutation({
     mutationFn: async (file: File) => {
@@ -94,17 +105,24 @@ export default function ScheduleConverterPage() {
     maxFiles: 1,
     onDrop: (files: File[]) => {
       if (files.length > 0) {
-        const file = files[0];
-        setImageFile(file);
-        setResult(null);
-        setEditedItems([]);
-        setEditingRow(null);
-        const reader = new FileReader();
-        reader.onload = (e) => setImagePreview(e.target?.result as string);
-        reader.readAsDataURL(file);
+        handleImageFile(files[0]);
       }
     },
+    noKeyboard: true,
   });
+
+  const handlePaste = useCallback((e: React.ClipboardEvent) => {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+    for (const item of Array.from(items)) {
+      if (item.type.startsWith("image/")) {
+        e.preventDefault();
+        const file = item.getAsFile();
+        if (file) handleImageFile(file);
+        return;
+      }
+    }
+  }, [handleImageFile]);
 
   const startEdit = (idx: number) => {
     setEditingRow(idx);
@@ -214,11 +232,17 @@ export default function ScheduleConverterPage() {
           </div>
           <div
             {...dropzone.getRootProps()}
-            className={`border-2 border-dashed rounded-md p-8 text-center cursor-pointer transition-colors ${
+            tabIndex={0}
+            onFocus={() => setIsFocused(true)}
+            onBlur={() => setIsFocused(false)}
+            onPaste={handlePaste}
+            className={`border-2 border-dashed rounded-md p-8 text-center cursor-pointer transition-all duration-200 outline-none ${
               dropzone.isDragActive
-                ? "border-primary bg-primary/5"
+                ? "border-primary bg-primary/10 ring-2 ring-primary/30"
                 : imageFile
                 ? "border-green-500 bg-green-50 dark:bg-green-950/30"
+                : isFocused
+                ? "border-primary bg-primary/5 ring-2 ring-primary/20"
                 : "border-border hover:border-primary/50"
             }`}
             data-testid="dropzone-schedule"
@@ -255,10 +279,13 @@ export default function ScheduleConverterPage() {
               <div className="flex flex-col items-center gap-2">
                 <Upload className="w-8 h-8 text-muted-foreground" />
                 <p className="text-muted-foreground">
-                  Drop schedule screenshot or click to upload
+                  Drop schedule screenshot or click to upload, or press <kbd className="px-1.5 py-0.5 rounded bg-muted text-xs font-mono">Ctrl+V</kbd> to paste
                 </p>
                 <p className="text-xs text-muted-foreground">
                   PNG, JPG, WebP, BMP, or TIFF
+                </p>
+                <p className="text-xs text-muted-foreground/60 mt-1">
+                  Click this area first, then Ctrl+V
                 </p>
               </div>
             )}

@@ -679,11 +679,12 @@ export default function ProjectStartPage() {
           <CardContent>
             {!screenshotPreview ? (
               <div
+                tabIndex={0}
                 className={cn(
-                  "border-2 border-dashed rounded-md p-6 text-center cursor-pointer transition-colors",
+                  "border-2 border-dashed rounded-md p-6 text-center cursor-pointer transition-all duration-200 outline-none",
                   screenshotDragging
-                    ? "border-primary bg-primary/5"
-                    : "border-border hover-elevate"
+                    ? "border-primary bg-primary/10 ring-2 ring-primary/30"
+                    : "border-border hover-elevate focus:border-primary focus:bg-primary/5 focus:ring-2 focus:ring-primary/20"
                 )}
                 onDragOver={(e) => {
                   e.preventDefault();
@@ -716,6 +717,9 @@ export default function ProjectStartPage() {
                 <Camera className="w-8 h-8 mx-auto mb-2 text-muted-foreground" />
                 <p className="text-sm text-muted-foreground">
                   Drop a screenshot here, click to browse, or press <kbd className="px-1.5 py-0.5 rounded bg-muted text-xs font-mono">Ctrl+V</kbd> to paste
+                </p>
+                <p className="text-xs text-muted-foreground/60 mt-1">
+                  Click this area first, then Ctrl+V
                 </p>
               </div>
             ) : (
