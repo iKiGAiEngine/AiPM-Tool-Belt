@@ -1,0 +1,99 @@
+# Replit Build Prompt — AiPM Toolbelt Tile: “Schedule → Estimate Converter”
+
+You are building a new tool tile inside the existing **AiPM Toolbelt** web app (already running in Replit) using the same stack, UI patterns, auth, and database conventions used throughout AiPM.
+
+## Goal
+Create a Toolbelt tile called **“Schedule → Estimate Converter”** that lets an estimator upload a **schedule screenshot image** (PNG/JPG) and returns a **copy/paste-ready table** in the exact estimate input format:
+
+**PLAN CALLOUT | DESCRIPTION | MODEL NUMBER | ITEM QUANTITY**
+
+The tool must use AI to read the schedule image, extract line items, apply formatting rules, and produce:
+1) a **Review Table** (with confidence + flags)
+2) a **Copy/Paste Output** (TSV text block) that the user can paste directly into Excel
+
+## Key User Flow
+1. User opens AiPM Toolbelt
+2. Clicks tile: “Schedule → Estimate Converter”
+3. Uploads schedule screenshot (PNG/JPG) OR drags and drops
+4. App runs AI extraction
+5. App shows:
+   - a structured table with columns:
+     - Plan Callout
+     - Description
+     - Model Number
+     - Item Quantity
+     - Confidence (0–100)
+     - Flags (text)
+     - Needs Review (checkbox auto-set by rules)
+   - inline editing for any row
+6. App shows a “Copy to Clipboard” button that copies TSV formatted output:
+   `PLAN CALLOUT<TAB>DESCRIPTION<TAB>MODEL NUMBER<TAB>ITEM QUANTITY`
+7. When user edits flagged rows and clicks “Approve & Copy”, the tool outputs the final clean TSV.
+
+## Extraction Requirements
+- Read the schedule image and interpret tables like:
+  - APPLIANCE SCHEDULE
+  - ACCESSORY SCHEDULE
+  - PLUMBING FIXTURES
+- Extract each row as a line item:
+  - Plan Callout (e.g., REF-01, CEQ-09, PF-05, TA-15)
+  - Description (human readable)
+  - Manufacturer (if present)
+  - Model number (if present)
+  - Quantity (Count)
+- Then transform into estimate format with specific model-number rules:
+
+### Model Number Formatting Rules
+- Default: **combine Manufacturer + Model Number into one field**:
+  - Example: `Frigidaire FDPS4544AS`
+  - Example: `Kohler K-14367-CP`
+- Exception (Bobrick rule):
+  - If Manufacturer is **Bobrick** AND model begins with **“B-”**
+  - Then **do NOT combine**. Output only the Bobrick model in “MODEL NUMBER”
+  - Example: `B-262`, `B-3803`, `B-200`
+- If Manufacturer is missing but Model exists: use Model as-is and flag “Manufacturer missing”
+- If Model is missing but Manufacturer exists: output Manufacturer only and flag “Model missing”
+- If quantity is missing or not numeric: flag and set Needs Review
+
+## Confidence + Flagging
+For every extracted row, compute a confidence score (0–100) and auto-flag:
+- Confidence < 90 → Needs Review = TRUE
+- If any required field is uncertain/ambiguous, flag:
+  - “Callout uncertain”
+  - “Model uncertain”
+  - “Quantity uncertain”
+  - “Possible duplicate callout”
+  - “Manufacturer inferred”
+- If duplicate plan callouts appear (example: CEQ-02 twice), do NOT delete.
+  - Keep both rows, but flag: “Duplicate callout (verify)”
+- For confidence logic:
+  - High confidence when the row matches a strict table pattern (aligned columns, clear text, numeric qty)
+  - Lower confidence when OCR is noisy, model looks incomplete, or qty is faint
+
+## AI / OCR Approach
+- Must support schedule screenshots that are not selectable text.
+- Use a two-step approach:
+  1) OCR the image into raw text with positional hints if possible
+  2) LLM parses OCR into structured JSON with rows
+- Prefer local-first, but allow cloud fallback:
+  - Use `tesseract.js` (Node) or a server-side OCR library
+  - If OCR confidence is poor, call an LLM vision-capable endpoint (if available in project settings)
+- All AI parsing must return a strict JSON schema.
+
+### JSON Schema (must enforce)
+Return:
+```json
+{
+  "items": [
+    {
+      "planCallout": "TA-03",
+      "description": "Toilet Tissue Holder",
+      "manufacturer": "Kohler",
+      "model": "K-14367-CP",
+      "quantity": 311,
+      "sourceSection": "ACCESSORY SCHEDULE",
+      "confidence": 96,
+      "flags": []
+    }
+  ]
+}
