@@ -384,13 +384,10 @@ export function registerProjectRoutes(app: Express) {
         }
 
         const requiredSubfolders = [
-          "Plans/Original",
-          "Plans/Processed",
-          "Specs/Original",
-          "Specs/Processed",
-          "Vendor",
-          "Vendor/Specs Extracts",
-          "Vendor/Plan Pages by Scope",
+          "Estimate Folder/Bid Documents/Plans",
+          "Estimate Folder/Bid Documents/Specs",
+          "Estimate Folder/Vendors",
+          "Estimate Folder/Estimate",
         ];
         for (const sub of requiredSubfolders) {
           ensureDir(path.join(projectDir, sub));
@@ -434,9 +431,7 @@ export function registerProjectRoutes(app: Express) {
             const ext = path.extname(activeEstimateTemplate.filePath) || ".xlsx";
             const estimateFilename = `${safeName} - NBS Estimate - ${formattedDueDate}${ext}`;
 
-            const estimateDir = path.join(projectDir, "Estimate Folder", "Estimate");
-            ensureDir(estimateDir);
-            const estimatePath = path.join(estimateDir, estimateFilename);
+            const estimatePath = path.join(projectDir, estimateFilename);
 
             if (ext === ".xlsm") {
               fs.copyFileSync(activeEstimateTemplate.filePath, estimatePath);
@@ -453,10 +448,10 @@ export function registerProjectRoutes(app: Express) {
         }
 
         if (plansFile) {
-          fs.writeFileSync(path.join(projectDir, "Plans/Original", plansFile.originalname), plansFile.buffer);
+          fs.writeFileSync(path.join(projectDir, "Estimate Folder/Bid Documents/Plans", plansFile.originalname), plansFile.buffer);
         }
         if (specsFile) {
-          fs.writeFileSync(path.join(projectDir, "Specs/Original", specsFile.originalname), specsFile.buffer);
+          fs.writeFileSync(path.join(projectDir, "Estimate Folder/Bid Documents/Specs", specsFile.originalname), specsFile.buffer);
         }
 
         let specsiftSessionId: string | undefined;
@@ -854,7 +849,7 @@ export function registerProjectRoutes(app: Express) {
       if (project.status === "specsift_error") {
         (async () => {
           try {
-            const specsPath = path.join(folderPath, "Specs/Original", project.specsFilename || "");
+            const specsPath = path.join(folderPath, "Estimate Folder/Bid Documents/Specs", project.specsFilename || "");
             if (!fs.existsSync(specsPath)) {
               await updateProject(projectId, { status: "specsift_error" });
               return;
@@ -905,7 +900,7 @@ export function registerProjectRoutes(app: Express) {
 
             await updateProject(projectId, { status: "specsift_complete" });
 
-            const plansPath = path.join(folderPath, "Plans/Original", project.plansFilename || "");
+            const plansPath = path.join(folderPath, "Estimate Folder/Bid Documents/Plans", project.plansFilename || "");
             if (fs.existsSync(plansPath) && project.planparserJobId) {
               try {
                 await updateProject(projectId, { status: "planparser_baseline_running" });
@@ -936,7 +931,7 @@ export function registerProjectRoutes(app: Express) {
       } else if (project.status === "planparser_baseline_error") {
         (async () => {
           try {
-            const plansPath = path.join(folderPath, "Plans/Original", project.plansFilename || "");
+            const plansPath = path.join(folderPath, "Estimate Folder/Bid Documents/Plans", project.plansFilename || "");
             if (!fs.existsSync(plansPath) || !project.planparserJobId) {
               return;
             }
@@ -1239,7 +1234,7 @@ export function registerProjectRoutes(app: Express) {
                   const pdfBytes = await packet.save();
                   const safeTitle = sanitizeForWindows(section.title);
                   zip.file(
-                    `${rootFolder}/Specs Extracts/${section.sectionNumber} - ${safeTitle}.pdf`,
+                    `${rootFolder}/Estimate Folder/Vendors/Specs Extracts/${section.sectionNumber} - ${safeTitle}.pdf`,
                     pdfBytes
                   );
                 }
@@ -1263,7 +1258,7 @@ export function registerProjectRoutes(app: Express) {
             return line;
           });
           zip.file(
-            `${rootFolder}/Specs Extracts/_Spec_Summary.txt`,
+            `${rootFolder}/Estimate Folder/Vendors/Specs Extracts/_Spec_Summary.txt`,
             `SpecSift Extraction Summary\nProject: ${project.projectName}\nProject ID: ${project.projectId}\nRegion: ${project.regionCode}\n\n${summaryLines.join("\n\n")}\n`
           );
         }
@@ -1326,7 +1321,7 @@ export function registerProjectRoutes(app: Express) {
                     const pdfBytes = await scopePdf.save();
                     const safeScope = sanitizeForWindows(scope);
                     zip.file(
-                      `${rootFolder}/Plan Pages by Scope/${safeScope}.pdf`,
+                      `${rootFolder}/Estimate Folder/Vendors/Plan Pages by Scope/${safeScope}.pdf`,
                       pdfBytes
                     );
                   }
@@ -1342,7 +1337,7 @@ export function registerProjectRoutes(app: Express) {
               if (count > 0) planSummaryLines.push(`  ${scope}: ${count} page${count !== 1 ? "s" : ""}`);
             }
             zip.file(
-              `${rootFolder}/Plan Pages by Scope/_Plan_Summary.txt`,
+              `${rootFolder}/Estimate Folder/Vendors/Plan Pages by Scope/_Plan_Summary.txt`,
               planSummaryLines.join("\n") + "\n"
             );
           }
