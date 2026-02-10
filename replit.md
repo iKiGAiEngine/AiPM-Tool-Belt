@@ -18,7 +18,8 @@ The backend is an Express.js application written in TypeScript. It uses Multer f
 All data is stored in PostgreSQL via Drizzle ORM. Tables include `sessions`, `extracted_sections`, `accessory_matches`, `plan_parser_jobs`, `parsed_pages`, `projects`, `project_scopes`, `scope_dictionaries`, `regions`, `vendors`, `div10_products`, and various configuration tables. PDF buffers and templates are stored on the persistent filesystem to survive server restarts.
 
 ### Core Logic
-- **Spec Extraction**: Supports dual-mode extraction, either via an external Spec Extractor app or a built-in SpecSift parser (TOC detection, zone-based scanning).
+- **Spec Extraction (SpecSift)**: Supports dual-mode extraction, either via an external Spec Extractor app or a built-in SpecSift parser (TOC detection, zone-based scanning, AI-assisted).
+- **Spec Extractor**: A standalone, purely regex-based Division 10 spec extractor. Uses zone-based header scanning (top 15 lines), canonization (XX XX XX format), TOC exclusion, end-of-section marker detection, start-page look-back, and organized folder export. No AI dependencies. Engine in `server/specExtractorEngine.ts`, routes in `server/specExtractorRoutes.ts`, frontend at `/spec-extractor`.
 - **Plan Parser**: Employs keyword-based scoring with configurable scope dictionaries, signage exclusion, millwork filtering, and an OCR fallback. Features include baseline snapshots and a spec-pass comparison view for results.
 - **Quote Parser**: Parses vendor quotes into a structured 6-column estimate table, including schedule matching, vendor auto-detection, and manufacturer/quote number extraction.
 - **Project Start System**: Manages project creation, generates unique IDs, sets up folder structures, and orchestrates sequential processing of plans and specs, including an optional spec-informed second pass. Supports flexible project creation where plans and specs are optional.

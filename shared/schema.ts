@@ -736,6 +736,64 @@ export const planParserJobs = pgTable("plan_parser_jobs", {
 // PARSED PAGES - Individual plan page results
 // =====================================================
 
+// =====================================================
+// SPEC EXTRACTOR SESSIONS - Standalone regex-based extractor
+// =====================================================
+
+export const specExtractorSessions = pgTable("spec_extractor_sessions", {
+  id: varchar("id", { length: 100 }).primaryKey(),
+  filename: varchar("filename", { length: 500 }).notNull(),
+  projectName: varchar("project_name", { length: 500 }).notNull(),
+  status: varchar("status", { length: 50 }).notNull().default("idle"),
+  progress: integer("progress").notNull().default(0),
+  message: text("message").notNull().default(""),
+  totalPages: integer("total_pages").notNull().default(0),
+  tocStart: integer("toc_start"),
+  tocEnd: integer("toc_end"),
+  createdAt: varchar("created_at", { length: 100 }).notNull(),
+});
+
+export const specExtractorSections = pgTable("spec_extractor_sections", {
+  id: varchar("id", { length: 100 }).primaryKey(),
+  sessionId: varchar("session_id", { length: 100 }).notNull(),
+  sectionNumber: varchar("section_number", { length: 50 }).notNull(),
+  title: varchar("title", { length: 500 }).notNull(),
+  startPage: integer("start_page").notNull(),
+  endPage: integer("end_page").notNull(),
+  pageCount: integer("page_count").notNull().default(1),
+  folderName: varchar("folder_name", { length: 500 }).notNull(),
+});
+
+export const specExtractorSessionSchema = z.object({
+  id: z.string(),
+  filename: z.string(),
+  projectName: z.string(),
+  status: z.string(),
+  progress: z.number(),
+  message: z.string(),
+  totalPages: z.number(),
+  tocStart: z.number().nullable().optional(),
+  tocEnd: z.number().nullable().optional(),
+  createdAt: z.string(),
+});
+export type SpecExtractorSession = z.infer<typeof specExtractorSessionSchema>;
+
+export const specExtractorSectionSchema = z.object({
+  id: z.string(),
+  sessionId: z.string(),
+  sectionNumber: z.string(),
+  title: z.string(),
+  startPage: z.number(),
+  endPage: z.number(),
+  pageCount: z.number(),
+  folderName: z.string(),
+});
+export type SpecExtractorSection = z.infer<typeof specExtractorSectionSchema>;
+
+// =====================================================
+// PARSED PAGES - Individual plan page results
+// =====================================================
+
 export const parsedPages = pgTable("parsed_pages", {
   id: varchar("id", { length: 100 }).primaryKey(),
   jobId: varchar("job_id", { length: 100 }).notNull(),

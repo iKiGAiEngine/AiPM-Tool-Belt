@@ -66,6 +66,14 @@ const tools: ToolTile[] = [
     href: "/schedule-converter",
     available: true,
   },
+  {
+    id: "specextractor",
+    title: "Spec Extractor",
+    description: "Regex-based Division 10 spec extractor with organized folder export",
+    icon: ClipboardList,
+    href: "/spec-extractor",
+    available: true,
+  },
 ];
 
 function getStatusCategory(status: string | null): "processing" | "complete" | "error" | "created" {

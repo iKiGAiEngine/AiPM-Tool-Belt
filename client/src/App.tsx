@@ -17,6 +17,7 @@ import ProjectStartPage from "@/pages/ProjectStartPage";
 import ProjectDetailPage from "@/pages/ProjectDetailPage";
 import ProjectLogPage from "@/pages/ProjectLogPage";
 import ScheduleConverterPage from "@/pages/ScheduleConverterPage";
+import SpecExtractorPage from "@/pages/SpecExtractorPage";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -33,6 +34,7 @@ function Router() {
       <Route path="/projects/:id" component={ProjectDetailPage} />
       <Route path="/project-log" component={ProjectLogPage} />
       <Route path="/schedule-converter" component={ScheduleConverterPage} />
+      <Route path="/spec-extractor" component={SpecExtractorPage} />
       <Route component={NotFound} />
     </Switch>
   );
