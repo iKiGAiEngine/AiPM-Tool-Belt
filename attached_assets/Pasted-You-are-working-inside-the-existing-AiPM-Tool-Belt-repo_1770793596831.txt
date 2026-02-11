@@ -1,0 +1,99 @@
+You are working inside the existing AiPM Tool Belt repo (Node.js + TypeScript). Add an authentication layer and admin controls with minimal disruption.
+
+GOAL
+Implement a login gate that only allows users with approved company email domains:
+- @nationalbuildingspecialties.com
+- @swinerton.com
+Block all other emails.
+There is currently no login system.
+
+REQUIREMENTS
+1) Basic Login Gate
+- Use email-based “magic link” login (no passwords) OR email + one-time code (OTP).
+- Users must verify ownership of the email before access is granted.
+- After login, create a session cookie.
+- Unauthenticated users are redirected to /login for all pages except /login, /verify, and /health.
+- Add a logout button that clears the session.
+
+2) Domain Restriction (Option B)
+- Only allow accounts where email ends with the approved domains.
+- If a user tries to sign in with a non-approved email domain, show a clear error and do not send login code/link.
+- Add an env var ALLOWED_EMAIL_DOMAINS defaulting to "nationalbuildingspecialties.com,swinerton.com"
+
+3) Admin Dashboard
+- Create an “Admin” role.
+- Add an admin UI page /admin with:
+  - User list (email, role, status, createdAt, lastLoginAt)
+  - Toggle user active/inactive (inactive cannot log in)
+  - Promote/demote role (user/admin)
+  - Add domain list UI is optional; env var is fine.
+
+4) Simple Usage Log / Audit Log (who did what)
+- Create an audit log table that records:
+  - id, timestamp, actorUserId, actorEmail, actionType, entityType, entityId, summary, metadata(JSON)
+  - ipAddress, userAgent, requestPath, requestMethod, responseStatus
+- Automatically log key actions:
+  - login_success, login_failed_domain, logout
+  - create/update/delete for projects, templates, settings, schedule conversions, spec extraction actions, quote parsing actions
+- Create a /admin/audit page with filters:
+  - by user, date range, actionType, contains text
+- Implement audit logging middleware that logs all /api routes with actor identity and response status.
+- Also add explicit auditLog() calls inside the main write endpoints so summary/entityId are meaningful.
+
+5) Version Label
+- Add a version label in the UI footer: “AiPM Tool Belt vX.Y.Z”
+- Version should be read from package.json version.
+- Also create /api/version that returns { name, version, buildTime }.
+- Set buildTime at startup from process.env.BUILD_TIME or current ISO string.
+
+EMAIL SENDING
+- Use a transactional email provider via API (SendGrid recommended) OR SMTP.
+- Add required secrets:
+  - EMAIL_FROM
+  - SENDGRID_API_KEY (or SMTP creds)
+  - SESSION_SECRET (already exists)
+- If no provider exists, implement in a way that can fall back to console logging the magic link/code during development when EMAIL_PROVIDER is not set.
+
+SECURITY
+- Use httpOnly, secure cookies in production.
+- CSRF protection for state-changing requests (or same-site strict cookies + origin checks).
+- Rate limit login attempts per IP/email.
+- Hash OTP codes in DB; never store raw codes.
+- Expire magic links/codes (10 minutes).
+- Use prepared statements via Drizzle only.
+
+DATABASE (Drizzle)
+- Create/migrate tables:
+  - users (id, email unique, role enum, isActive bool, createdAt, lastLoginAt)
+  - auth_tokens (id, userId, tokenHash, expiresAt, usedAt, createdAt, type 'magic'|'otp')
+  - audit_logs (fields described above)
+- Ensure production database migration runs safely.
+
+ROUTING / MIDDLEWARE
+- Implement requireAuth middleware and requireAdmin middleware.
+- Protect all /api routes except:
+  - POST /api/auth/request (request code/link)
+  - POST /api/auth/verify (verify code/link)
+  - GET /api/version
+  - GET /health
+- Frontend should call /api/auth/me to get current user.
+
+UI
+- Add /login page with:
+  - email input
+  - request button
+  - verification code input (if OTP) or “check your email” flow (if magic link)
+- Add a top-right user menu with email + logout.
+- Add admin nav link visible only to admin users.
+
+DELIVERABLES
+- Working auth flow with domain restriction
+- Admin dashboard + audit log viewer
+- Middleware protection
+- Version footer + /api/version
+- Update README with setup steps and required environment variables.
+- Ensure app still builds with `npm run build` and runs with `node ./dist/index.cjs`.
+
+After implementation:
+- Provide a brief checklist for me to add secrets in Replit Deployments.
+- Provide a short list of endpoints and how to test them.
