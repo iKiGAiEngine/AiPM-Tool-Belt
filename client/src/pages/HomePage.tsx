@@ -427,7 +427,7 @@ function ToolCard({ tool, index, isAdmin, stats, onStatsClick }: ToolCardProps) 
   if (!tool.available) {
     return (
       <div
-        className="group relative flex flex-col items-center justify-start text-center p-6 pt-8 rounded-lg border border-dashed border-border/50 bg-muted/20 opacity-50 min-h-[270px]"
+        className="group relative flex flex-col items-center justify-start text-center p-6 pt-8 rounded-lg border border-dashed border-border/50 bg-muted/20 opacity-50 h-full"
         data-testid={`tile-${tool.id}`}
       >
         <div className="tool-icon w-14 h-14 rounded-full bg-muted/50 flex items-center justify-center mb-4 shrink-0">
@@ -444,7 +444,7 @@ function ToolCard({ tool, index, isAdmin, stats, onStatsClick }: ToolCardProps) 
   }
 
   return (
-    <div className="flex flex-col animate-fade-in-scale" style={{ animationDelay: `${0.1 + index * 0.08}s` }}>
+    <div className="flex flex-col h-full animate-fade-in-scale" style={{ animationDelay: `${0.1 + index * 0.08}s` }}>
       {isAdmin && (
         <Button
           variant="ghost"
@@ -463,10 +463,10 @@ function ToolCard({ tool, index, isAdmin, stats, onStatsClick }: ToolCardProps) 
       <Link
         href={tool.href}
         data-testid={`link-tool-${tool.id}`}
-        className="block h-full"
+        className="flex flex-col flex-1"
       >
         <div
-          className={`tool-tile-animated group relative flex flex-col items-center justify-start text-center p-6 pt-8 border border-border bg-card cursor-pointer min-h-[270px] hover-elevate active-elevate-2 ${isAdmin ? "rounded-b-lg" : "rounded-lg"}`}
+          className={`tool-tile-animated group relative flex flex-col items-center justify-start text-center p-6 pt-8 border border-border bg-card cursor-pointer flex-1 hover-elevate active-elevate-2 ${isAdmin ? "rounded-b-lg" : "rounded-lg"}`}
           data-testid={`tile-${tool.id}`}
         >
           <div className="tool-icon w-14 h-14 rounded-full bg-primary/10 flex items-center justify-center mb-4 shrink-0">
