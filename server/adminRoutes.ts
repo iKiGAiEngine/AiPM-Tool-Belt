@@ -2,7 +2,7 @@ import type { Express, Request, Response } from "express";
 import { db } from "./db";
 import { users, auditLogs } from "@shared/schema";
 import { eq, desc, and, gte, lte, like, or, sql } from "drizzle-orm";
-import { requireAdmin } from "./authRoutes";
+import { requireAdmin, isAllowedDomain } from "./authRoutes";
 import { auditLog } from "./auditService";
 
 export function registerAdminRoutes(app: Express) {
@@ -106,6 +106,10 @@ export function registerAdminRoutes(app: Express) {
 
       const normalizedEmail = email.trim().toLowerCase();
 
+      if (!isAllowedDomain(normalizedEmail)) {
+        return res.status(400).json({ message: "Email domain is not in the allowed list" });
+      }
+
       const [existing] = await db.select().from(users).where(eq(users.email, normalizedEmail));
       if (existing) {
         return res.status(409).json({ message: "A user with this email already exists" });
@@ -153,6 +157,9 @@ export function registerAdminRoutes(app: Express) {
       if (phone !== undefined) updateFields.phone = phone || null;
       if (email !== undefined) {
         const normalizedEmail = email.trim().toLowerCase();
+        if (!isAllowedDomain(normalizedEmail)) {
+          return res.status(400).json({ message: "Email domain is not in the allowed list" });
+        }
         const [existing] = await db.select().from(users).where(eq(users.email, normalizedEmail));
         if (existing && existing.id !== userId) {
           return res.status(409).json({ message: "Another user already has this email" });

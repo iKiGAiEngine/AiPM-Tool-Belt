@@ -36,7 +36,7 @@ function generateOTP(): string {
   return String(randomInt(100000, 999999));
 }
 
-function isAllowedDomain(email: string): boolean {
+export function isAllowedDomain(email: string): boolean {
   const domain = email.split("@")[1]?.toLowerCase();
   return ALLOWED_DOMAINS.includes(domain);
 }

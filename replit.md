@@ -29,6 +29,17 @@ All data is stored in PostgreSQL via Drizzle ORM. Tables include `sessions`, `ex
 - **Test Mode**: A toggleable feature for creating and managing test projects, allowing for data isolation and easy cleanup of test data.
 - **Processing Indicators**: Dynamic progress overlays, friendly status labels, and a header indicator show the real-time status of project processing.
 
+### Authentication & Access Control
+- **OTP Email Login**: Users receive a 6-digit code via email (SendGrid when `SENDGRID_API_KEY` secret is set, otherwise codes log to server console). Codes expire in 10 minutes, are hashed (SHA-256), and single-use.
+- **Quick Admin Login**: Username "hkkruse" maps to hkkruse@nationalbuildingspecialties.com and bypasses OTP, logging in directly as admin. Intended for development convenience.
+- **Domain Restriction**: Only emails from allowed domains (default: nationalbuildingspecialties.com, swinerton.com) can log in or be created. Configurable via `ALLOWED_EMAIL_DOMAINS` env var.
+- **Admin-Only Access**: Users with role="user" see a "pending approval" screen and cannot access app features. Only role="admin" users get full access.
+- **Session Management**: PostgreSQL-backed sessions via connect-pg-simple, 7-day cookies, secure/httpOnly/sameSite settings.
+- **Admin Dashboard** (`/admin`): User management (activate/deactivate, promote/demote, edit profiles, pre-create users), audit log viewer with filters. Routes in `server/adminRoutes.ts`.
+- **Audit Logging**: All auth events and admin actions logged to `audit_logs` table via `server/auditService.ts`.
+- **Email Service**: `server/emailService.ts` uses SendGrid if `SENDGRID_API_KEY` is set, otherwise falls back to console logging. SendGrid integration was dismissed by user; to enable later, add `SENDGRID_API_KEY` as a secret.
+- **Rate Limiting**: In-memory rate limiting (5 requests per 15 minutes per IP/email) for OTP requests.
+
 ### Migration Notes
 - The legacy SpecSift module has been fully removed. All spec extraction now uses Spec Extractor (`server/specExtractorEngine.ts`).
 - Database status values (`specsift_running`, `specsift_complete`, `specsift_error`) remain unchanged for backward compatibility. UI displays show "Spec Extractor Running/Complete/Error".
