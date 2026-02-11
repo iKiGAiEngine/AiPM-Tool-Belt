@@ -45,8 +45,9 @@ function getClientIP(req: Request): string {
   return (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() || req.socket.remoteAddress || "unknown";
 }
 
-const ADMIN_SHORTCUTS: Record<string, string> = {
-  hkkruse: "hkkruse@nationalbuildingspecialties.com",
+const QUICK_LOGIN_USERS: Record<string, { email: string; role: "admin" | "user" }> = {
+  hkkruse: { email: "hkkruse@nationalbuildingspecialties.com", role: "admin" },
+  user1: { email: "user1@nationalbuildingspecialties.com", role: "user" },
 };
 
 export function registerAuthRoutes(app: Express) {
@@ -58,22 +59,24 @@ export function registerAuthRoutes(app: Express) {
       }
 
       const key = username.trim().toLowerCase();
-      const mappedEmail = ADMIN_SHORTCUTS[key];
-      if (!mappedEmail) {
+      const shortcut = QUICK_LOGIN_USERS[key];
+      if (!shortcut) {
         return res.status(401).json({ message: "Invalid credentials" });
       }
+
+      const { email: mappedEmail, role: targetRole } = shortcut;
 
       let [user] = await db.select().from(users).where(eq(users.email, mappedEmail));
       if (!user) {
         [user] = await db.insert(users).values({
           email: mappedEmail,
           username: key,
-          role: "admin",
+          role: targetRole,
           isActive: true,
         }).returning();
-      } else if (user.role !== "admin") {
-        await db.update(users).set({ role: "admin" }).where(eq(users.id, user.id));
-        user = { ...user, role: "admin" };
+      } else if (user.role !== targetRole) {
+        await db.update(users).set({ role: targetRole }).where(eq(users.id, user.id));
+        user = { ...user, role: targetRole };
       }
 
       if (!user.isActive) {
@@ -85,10 +88,10 @@ export function registerAuthRoutes(app: Express) {
 
       const ip = getClientIP(req);
       await auditLog({
-        actionType: "admin_quick_login",
+        actionType: targetRole === "admin" ? "admin_quick_login" : "user_quick_login",
         actorUserId: user.id,
         actorEmail: user.email,
-        summary: `Admin quick login via username: ${key}`,
+        summary: `Quick login (${targetRole}) via username: ${key}`,
         ipAddress: ip,
         userAgent: req.headers["user-agent"] || "",
         requestPath: req.path,

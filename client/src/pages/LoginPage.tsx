@@ -144,14 +144,25 @@ export default function LoginPage() {
           <Card className="p-6 bg-white/5 border-white/10 backdrop-blur-sm">
             {step === "choose" && (
               <div className="space-y-4">
-                <Button
-                  className="w-full"
-                  onClick={() => { setStep("quick"); setError(""); }}
-                  data-testid="button-choose-quick"
-                >
-                  <User className="h-4 w-4 mr-2" />
-                  Admin Login
-                </Button>
+                <div className="grid grid-cols-2 gap-3">
+                  <Button
+                    className="w-full"
+                    onClick={() => { setStep("quick"); setError(""); }}
+                    data-testid="button-choose-quick"
+                  >
+                    <User className="h-4 w-4 mr-2" />
+                    Admin Login
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    className="w-full"
+                    onClick={() => { setStep("quick"); setError(""); }}
+                    data-testid="button-choose-user"
+                  >
+                    <User className="h-4 w-4 mr-2" />
+                    User Login
+                  </Button>
+                </div>
                 <div className="relative">
                   <div className="absolute inset-0 flex items-center">
                     <span className="w-full border-t border-white/10" />
