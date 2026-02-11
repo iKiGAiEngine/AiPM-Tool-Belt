@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { pgTable, serial, text, timestamp, jsonb, boolean, integer, varchar } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
+import { sql } from "drizzle-orm";
 
 export const processingStatusSchema = z.enum(["idle", "processing", "complete", "error"]);
 export type ProcessingStatus = z.infer<typeof processingStatusSchema>;
@@ -160,13 +161,6 @@ export const updateSectionSchema = z.object({
 });
 export type UpdateSection = z.infer<typeof updateSectionSchema>;
 
-export const users = {
-  id: "",
-  username: "",
-  password: "",
-};
-export type User = typeof users;
-export type InsertUser = Omit<User, "id">;
 
 // Plan Parser schemas
 export const planParserJobStatusSchema = z.enum(["pending", "processing", "complete", "error"]);
@@ -805,3 +799,51 @@ export const parsedPages = pgTable("parsed_pages", {
   thumbnailPath: varchar("thumbnail_path", { length: 500 }),
   userModified: boolean("user_modified").notNull().default(false),
 });
+
+// =====================================================
+// AUTH - Users, auth tokens, audit logs
+// =====================================================
+
+export const users = pgTable("users", {
+  id: serial("id").primaryKey(),
+  email: varchar("email", { length: 255 }).notNull().unique(),
+  role: varchar("role", { length: 20 }).notNull().default("user"),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  lastLoginAt: timestamp("last_login_at"),
+});
+
+export const insertUserSchema = createInsertSchema(users).omit({ id: true, createdAt: true, lastLoginAt: true });
+export type InsertUser = z.infer<typeof insertUserSchema>;
+export type User = typeof users.$inferSelect;
+
+export const authTokens = pgTable("auth_tokens", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull(),
+  tokenHash: varchar("token_hash", { length: 255 }).notNull(),
+  expiresAt: timestamp("expires_at").notNull(),
+  usedAt: timestamp("used_at"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  type: varchar("type", { length: 20 }).notNull().default("otp"),
+});
+
+export type AuthToken = typeof authTokens.$inferSelect;
+
+export const auditLogs = pgTable("audit_logs", {
+  id: serial("id").primaryKey(),
+  timestamp: timestamp("timestamp").notNull().defaultNow(),
+  actorUserId: integer("actor_user_id"),
+  actorEmail: varchar("actor_email", { length: 255 }),
+  actionType: varchar("action_type", { length: 100 }).notNull(),
+  entityType: varchar("entity_type", { length: 100 }),
+  entityId: varchar("entity_id", { length: 255 }),
+  summary: text("summary"),
+  metadata: jsonb("metadata").$type<Record<string, any>>(),
+  ipAddress: varchar("ip_address", { length: 100 }),
+  userAgent: text("user_agent"),
+  requestPath: varchar("request_path", { length: 500 }),
+  requestMethod: varchar("request_method", { length: 10 }),
+  responseStatus: integer("response_status"),
+});
+
+export type AuditLog = typeof auditLogs.$inferSelect;

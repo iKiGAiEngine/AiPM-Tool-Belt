@@ -18,6 +18,12 @@ import { registerProjectRoutes } from "./projectRoutes";
 import { registerTemplateRoutes } from "./templateRoutes";
 import { registerScheduleConverterRoutes } from "./scheduleConverterRoutes";
 import { registerSpecExtractorRoutes } from "./specExtractorRoutes";
+import { registerAuthRoutes, requireAuth } from "./authRoutes";
+import { registerAdminRoutes } from "./adminRoutes";
+import { auditLog } from "./auditService";
+import { db } from "./db";
+import { users as usersTable } from "@shared/schema";
+import { eq } from "drizzle-orm";
 import { 
   getActiveConfig, 
   getAllConfigVersions, 
@@ -26,6 +32,9 @@ import {
   getOrCreateActiveConfig 
 } from "./settingsStorage";
 import { clearConfigCache } from "./configService";
+
+const BUILD_TIME = process.env.BUILD_TIME || new Date().toISOString();
+const pkg = JSON.parse(fs.readFileSync(path.join(process.cwd(), "package.json"), "utf-8"));
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -47,7 +56,53 @@ export async function registerRoutes(
   httpServer: Server,
   app: Express
 ): Promise<Server> {
-  
+
+  app.get("/health", (req, res) => res.json({ status: "ok" }));
+
+  app.get("/api/version", (req, res) => {
+    res.json({ name: pkg.name, version: pkg.version, buildTime: BUILD_TIME });
+  });
+
+  registerAuthRoutes(app);
+
+  const publicPaths = ["/api/auth/", "/api/version", "/health"];
+  app.use("/api", (req, res, next) => {
+    const fullPath = req.originalUrl || req.path;
+    if (publicPaths.some(p => fullPath.startsWith(p))) return next();
+    requireAuth(req, res, next);
+  });
+
+  app.use("/api", async (req, res, next) => {
+    const isWrite = ["POST", "PUT", "PATCH", "DELETE"].includes(req.method);
+    if (!isWrite) return next();
+
+    const userId = (req.session as any)?.userId;
+    let email: string | null = null;
+    if (userId) {
+      const [u] = await db.select().from(usersTable).where(eq(usersTable.id, userId));
+      email = u?.email ?? null;
+    }
+
+    const ip = (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() || req.socket.remoteAddress || "";
+
+    res.on("finish", () => {
+      auditLog({
+        actorUserId: userId ?? null,
+        actorEmail: email,
+        actionType: `api_${req.method.toLowerCase()}`,
+        requestPath: req.originalUrl || req.path,
+        requestMethod: req.method,
+        responseStatus: res.statusCode,
+        ipAddress: ip,
+        userAgent: req.headers["user-agent"] || "",
+        summary: `${req.method} ${req.originalUrl || req.path} -> ${res.statusCode}`,
+      });
+    });
+
+    next();
+  });
+
+  registerAdminRoutes(app);
   registerPlanParserRoutes(app);
   registerQuoteParserRoutes(app);
   registerCentralSettingsRoutes(app);

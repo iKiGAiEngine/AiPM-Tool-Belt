@@ -1,17 +1,20 @@
 import { useMemo } from "react";
-import { Home, Wrench, Receipt, FlaskConical, Loader2 } from "lucide-react";
+import { Home, Wrench, Receipt, FlaskConical, Loader2, Shield, LogOut } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { ThemeToggle } from "./ThemeToggle";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { useTestMode } from "@/lib/testMode";
+import { useAuth } from "@/lib/auth";
 import { cn } from "@/lib/utils";
 import type { Project } from "@shared/schema";
 
 export function Header() {
   const [location, navigate] = useLocation();
   const { isTestMode, toggleTestMode } = useTestMode();
+  const { user, isAdmin, logout } = useAuth();
   const isHome = location === "/";
   const isQuoteParser = location.startsWith("/quoteparser");
 
@@ -92,7 +95,24 @@ export function Header() {
                 className="data-[state=checked]:bg-amber-500"
               />
             </label>
+            {isAdmin && (
+              <Link href="/admin">
+                <Button variant="ghost" size="icon" title="Admin" data-testid="link-admin">
+                  <Shield className="h-4 w-4" />
+                </Button>
+              </Link>
+            )}
             <ThemeToggle />
+            <div className="flex items-center gap-2">
+              {user && (
+                <span className="text-xs text-muted-foreground hidden sm:inline" data-testid="text-user-email">
+                  {user.email}
+                </span>
+              )}
+              <Button variant="ghost" size="icon" onClick={logout} title="Sign out" data-testid="button-logout">
+                <LogOut className="h-4 w-4" />
+              </Button>
+            </div>
           </div>
         </div>
       </header>
