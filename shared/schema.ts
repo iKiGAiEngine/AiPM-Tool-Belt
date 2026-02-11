@@ -851,3 +851,14 @@ export const auditLogs = pgTable("audit_logs", {
 });
 
 export type AuditLog = typeof auditLogs.$inferSelect;
+
+export const toolUsageEvents = pgTable("tool_usage_events", {
+  id: serial("id").primaryKey(),
+  toolId: varchar("tool_id", { length: 100 }).notNull(),
+  userId: integer("user_id").notNull(),
+  usedAt: timestamp("used_at").notNull().defaultNow(),
+});
+
+export const insertToolUsageEventSchema = createInsertSchema(toolUsageEvents).omit({ id: true, usedAt: true });
+export type InsertToolUsageEvent = z.infer<typeof insertToolUsageEventSchema>;
+export type ToolUsageEvent = typeof toolUsageEvents.$inferSelect;
