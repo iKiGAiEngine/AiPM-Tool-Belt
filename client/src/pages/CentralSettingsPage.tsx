@@ -1,7 +1,7 @@
 import { useState, useRef } from "react";
 import { Link } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { ArrowLeft, Building2, Package, Plus, Pencil, Trash2, Search, X, BookOpen, MapPin, FolderArchive, FileSpreadsheet, Upload, Download, Check, Star } from "lucide-react";
+import { ArrowLeft, Building2, Package, Plus, Pencil, Trash2, Search, X, BookOpen, MapPin, FolderArchive, FileSpreadsheet, Upload, Download, Check, Star, FileSearch, Save, History, RotateCcw, Tag, CheckCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -13,7 +13,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
-import type { Vendor, Div10Product, ScopeDictionary, Region, FolderTemplate, EstimateTemplate, StampMapping } from "@shared/schema";
+import type { Vendor, Div10Product, ScopeDictionary, Region, FolderTemplate, EstimateTemplate, StampMapping, SpecsiftConfig, AccessoryScopeData } from "@shared/schema";
 import { DIV10_SCOPE_CATEGORIES, PLAN_PARSER_SCOPES } from "@shared/schema";
 
 export default function CentralSettingsPage() {
@@ -29,12 +29,12 @@ export default function CentralSettingsPage() {
         </Link>
         <div>
           <h1 className="text-2xl font-semibold text-foreground">Settings</h1>
-          <p className="text-muted-foreground">Manage vendors, products, scope dictionaries, regions, and templates</p>
+          <p className="text-muted-foreground">Manage vendors, products, scope dictionaries, regions, templates, and spec extraction settings</p>
         </div>
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        <TabsList className="grid w-full grid-cols-6 max-w-4xl">
+        <TabsList className="flex flex-wrap gap-1 max-w-5xl">
           <TabsTrigger value="vendors" className="gap-2" data-testid="tab-vendors">
             <Building2 className="w-4 h-4" />
             Vendors
@@ -58,6 +58,10 @@ export default function CentralSettingsPage() {
           <TabsTrigger value="estimate-templates" className="gap-2" data-testid="tab-estimate-templates">
             <FileSpreadsheet className="w-4 h-4" />
             Estimates
+          </TabsTrigger>
+          <TabsTrigger value="spec-extractor" className="gap-2" data-testid="tab-spec-extractor">
+            <FileSearch className="w-4 h-4" />
+            Spec Extractor
           </TabsTrigger>
         </TabsList>
 
@@ -83,6 +87,10 @@ export default function CentralSettingsPage() {
 
         <TabsContent value="estimate-templates">
           <EstimateTemplateSection />
+        </TabsContent>
+
+        <TabsContent value="spec-extractor">
+          <SpecExtractorSettingsSection />
         </TabsContent>
       </Tabs>
     </div>
@@ -843,7 +851,7 @@ function ScopeDictionarySection() {
           <div>
             <CardTitle>Scope Dictionaries</CardTitle>
             <CardDescription>
-              Manage keywords per scope type for Plan Parser and SpecSift relevance scoring
+              Manage keywords per scope type for Plan Parser and Spec Extractor relevance scoring
             </CardDescription>
           </div>
           <div className="flex items-center gap-2">
@@ -1022,7 +1030,7 @@ function ScopeDictionaryDialog({ open, onOpenChange, scopeDict, mode }: ScopeDic
         <DialogHeader>
           <DialogTitle>{mode === "add" ? "Add Scope Dictionary" : "Edit Scope Dictionary"}</DialogTitle>
           <DialogDescription>
-            Define keywords and boost phrases used by Plan Parser and SpecSift for relevance scoring
+            Define keywords and boost phrases used by Plan Parser and Spec Extractor for relevance scoring
           </DialogDescription>
         </DialogHeader>
 
@@ -1936,6 +1944,437 @@ function EstimateTemplateSection() {
               data-testid="button-save-mappings"
             >
               Save Mappings
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+function SpecExtractorSettingsSection() {
+  const { toast } = useToast();
+  const [sectionPattern, setSectionPattern] = useState("");
+  const [defaultScopes, setDefaultScopes] = useState<Record<string, string>>({});
+  const [accessoryScopes, setAccessoryScopes] = useState<AccessoryScopeData[]>([]);
+  const [newScopeKey, setNewScopeKey] = useState("");
+  const [newScopeValue, setNewScopeValue] = useState("");
+  const [rollbackDialogOpen, setRollbackDialogOpen] = useState(false);
+  const [configLoaded, setConfigLoaded] = useState(false);
+
+  const configQuery = useQuery<SpecsiftConfig>({
+    queryKey: ["/api/settings/config"],
+  });
+
+  const versionsQuery = useQuery<SpecsiftConfig[]>({
+    queryKey: ["/api/settings/versions"],
+  });
+
+  const loadConfigIntoState = (config: SpecsiftConfig) => {
+    setSectionPattern(config.sectionPattern);
+    setDefaultScopes(config.defaultScopes as Record<string, string>);
+    setAccessoryScopes(config.accessoryScopes as AccessoryScopeData[]);
+  };
+
+  if (configQuery.data && !configLoaded && !configQuery.isLoading) {
+    loadConfigIntoState(configQuery.data);
+    setConfigLoaded(true);
+  }
+
+  const saveMutation = useMutation({
+    mutationFn: async () => {
+      const existing = configQuery.data;
+      const response = await fetch("/api/settings/config", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          password: "admin123",
+          sectionPattern,
+          defaultScopes,
+          accessoryScopes,
+          manufacturerExcludeTerms: existing?.manufacturerExcludeTerms || [],
+          modelPatterns: existing?.modelPatterns || [],
+          materialKeywords: existing?.materialKeywords || [],
+          conflictPatterns: existing?.conflictPatterns || [],
+          notePatterns: existing?.notePatterns || [],
+        }),
+      });
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.message || "Failed to save");
+      }
+      return response.json();
+    },
+    onSuccess: (newConfig) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/settings/config"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/settings/versions"] });
+      loadConfigIntoState(newConfig);
+      toast({
+        title: "Settings Saved",
+        description: `Version ${newConfig.version} created successfully.`,
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Save Failed",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const rollbackMutation = useMutation({
+    mutationFn: async (versionId: number) => {
+      const response = await fetch(`/api/settings/rollback/${versionId}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password: "admin123" }),
+      });
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.message || "Failed to rollback");
+      }
+      return response.json();
+    },
+    onSuccess: (restored) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/settings/config"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/settings/versions"] });
+      loadConfigIntoState(restored);
+      setRollbackDialogOpen(false);
+      toast({
+        title: "Settings Restored",
+        description: `Successfully rolled back to version ${restored.version}.`,
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Rollback Failed",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const [activeSubTab, setActiveSubTab] = useState("patterns");
+
+  if (configQuery.isLoading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <div className="text-muted-foreground">Loading configuration...</div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between flex-wrap gap-4">
+        <div>
+          <h2 className="text-lg font-semibold text-foreground flex items-center gap-2">
+            <FileSearch className="h-5 w-5" />
+            Spec Extractor Configuration
+          </h2>
+          <p className="text-sm text-muted-foreground mt-1">
+            Configure section detection patterns, default scope titles, and accessory scope keywords.
+          </p>
+        </div>
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            onClick={() => versionsQuery.data && versionsQuery.data.length > 0 && setRollbackDialogOpen(true)}
+            disabled={!versionsQuery.data || versionsQuery.data.length <= 1}
+            data-testid="button-spec-view-history"
+          >
+            <History className="mr-2 h-4 w-4" />
+            Version History
+          </Button>
+          <Button
+            onClick={() => saveMutation.mutate()}
+            disabled={saveMutation.isPending}
+            data-testid="button-spec-save-settings"
+          >
+            <Save className="mr-2 h-4 w-4" />
+            {saveMutation.isPending ? "Saving..." : "Save Changes"}
+          </Button>
+        </div>
+      </div>
+
+      {configQuery.data && (
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <CheckCircle className="h-4 w-4 text-green-500" />
+          Current version: {configQuery.data.version}
+          <span className="text-xs">
+            (saved {new Date(configQuery.data.createdAt).toLocaleString()})
+          </span>
+        </div>
+      )}
+
+      <Tabs value={activeSubTab} onValueChange={setActiveSubTab} className="space-y-4">
+        <TabsList className="flex flex-wrap gap-1">
+          <TabsTrigger value="patterns" data-testid="tab-spec-patterns">
+            Section Patterns
+          </TabsTrigger>
+          <TabsTrigger value="scopes" data-testid="tab-spec-scopes">
+            Default Scopes
+          </TabsTrigger>
+          <TabsTrigger value="accessories" data-testid="tab-spec-accessories">
+            Accessory Scopes
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="patterns" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Division 10 Section Pattern</CardTitle>
+              <CardDescription>
+                Regular expression pattern used to identify Division 10 section numbers in PDF text.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                <div>
+                  <Label htmlFor="spec-section-pattern">Section Number Regex</Label>
+                  <Textarea
+                    id="spec-section-pattern"
+                    value={sectionPattern}
+                    onChange={(e) => setSectionPattern(e.target.value)}
+                    className="font-mono text-sm"
+                    rows={3}
+                    data-testid="input-spec-section-pattern"
+                  />
+                  <p className="mt-2 text-xs text-muted-foreground">
+                    This regex matches section numbers like "10 21 13", "102113", "10-21-13", etc.
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="scopes" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Default Scope Titles</CardTitle>
+              <CardDescription>
+                Mapping of section numbers to default titles used when a title cannot be extracted.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                <div className="flex gap-2">
+                  <Input
+                    placeholder="Section Number (e.g., 10 28 00)"
+                    value={newScopeKey}
+                    onChange={(e) => setNewScopeKey(e.target.value)}
+                    className="flex-1"
+                    data-testid="input-spec-new-scope-key"
+                  />
+                  <Input
+                    placeholder="Title (e.g., Toilet Accessories)"
+                    value={newScopeValue}
+                    onChange={(e) => setNewScopeValue(e.target.value)}
+                    className="flex-1"
+                    data-testid="input-spec-new-scope-value"
+                  />
+                  <Button
+                    onClick={() => {
+                      if (newScopeKey && newScopeValue) {
+                        setDefaultScopes({ ...defaultScopes, [newScopeKey]: newScopeValue });
+                        setNewScopeKey("");
+                        setNewScopeValue("");
+                      }
+                    }}
+                    size="icon"
+                    data-testid="button-spec-add-scope"
+                  >
+                    <Plus className="h-4 w-4" />
+                  </Button>
+                </div>
+
+                <div className="max-h-80 overflow-y-auto space-y-2">
+                  {Object.entries(defaultScopes).map(([key, value]) => (
+                    <div key={key} className="flex items-center gap-2 p-2 rounded border bg-muted/30">
+                      <Badge variant="outline" className="font-mono">{key}</Badge>
+                      <span className="flex-1 text-sm">{value}</span>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => {
+                          const updated = { ...defaultScopes };
+                          delete updated[key];
+                          setDefaultScopes(updated);
+                        }}
+                        data-testid={`button-spec-remove-scope-${key}`}
+                      >
+                        <Trash2 className="h-4 w-4 text-destructive" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="accessories" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between flex-wrap gap-2">
+                <div>
+                  <CardTitle>Accessory Scope Definitions</CardTitle>
+                  <CardDescription>
+                    Define accessory scopes with keywords for matching in spec documents.
+                  </CardDescription>
+                </div>
+                <Button
+                  onClick={() => {
+                    setAccessoryScopes([
+                      ...accessoryScopes,
+                      { name: "New Scope", keywords: [], sectionHint: "", divisionScope: [] },
+                    ]);
+                  }}
+                  size="sm"
+                  data-testid="button-spec-add-accessory-scope"
+                >
+                  <Plus className="mr-2 h-4 w-4" />
+                  Add Scope
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4 max-h-[600px] overflow-y-auto">
+                {accessoryScopes.map((scope, index) => (
+                  <div key={index} className="p-4 rounded border bg-muted/30 space-y-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <Input
+                        value={scope.name}
+                        onChange={(e) => {
+                          const updated = [...accessoryScopes];
+                          updated[index] = { ...updated[index], name: e.target.value };
+                          setAccessoryScopes(updated);
+                        }}
+                        placeholder="Scope Name"
+                        className="font-medium"
+                        data-testid={`input-spec-accessory-name-${index}`}
+                      />
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => setAccessoryScopes(accessoryScopes.filter((_, i) => i !== index))}
+                        data-testid={`button-spec-remove-accessory-${index}`}
+                      >
+                        <Trash2 className="h-4 w-4 text-destructive" />
+                      </Button>
+                    </div>
+                    <div>
+                      <Label className="text-xs">Keywords (comma-separated)</Label>
+                      <Textarea
+                        value={scope.keywords.join(", ")}
+                        onChange={(e) => {
+                          const updated = [...accessoryScopes];
+                          updated[index] = {
+                            ...updated[index],
+                            keywords: e.target.value.split(",").map(k => k.trim()).filter(Boolean),
+                          };
+                          setAccessoryScopes(updated);
+                        }}
+                        placeholder="bike rack, bicycle rack, bicycle parking"
+                        rows={2}
+                        className="text-sm"
+                        data-testid={`input-spec-accessory-keywords-${index}`}
+                      />
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <Label className="text-xs">Section Hint</Label>
+                        <Input
+                          value={scope.sectionHint}
+                          onChange={(e) => {
+                            const updated = [...accessoryScopes];
+                            updated[index] = { ...updated[index], sectionHint: e.target.value };
+                            setAccessoryScopes(updated);
+                          }}
+                          placeholder="12 93 43"
+                          className="text-sm"
+                          data-testid={`input-spec-accessory-hint-${index}`}
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-xs">Division Scope (comma-separated)</Label>
+                        <Input
+                          value={scope.divisionScope.join(", ")}
+                          onChange={(e) => {
+                            const updated = [...accessoryScopes];
+                            updated[index] = {
+                              ...updated[index],
+                              divisionScope: e.target.value.split(",").map(n => parseInt(n.trim())).filter(n => !isNaN(n)),
+                            };
+                            setAccessoryScopes(updated);
+                          }}
+                          placeholder="11, 12"
+                          className="text-sm"
+                          data-testid={`input-spec-accessory-division-${index}`}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
+
+      <Dialog open={rollbackDialogOpen} onOpenChange={setRollbackDialogOpen}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <History className="h-5 w-5" />
+              Version History
+            </DialogTitle>
+            <DialogDescription>
+              Select a previous version to restore. This will create a new version with the selected configuration.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2 py-4">
+            {versionsQuery.data?.map((version) => (
+              <div
+                key={version.id}
+                className={`p-3 rounded border flex items-center justify-between gap-4 ${
+                  version.isActive ? "bg-primary/5 border-primary" : "bg-muted/30"
+                }`}
+              >
+                <div className="flex items-center gap-3">
+                  <Badge variant={version.isActive ? "default" : "outline"}>
+                    v{version.version}
+                  </Badge>
+                  <div>
+                    <div className="text-sm font-medium">
+                      {version.isActive && "(Current) "}
+                      {version.notes || "Configuration update"}
+                    </div>
+                    <div className="text-xs text-muted-foreground">
+                      {new Date(version.createdAt).toLocaleString()} by {version.createdBy || "admin"}
+                    </div>
+                  </div>
+                </div>
+                {!version.isActive && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => rollbackMutation.mutate(version.id)}
+                    disabled={rollbackMutation.isPending}
+                    data-testid={`button-spec-rollback-${version.id}`}
+                  >
+                    <RotateCcw className="mr-2 h-4 w-4" />
+                    Restore
+                  </Button>
+                )}
+              </div>
+            ))}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRollbackDialogOpen(false)}>
+              Close
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -33,9 +33,9 @@ const STATUS_MAP: Record<string, { label: string; color: string; icon: typeof Lo
   created: { label: "Created", color: "text-blue-500", icon: Clock },
   plans_uploaded: { label: "Plans Uploaded", color: "text-blue-500", icon: Clock },
   specs_uploaded: { label: "Specs Uploaded", color: "text-blue-500", icon: Clock },
-  specsift_running: { label: "SpecSift Running", color: "text-yellow-500", icon: Loader2 },
-  specsift_complete: { label: "SpecSift Complete", color: "text-green-500", icon: CheckCircle },
-  specsift_error: { label: "SpecSift Error", color: "text-red-500", icon: AlertCircle },
+  specsift_running: { label: "Spec Extractor Running", color: "text-yellow-500", icon: Loader2 },
+  specsift_complete: { label: "Spec Extractor Complete", color: "text-green-500", icon: CheckCircle },
+  specsift_error: { label: "Spec Extractor Error", color: "text-red-500", icon: AlertCircle },
   planparser_baseline_running: { label: "Plan Parser Running", color: "text-yellow-500", icon: Loader2 },
   planparser_baseline_complete: { label: "Plan Parser Complete", color: "text-green-500", icon: CheckCircle },
   planparser_baseline_error: { label: "Plan Parser Error", color: "text-red-500", icon: AlertCircle },
@@ -413,7 +413,7 @@ export default function ProjectDetailPage() {
           <CardHeader className="pb-3">
             <div className="flex items-center gap-2">
               <FileText className="w-5 h-5 text-primary" />
-              <CardTitle className="text-base">SpecSift</CardTitle>
+              <CardTitle className="text-base">Spec Extractor</CardTitle>
             </div>
             <CardDescription className="text-xs">Spec extraction results</CardDescription>
           </CardHeader>
@@ -425,9 +425,9 @@ export default function ProjectDetailPage() {
             )}
             {project.specsiftSessionId ? (
               <div className="flex items-center gap-2 flex-wrap">
-                <Link href={`/specsift/review?session=${project.specsiftSessionId}`}>
-                  <Button variant="outline" size="sm" data-testid="button-view-specsift">
-                    View SpecSift Results
+                <Link href={`/spec-extractor`}>
+                  <Button variant="outline" size="sm" data-testid="button-view-spec-extractor">
+                    View Spec Extractor
                   </Button>
                 </Link>
                 {specExtractorUrl && (
@@ -711,7 +711,7 @@ export default function ProjectDetailPage() {
             <div>
               <CardTitle className="text-base">Detected Scopes</CardTitle>
               <CardDescription>
-                Spec sections extracted by SpecSift. Toggle scopes on/off, then run the spec-informed second pass to boost Plan Parser accuracy.
+                Spec sections extracted by Spec Extractor. Toggle scopes on/off, then run the spec-informed second pass to boost Plan Parser accuracy.
               </CardDescription>
             </div>
             {scopes.length > 0 && (
@@ -744,7 +744,7 @@ export default function ProjectDetailPage() {
           ) : scopes.length === 0 ? (
             <div className="text-center py-4 text-muted-foreground" data-testid="text-no-scopes">
               {isProcessing
-                ? "Scopes will appear after SpecSift completes"
+                ? "Scopes will appear after Spec Extractor completes"
                 : "No scopes detected"}
             </div>
           ) : (

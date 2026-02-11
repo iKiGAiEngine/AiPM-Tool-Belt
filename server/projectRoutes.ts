@@ -31,7 +31,9 @@ import {
   deleteProject,
 } from "./scopeDictionaryStorage";
 import { storage } from "./storage";
-import { processPdf } from "./pdfParser";
+import { runExtraction, extractPages, findAccessorySections, isSignageSection } from "./specExtractorEngine";
+import type { AccessoryScope } from "./specExtractorEngine";
+import { getActiveConfiguration } from "./configService";
 import { callSpecExtractor } from "./specExtractorClient";
 import { reprocessJobWithSpecBoost } from "./planparser/pdfProcessor";
 import type { SpecBoostData } from "./planparser/classificationConfig";
@@ -463,7 +465,7 @@ export function registerProjectRoutes(app: Express) {
             projectName: safeName,
             status: "processing",
             progress: 0,
-            message: "Starting SpecSift extraction...",
+            message: "Starting Spec Extractor...",
             createdAt: new Date().toISOString(),
           });
           await storage.storePdfBuffer(specsiftSession.id, specsFile.buffer);
@@ -551,42 +553,94 @@ export function registerProjectRoutes(app: Express) {
                     });
                   }
                 } else {
-                  const result = await processPdf(specsFile.buffer, specsiftSessionId, (progress, message) => {
-                    storage.updateSession(specsiftSessionId!, { progress, message });
+                  const result = await runExtraction(specsFile.buffer, (progress, message) => {
+                    storage.updateSession(specsiftSessionId!, { progress: Math.min(progress, 70), message });
                   });
 
                   for (const section of result.sections) {
-                    await storage.createSection(section);
-                  }
-                  for (const accessory of result.accessories) {
-                    await storage.createAccessoryMatch(accessory);
+                    await storage.createSection({
+                      sessionId: specsiftSessionId!,
+                      sectionNumber: section.section,
+                      title: section.title,
+                      startPage: section.start,
+                      endPage: section.end,
+                      content: "",
+                      manufacturers: [],
+                      modelNumbers: [],
+                      materials: [],
+                      conflicts: [],
+                      notes: [],
+                      isEdited: false,
+                    });
                   }
 
-                  await storage.updateSession(specsiftSessionId, {
+                  await storage.updateSession(specsiftSessionId!, {
+                    progress: 75,
+                    message: "Scanning for accessory sections...",
+                  });
+
+                  let configScopes: AccessoryScope[] | undefined;
+                  try {
+                    const config = await getActiveConfiguration();
+                    if (config.accessoryScopes && (config.accessoryScopes as any[]).length > 0) {
+                      configScopes = (config.accessoryScopes as any[]).map((s: any) => ({
+                        name: s.name,
+                        keywords: Array.isArray(s.keywords) ? s.keywords : [],
+                        sectionHint: s.sectionHint || "",
+                        divisionScope: Array.isArray(s.divisionScope) ? s.divisionScope : [],
+                      }));
+                    }
+                  } catch (e) {
+                    console.log("[ProjectCreate] Could not load config scopes, using defaults");
+                  }
+
+                  const allAccessoryNames = (configScopes || []).map(s => s.name);
+                  if (allAccessoryNames.length > 0) {
+                    const pages = await extractPages(specsFile.buffer);
+                    const accessoryMatches = findAccessorySections(
+                      pages, allAccessoryNames, result.tocBounds, result.sections, configScopes
+                    );
+
+                    for (const match of accessoryMatches) {
+                      await storage.createAccessoryMatch({
+                        sessionId: specsiftSessionId!,
+                        scopeName: match.accessoryName,
+                        matchedKeyword: match.matchedKeywords.join(", "),
+                        context: `${match.sectionNumber} - ${match.title} (pages ${match.start + 1}-${match.end + 1})`,
+                        pageNumber: match.start,
+                        sectionHint: match.sectionNumber,
+                      });
+                    }
+
+                    console.log(`[ProjectCreate] Found ${accessoryMatches.length} accessory matches`);
+                  }
+
+                  await storage.updateSession(specsiftSessionId!, {
                     status: "complete",
                     progress: 100,
-                    message: `Extracted ${result.sections.length} sections`,
+                    message: `Extracted ${result.sections.length} sections via Spec Extractor`,
                   });
 
                   for (const section of result.sections) {
+                    const signage = isSignageSection(section.section);
                     await createProjectScope({
                       projectId: project.id,
                       scopeType: section.title || "Unknown",
-                      specSectionNumber: section.sectionNumber,
+                      specSectionNumber: section.section,
                       specSectionTitle: section.title,
-                      manufacturers: section.manufacturers || [],
-                      modelNumbers: section.modelNumbers || [],
-                      materials: section.materials || [],
+                      manufacturers: [],
+                      modelNumbers: [],
+                      materials: [],
                       keywords: [],
-                      confidenceScore: 80,
-                      isSelected: true,
+                      confidenceScore: 90,
+                      isSelected: !signage,
                     });
                   }
                 }
 
                 await updateProject(project.id, { status: "specsift_complete" });
               } catch (err) {
-                console.error("SpecSift processing error:", err);
+                console.error("Spec Extractor processing error:", err);
                 await storage.updateSession(specsiftSessionId!, {
                   status: "error",
                   message: err instanceof Error ? err.message : "Processing failed",
@@ -859,41 +913,93 @@ export function registerProjectRoutes(app: Express) {
 
             await updateProject(projectId, { status: "specsift_running" });
             if (sessionId) {
-              await storage.updateSession(sessionId, { status: "processing", progress: 0, message: "Retrying SpecSift..." });
+              await storage.updateSession(sessionId, { status: "processing", progress: 0, message: "Retrying Spec Extractor..." });
             }
 
-            const result = await processPdf(specsBuffer, sessionId || "", (progress, message) => {
-              if (sessionId) storage.updateSession(sessionId, { progress, message });
+            const result = await runExtraction(specsBuffer, (progress, message) => {
+              if (sessionId) storage.updateSession(sessionId, { progress: Math.min(progress, 70), message });
             });
 
             for (const section of result.sections) {
-              await storage.createSection(section);
+              await storage.createSection({
+                sessionId: sessionId || "",
+                sectionNumber: section.section,
+                title: section.title,
+                startPage: section.start,
+                endPage: section.end,
+                content: "",
+                manufacturers: [],
+                modelNumbers: [],
+                materials: [],
+                conflicts: [],
+                notes: [],
+                isEdited: false,
+              });
             }
-            for (const accessory of result.accessories) {
-              await storage.createAccessoryMatch(accessory);
+
+            if (sessionId) {
+              await storage.updateSession(sessionId, {
+                progress: 75,
+                message: "Scanning for accessory sections...",
+              });
+            }
+
+            let configScopes: AccessoryScope[] | undefined;
+            try {
+              const config = await getActiveConfiguration();
+              if (config.accessoryScopes && (config.accessoryScopes as any[]).length > 0) {
+                configScopes = (config.accessoryScopes as any[]).map((s: any) => ({
+                  name: s.name,
+                  keywords: Array.isArray(s.keywords) ? s.keywords : [],
+                  sectionHint: s.sectionHint || "",
+                  divisionScope: Array.isArray(s.divisionScope) ? s.divisionScope : [],
+                }));
+              }
+            } catch (e) {
+              console.log("[ProjectRetry] Could not load config scopes, using defaults");
+            }
+
+            const allAccessoryNames = (configScopes || []).map(s => s.name);
+            if (allAccessoryNames.length > 0) {
+              const pages = await extractPages(specsBuffer);
+              const accessoryMatches = findAccessorySections(
+                pages, allAccessoryNames, result.tocBounds, result.sections, configScopes
+              );
+              for (const match of accessoryMatches) {
+                await storage.createAccessoryMatch({
+                  sessionId: sessionId || "",
+                  scopeName: match.accessoryName,
+                  matchedKeyword: match.matchedKeywords.join(", "),
+                  context: `${match.sectionNumber} - ${match.title} (pages ${match.start + 1}-${match.end + 1})`,
+                  pageNumber: match.start,
+                  sectionHint: match.sectionNumber,
+                });
+              }
+              console.log(`[ProjectRetry] Found ${accessoryMatches.length} accessory matches`);
             }
 
             if (sessionId) {
               await storage.updateSession(sessionId, {
                 status: "complete", progress: 100,
-                message: `Extracted ${result.sections.length} sections`,
+                message: `Extracted ${result.sections.length} sections via Spec Extractor`,
               });
             }
 
             const existingScopes = await getProjectScopes(projectId);
             if (existingScopes.length === 0) {
               for (const section of result.sections) {
+                const signage = isSignageSection(section.section);
                 await createProjectScope({
                   projectId: projectId,
                   scopeType: section.title || "Unknown",
-                  specSectionNumber: section.sectionNumber,
+                  specSectionNumber: section.section,
                   specSectionTitle: section.title,
-                  manufacturers: section.manufacturers || [],
-                  modelNumbers: section.modelNumbers || [],
-                  materials: section.materials || [],
+                  manufacturers: [],
+                  modelNumbers: [],
+                  materials: [],
                   keywords: [],
-                  confidenceScore: 80,
-                  isSelected: true,
+                  confidenceScore: 90,
+                  isSelected: !signage,
                 });
               }
             }
@@ -924,7 +1030,7 @@ export function registerProjectRoutes(app: Express) {
               }
             }
           } catch (err) {
-            console.error("SpecSift retry error:", err);
+            console.error("Spec Extractor retry error:", err);
             await updateProject(projectId, { status: "specsift_error" });
           }
         })();
@@ -1259,7 +1365,7 @@ export function registerProjectRoutes(app: Express) {
           });
           zip.file(
             `${rootFolder}/Estimate Folder/Vendors/Specs Extracts/_Spec_Summary.txt`,
-            `SpecSift Extraction Summary\nProject: ${project.projectName}\nProject ID: ${project.projectId}\nRegion: ${project.regionCode}\n\n${summaryLines.join("\n\n")}\n`
+            `Spec Extractor Summary\nProject: ${project.projectName}\nProject ID: ${project.projectId}\nRegion: ${project.regionCode}\n\n${summaryLines.join("\n\n")}\n`
           );
         }
       }

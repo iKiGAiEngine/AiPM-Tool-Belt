@@ -437,7 +437,7 @@ export default function ProjectStartPage() {
 
   if (phase !== "idle") {
     const showUploadStep = hasFiles;
-    const showSpecSiftStep = hasSpecs;
+    const showSpecExtractorStep = hasSpecs;
     const showPlanParserStep = hasPlans;
 
     const getProgressTitle = () => {
@@ -518,19 +518,19 @@ export default function ProjectStartPage() {
               testId="progress-setup"
             />
 
-            {showSpecSiftStep && (
+            {showSpecExtractorStep && (
               <>
                 <ProgressStep
                   step={++stepNumber}
                   label="Analyzing Specifications"
-                  description={getSpecSiftDescription(phase, progressData)}
+                  description={getSpecExtractorDescription(phase, progressData)}
                   status={
                     phase === "specsift_running" ? "active" :
                     (phase === "uploading" || phase === "creating") ? "pending" : "done"
                   }
                   progress={progressData?.specsift?.progress ?? 0}
                   showProgress={phase === "specsift_running"}
-                  testId="progress-specsift"
+                  testId="progress-spec-extractor"
                 />
                 {progressData?.specExtractorUrl && (phase === "specsift_running" || phase === "planparser_running" || phase === "complete") && (
                   <div className="ml-9 -mt-3 space-y-2" data-testid="spec-extractor-link-section">
@@ -948,7 +948,7 @@ function formatSize(bytes: number | undefined): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-function getSpecSiftDescription(phase: CreationPhase, data: ProgressData | null): string {
+function getSpecExtractorDescription(phase: CreationPhase, data: ProgressData | null): string {
   if (phase === "specsift_running" && data?.specsift) {
     const msg = data.specsift.message || "Processing specifications...";
     const pct = data.specsift.progress;
@@ -972,7 +972,7 @@ function getPlanParserDescription(phase: CreationPhase, data: ProgressData | nul
     return "Page classification complete";
   }
   if (hasSpecs) {
-    return "Waiting for SpecSift to finish...";
+    return "Waiting for Spec Extractor to finish...";
   }
   return "Waiting to start...";
 }

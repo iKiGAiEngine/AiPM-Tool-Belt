@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { FileText, Upload, List, Home, Wrench, Settings, Receipt, FlaskConical, Loader2 } from "lucide-react";
+import { Home, Wrench, Receipt, FlaskConical, Loader2 } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { ThemeToggle } from "./ThemeToggle";
@@ -13,7 +13,6 @@ export function Header() {
   const [location, navigate] = useLocation();
   const { isTestMode, toggleTestMode } = useTestMode();
   const isHome = location === "/";
-  const isSpecSift = location.startsWith("/specsift");
   const isQuoteParser = location.startsWith("/quoteparser");
 
   const { data: projects = [] } = useQuery<Project[]>({
@@ -32,12 +31,6 @@ export function Header() {
     [projects]
   );
 
-  const specSiftNav = [
-    { href: "/specsift", label: "Upload", icon: Upload },
-    { href: "/specsift/review", label: "Review", icon: List },
-    { href: "/specsift/settings", label: "Settings", icon: Settings },
-  ];
-
   return (
     <>
       <header className="sticky top-0 z-50 h-16 border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
@@ -51,16 +44,6 @@ export function Header() {
                 AiPM Tool Belt
               </span>
             </Link>
-            
-            {isSpecSift && (
-              <>
-                <div className="h-6 w-px bg-border" />
-                <div className="flex items-center gap-1.5">
-                  <FileText className="h-4 w-4 text-primary" />
-                  <span className="text-sm font-medium text-foreground">SpecSift</span>
-                </div>
-              </>
-            )}
             
             {isQuoteParser && (
               <>
@@ -85,22 +68,6 @@ export function Header() {
               </Link>
             )}
             
-            {isSpecSift && specSiftNav.map((item) => (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={cn(
-                  "flex items-center gap-2 text-sm font-medium transition-colors",
-                  location === item.href
-                    ? "text-foreground"
-                    : "text-muted-foreground hover:text-foreground"
-                )}
-                data-testid={`link-nav-${item.label.toLowerCase()}`}
-              >
-                <item.icon className="h-4 w-4" />
-                {item.label}
-              </Link>
-            ))}
           </nav>
 
           <div className="flex items-center gap-3">

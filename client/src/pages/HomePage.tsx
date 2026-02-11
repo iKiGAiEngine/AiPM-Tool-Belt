@@ -29,17 +29,9 @@ const tools: ToolTile[] = [
   {
     id: "projectstart",
     title: "Project Start",
-    description: "Create a new project with plans and specs, route through SpecSift and Plan Parser",
+    description: "Create a new project with plans and specs, route through Spec Extractor and Plan Parser",
     icon: FolderPlus,
     href: "/project-start",
-    available: true,
-  },
-  {
-    id: "specsift",
-    title: "SpecSift",
-    description: "Extract Division 10 specifications from PDF documents and export organized packets",
-    icon: FileSearch,
-    href: "/specsift",
     available: true,
   },
   {

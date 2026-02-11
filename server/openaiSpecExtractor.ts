@@ -723,10 +723,10 @@ function parseJSON<T>(raw: string, schema: z.ZodType<T>): T | null {
     if (result.success) {
       return result.data;
     }
-    console.error("[AI SpecSift] Schema validation failed:", result.error.issues);
+    console.error("[AI Spec Extractor] Schema validation failed:", result.error.issues);
     return null;
   } catch (e) {
-    console.error("[AI SpecSift] JSON parse error:", e);
+    console.error("[AI Spec Extractor] JSON parse error:", e);
     return null;
   }
 }
@@ -800,12 +800,12 @@ export async function identifySectionsWithAI(
   clearConfigCache();
   const config = await getActiveConfiguration();
   const defaultScopes = config.defaultScopes as Record<string, string>;
-  console.log(`[AI SpecSift] ===== EXTRACTION START =====`);
-  console.log(`[AI SpecSift] ${pages.length} total pages, ${Object.keys(defaultScopes).length} default scopes configured`);
+  console.log(`[AI Spec Extractor] ===== EXTRACTION START =====`);
+  console.log(`[AI Spec Extractor] ${pages.length} total pages, ${Object.keys(defaultScopes).length} default scopes configured`);
 
   for (let i = 0; i < Math.min(5, pages.length); i++) {
     const preview = pages[i].slice(0, 150).replace(/\n/g, "\\n");
-    console.log(`[AI SpecSift] Page ${i + 1} preview: "${preview}"`);
+    console.log(`[AI Spec Extractor] Page ${i + 1} preview: "${preview}"`);
   }
 
   onProgress?.(5, "Detecting Table of Contents...");
@@ -976,10 +976,10 @@ export async function identifySectionsWithAI(
     }
   }
 
-  console.log(`[AI SpecSift] ===== FINAL RESULTS =====`);
-  console.log(`[AI SpecSift] ${allSections.length} sections total (${preScanSections.length} from regex, ${aiSections.length} from AI)`);
+  console.log(`[AI Spec Extractor] ===== FINAL RESULTS =====`);
+  console.log(`[AI Spec Extractor] ${allSections.length} sections total (${preScanSections.length} from regex, ${aiSections.length} from AI)`);
   for (const sec of allSections) {
-    console.log(`[AI SpecSift] ${sec.sectionNumber} - "${sec.title}" (pages ${sec.startPage}-${sec.endPage})`);
+    console.log(`[AI Spec Extractor] ${sec.sectionNumber} - "${sec.title}" (pages ${sec.startPage}-${sec.endPage})`);
   }
 
   return {
@@ -1018,11 +1018,11 @@ export async function extractSectionDetailsWithAI(
         conflicts: parsed.conflicts || [],
         notes: parsed.notes || [],
       };
-      console.log(`[AI SpecSift] Details for ${sectionNumber}: ${result.manufacturers.length} mfrs, ${result.modelNumbers.length} models, ${result.materials.length} materials`);
+      console.log(`[AI Spec Extractor] Details for ${sectionNumber}: ${result.manufacturers.length} mfrs, ${result.modelNumbers.length} models, ${result.materials.length} materials`);
       return result;
     }
   } catch (err) {
-    console.error(`[AI SpecSift] Detail extraction error for ${sectionNumber}:`, err);
+    console.error(`[AI Spec Extractor] Detail extraction error for ${sectionNumber}:`, err);
   }
 
   return {

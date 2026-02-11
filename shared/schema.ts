@@ -236,7 +236,7 @@ export const PLAN_PARSER_SCOPES = [
 ] as const;
 export type PlanParserScope = typeof PLAN_PARSER_SCOPES[number];
 
-// SpecSift Configuration Database Schema
+// Spec Extractor Configuration Database Schema
 export interface AccessoryScopeData {
   name: string;
   keywords: string[];
@@ -549,7 +549,7 @@ export const insertProjectSchema = createInsertSchema(projects).omit({
 export type InsertProjectInput = z.infer<typeof insertProjectSchema>;
 
 // =====================================================
-// PROJECT SCOPES - Selected scopes from SpecSift
+// PROJECT SCOPES - Selected scopes from Spec Extractor
 // =====================================================
 
 export const projectScopes = pgTable("project_scopes", {
@@ -678,7 +678,7 @@ export const sessions = pgTable("sessions", {
 });
 
 // =====================================================
-// EXTRACTED SECTIONS - Spec sections from SpecSift
+// EXTRACTED SECTIONS - Spec sections from Spec Extractor
 // =====================================================
 
 export const extractedSections = pgTable("extracted_sections", {

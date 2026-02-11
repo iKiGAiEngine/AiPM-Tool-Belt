@@ -7,10 +7,7 @@ import { ThemeProvider } from "@/lib/theme";
 import { TestModeProvider } from "@/lib/testMode";
 import { Header } from "@/components/Header";
 import HomePage from "@/pages/HomePage";
-import UploadPage from "@/pages/UploadPage";
-import ReviewPage from "@/pages/ReviewPage";
 import PlanParserPage from "@/pages/PlanParserPage";
-import SettingsPage from "@/pages/SettingsPage";
 import CentralSettingsPage from "@/pages/CentralSettingsPage";
 import QuoteParserPage from "@/pages/QuoteParserPage";
 import ProjectStartPage from "@/pages/ProjectStartPage";
@@ -24,9 +21,6 @@ function Router() {
   return (
     <Switch>
       <Route path="/" component={HomePage} />
-      <Route path="/specsift" component={UploadPage} />
-      <Route path="/specsift/review" component={ReviewPage} />
-      <Route path="/specsift/settings" component={SettingsPage} />
       <Route path="/planparser" component={PlanParserPage} />
       <Route path="/quoteparser" component={QuoteParserPage} />
       <Route path="/settings" component={CentralSettingsPage} />
