@@ -1,5 +1,8 @@
 import { useMemo } from "react";
-import { Home, Wrench, Receipt, FlaskConical, Loader2, Shield, LogOut } from "lucide-react";
+import {
+  Home, Wrench, Receipt, FlaskConical, Loader2, Shield, LogOut,
+  FolderPlus, ScanSearch, ClipboardList, TableProperties, Settings, type LucideIcon
+} from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { ThemeToggle } from "./ThemeToggle";
@@ -11,12 +14,32 @@ import { useAuth } from "@/lib/auth";
 import { cn } from "@/lib/utils";
 import type { Project } from "@shared/schema";
 
+interface ToolRoute {
+  path: string;
+  label: string;
+  icon: LucideIcon;
+}
+
+const toolRoutes: ToolRoute[] = [
+  { path: "/project-start", label: "Project Start", icon: FolderPlus },
+  { path: "/planparser", label: "Plan Parser", icon: ScanSearch },
+  { path: "/quoteparser", label: "Quote Parser", icon: Receipt },
+  { path: "/schedule-converter", label: "Schedule Converter", icon: TableProperties },
+  { path: "/spec-extractor", label: "Spec Extractor", icon: ClipboardList },
+  { path: "/settings", label: "Settings", icon: Settings },
+  { path: "/project-log", label: "Project Log", icon: ClipboardList },
+  { path: "/admin", label: "Admin", icon: Shield },
+];
+
 export function Header() {
   const [location, navigate] = useLocation();
   const { isTestMode, toggleTestMode } = useTestMode();
   const { user, isAdmin, logout } = useAuth();
   const isHome = location === "/";
-  const isQuoteParser = location.startsWith("/quoteparser");
+
+  const activeToolRoute = useMemo(() => {
+    return toolRoutes.find(r => location.startsWith(r.path));
+  }, [location]);
 
   const { data: projects = [] } = useQuery<Project[]>({
     queryKey: ["/api/projects", { includeTest: isTestMode }],
@@ -47,13 +70,15 @@ export function Header() {
                 AiPM Tool Belt
               </span>
             </Link>
-            
-            {isQuoteParser && (
+
+            {activeToolRoute && (
               <>
                 <div className="h-6 w-px bg-border" />
                 <div className="flex items-center gap-1.5">
-                  <Receipt className="h-4 w-4 text-primary" />
-                  <span className="text-sm font-medium text-foreground">Quote Parser</span>
+                  <activeToolRoute.icon className="h-4 w-4 text-primary" />
+                  <span className="text-sm font-medium text-foreground" data-testid="text-active-tool">
+                    {activeToolRoute.label}
+                  </span>
                 </div>
               </>
             )}
@@ -70,7 +95,6 @@ export function Header() {
                 Home
               </Link>
             )}
-            
           </nav>
 
           <div className="flex items-center gap-3">
@@ -84,17 +108,19 @@ export function Header() {
                 <span>{processingProjects.length} processing</span>
               </button>
             )}
-            <label className="flex items-center gap-2 cursor-pointer" data-testid="toggle-test-mode">
-              <FlaskConical className={cn("h-4 w-4", isTestMode ? "text-amber-500" : "text-muted-foreground")} />
-              <span className={cn("text-xs font-medium select-none", isTestMode ? "text-amber-500" : "text-muted-foreground")}>
-                Test
-              </span>
-              <Switch
-                checked={isTestMode}
-                onCheckedChange={toggleTestMode}
-                className="data-[state=checked]:bg-amber-500"
-              />
-            </label>
+            {isAdmin && (
+              <label className="flex items-center gap-2 cursor-pointer" data-testid="toggle-test-mode">
+                <FlaskConical className={cn("h-4 w-4", isTestMode ? "text-amber-500" : "text-muted-foreground")} />
+                <span className={cn("text-xs font-medium select-none", isTestMode ? "text-amber-500" : "text-muted-foreground")}>
+                  Test
+                </span>
+                <Switch
+                  checked={isTestMode}
+                  onCheckedChange={toggleTestMode}
+                  className="data-[state=checked]:bg-amber-500"
+                />
+              </label>
+            )}
             {isAdmin && (
               <Link href="/admin">
                 <Button variant="ghost" size="icon" title="Admin" data-testid="link-admin">
@@ -116,7 +142,7 @@ export function Header() {
           </div>
         </div>
       </header>
-      {isTestMode && (
+      {isAdmin && isTestMode && (
         <div className="sticky top-16 z-40 flex items-center justify-center gap-2 bg-amber-500 px-4 py-1.5 text-sm font-medium text-white" data-testid="banner-test-mode">
           <FlaskConical className="h-4 w-4" />
           Test Mode Active — Projects created now will be tagged as test data

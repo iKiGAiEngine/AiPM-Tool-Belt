@@ -129,8 +129,8 @@ export default function LoginPage() {
 
       <div className="w-full max-w-sm relative z-10">
         <div className="flex flex-col items-center mb-8">
-          <h1 className="text-5xl sm:text-6xl font-extrabold tracking-tight text-center mb-2 animate-brand-reveal" data-testid="text-login-title">
-            <span className="text-primary">AiPM</span>
+          <h1 className="text-4xl sm:text-5xl font-extrabold tracking-tight text-center mb-2 animate-brand-reveal" data-testid="text-login-title">
+            <span className="text-primary">AiPM Tool Belt</span>
           </h1>
           <h2 className="text-lg sm:text-xl font-semibold tracking-wide text-gray-400 text-center mb-3 animate-subtitle-slide">
             Your AI Assisted Digital PM

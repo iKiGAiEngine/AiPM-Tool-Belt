@@ -14,6 +14,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useTestMode } from "@/lib/testMode";
+import { useAuth } from "@/lib/auth";
 import type { Project } from "@shared/schema";
 
 interface ToolTile {
@@ -97,13 +98,15 @@ function getStatusLabel(status: string | null): string {
 
 export default function HomePage() {
   const { isTestMode } = useTestMode();
+  const { isAdmin } = useAuth();
   const { toast } = useToast();
   const [showClearDialog, setShowClearDialog] = useState(false);
+  const effectiveTestMode = isAdmin && isTestMode;
 
   const { data: projects = [] } = useQuery<Project[]>({
-    queryKey: ["/api/projects", { includeTest: isTestMode }],
+    queryKey: ["/api/projects", { includeTest: effectiveTestMode }],
     queryFn: async () => {
-      const url = isTestMode ? "/api/projects?includeTest=true" : "/api/projects";
+      const url = effectiveTestMode ? "/api/projects?includeTest=true" : "/api/projects";
       const res = await fetch(url);
       if (!res.ok) throw new Error("Failed to fetch projects");
       return res.json();
@@ -138,7 +141,7 @@ export default function HomePage() {
       <div className="flex-1 flex flex-col items-center px-6 py-12">
         <div className="text-center mb-12">
           <h1 className="text-5xl sm:text-6xl font-extrabold tracking-tight mb-2 animate-brand-reveal">
-            <span className="text-primary">AiPM</span>
+            <span className="text-primary">AiPM Tool Belt</span>
           </h1>
           <h2 className="text-lg sm:text-xl font-semibold tracking-wide text-muted-foreground mb-4 animate-subtitle-slide">
             Your AI Assisted Digital PM
@@ -154,7 +157,7 @@ export default function HomePage() {
           ))}
         </div>
 
-        {isTestMode && testProjectCount > 0 && (
+        {isAdmin && isTestMode && testProjectCount > 0 && (
           <div className="max-w-5xl w-full mt-4">
             <Card className="border-amber-500/30 bg-amber-500/5">
               <CardContent className="p-4 flex items-center justify-between gap-4 flex-wrap">
@@ -267,12 +270,14 @@ export default function HomePage() {
             Project Log
           </Button>
         </Link>
-        <Link href="/settings">
-          <Button variant="ghost" size="sm" className="gap-2 text-muted-foreground" data-testid="link-settings">
-            <Settings className="w-4 h-4" />
-            Settings
-          </Button>
-        </Link>
+        {isAdmin && (
+          <Link href="/settings">
+            <Button variant="ghost" size="sm" className="gap-2 text-muted-foreground" data-testid="link-settings">
+              <Settings className="w-4 h-4" />
+              Settings
+            </Button>
+          </Link>
+        )}
       </footer>
     </div>
   );
