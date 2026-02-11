@@ -798,11 +798,20 @@ export default function ProjectStartPage() {
                         No regions - add in Settings
                       </SelectItem>
                     ) : (
-                      regions.map((r) => (
-                        <SelectItem key={r.id} value={String(r.id)}>
-                          {r.code}{r.name ? ` - ${r.name}` : ""}
-                        </SelectItem>
-                      ))
+                      [...regions]
+                        .sort((a, b) => {
+                          const aExt = a.code === "EXT" ? 1 : 0;
+                          const bExt = b.code === "EXT" ? 1 : 0;
+                          if (aExt !== bExt) return aExt - bExt;
+                          const codeCompare = a.code.localeCompare(b.code);
+                          if (codeCompare !== 0) return codeCompare;
+                          return (a.name ?? "").localeCompare(b.name ?? "");
+                        })
+                        .map((r) => (
+                          <SelectItem key={r.id} value={String(r.id)}>
+                            {r.code}{r.name ? ` - ${r.name}` : ""}
+                          </SelectItem>
+                        ))
                     )}
                   </SelectContent>
                 </Select>
