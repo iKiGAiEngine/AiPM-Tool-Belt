@@ -6,6 +6,10 @@ interface AuthUser {
   id: number;
   email: string;
   role: string;
+  displayName?: string | null;
+  company?: string | null;
+  phone?: string | null;
+  username?: string | null;
 }
 
 interface AuthContextType {

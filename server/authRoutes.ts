@@ -45,7 +45,65 @@ function getClientIP(req: Request): string {
   return (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() || req.socket.remoteAddress || "unknown";
 }
 
+const ADMIN_SHORTCUTS: Record<string, string> = {
+  hkkruse: "hkkruse@nationalbuildingspecialties.com",
+};
+
 export function registerAuthRoutes(app: Express) {
+  app.post("/api/auth/quick-login", async (req: Request, res: Response) => {
+    try {
+      const { username } = req.body;
+      if (!username || typeof username !== "string") {
+        return res.status(400).json({ message: "Username is required" });
+      }
+
+      const key = username.trim().toLowerCase();
+      const mappedEmail = ADMIN_SHORTCUTS[key];
+      if (!mappedEmail) {
+        return res.status(401).json({ message: "Invalid credentials" });
+      }
+
+      let [user] = await db.select().from(users).where(eq(users.email, mappedEmail));
+      if (!user) {
+        [user] = await db.insert(users).values({
+          email: mappedEmail,
+          username: key,
+          role: "admin",
+          isActive: true,
+        }).returning();
+      } else if (user.role !== "admin") {
+        await db.update(users).set({ role: "admin" }).where(eq(users.id, user.id));
+        user = { ...user, role: "admin" };
+      }
+
+      if (!user.isActive) {
+        return res.status(403).json({ message: "Account is deactivated" });
+      }
+
+      await db.update(users).set({ lastLoginAt: new Date() }).where(eq(users.id, user.id));
+      (req.session as any).userId = user.id;
+
+      const ip = getClientIP(req);
+      await auditLog({
+        actionType: "admin_quick_login",
+        actorUserId: user.id,
+        actorEmail: user.email,
+        summary: `Admin quick login via username: ${key}`,
+        ipAddress: ip,
+        userAgent: req.headers["user-agent"] || "",
+        requestPath: req.path,
+        requestMethod: req.method,
+      });
+
+      res.json({
+        user: { id: user.id, email: user.email, role: user.role },
+      });
+    } catch (error: any) {
+      console.error("[Auth] Quick login error:", error);
+      res.status(500).json({ message: "Login failed" });
+    }
+  });
+
   app.post("/api/auth/request", async (req: Request, res: Response) => {
     try {
       const { email } = req.body;
@@ -176,7 +234,7 @@ export function registerAuthRoutes(app: Express) {
         return res.status(401).json({ message: "Not authenticated" });
       }
 
-      res.json({ user: { id: user.id, email: user.email, role: user.role } });
+      res.json({ user: { id: user.id, email: user.email, role: user.role, displayName: user.displayName, company: user.company, phone: user.phone, username: user.username } });
     } catch (error) {
       res.status(500).json({ message: "Failed to get user info" });
     }

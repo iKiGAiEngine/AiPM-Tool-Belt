@@ -4,13 +4,14 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Wrench, Loader2, ArrowLeft, Mail, KeyRound } from "lucide-react";
+import { Wrench, Loader2, ArrowLeft, Mail, KeyRound, User } from "lucide-react";
 import { queryClient } from "@/lib/queryClient";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [code, setCode] = useState("");
-  const [step, setStep] = useState<"email" | "verify">("email");
+  const [username, setUsername] = useState("");
+  const [step, setStep] = useState<"choose" | "email" | "verify" | "quick">("choose");
   const [sentEmail, setSentEmail] = useState("");
   const [error, setError] = useState("");
 
@@ -55,6 +56,26 @@ export default function LoginPage() {
     },
   });
 
+  const quickLoginMutation = useMutation({
+    mutationFn: async (username: string) => {
+      const res = await fetch("/api/auth/quick-login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ username }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message);
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
+    },
+    onError: (err: Error) => {
+      setError(err.message);
+    },
+  });
+
   const handleRequestCode = (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
@@ -67,6 +88,12 @@ export default function LoginPage() {
     verifyMutation.mutate({ email: sentEmail, code: code.trim() });
   };
 
+  const handleQuickLogin = (e: React.FormEvent) => {
+    e.preventDefault();
+    setError("");
+    quickLoginMutation.mutate(username.trim());
+  };
+
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-4">
       <div className="w-full max-w-sm">
@@ -75,11 +102,95 @@ export default function LoginPage() {
             <Wrench className="h-6 w-6 text-primary-foreground" />
           </div>
           <h1 className="text-2xl font-semibold tracking-tight" data-testid="text-login-title">AiPM Tool Belt</h1>
-          <p className="text-sm text-muted-foreground mt-1">Sign in with your company email</p>
+          <p className="text-sm text-muted-foreground mt-1">Sign in to continue</p>
         </div>
 
         <Card className="p-6">
-          {step === "email" ? (
+          {step === "choose" && (
+            <div className="space-y-4">
+              <Button
+                className="w-full"
+                onClick={() => { setStep("quick"); setError(""); }}
+                data-testid="button-choose-quick"
+              >
+                <User className="h-4 w-4 mr-2" />
+                Admin Login
+              </Button>
+              <div className="relative">
+                <div className="absolute inset-0 flex items-center">
+                  <span className="w-full border-t" />
+                </div>
+                <div className="relative flex justify-center text-xs uppercase">
+                  <span className="bg-card px-2 text-muted-foreground">or</span>
+                </div>
+              </div>
+              <Button
+                variant="outline"
+                className="w-full"
+                onClick={() => { setStep("email"); setError(""); }}
+                data-testid="button-choose-email"
+              >
+                <Mail className="h-4 w-4 mr-2" />
+                Sign in with Email Code
+              </Button>
+            </div>
+          )}
+
+          {step === "quick" && (
+            <form onSubmit={handleQuickLogin} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="username">Username</Label>
+                <div className="relative">
+                  <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    id="username"
+                    type="text"
+                    placeholder="Enter your username"
+                    value={username}
+                    onChange={(e) => setUsername(e.target.value)}
+                    className="pl-9"
+                    required
+                    autoFocus
+                    data-testid="input-username"
+                  />
+                </div>
+              </div>
+
+              {error && (
+                <p className="text-sm text-destructive" data-testid="text-error">{error}</p>
+              )}
+
+              <Button
+                type="submit"
+                className="w-full"
+                disabled={quickLoginMutation.isPending || !username.trim()}
+                data-testid="button-quick-login"
+              >
+                {quickLoginMutation.isPending ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Signing in...
+                  </>
+                ) : (
+                  "Sign In"
+                )}
+              </Button>
+
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="w-full"
+                onClick={() => { setStep("choose"); setError(""); setUsername(""); }}
+                data-testid="button-back-choose"
+              >
+                <ArrowLeft className="h-3.5 w-3.5 mr-1" />
+                Back
+              </Button>
+            </form>
+          )}
+
+          {step === "email" && (
             <form onSubmit={handleRequestCode} className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="email">Email Address</Label>
@@ -122,8 +233,22 @@ export default function LoginPage() {
               <p className="text-xs text-center text-muted-foreground">
                 Only authorized company emails are accepted.
               </p>
+
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="w-full"
+                onClick={() => { setStep("choose"); setError(""); setEmail(""); }}
+                data-testid="button-back-choose-2"
+              >
+                <ArrowLeft className="h-3.5 w-3.5 mr-1" />
+                Back
+              </Button>
             </form>
-          ) : (
+          )}
+
+          {step === "verify" && (
             <form onSubmit={handleVerifyCode} className="space-y-4">
               <div className="text-center mb-2">
                 <p className="text-sm text-muted-foreground">
@@ -172,7 +297,7 @@ export default function LoginPage() {
                 )}
               </Button>
 
-              <div className="flex justify-between">
+              <div className="flex justify-between gap-2 flex-wrap">
                 <Button
                   type="button"
                   variant="ghost"

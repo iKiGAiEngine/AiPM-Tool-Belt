@@ -807,6 +807,10 @@ export const parsedPages = pgTable("parsed_pages", {
 export const users = pgTable("users", {
   id: serial("id").primaryKey(),
   email: varchar("email", { length: 255 }).notNull().unique(),
+  username: varchar("username", { length: 100 }),
+  displayName: varchar("display_name", { length: 255 }),
+  company: varchar("company", { length: 255 }),
+  phone: varchar("phone", { length: 50 }),
   role: varchar("role", { length: 20 }).notNull().default("user"),
   isActive: boolean("is_active").notNull().default(true),
   createdAt: timestamp("created_at").notNull().defaultNow(),

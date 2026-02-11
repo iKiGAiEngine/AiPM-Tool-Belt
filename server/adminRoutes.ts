@@ -95,6 +95,104 @@ export function registerAdminRoutes(app: Express) {
     }
   });
 
+  app.post("/api/admin/users", requireAdmin, async (req: Request, res: Response) => {
+    try {
+      const { email, displayName, company, phone, role } = req.body;
+      const actorId = (req.session as any)?.userId;
+
+      if (!email || typeof email !== "string") {
+        return res.status(400).json({ message: "Email is required" });
+      }
+
+      const normalizedEmail = email.trim().toLowerCase();
+
+      const [existing] = await db.select().from(users).where(eq(users.email, normalizedEmail));
+      if (existing) {
+        return res.status(409).json({ message: "A user with this email already exists" });
+      }
+
+      const [newUser] = await db.insert(users).values({
+        email: normalizedEmail,
+        displayName: displayName || null,
+        company: company || null,
+        phone: phone || null,
+        role: role || "user",
+        isActive: true,
+      }).returning();
+
+      const [actor] = await db.select().from(users).where(eq(users.id, actorId));
+      await auditLog({
+        actionType: "user_created",
+        actorUserId: actorId,
+        actorEmail: actor?.email,
+        entityType: "user",
+        entityId: String(newUser.id),
+        summary: `Created user ${newUser.email}${newUser.displayName ? ` (${newUser.displayName})` : ""}`,
+        ipAddress: (req.headers["x-forwarded-for"] as string)?.split(",")[0] || req.socket.remoteAddress || "",
+        userAgent: req.headers["user-agent"] || "",
+        requestPath: req.path,
+        requestMethod: req.method,
+      });
+
+      res.status(201).json(newUser);
+    } catch (error) {
+      console.error("[Admin] Create user error:", error);
+      res.status(500).json({ message: "Failed to create user" });
+    }
+  });
+
+  app.patch("/api/admin/users/:id/profile", requireAdmin, async (req: Request, res: Response) => {
+    try {
+      const userId = parseInt(req.params.id);
+      const { displayName, company, phone, email } = req.body;
+      const actorId = (req.session as any)?.userId;
+
+      const updateFields: Record<string, any> = {};
+      if (displayName !== undefined) updateFields.displayName = displayName || null;
+      if (company !== undefined) updateFields.company = company || null;
+      if (phone !== undefined) updateFields.phone = phone || null;
+      if (email !== undefined) {
+        const normalizedEmail = email.trim().toLowerCase();
+        const [existing] = await db.select().from(users).where(eq(users.email, normalizedEmail));
+        if (existing && existing.id !== userId) {
+          return res.status(409).json({ message: "Another user already has this email" });
+        }
+        updateFields.email = normalizedEmail;
+      }
+
+      if (Object.keys(updateFields).length === 0) {
+        return res.status(400).json({ message: "No fields to update" });
+      }
+
+      const [updated] = await db
+        .update(users)
+        .set(updateFields)
+        .where(eq(users.id, userId))
+        .returning();
+
+      if (!updated) return res.status(404).json({ message: "User not found" });
+
+      const [actor] = await db.select().from(users).where(eq(users.id, actorId));
+      await auditLog({
+        actionType: "user_profile_updated",
+        actorUserId: actorId,
+        actorEmail: actor?.email,
+        entityType: "user",
+        entityId: String(userId),
+        summary: `Updated profile of ${updated.email}`,
+        ipAddress: (req.headers["x-forwarded-for"] as string)?.split(",")[0] || req.socket.remoteAddress || "",
+        userAgent: req.headers["user-agent"] || "",
+        requestPath: req.path,
+        requestMethod: req.method,
+      });
+
+      res.json(updated);
+    } catch (error) {
+      console.error("[Admin] Update profile error:", error);
+      res.status(500).json({ message: "Failed to update profile" });
+    }
+  });
+
   app.get("/api/admin/audit", requireAdmin, async (req: Request, res: Response) => {
     try {
       const { user: userFilter, from, to, action, search, limit: limitParam } = req.query;
