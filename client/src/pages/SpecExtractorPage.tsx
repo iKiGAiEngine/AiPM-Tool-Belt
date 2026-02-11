@@ -4,7 +4,7 @@ import {
   Upload, FileText, X, AlertCircle, CheckCircle2, Loader2,
   Download, ArrowLeft, Building2, FolderOpen, FileStack, Trash2,
   Eye, EyeOff, Sparkles, Check, Minus, SquareCheck, Pencil,
-  Package, Tag, Ban,
+  Package, Tag, Ban, ClipboardList,
 } from "lucide-react";
 import { useToolUsage } from "@/lib/useToolUsage";
 import { Button } from "@/components/ui/button";
@@ -14,6 +14,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import type { SpecExtractorSession, SpecExtractorSection } from "@shared/schema";
@@ -67,6 +68,7 @@ export default function SpecExtractorPage() {
   const projectNameInputRef = useRef<HTMLInputElement>(null);
 
   const [selectedAccessories, setSelectedAccessories] = useState<Set<string>>(new Set());
+  const [tocHints, setTocHints] = useState("");
 
   const { data: accessoryScopes = [] } = useQuery<{ name: string; keywords: string[]; sectionHint: string }[]>({
     queryKey: ["/api/spec-extractor/accessory-scopes"],
@@ -215,6 +217,9 @@ export default function SpecExtractorPage() {
       if (selectedAccessories.size > 0) {
         formData.append("selectedAccessories", JSON.stringify(Array.from(selectedAccessories)));
       }
+      if (tocHints.trim()) {
+        formData.append("tocHints", tocHints.trim());
+      }
 
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 120000);
@@ -304,6 +309,7 @@ export default function SpecExtractorPage() {
     setEditingFolderId(null);
     setIsEditingProjectName(false);
     setSelectedAccessories(new Set());
+    setTocHints("");
   };
 
   const toggleAccessory = (name: string) => {
@@ -653,6 +659,40 @@ export default function SpecExtractorPage() {
                 <p className="mt-1.5 text-xs text-muted-foreground">
                   AI will suggest a project name from the spec content if left blank
                 </p>
+              </div>
+
+              <div className="mx-auto max-w-2xl">
+                <Label htmlFor="se-toc-hints" className="flex items-center gap-2 text-sm font-medium text-foreground mb-2">
+                  <ClipboardList className="h-4 w-4" />
+                  TOC Section Hints
+                  <span className="text-xs text-muted-foreground font-normal">(optional)</span>
+                </Label>
+                <Textarea
+                  id="se-toc-hints"
+                  placeholder={"Paste a snippet from the Table of Contents to guide extraction.\nExample:\n10 21 13 - TOILET COMPARTMENTS\n10 22 13 - WIRE MESH PARTITIONS\n10 28 00 - TOILET ACCESSORIES"}
+                  value={tocHints}
+                  onChange={(e) => setTocHints(e.target.value)}
+                  className="w-full min-h-[100px] font-mono text-sm"
+                  data-testid="textarea-toc-hints"
+                />
+                <p className="mt-1.5 text-xs text-muted-foreground">
+                  Paste section numbers from a table of contents to ensure these sections are found. Helpful when the standard scan misses sections.
+                </p>
+                {tocHints.trim() && (
+                  <div className="mt-2 flex items-center gap-2">
+                    <Badge variant="secondary">
+                      {tocHints.trim().split(/[\n\r]+/).filter(l => l.trim()).length} lines
+                    </Badge>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setTocHints("")}
+                      data-testid="button-clear-toc-hints"
+                    >
+                      Clear
+                    </Button>
+                  </div>
+                )}
               </div>
 
               {accessoryScopes.length > 0 && (

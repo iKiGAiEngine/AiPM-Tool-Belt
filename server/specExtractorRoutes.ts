@@ -3,7 +3,7 @@ import multer from "multer";
 import { db } from "./db";
 import { specExtractorSessions, specExtractorSections } from "@shared/schema";
 import { eq } from "drizzle-orm";
-import { runExtraction, extractSectionPdf, extractPages, isSignageSection, findAccessorySections, ACCESSORY_SCOPES, type AccessoryScope } from "./specExtractorEngine";
+import { runExtraction, extractSectionPdf, extractPages, isSignageSection, findAccessorySections, parseTocHints, ACCESSORY_SCOPES, type AccessoryScope, type TOCHint } from "./specExtractorEngine";
 import { getActiveConfiguration } from "./configService";
 import JSZip from "jszip";
 import fs from "fs";
@@ -77,6 +77,7 @@ export function registerSpecExtractorRoutes(app: Express) {
           selectedAccessories = JSON.parse(raw);
         }
       } catch {}
+      let tocHintsRaw = (req.body.tocHints as string)?.trim() || "";
       const now = new Date().toISOString();
 
       if (!fs.existsSync(DATA_DIR)) {
@@ -109,7 +110,7 @@ export function registerSpecExtractorRoutes(app: Express) {
         createdAt: now,
       });
 
-      processInBackground(sessionId, req.file.buffer).catch(err => {
+      processInBackground(sessionId, req.file.buffer, tocHintsRaw).catch(err => {
         console.error(`[SpecExtractor] Background processing failed for ${sessionId}:`, err);
       });
 
@@ -540,13 +541,21 @@ Be concise - just the project name without extra descriptions like "for" or "at"
   }
 }
 
-async function processInBackground(sessionId: string, pdfBuffer: Buffer) {
+async function processInBackground(sessionId: string, pdfBuffer: Buffer, tocHintsRaw?: string) {
   try {
+    let tocHints: TOCHint[] | undefined;
+    if (tocHintsRaw) {
+      tocHints = parseTocHints(tocHintsRaw);
+      if (tocHints.length > 0) {
+        console.log(`[SpecExtractor] Parsed ${tocHints.length} TOC hints: ${tocHints.map(h => h.section).join(", ")}`);
+      }
+    }
+
     const result = await runExtraction(pdfBuffer, async (progress, message) => {
       await db.update(specExtractorSessions)
         .set({ progress, message })
         .where(eq(specExtractorSessions.id, sessionId));
-    });
+    }, tocHints);
 
     const [session] = await db.select().from(specExtractorSessions).where(eq(specExtractorSessions.id, sessionId));
     const projectName = session?.projectName || "Project";

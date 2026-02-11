@@ -32,7 +32,46 @@ export interface ExtractionResult {
   totalPages: number;
 }
 
+export interface TOCHint {
+  section: string;
+  title: string;
+}
+
 export type ProgressCallback = (progress: number, message: string) => void;
+
+export function parseTocHints(rawText: string): TOCHint[] {
+  const hints: TOCHint[] = [];
+  const seen = new Set<string>();
+  const lines = rawText.split(/[\n\r]+/);
+
+  for (const line of lines) {
+    const trimmed = line.replace(/\.{2,}/g, "").replace(/\s{2,}/g, " ").trim();
+    if (!trimmed) continue;
+
+    const match = trimmed.match(
+      /(\d{2}[\s\-\._]*\d{2}[\s\-\._]*\d{2}(?:[\s\-\._]*\d{2})?)\s*[-–—:\s]\s*(.+)/
+    );
+    if (match) {
+      const canon = canonize(match[1]);
+      const title = match[2].replace(/[\s\-–—:]+$/, "").trim();
+      if (!seen.has(canon) && title.length >= 2) {
+        seen.add(canon);
+        hints.push({ section: canon, title });
+      }
+    } else {
+      const numOnly = trimmed.match(/(\d{2}[\s\-\._]*\d{2}[\s\-\._]*\d{2}(?:[\s\-\._]*\d{2})?)/);
+      if (numOnly) {
+        const canon = canonize(numOnly[1]);
+        if (!seen.has(canon)) {
+          seen.add(canon);
+          hints.push({ section: canon, title: "" });
+        }
+      }
+    }
+  }
+
+  return hints;
+}
 
 const DEFAULT_SCOPES: Record<string, string> = {
   "10 11 00": "Visual Display Units",
@@ -274,9 +313,10 @@ const EQUIPMENT_REF_RE = /10\s*\d{4}-\d+/;
 const SEC_RE = /\b10[\s\-\._]*(?:\d{2}[\s\-\._]*\d{2}(?:[\s\-\._]*\d{2})?|\d{4,6})\b/g;
 
 const HDR_PATTERNS = [
-  /(?:SECTION|Section|SPEC|Spec)\s+(10[\s\-\._]*(?:\d{2}[\s\-\._]*\d{2}(?:[\s\-\._]*\d{2})?|\d{4,6}))\s*[–—\-:]\s*([A-Za-z][A-Za-z\s,&\/\-]+)/i,
-  /^(10[\s\-\._]*(?:\d{2}[\s\-\._]*\d{2}(?:[\s\-\._]*\d{2})?|\d{4,6}))\s*[–—\-:]\s*([A-Z][A-Z\s,&\/\-]+)/,
-  /(?:SECTION|Section|SPEC|Spec)\s+(10[\s\-\._]*(?:\d{2}[\s\-\._]*\d{2}(?:[\s\-\._]*\d{2})?|\d{4,6}))\s+([A-Z][A-Z\s,&\/\-]{10,})/i,
+  /(?:SECTION|Section|SPEC|Spec)\s+(10[\s\-\._]*(?:\d{2}[\s\-\._]*\d{2}(?:[\s\-\._]*\d{2})?|\d{4,6}))\s*[–—\-:]\s*([A-Za-z][A-Za-z\s,&\/\-\.()]+)/i,
+  /^(10[\s\-\._]*(?:\d{2}[\s\-\._]*\d{2}(?:[\s\-\._]*\d{2})?|\d{4,6}))\s*[–—\-:]\s*([A-Z][A-Z\s,&\/\-\.()]+)/,
+  /(?:SECTION|Section|SPEC|Spec)\s+(10[\s\-\._]*(?:\d{2}[\s\-\._]*\d{2}(?:[\s\-\._]*\d{2})?|\d{4,6}))\s+([A-Z][A-Z\s,&\/\-\.()]{5,})/i,
+  /^(10[\s\-\._]*(?:\d{2}[\s\-\._]*\d{2}(?:[\s\-\._]*\d{2})?|\d{4,6}))\s+([A-Z][A-Z\s,&\/\-\.()]{5,})/m,
 ];
 
 const END_MARKERS = [
@@ -422,7 +462,7 @@ function findDiv10Headers(pages: string[], tocBounds: TOCBounds): ExtractedHeade
 
     const txt = pages[pno];
     const lines = txt.split(/[\n\r]+/);
-    const topZone = lines.slice(0, 15).join("\n");
+    const topZone = lines.slice(0, 20).join("\n");
 
     for (const pattern of HDR_PATTERNS) {
       const match = pattern.exec(topZone);
@@ -497,6 +537,22 @@ function isLegitimateSection(fullPageText: string, section: string): boolean {
 
   const upper = fullPageText.toUpperCase();
   if (upper.includes("PART 1")) {
+    return true;
+  }
+
+  if (upper.includes("PART 2") || upper.includes("PART 3")) {
+    return true;
+  }
+
+  for (const marker of CONTENT_MARKERS) {
+    if (upper.includes(marker)) {
+      return true;
+    }
+  }
+
+  const sectionCompact = section.replace(/\s/g, "");
+  const textCompact = fullPageText.replace(/[\s\-\._]/g, "");
+  if (textCompact.includes(sectionCompact)) {
     return true;
   }
 
@@ -652,6 +708,97 @@ function makeRangesFromHeaders(headers: ExtractedHeader[], totalPages: number, p
   return ranges;
 }
 
+function findHintedSections(
+  pages: string[],
+  hints: TOCHint[],
+  tocBounds: TOCBounds,
+  alreadyFound: Set<string>
+): ExtractedHeader[] {
+  const hintedHeaders: ExtractedHeader[] = [];
+
+  for (const hint of hints) {
+    if (alreadyFound.has(hint.section)) {
+      console.log(`[SpecExtractor] Hint ${hint.section}: already found by standard scan`);
+      continue;
+    }
+
+    const sectionDigits = hint.section.replace(/\s/g, "");
+    const flexPattern = new RegExp(
+      sectionDigits.split("").map((d, i) => {
+        if (i > 0 && i % 2 === 0) return `[\\s\\-\\._]*${d}`;
+        return d;
+      }).join(""),
+      "i"
+    );
+
+    let bestPage = -1;
+    let bestScore = 0;
+    let bestTitle = hint.title || "";
+
+    for (let pno = 0; pno < pages.length; pno++) {
+      if (tocBounds.end >= 0 && pno <= tocBounds.end) continue;
+
+      const txt = pages[pno];
+      const lines = txt.split(/[\n\r]+/);
+      const topZone = lines.slice(0, 25).join("\n");
+      const fullText = txt;
+
+      let score = 0;
+
+      if (flexPattern.test(topZone)) {
+        score += 20;
+      } else if (flexPattern.test(fullText)) {
+        score += 5;
+      } else {
+        continue;
+      }
+
+      const upper = fullText.toUpperCase();
+      if (upper.includes("PART 1") && upper.includes("GENERAL")) score += 15;
+      if (upper.includes("PART 2")) score += 5;
+      if (upper.includes("PART 3")) score += 5;
+
+      for (const marker of CONTENT_MARKERS) {
+        if (upper.includes(marker)) { score += 2; break; }
+      }
+
+      for (const marker of END_MARKERS) {
+        if (fullText.toLowerCase().includes(marker)) { score += 3; break; }
+      }
+
+      const hasHeader = /(?:SECTION|SPEC)\s+\d{2}/i.test(topZone);
+      if (hasHeader) score += 10;
+
+      if (score > bestScore) {
+        bestScore = score;
+        bestPage = pno;
+
+        const extractedTitle = extractTitleFromHeader(topZone);
+        if (extractedTitle && extractedTitle.length >= 3) {
+          bestTitle = extractedTitle;
+        }
+      }
+    }
+
+    if (bestPage >= 0 && bestScore >= 15) {
+      const title = bestTitle || DEFAULT_SCOPES[hint.section] || DEFAULT_SCOPES[parentKey(hint.section)] || "Unknown Section";
+
+      hintedHeaders.push({
+        section: hint.section,
+        title,
+        page: bestPage,
+        isLegitimate: true,
+      });
+
+      console.log(`[SpecExtractor] Hint-guided match: ${hint.section} - "${title}" on p${bestPage + 1} (score: ${bestScore})`);
+    } else {
+      console.log(`[SpecExtractor] Hint ${hint.section}: no match found (best score: ${bestScore})`);
+    }
+  }
+
+  return hintedHeaders;
+}
+
 export async function extractPages(pdfBuffer: Buffer): Promise<string[]> {
   const uint8 = new Uint8Array(pdfBuffer);
   const loadingTask = pdfjsLib.getDocument({
@@ -704,7 +851,8 @@ export async function extractPages(pdfBuffer: Buffer): Promise<string[]> {
 
 export async function runExtraction(
   pdfBuffer: Buffer,
-  onProgress?: ProgressCallback
+  onProgress?: ProgressCallback,
+  tocHints?: TOCHint[]
 ): Promise<ExtractionResult> {
   onProgress?.(5, "Parsing PDF text...");
 
@@ -726,9 +874,22 @@ export async function runExtraction(
   const filteredHeaders = filterHeaders(rawHeaders, tocBounds);
   console.log(`[SpecExtractor] Filtered headers: ${filteredHeaders.length}`);
 
+  let allHeaders = [...filteredHeaders];
+
+  if (tocHints && tocHints.length > 0) {
+    onProgress?.(60, `Using ${tocHints.length} TOC hints to find additional sections...`);
+    console.log(`[SpecExtractor] Processing ${tocHints.length} TOC hints`);
+
+    const alreadyFound = new Set(filteredHeaders.map(h => h.section));
+    const hintedHeaders = findHintedSections(pages, tocHints, tocBounds, alreadyFound);
+    console.log(`[SpecExtractor] Hint-guided scan found ${hintedHeaders.length} additional sections`);
+
+    allHeaders = [...filteredHeaders, ...hintedHeaders];
+  }
+
   onProgress?.(70, "Calculating page ranges...");
 
-  const sections = makeRangesFromHeaders(filteredHeaders, totalPages, pages);
+  const sections = makeRangesFromHeaders(allHeaders, totalPages, pages);
   console.log(`[SpecExtractor] Final sections: ${sections.length}`);
 
   onProgress?.(90, "Extraction complete");
