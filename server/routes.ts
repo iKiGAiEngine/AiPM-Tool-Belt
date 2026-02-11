@@ -20,6 +20,7 @@ import { registerScheduleConverterRoutes } from "./scheduleConverterRoutes";
 import { registerSpecExtractorRoutes } from "./specExtractorRoutes";
 import { registerAuthRoutes, requireAuth } from "./authRoutes";
 import { registerAdminRoutes } from "./adminRoutes";
+import { registerToolUsageRoutes } from "./toolUsageRoutes";
 import { auditLog } from "./auditService";
 import { db } from "./db";
 import { users as usersTable } from "@shared/schema";
@@ -110,6 +111,7 @@ export async function registerRoutes(
   registerTemplateRoutes(app);
   registerScheduleConverterRoutes(app);
   registerSpecExtractorRoutes(app);
+  registerToolUsageRoutes(app);
   
   app.post("/api/upload", upload.single("file"), async (req: Request, res: Response) => {
     try {
