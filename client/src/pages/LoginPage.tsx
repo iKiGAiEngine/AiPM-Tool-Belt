@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Wrench, Loader2, ArrowLeft, Mail, KeyRound, User } from "lucide-react";
+import { Loader2, ArrowLeft, Mail, KeyRound, User } from "lucide-react";
 import { queryClient } from "@/lib/queryClient";
 
 function FloatingParticles() {
@@ -128,17 +128,14 @@ export default function LoginPage() {
       <FloatingParticles />
 
       <div className="w-full max-w-sm relative z-10">
-        <div className="flex flex-col items-center mb-8 animate-fade-in-up">
-          <div className="flex h-12 w-12 items-center justify-center rounded-md bg-primary/20 border border-primary/30 mb-6">
-            <Wrench className="h-6 w-6 text-primary" />
-          </div>
-          <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-center mb-1" data-testid="text-login-title">
-            <span className="text-primary">AI-Powered</span>
+        <div className="flex flex-col items-center mb-8">
+          <h1 className="text-5xl sm:text-6xl font-extrabold tracking-tight text-center mb-2 animate-brand-reveal" data-testid="text-login-title">
+            <span className="text-primary">AiPM</span>
           </h1>
-          <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-white text-center mb-3">
+          <h2 className="text-lg sm:text-xl font-semibold tracking-wide text-gray-400 text-center mb-3 animate-subtitle-slide">
             Your AI Assisted Digital PM
           </h2>
-          <p className="text-sm text-gray-400 text-center max-w-xs">
+          <p className="text-sm text-gray-500 text-center max-w-xs animate-subtitle-slide" style={{ animationDelay: "0.15s" }}>
             Transform your estimating workflow with intelligent automation.
           </p>
         </div>

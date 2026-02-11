@@ -136,19 +136,19 @@ export default function HomePage() {
   return (
     <div className="min-h-[calc(100vh-4rem)] flex flex-col">
       <div className="flex-1 flex flex-col items-center px-6 py-12">
-        <div className="text-center mb-12 animate-fade-in-up">
-          <h1 className="text-4xl sm:text-5xl font-extrabold tracking-tight mb-1">
-            <span className="text-primary">AI-Powered</span>
+        <div className="text-center mb-12">
+          <h1 className="text-5xl sm:text-6xl font-extrabold tracking-tight mb-2 animate-brand-reveal">
+            <span className="text-primary">AiPM</span>
           </h1>
-          <h2 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-foreground mb-4">
+          <h2 className="text-lg sm:text-xl font-semibold tracking-wide text-muted-foreground mb-4 animate-subtitle-slide">
             Your AI Assisted Digital PM
           </h2>
-          <p className="text-muted-foreground text-lg font-light max-w-xl mx-auto">
+          <p className="text-muted-foreground/80 text-base font-light max-w-xl mx-auto animate-subtitle-slide" style={{ animationDelay: "0.15s" }}>
             Transform your estimating workflow with intelligent automation. Save time, reduce errors, and win more bids.
           </p>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-6 max-w-6xl w-full">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-6 max-w-6xl w-full auto-rows-fr">
           {tools.map((tool, i) => (
             <ToolCard key={tool.id} tool={tool} index={i} />
           ))}
@@ -284,12 +284,10 @@ function ToolCard({ tool, index }: { tool: ToolTile; index: number }) {
   if (!tool.available) {
     return (
       <div
-        className="group relative flex flex-col items-center justify-center text-center p-8 rounded-lg border border-dashed border-border/50 bg-muted/20 opacity-50 min-h-[220px]"
+        className="group relative flex flex-col items-center justify-start text-center p-6 pt-8 rounded-lg border border-dashed border-border/50 bg-muted/20 opacity-50 h-[230px]"
         data-testid={`tile-${tool.id}`}
       >
-        <div className="tool-icon w-14 h-14 rounded-full bg-muted/50 flex items-center justify-center mb-4">
-          <Icon className="w-7 h-7 text-muted-foreground/50" />
-        </div>
+        <div className="tool-icon w-14 h-14 rounded-full bg-muted/50 flex items-center justify-center mb-4 shrink-0" />
         <h2 className="text-base font-semibold text-muted-foreground/70 mb-2">
           {tool.title}
         </h2>
@@ -304,14 +302,14 @@ function ToolCard({ tool, index }: { tool: ToolTile; index: number }) {
     <Link
       href={tool.href}
       data-testid={`link-tool-${tool.id}`}
-      className="block animate-fade-in-scale"
+      className="block h-full animate-fade-in-scale"
       style={{ animationDelay: `${0.1 + index * 0.08}s` }}
     >
       <div
-        className="tool-tile-animated group relative flex flex-col items-center justify-center text-center p-8 rounded-lg border border-border bg-card cursor-pointer min-h-[220px] hover-elevate active-elevate-2"
+        className="tool-tile-animated group relative flex flex-col items-center justify-start text-center p-6 pt-8 rounded-lg border border-border bg-card cursor-pointer h-[230px] hover-elevate active-elevate-2"
         data-testid={`tile-${tool.id}`}
       >
-        <div className="tool-icon w-14 h-14 rounded-full bg-primary/10 flex items-center justify-center mb-4">
+        <div className="tool-icon w-14 h-14 rounded-full bg-primary/10 flex items-center justify-center mb-4 shrink-0">
           <Icon className="w-7 h-7 text-primary" />
         </div>
         <h2 className="text-base font-semibold text-foreground mb-2">

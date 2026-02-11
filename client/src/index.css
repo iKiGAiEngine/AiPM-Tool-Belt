@@ -171,6 +171,35 @@
   100% { background-position: 0% 50%; }
 }
 
+@keyframes brand-reveal {
+  0% {
+    opacity: 0;
+    transform: scale(0.8);
+    filter: blur(8px);
+  }
+  60% {
+    opacity: 1;
+    transform: scale(1.04);
+    filter: blur(0);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+    filter: blur(0);
+  }
+}
+
+@keyframes subtitle-slide {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 @keyframes fade-in-up {
   from {
     opacity: 0;
@@ -198,6 +227,16 @@
   25% { transform: translateY(-20px) translateX(10px); opacity: 0.5; }
   50% { transform: translateY(-10px) translateX(-5px); opacity: 0.4; }
   75% { transform: translateY(-25px) translateX(8px); opacity: 0.3; }
+}
+
+.animate-brand-reveal {
+  animation: brand-reveal 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  opacity: 0;
+}
+
+.animate-subtitle-slide {
+  animation: subtitle-slide 0.6s ease-out 0.4s forwards;
+  opacity: 0;
 }
 
 .animate-fade-in-up {
