@@ -202,6 +202,24 @@ export default function ProjectStartPage() {
     }
   }, []);
 
+  const handleClickPaste = useCallback(async () => {
+    try {
+      const clipboardItems = await navigator.clipboard.read();
+      for (const item of clipboardItems) {
+        const imageType = item.types.find(t => t.startsWith("image/"));
+        if (imageType) {
+          const blob = await item.getType(imageType);
+          const file = new File([blob], "pasted-screenshot.png", { type: imageType });
+          handleScreenshotFile(file);
+          return;
+        }
+      }
+      toast({ title: "No image found in clipboard", description: "Copy a screenshot first, then click here to paste it.", variant: "destructive" });
+    } catch {
+      toast({ title: "Could not read clipboard", description: "Use Ctrl+V to paste, or browse for a file instead.", variant: "destructive" });
+    }
+  }, [handleScreenshotFile, toast]);
+
   const stopPolling = useCallback(() => {
     if (pollingRef.current) {
       clearInterval(pollingRef.current);
@@ -667,7 +685,7 @@ export default function ProjectStartPage() {
             <div>
               <CardTitle className="text-lg">Quick Fill from Screenshot</CardTitle>
               <CardDescription>
-                Paste (Ctrl+V) or drop a BuildingConnected screenshot to auto-fill project details
+                Paste a BuildingConnected screenshot to auto-fill project details
               </CardDescription>
             </div>
             {screenshotPreview && (
@@ -689,7 +707,7 @@ export default function ProjectStartPage() {
                   "border-2 border-dashed rounded-md p-6 text-center cursor-pointer transition-all duration-200 outline-none",
                   screenshotDragging
                     ? "border-primary bg-primary/10 ring-2 ring-primary/30"
-                    : "border-border hover-elevate focus:border-primary focus:bg-primary/5 focus:ring-2 focus:ring-primary/20"
+                    : "border-border hover:border-primary/50"
                 )}
                 onDragOver={(e) => {
                   e.preventDefault();
@@ -705,7 +723,7 @@ export default function ProjectStartPage() {
                   const file = e.dataTransfer.files[0];
                   if (file) handleScreenshotFile(file);
                 }}
-                onClick={() => screenshotInputRef.current?.click()}
+                onClick={handleClickPaste}
                 data-testid="dropzone-screenshot"
               >
                 <input
@@ -719,13 +737,21 @@ export default function ProjectStartPage() {
                   }}
                   data-testid="input-screenshot-file"
                 />
-                <Camera className="w-8 h-8 mx-auto mb-2 text-muted-foreground" />
-                <p className="text-sm text-muted-foreground">
-                  Drop a screenshot here, click to browse, or press <kbd className="px-1.5 py-0.5 rounded bg-muted text-xs font-mono">Ctrl+V</kbd> to paste
+                <Camera className="w-10 h-10 mx-auto mb-2 text-primary/70" />
+                <p className="font-medium text-foreground">
+                  Click to paste from clipboard
                 </p>
-                <p className="text-xs text-muted-foreground/60 mt-1">
-                  Click this area first, then Ctrl+V
+                <p className="text-sm text-muted-foreground mt-1">
+                  or drag and drop, or press <kbd className="px-1.5 py-0.5 rounded bg-muted text-xs font-mono">Ctrl+V</kbd>
                 </p>
+                <button
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); screenshotInputRef.current?.click(); }}
+                  className="text-xs text-primary hover:underline mt-2"
+                  data-testid="button-browse-screenshot"
+                >
+                  Browse files instead
+                </button>
               </div>
             ) : (
               <div className="space-y-3">

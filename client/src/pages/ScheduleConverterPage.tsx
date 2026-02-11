@@ -1,5 +1,4 @@
-import { useState, useCallback } from "react";
-import { useDropzone } from "react-dropzone";
+import { useState, useCallback, useRef } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { useToolUsage } from "@/lib/useToolUsage";
 import { Button } from "@/components/ui/button";
@@ -16,8 +15,8 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import {
-  Upload,
   ImageIcon,
+  Camera,
   Loader2,
   Copy,
   CheckCircle2,
@@ -104,16 +103,7 @@ export default function ScheduleConverterPage() {
     },
   });
 
-  const dropzone = useDropzone({
-    accept: { "image/*": [".png", ".jpg", ".jpeg", ".webp", ".bmp", ".tiff"] },
-    maxFiles: 1,
-    onDrop: (files: File[]) => {
-      if (files.length > 0) {
-        handleImageFile(files[0]);
-      }
-    },
-    noKeyboard: true,
-  });
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handlePaste = useCallback((e: React.ClipboardEvent) => {
     const items = e.clipboardData?.items;
@@ -125,6 +115,33 @@ export default function ScheduleConverterPage() {
         if (file) handleImageFile(file);
         return;
       }
+    }
+  }, [handleImageFile]);
+
+  const handleClickPaste = useCallback(async () => {
+    try {
+      const clipboardItems = await navigator.clipboard.read();
+      for (const item of clipboardItems) {
+        const imageType = item.types.find(t => t.startsWith("image/"));
+        if (imageType) {
+          const blob = await item.getType(imageType);
+          const file = new File([blob], "pasted-screenshot.png", { type: imageType });
+          handleImageFile(file);
+          return;
+        }
+      }
+      toast({ title: "No image found in clipboard", description: "Copy a screenshot first, then click here to paste it.", variant: "destructive" });
+    } catch {
+      toast({ title: "Could not read clipboard", description: "Use Ctrl+V to paste, or browse for a file instead.", variant: "destructive" });
+    }
+  }, [handleImageFile, toast]);
+
+  const handleDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    setIsFocused(false);
+    const file = e.dataTransfer.files[0];
+    if (file && file.type.startsWith("image/")) {
+      handleImageFile(file);
     }
   }, [handleImageFile]);
 
@@ -253,23 +270,34 @@ export default function ScheduleConverterPage() {
             <h2 className="font-medium">Schedule Screenshot</h2>
           </div>
           <div
-            {...dropzone.getRootProps()}
             tabIndex={0}
+            onPaste={handlePaste}
             onFocus={() => setIsFocused(true)}
             onBlur={() => setIsFocused(false)}
-            onPaste={handlePaste}
+            onDragOver={(e) => { e.preventDefault(); setIsFocused(true); }}
+            onDragLeave={() => setIsFocused(false)}
+            onDrop={handleDrop}
+            onClick={imageFile ? undefined : handleClickPaste}
             className={`border-2 border-dashed rounded-md p-8 text-center cursor-pointer transition-all duration-200 outline-none ${
-              dropzone.isDragActive
+              isFocused
                 ? "border-primary bg-primary/10 ring-2 ring-primary/30"
                 : imageFile
                 ? "border-green-500 bg-green-50 dark:bg-green-950/30"
-                : isFocused
-                ? "border-primary bg-primary/5 ring-2 ring-primary/20"
                 : "border-border hover:border-primary/50"
             }`}
             data-testid="dropzone-schedule"
           >
-            <input {...dropzone.getInputProps()} />
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) handleImageFile(file);
+              }}
+              data-testid="input-schedule-file"
+            />
             {imageFile ? (
               <div className="flex flex-col items-center gap-3">
                 <CheckCircle2 className="w-8 h-8 text-green-600" />
@@ -298,17 +326,22 @@ export default function ScheduleConverterPage() {
                 </Button>
               </div>
             ) : (
-              <div className="flex flex-col items-center gap-2">
-                <Upload className="w-8 h-8 text-muted-foreground" />
-                <p className="text-muted-foreground">
-                  Drop schedule screenshot or click to upload, or press <kbd className="px-1.5 py-0.5 rounded bg-muted text-xs font-mono">Ctrl+V</kbd> to paste
+              <div className="flex flex-col items-center gap-3">
+                <Camera className="w-10 h-10 text-primary/70" />
+                <p className="font-medium text-foreground">
+                  Click to paste from clipboard
                 </p>
-                <p className="text-xs text-muted-foreground">
-                  PNG, JPG, WebP, BMP, or TIFF
+                <p className="text-sm text-muted-foreground">
+                  or drag and drop, or press <kbd className="px-1.5 py-0.5 rounded bg-muted text-xs font-mono">Ctrl+V</kbd>
                 </p>
-                <p className="text-xs text-muted-foreground/60 mt-1">
-                  Click this area first, then Ctrl+V
-                </p>
+                <button
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); fileInputRef.current?.click(); }}
+                  className="text-xs text-primary hover:underline mt-1"
+                  data-testid="button-browse-files"
+                >
+                  Browse files instead
+                </button>
               </div>
             )}
           </div>
