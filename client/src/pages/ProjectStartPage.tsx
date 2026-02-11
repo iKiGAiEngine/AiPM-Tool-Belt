@@ -63,6 +63,7 @@ export default function ProjectStartPage() {
   const { isTestMode } = useTestMode();
   const [projectName, setProjectName] = useState("");
   const [regionCode, setRegionCode] = useState("");
+  const [selectedRegionId, setSelectedRegionId] = useState("");
   const [dueDate, setDueDate] = useState<Date | undefined>(undefined);
   const [calendarOpen, setCalendarOpen] = useState(false);
   const [yearCheckOpen, setYearCheckOpen] = useState(false);
@@ -149,6 +150,8 @@ export default function ProjectStartPage() {
       }
       if (data.matchedRegionCode && !regionCode) {
         setRegionCode(data.matchedRegionCode);
+        const matched = regions.find((r) => r.code === data.matchedRegionCode);
+        if (matched) setSelectedRegionId(String(matched.id));
       }
 
       toast({
@@ -776,9 +779,18 @@ export default function ProjectStartPage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="regionCode">Region *</Label>
-                <Select value={regionCode} onValueChange={setRegionCode}>
+                <Select value={selectedRegionId} onValueChange={(val) => {
+                  const selected = regions.find((r) => String(r.id) === val);
+                  setRegionCode(selected ? selected.code : val);
+                  setSelectedRegionId(val);
+                }}>
                   <SelectTrigger data-testid="select-region">
-                    <SelectValue placeholder="Select region" />
+                    <SelectValue placeholder="Select region">
+                      {selectedRegionId ? (() => {
+                        const sel = regions.find((r) => String(r.id) === selectedRegionId);
+                        return sel ? sel.code : regionCode;
+                      })() : null}
+                    </SelectValue>
                   </SelectTrigger>
                   <SelectContent>
                     {regions.length === 0 ? (
@@ -787,7 +799,7 @@ export default function ProjectStartPage() {
                       </SelectItem>
                     ) : (
                       regions.map((r) => (
-                        <SelectItem key={r.id} value={r.code}>
+                        <SelectItem key={r.id} value={String(r.id)}>
                           {r.code}{r.name ? ` - ${r.name}` : ""}
                         </SelectItem>
                       ))
