@@ -22,9 +22,7 @@ import {
   CheckCircle2,
   AlertTriangle,
   ArrowLeft,
-  Pencil,
   Check,
-  X,
   RotateCcw,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
@@ -57,15 +55,15 @@ export default function ScheduleConverterPage() {
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [result, setResult] = useState<ExtractionResult | null>(null);
   const [editedItems, setEditedItems] = useState<ScheduleItem[]>([]);
-  const [editingRow, setEditingRow] = useState<number | null>(null);
-  const [editDraft, setEditDraft] = useState<Partial<ScheduleItem>>({});
+  const [editingCell, setEditingCell] = useState<{ row: number; col: string } | null>(null);
+  const [editDraft, setEditDraft] = useState<string>("");
   const [isFocused, setIsFocused] = useState(false);
 
   const handleImageFile = useCallback((file: File) => {
     setImageFile(file);
     setResult(null);
     setEditedItems([]);
-    setEditingRow(null);
+    setEditingCell(null);
     const reader = new FileReader();
     reader.onload = (e) => setImagePreview(e.target?.result as string);
     reader.readAsDataURL(file);
@@ -87,7 +85,7 @@ export default function ScheduleConverterPage() {
     },
     onSuccess: (data) => {
       setResult(data);
-      setEditedItems(data.items.map(item => ({ ...item })));
+      setEditedItems(data.items.map(item => ({ ...item, needsReview: false })));
       const modelInfo = data.modelUsed ? ` via ${data.modelUsed}` : "";
       const retriedInfo = data.retried ? " (auto-upgraded)" : "";
       toast({
@@ -128,31 +126,41 @@ export default function ScheduleConverterPage() {
     }
   }, [handleImageFile]);
 
-  const startEdit = (idx: number) => {
-    setEditingRow(idx);
-    setEditDraft({ ...editedItems[idx] });
+  const startCellEdit = (row: number, col: string) => {
+    const item = editedItems[row];
+    const value = col === "quantity" ? String(item.quantity) : (item as any)[col] ?? "";
+    setEditingCell({ row, col });
+    setEditDraft(value);
   };
 
-  const cancelEdit = () => {
-    setEditingRow(null);
-    setEditDraft({});
-  };
-
-  const saveEdit = (idx: number) => {
+  const saveCellEdit = () => {
+    if (!editingCell) return;
+    const { row, col } = editingCell;
     setEditedItems(prev => {
       const updated = [...prev];
-      updated[idx] = {
-        ...updated[idx],
-        planCallout: editDraft.planCallout ?? updated[idx].planCallout,
-        description: editDraft.description ?? updated[idx].description,
-        modelNumber: editDraft.modelNumber ?? updated[idx].modelNumber,
-        quantity: editDraft.quantity ?? updated[idx].quantity,
-        needsReview: false,
-      };
+      if (col === "quantity") {
+        updated[row] = { ...updated[row], quantity: parseInt(editDraft) || 0 };
+      } else {
+        updated[row] = { ...updated[row], [col]: editDraft };
+      }
       return updated;
     });
-    setEditingRow(null);
-    setEditDraft({});
+    setEditingCell(null);
+    setEditDraft("");
+  };
+
+  const cancelCellEdit = () => {
+    setEditingCell(null);
+    setEditDraft("");
+  };
+
+  const handleCellKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      saveCellEdit();
+    } else if (e.key === "Escape") {
+      cancelCellEdit();
+    }
   };
 
   const toggleReview = (idx: number) => {
@@ -161,6 +169,14 @@ export default function ScheduleConverterPage() {
       updated[idx] = { ...updated[idx], needsReview: !updated[idx].needsReview };
       return updated;
     });
+  };
+
+  const allSelected = editedItems.length > 0 && editedItems.every(i => !i.needsReview);
+  const noneSelected = editedItems.length > 0 && editedItems.every(i => i.needsReview);
+
+  const toggleSelectAll = () => {
+    const newVal = !allSelected;
+    setEditedItems(prev => prev.map(i => ({ ...i, needsReview: !newVal })));
   };
 
   const copyTSV = useCallback(() => {
@@ -193,8 +209,8 @@ export default function ScheduleConverterPage() {
 
   const resetToOriginal = () => {
     if (result) {
-      setEditedItems(result.items.map(item => ({ ...item })));
-      setEditingRow(null);
+      setEditedItems(result.items.map(item => ({ ...item, needsReview: false })));
+      setEditingCell(null);
       toast({ title: "Reset", description: "All edits reverted to original extraction" });
     }
   };
@@ -364,7 +380,17 @@ export default function ScheduleConverterPage() {
                   <TableHeader>
                     <TableRow>
                       <TableHead className="w-10">
-                        <span className="sr-only">Review</span>
+                        <Checkbox
+                          checked={allSelected}
+                          ref={(el) => {
+                            if (el) {
+                              const input = el.querySelector("button");
+                              if (input) (input as any).indeterminate = !allSelected && !noneSelected;
+                            }
+                          }}
+                          onCheckedChange={toggleSelectAll}
+                          data-testid="checkbox-select-all"
+                        />
                       </TableHead>
                       <TableHead className="min-w-[90px]">PLAN CALLOUT</TableHead>
                       <TableHead className="min-w-[180px]">DESCRIPTION</TableHead>
@@ -372,134 +398,90 @@ export default function ScheduleConverterPage() {
                       <TableHead className="min-w-[60px] text-center">QTY</TableHead>
                       <TableHead className="min-w-[70px] text-center">CONFIDENCE</TableHead>
                       <TableHead className="min-w-[150px]">FLAGS</TableHead>
-                      <TableHead className="w-10">
-                        <span className="sr-only">Edit</span>
-                      </TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {editedItems.map((item, idx) => (
-                      <TableRow
-                        key={idx}
-                        className={item.needsReview ? "bg-yellow-500/5" : ""}
-                        data-testid={`row-item-${idx}`}
-                      >
-                        <TableCell>
-                          <Checkbox
-                            checked={!item.needsReview}
-                            onCheckedChange={() => toggleReview(idx)}
-                            data-testid={`checkbox-review-${idx}`}
-                          />
-                        </TableCell>
+                    {editedItems.map((item, idx) => {
+                      const isEditing = (col: string) =>
+                        editingCell?.row === idx && editingCell?.col === col;
 
-                        {editingRow === idx ? (
-                          <>
-                            <TableCell>
-                              <Input
-                                value={editDraft.planCallout ?? ""}
-                                onChange={(e) => setEditDraft(d => ({ ...d, planCallout: e.target.value }))}
-                                className="h-8 font-mono text-sm"
-                                data-testid={`input-callout-${idx}`}
-                              />
-                            </TableCell>
-                            <TableCell>
-                              <Input
-                                value={editDraft.description ?? ""}
-                                onChange={(e) => setEditDraft(d => ({ ...d, description: e.target.value }))}
-                                className="h-8 text-sm"
-                                data-testid={`input-description-${idx}`}
-                              />
-                            </TableCell>
-                            <TableCell>
-                              <Input
-                                value={editDraft.modelNumber ?? ""}
-                                onChange={(e) => setEditDraft(d => ({ ...d, modelNumber: e.target.value }))}
-                                className="h-8 font-mono text-sm"
-                                data-testid={`input-model-${idx}`}
-                              />
-                            </TableCell>
-                            <TableCell>
-                              <Input
-                                type="number"
-                                value={editDraft.quantity ?? 0}
-                                onChange={(e) => setEditDraft(d => ({ ...d, quantity: parseInt(e.target.value) || 0 }))}
-                                className="h-8 text-sm text-center w-16"
-                                data-testid={`input-qty-${idx}`}
-                              />
-                            </TableCell>
-                            <TableCell className="text-center">
-                              {getConfidenceBadge(item.confidence)}
-                            </TableCell>
-                            <TableCell>
-                              <div className="flex flex-wrap gap-1">
-                                {item.flags.map((flag, fi) => (
-                                  <Badge key={fi} variant="outline" className="text-xs text-muted-foreground">
-                                    {flag}
-                                  </Badge>
-                                ))}
-                              </div>
-                            </TableCell>
-                            <TableCell>
-                              <div className="flex items-center gap-1">
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  onClick={() => saveEdit(idx)}
-                                  data-testid={`button-save-${idx}`}
-                                >
-                                  <Check className="w-3.5 h-3.5 text-green-600" />
-                                </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  onClick={cancelEdit}
-                                  data-testid={`button-cancel-${idx}`}
-                                >
-                                  <X className="w-3.5 h-3.5 text-muted-foreground" />
-                                </Button>
-                              </div>
-                            </TableCell>
-                          </>
-                        ) : (
-                          <>
-                            <TableCell className="font-mono text-sm">{item.planCallout}</TableCell>
-                            <TableCell className="text-sm">{item.description}</TableCell>
-                            <TableCell className="font-mono text-sm font-medium">{item.modelNumber}</TableCell>
-                            <TableCell className="text-center text-sm">{item.quantity}</TableCell>
-                            <TableCell className="text-center">
-                              {getConfidenceBadge(item.confidence)}
-                            </TableCell>
-                            <TableCell>
-                              <div className="flex flex-wrap gap-1">
-                                {item.flags.map((flag, fi) => (
-                                  <Badge key={fi} variant="outline" className="text-xs text-muted-foreground">
-                                    {flag}
-                                  </Badge>
-                                ))}
-                                {item.flags.length === 0 && (
-                                  <span className="text-xs text-muted-foreground/50">None</span>
-                                )}
-                              </div>
-                            </TableCell>
-                            <TableCell>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                onClick={() => startEdit(idx)}
-                                className="opacity-0 group-hover:opacity-100 transition-opacity"
-                                style={{ visibility: "visible", opacity: editingRow === null ? undefined : 0.3 }}
-                                data-testid={`button-edit-${idx}`}
-                              >
-                                <Pencil className="w-3.5 h-3.5" />
-                              </Button>
-                            </TableCell>
-                          </>
-                        )}
-                      </TableRow>
-                    ))}
+                      const renderEditableCell = (col: string, display: React.ReactNode, className?: string) => (
+                        <TableCell
+                          className={`cursor-pointer ${className ?? ""}`}
+                          onDoubleClick={() => startCellEdit(idx, col)}
+                          data-testid={`cell-${col}-${idx}`}
+                        >
+                          {isEditing(col) ? (
+                            <Input
+                              autoFocus
+                              type={col === "quantity" ? "number" : "text"}
+                              value={editDraft}
+                              onChange={(e) => setEditDraft(e.target.value)}
+                              onKeyDown={handleCellKeyDown}
+                              onBlur={saveCellEdit}
+                              className={`h-8 text-sm ${col === "quantity" ? "text-center w-16" : ""} ${col === "planCallout" || col === "modelNumber" ? "font-mono" : ""}`}
+                              data-testid={`input-${col}-${idx}`}
+                            />
+                          ) : (
+                            display
+                          )}
+                        </TableCell>
+                      );
+
+                      return (
+                        <TableRow
+                          key={idx}
+                          className={item.needsReview ? "bg-yellow-500/5" : ""}
+                          data-testid={`row-item-${idx}`}
+                        >
+                          <TableCell>
+                            <Checkbox
+                              checked={!item.needsReview}
+                              onCheckedChange={() => toggleReview(idx)}
+                              data-testid={`checkbox-review-${idx}`}
+                            />
+                          </TableCell>
+                          {renderEditableCell(
+                            "planCallout",
+                            <span className="font-mono text-sm">{item.planCallout}</span>,
+                            "font-mono text-sm"
+                          )}
+                          {renderEditableCell(
+                            "description",
+                            <span className="text-sm">{item.description}</span>,
+                            "text-sm"
+                          )}
+                          {renderEditableCell(
+                            "modelNumber",
+                            <span className="font-mono text-sm font-medium">{item.modelNumber}</span>,
+                            "font-mono text-sm"
+                          )}
+                          {renderEditableCell(
+                            "quantity",
+                            <span className="text-sm">{item.quantity}</span>,
+                            "text-center text-sm"
+                          )}
+                          <TableCell className="text-center">
+                            {getConfidenceBadge(item.confidence)}
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex flex-wrap gap-1">
+                              {item.flags.map((flag, fi) => (
+                                <Badge key={fi} variant="outline" className="text-xs text-muted-foreground">
+                                  {flag}
+                                </Badge>
+                              ))}
+                              {item.flags.length === 0 && (
+                                <span className="text-xs text-muted-foreground/50">None</span>
+                              )}
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
                     {editedItems.length === 0 && (
                       <TableRow>
-                        <TableCell colSpan={8} className="text-center text-muted-foreground py-8">
+                        <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
                           No items extracted
                         </TableCell>
                       </TableRow>
