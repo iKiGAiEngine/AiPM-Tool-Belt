@@ -5,11 +5,12 @@ import {
   FileSearch, ScanSearch, Receipt, FolderPlus, ChevronRight,
   Clock, ClipboardList, Settings, CheckCircle, AlertCircle,
   Loader2, TrendingUp, FolderOpen, BarChart3, FlaskConical, Trash2,
-  TableProperties
+  TableProperties, Sparkles, Users, Activity, X
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -67,7 +68,37 @@ const tools: ToolTile[] = [
     href: "/spec-extractor",
     available: true,
   },
+  {
+    id: "comingsoon",
+    title: "Coming Soon",
+    description: "New tools and features are on the way. Stay tuned for updates.",
+    icon: Sparkles,
+    href: "#",
+    available: false,
+  },
 ];
+
+interface UsageSummary {
+  [toolId: string]: { totalUses: number; uniqueUsers: number };
+}
+
+interface UsageDetail {
+  toolId: string;
+  userBreakdown: Array<{
+    userId: number;
+    email: string;
+    displayName: string | null;
+    useCount: number;
+    lastUsed: string;
+  }>;
+  recentEvents: Array<{
+    id: number;
+    userId: number;
+    email: string;
+    displayName: string | null;
+    usedAt: string;
+  }>;
+}
 
 function getStatusCategory(status: string | null): "processing" | "complete" | "error" | "created" {
   if (!status) return "created";
@@ -101,6 +132,7 @@ export default function HomePage() {
   const { isAdmin } = useAuth();
   const { toast } = useToast();
   const [showClearDialog, setShowClearDialog] = useState(false);
+  const [selectedToolForStats, setSelectedToolForStats] = useState<string | null>(null);
   const effectiveTestMode = isAdmin && isTestMode;
 
   const { data: projects = [] } = useQuery<Project[]>({
@@ -111,6 +143,21 @@ export default function HomePage() {
       if (!res.ok) throw new Error("Failed to fetch projects");
       return res.json();
     },
+  });
+
+  const { data: usageSummary } = useQuery<UsageSummary>({
+    queryKey: ["/api/tool-usage/summary"],
+    enabled: isAdmin,
+  });
+
+  const { data: usageDetail } = useQuery<UsageDetail>({
+    queryKey: ["/api/tool-usage", selectedToolForStats],
+    queryFn: async () => {
+      const res = await fetch(`/api/tool-usage/${selectedToolForStats}`);
+      if (!res.ok) throw new Error("Failed to fetch usage details");
+      return res.json();
+    },
+    enabled: !!selectedToolForStats && isAdmin,
   });
 
   const clearTestDataMutation = useMutation({
@@ -136,6 +183,8 @@ export default function HomePage() {
     [projects]
   );
 
+  const selectedToolTitle = tools.find(t => t.id === selectedToolForStats)?.title || "";
+
   return (
     <div className="min-h-[calc(100vh-4rem)] flex flex-col">
       <div className="flex-1 flex flex-col items-center px-6 py-12">
@@ -151,9 +200,16 @@ export default function HomePage() {
           </p>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-6 max-w-6xl w-full auto-rows-fr">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-5 max-w-7xl w-full">
           {tools.map((tool, i) => (
-            <ToolCard key={tool.id} tool={tool} index={i} />
+            <ToolCard
+              key={tool.id}
+              tool={tool}
+              index={i}
+              isAdmin={isAdmin}
+              stats={usageSummary?.[tool.id]}
+              onStatsClick={() => setSelectedToolForStats(tool.id)}
+            />
           ))}
         </div>
 
@@ -279,20 +335,104 @@ export default function HomePage() {
           </Link>
         )}
       </footer>
+
+      <Dialog open={!!selectedToolForStats} onOpenChange={(open) => { if (!open) setSelectedToolForStats(null); }}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2" data-testid="text-stats-dialog-title">
+              <Activity className="w-5 h-5 text-primary" />
+              {selectedToolTitle} Usage
+            </DialogTitle>
+            <DialogDescription>Usage statistics and user breakdown for {selectedToolTitle}</DialogDescription>
+          </DialogHeader>
+          {usageDetail ? (
+            <div className="space-y-6">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="rounded-lg border p-4 text-center">
+                  <p className="text-2xl font-bold text-foreground" data-testid="text-stats-total-uses">
+                    {usageSummary?.[selectedToolForStats || ""]?.totalUses || 0}
+                  </p>
+                  <p className="text-xs text-muted-foreground">Total Uses</p>
+                </div>
+                <div className="rounded-lg border p-4 text-center">
+                  <p className="text-2xl font-bold text-foreground" data-testid="text-stats-unique-users">
+                    {usageSummary?.[selectedToolForStats || ""]?.uniqueUsers || 0}
+                  </p>
+                  <p className="text-xs text-muted-foreground">Unique Users</p>
+                </div>
+              </div>
+
+              {usageDetail.userBreakdown.length > 0 ? (
+                <div>
+                  <h3 className="text-sm font-medium text-foreground mb-3">User Breakdown</h3>
+                  <div className="space-y-2 max-h-60 overflow-y-auto">
+                    {usageDetail.userBreakdown.map((u) => (
+                      <div key={u.userId} className="flex items-center justify-between gap-3 p-2 rounded-md border" data-testid={`row-user-${u.userId}`}>
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium truncate">{u.displayName || u.email}</p>
+                          {u.displayName && <p className="text-xs text-muted-foreground truncate">{u.email}</p>}
+                        </div>
+                        <div className="flex items-center gap-3 shrink-0">
+                          <Badge variant="secondary" className="text-xs">{u.useCount} uses</Badge>
+                          <span className="text-xs text-muted-foreground">
+                            {new Date(u.lastUsed).toLocaleDateString()}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground text-center py-4">No usage data yet</p>
+              )}
+
+              {usageDetail.recentEvents.length > 0 && (
+                <div>
+                  <h3 className="text-sm font-medium text-foreground mb-3">Recent Activity</h3>
+                  <div className="space-y-1 max-h-40 overflow-y-auto">
+                    {usageDetail.recentEvents.slice(0, 10).map((evt) => (
+                      <div key={evt.id} className="flex items-center justify-between gap-3 px-2 py-1.5 text-xs" data-testid={`row-event-${evt.id}`}>
+                        <span className="text-muted-foreground truncate">{evt.displayName || evt.email}</span>
+                        <span className="text-muted-foreground/70 shrink-0">
+                          {new Date(evt.usedAt).toLocaleString()}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
 
-function ToolCard({ tool, index }: { tool: ToolTile; index: number }) {
+interface ToolCardProps {
+  tool: ToolTile;
+  index: number;
+  isAdmin: boolean;
+  stats?: { totalUses: number; uniqueUsers: number };
+  onStatsClick: () => void;
+}
+
+function ToolCard({ tool, index, isAdmin, stats, onStatsClick }: ToolCardProps) {
   const Icon = tool.icon;
 
   if (!tool.available) {
     return (
       <div
-        className="group relative flex flex-col items-center justify-start text-center p-6 pt-8 rounded-lg border border-dashed border-border/50 bg-muted/20 opacity-50 h-[230px]"
+        className="group relative flex flex-col items-center justify-start text-center p-6 pt-8 rounded-lg border border-dashed border-border/50 bg-muted/20 opacity-50 min-h-[270px]"
         data-testid={`tile-${tool.id}`}
       >
-        <div className="tool-icon w-14 h-14 rounded-full bg-muted/50 flex items-center justify-center mb-4 shrink-0" />
+        <div className="tool-icon w-14 h-14 rounded-full bg-muted/50 flex items-center justify-center mb-4 shrink-0">
+          <Icon className="w-7 h-7 text-muted-foreground/50" />
+        </div>
         <h2 className="text-base font-semibold text-muted-foreground/70 mb-2">
           {tool.title}
         </h2>
@@ -304,26 +444,42 @@ function ToolCard({ tool, index }: { tool: ToolTile; index: number }) {
   }
 
   return (
-    <Link
-      href={tool.href}
-      data-testid={`link-tool-${tool.id}`}
-      className="block h-full animate-fade-in-scale"
-      style={{ animationDelay: `${0.1 + index * 0.08}s` }}
-    >
-      <div
-        className="tool-tile-animated group relative flex flex-col items-center justify-start text-center p-6 pt-8 rounded-lg border border-border bg-card cursor-pointer h-[230px] hover-elevate active-elevate-2"
-        data-testid={`tile-${tool.id}`}
+    <div className="flex flex-col animate-fade-in-scale" style={{ animationDelay: `${0.1 + index * 0.08}s` }}>
+      {isAdmin && (
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={(e) => { e.preventDefault(); onStatsClick(); }}
+          className="rounded-b-none rounded-t-lg border border-b-0 border-border bg-muted/60 text-xs text-muted-foreground gap-1.5 w-full justify-center"
+          data-testid={`button-stats-${tool.id}`}
+        >
+          <Activity className="w-3 h-3" />
+          <span>{stats?.totalUses || 0} uses</span>
+          <span className="text-muted-foreground/50">|</span>
+          <Users className="w-3 h-3" />
+          <span>{stats?.uniqueUsers || 0}</span>
+        </Button>
+      )}
+      <Link
+        href={tool.href}
+        data-testid={`link-tool-${tool.id}`}
+        className="block h-full"
       >
-        <div className="tool-icon w-14 h-14 rounded-full bg-primary/10 flex items-center justify-center mb-4 shrink-0">
-          <Icon className="w-7 h-7 text-primary" />
+        <div
+          className={`tool-tile-animated group relative flex flex-col items-center justify-start text-center p-6 pt-8 border border-border bg-card cursor-pointer min-h-[270px] hover-elevate active-elevate-2 ${isAdmin ? "rounded-b-lg" : "rounded-lg"}`}
+          data-testid={`tile-${tool.id}`}
+        >
+          <div className="tool-icon w-14 h-14 rounded-full bg-primary/10 flex items-center justify-center mb-4 shrink-0">
+            <Icon className="w-7 h-7 text-primary" />
+          </div>
+          <h2 className="text-base font-semibold text-foreground mb-2">
+            {tool.title}
+          </h2>
+          <p className="text-sm text-muted-foreground leading-relaxed">
+            {tool.description}
+          </p>
         </div>
-        <h2 className="text-base font-semibold text-foreground mb-2">
-          {tool.title}
-        </h2>
-        <p className="text-sm text-muted-foreground leading-relaxed">
-          {tool.description}
-        </p>
-      </div>
-    </Link>
+      </Link>
+    </div>
   );
 }

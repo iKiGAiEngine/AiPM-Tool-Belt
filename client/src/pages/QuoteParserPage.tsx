@@ -1,6 +1,7 @@
 import { useState, useCallback } from "react";
 import { useDropzone } from "react-dropzone";
 import { useMutation } from "@tanstack/react-query";
+import { useToolUsage } from "@/lib/useToolUsage";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
@@ -46,6 +47,7 @@ interface ParseResult {
 }
 
 export default function QuoteParserPage() {
+  useToolUsage("quoteparser");
   const { toast } = useToast();
   const [quoteFile, setQuoteFile] = useState<File | null>(null);
   const [quoteText, setQuoteText] = useState("");

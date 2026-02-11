@@ -31,9 +31,9 @@ All data is stored in PostgreSQL via Drizzle ORM. Tables include `sessions`, `ex
 
 ### Authentication & Access Control
 - **OTP Email Login**: Users receive a 6-digit code via email (SendGrid when `SENDGRID_API_KEY` secret is set, otherwise codes log to server console). Codes expire in 10 minutes, are hashed (SHA-256), and single-use.
-- **Quick Admin Login**: Username "hkkruse" maps to hkkruse@nationalbuildingspecialties.com and bypasses OTP, logging in directly as admin. Intended for development convenience.
+- **Quick Login**: Username "hkkruse" maps to hkkruse@nationalbuildingspecialties.com and logs in as admin. Username "user1" maps to user1@nationalbuildingspecialties.com and logs in as regular user. Both bypass OTP for development convenience. LoginPage shows "Admin Login" and "User Login" buttons.
 - **Domain Restriction**: Only emails from allowed domains (default: nationalbuildingspecialties.com, swinerton.com) can log in or be created. Configurable via `ALLOWED_EMAIL_DOMAINS` env var.
-- **Admin-Only Access**: Users with role="user" see a "pending approval" screen and cannot access app features. Only role="admin" users get full access.
+- **Role-Based Access**: All authenticated users can access the app. Admin-only features (test mode, settings, admin dashboard, tool usage stats) are gated behind `isAdmin` checks.
 - **Session Management**: PostgreSQL-backed sessions via connect-pg-simple, 7-day cookies, secure/httpOnly/sameSite settings.
 - **Admin Dashboard** (`/admin`): User management (activate/deactivate, promote/demote, edit profiles, pre-create users), audit log viewer with filters. Routes in `server/adminRoutes.ts`.
 - **Audit Logging**: All auth events and admin actions logged to `audit_logs` table via `server/auditService.ts`.

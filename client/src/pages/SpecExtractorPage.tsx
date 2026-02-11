@@ -6,6 +6,7 @@ import {
   Eye, EyeOff, Sparkles, Check, Minus, SquareCheck, Pencil,
   Package, Tag, Ban,
 } from "lucide-react";
+import { useToolUsage } from "@/lib/useToolUsage";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -36,6 +37,7 @@ interface AiReview {
 }
 
 export default function SpecExtractorPage() {
+  useToolUsage("specextractor");
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [viewState, setViewState] = useState<ViewState>("upload");

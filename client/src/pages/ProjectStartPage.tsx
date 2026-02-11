@@ -4,6 +4,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { ArrowLeft, Upload, FileText, Loader2, CheckCircle, AlertCircle, FolderOpen, CalendarIcon, X, Download, ExternalLink, ImageIcon, Camera } from "lucide-react";
 import { format } from "date-fns";
 import { useTestMode } from "@/lib/testMode";
+import { useToolUsage } from "@/lib/useToolUsage";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -58,6 +59,7 @@ interface CreatedProjectResponse extends Project {
 }
 
 export default function ProjectStartPage() {
+  useToolUsage("projectstart");
   const { toast } = useToast();
   const [, navigate] = useLocation();
   const { isTestMode } = useTestMode();
