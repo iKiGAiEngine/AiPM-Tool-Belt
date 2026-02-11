@@ -126,22 +126,6 @@ export default function HomePage() {
 
   const testProjectCount = useMemo(() => projects.filter(p => p.isTest).length, [projects]);
 
-  const stats = useMemo(() => {
-    const total = projects.length;
-    let processing = 0;
-    let complete = 0;
-    let errors = 0;
-
-    for (const p of projects) {
-      const cat = getStatusCategory(p.status);
-      if (cat === "processing") processing++;
-      else if (cat === "complete") complete++;
-      else if (cat === "error") errors++;
-    }
-
-    return { total, processing, complete, errors };
-  }, [projects]);
-
   const recentProjects = useMemo(() =>
     [...projects]
       .sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime())
@@ -152,67 +136,21 @@ export default function HomePage() {
   return (
     <div className="min-h-[calc(100vh-4rem)] flex flex-col">
       <div className="flex-1 flex flex-col items-center px-6 py-12">
-        <div className="text-center mb-10">
-          <h1 className="text-4xl font-light tracking-tight text-foreground mb-3">
-            AiPM Tool Belt
+        <div className="text-center mb-12 animate-fade-in-up">
+          <h1 className="text-4xl sm:text-5xl font-extrabold tracking-tight mb-1">
+            <span className="text-primary">AI-Powered</span>
           </h1>
-          <p className="text-muted-foreground text-lg font-light">
-            Your Ai Assisted APM
+          <h2 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-foreground mb-4">
+            Your AI Assisted Digital PM
+          </h2>
+          <p className="text-muted-foreground text-lg font-light max-w-xl mx-auto">
+            Transform your estimating workflow with intelligent automation. Save time, reduce errors, and win more bids.
           </p>
         </div>
 
-        {projects.length > 0 && (
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 max-w-3xl w-full mb-10">
-            <Card>
-              <CardContent className="p-4 flex items-center gap-3">
-                <div className="w-9 h-9 rounded-full bg-muted flex items-center justify-center shrink-0">
-                  <FolderOpen className="w-4 h-4 text-muted-foreground" />
-                </div>
-                <div>
-                  <p className="text-2xl font-semibold" data-testid="stat-total">{stats.total}</p>
-                  <p className="text-xs text-muted-foreground">Total Projects</p>
-                </div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="p-4 flex items-center gap-3">
-                <div className="w-9 h-9 rounded-full bg-yellow-500/10 flex items-center justify-center shrink-0">
-                  <Loader2 className="w-4 h-4 text-yellow-500" />
-                </div>
-                <div>
-                  <p className="text-2xl font-semibold" data-testid="stat-processing">{stats.processing}</p>
-                  <p className="text-xs text-muted-foreground">Processing</p>
-                </div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="p-4 flex items-center gap-3">
-                <div className="w-9 h-9 rounded-full bg-green-500/10 flex items-center justify-center shrink-0">
-                  <CheckCircle className="w-4 h-4 text-green-500" />
-                </div>
-                <div>
-                  <p className="text-2xl font-semibold" data-testid="stat-complete">{stats.complete}</p>
-                  <p className="text-xs text-muted-foreground">Complete</p>
-                </div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="p-4 flex items-center gap-3">
-                <div className="w-9 h-9 rounded-full bg-red-500/10 flex items-center justify-center shrink-0">
-                  <AlertCircle className="w-4 h-4 text-red-500" />
-                </div>
-                <div>
-                  <p className="text-2xl font-semibold" data-testid="stat-errors">{stats.errors}</p>
-                  <p className="text-xs text-muted-foreground">Errors</p>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        )}
-
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-6 max-w-6xl w-full">
-          {tools.map((tool) => (
-            <ToolCard key={tool.id} tool={tool} />
+          {tools.map((tool, i) => (
+            <ToolCard key={tool.id} tool={tool} index={i} />
           ))}
         </div>
 
@@ -245,7 +183,7 @@ export default function HomePage() {
                       <AlertDialogCancel data-testid="button-cancel-clear">Cancel</AlertDialogCancel>
                       <AlertDialogAction
                         onClick={() => clearTestDataMutation.mutate()}
-                        className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                        className="bg-destructive text-destructive-foreground"
                         data-testid="button-confirm-clear"
                       >
                         {clearTestDataMutation.isPending ? "Clearing..." : "Clear Test Data"}
@@ -259,7 +197,7 @@ export default function HomePage() {
         )}
 
         {recentProjects.length > 0 && (
-          <div className="mt-10 max-w-5xl w-full">
+          <div className="mt-10 max-w-5xl w-full animate-fade-in-up" style={{ animationDelay: "0.4s" }}>
             <div className="flex items-center justify-between mb-4 gap-4 flex-wrap">
               <h2 className="text-lg font-medium text-foreground">Recent Projects</h2>
               <Link href="/project-log">
@@ -340,22 +278,22 @@ export default function HomePage() {
   );
 }
 
-function ToolCard({ tool }: { tool: ToolTile }) {
+function ToolCard({ tool, index }: { tool: ToolTile; index: number }) {
   const Icon = tool.icon;
 
   if (!tool.available) {
     return (
       <div
-        className="group relative flex flex-col items-center p-8 rounded-lg border border-dashed border-border/50 bg-muted/20 opacity-50"
+        className="group relative flex flex-col items-center justify-center text-center p-8 rounded-lg border border-dashed border-border/50 bg-muted/20 opacity-50 min-h-[220px]"
         data-testid={`tile-${tool.id}`}
       >
-        <div className="w-14 h-14 rounded-full bg-muted/50 flex items-center justify-center mb-5">
+        <div className="tool-icon w-14 h-14 rounded-full bg-muted/50 flex items-center justify-center mb-4">
           <Icon className="w-7 h-7 text-muted-foreground/50" />
         </div>
-        <h2 className="text-lg font-medium text-muted-foreground/70 mb-2">
+        <h2 className="text-base font-semibold text-muted-foreground/70 mb-2">
           {tool.title}
         </h2>
-        <p className="text-sm text-muted-foreground/50 text-center leading-relaxed">
+        <p className="text-sm text-muted-foreground/50 leading-relaxed">
           {tool.description}
         </p>
       </div>
@@ -366,19 +304,20 @@ function ToolCard({ tool }: { tool: ToolTile }) {
     <Link
       href={tool.href}
       data-testid={`link-tool-${tool.id}`}
-      className="block"
+      className="block animate-fade-in-scale"
+      style={{ animationDelay: `${0.1 + index * 0.08}s` }}
     >
       <div
-        className="group relative flex flex-col items-center p-8 rounded-lg border border-border bg-card cursor-pointer hover-elevate active-elevate-2"
+        className="tool-tile-animated group relative flex flex-col items-center justify-center text-center p-8 rounded-lg border border-border bg-card cursor-pointer min-h-[220px] hover-elevate active-elevate-2"
         data-testid={`tile-${tool.id}`}
       >
-        <div className="w-14 h-14 rounded-full bg-primary/10 flex items-center justify-center mb-5">
+        <div className="tool-icon w-14 h-14 rounded-full bg-primary/10 flex items-center justify-center mb-4">
           <Icon className="w-7 h-7 text-primary" />
         </div>
-        <h2 className="text-lg font-medium text-foreground mb-2">
+        <h2 className="text-base font-semibold text-foreground mb-2">
           {tool.title}
         </h2>
-        <p className="text-sm text-muted-foreground text-center leading-relaxed">
+        <p className="text-sm text-muted-foreground leading-relaxed">
           {tool.description}
         </p>
       </div>
