@@ -251,7 +251,7 @@ export function findAccessorySections(
     }
     seenPageRanges.add(rangeKey);
 
-    const folderName = `${best.sectionNumber} - ${best.title}`;
+    const folderName = getFolderName(best.sectionNumber, best.title);
 
     console.log(`[SpecExtractor] Accessory match: "${accessory.name}" -> ${best.sectionNumber} pages ${sectionStart + 1}-${sectionEnd + 1}, score: ${best.score}, keywords: [${best.keywords.join(", ")}]`);
 
@@ -344,9 +344,29 @@ function getScopeName(section: string, rawTitle: string): string {
   return DEFAULT_SCOPES[section] || DEFAULT_SCOPES[parentKey(section)] || cleanedTitle || "Unknown Section";
 }
 
+const MAX_FOLDER_NAME_LENGTH = 50;
+
+function compactSectionNumber(section: string): string {
+  return section.replace(/\s+/g, "");
+}
+
+function truncateAtWordBoundary(str: string, maxLen: number): string {
+  if (str.length <= maxLen) return str;
+  const truncated = str.slice(0, maxLen);
+  const lastSpace = truncated.lastIndexOf(" ");
+  if (lastSpace > maxLen * 0.5) {
+    return truncated.slice(0, lastSpace).replace(/[\s\-]+$/, "");
+  }
+  return truncated.replace(/[\s\-]+$/, "");
+}
+
 function getFolderName(section: string, rawTitle: string): string {
   const scopeName = getScopeName(section, rawTitle);
-  return `${section} - ${scopeName}`;
+  const compact = compactSectionNumber(section);
+  const prefix = `${compact} - `;
+  const maxTitleLen = MAX_FOLDER_NAME_LENGTH - prefix.length;
+  const truncatedTitle = truncateAtWordBoundary(scopeName, maxTitleLen);
+  return `${prefix}${truncatedTitle}`;
 }
 
 function detectTOCBounds(pages: string[]): TOCBounds {
