@@ -551,6 +551,10 @@ function findDiv10Headers(pages: string[], tocBounds: TOCBounds): ExtractedHeade
     while ((m = sectionNumberRe.exec(topZone)) !== null) {
       const canon = canonize(m[1]);
       if (canon.startsWith("10 ") && !EQUIPMENT_REF_RE.test(m[1]) && !foundSections.has(canon)) {
+        const parts = canon.split(" ");
+        if (parts.length >= 2 && parts[1] === "00") {
+          continue;
+        }
         topMatches.push(canon);
       }
     }
@@ -585,12 +589,16 @@ function findDiv10Headers(pages: string[], tocBounds: TOCBounds): ExtractedHeade
       while ((fullPageMatch = part1SectionRe.exec(topZoneForPart1)) !== null) {
         const canon = canonize(fullPageMatch[1]);
         if (canon.startsWith("10 ") && !EQUIPMENT_REF_RE.test(fullPageMatch[1]) && !foundSections.has(canon) && !candidates.includes(canon)) {
+          const cParts = canon.split(" ");
+          if (cParts.length >= 2 && cParts[1] === "00") continue;
           candidates.push(canon);
         }
       }
       while ((fullPageMatch = compactRe.exec(topZoneForPart1)) !== null) {
         const canon = canonize(fullPageMatch[1]);
         if (canon.startsWith("10 ") && !EQUIPMENT_REF_RE.test(fullPageMatch[1]) && !foundSections.has(canon) && !candidates.includes(canon)) {
+          const cParts = canon.split(" ");
+          if (cParts.length >= 2 && cParts[1] === "00") continue;
           candidates.push(canon);
         }
       }
@@ -710,6 +718,49 @@ function findSectionStartPage(pages: string[], detectedPage: number, section: st
   return detectedPage;
 }
 
+function detectAnyNewSectionHeader(topZone: string, currentSection: string): string | null {
+  for (const pattern of HDR_PATTERNS) {
+    const match = pattern.exec(topZone);
+    if (match) {
+      const rawSec = match[1];
+      const canon = canonize(rawSec);
+      if (EQUIPMENT_REF_RE.test(rawSec)) continue;
+      if (canon !== currentSection) {
+        return canon;
+      }
+    }
+  }
+
+  const lines = topZone.split(/[\n\r]+/);
+  for (let i = 0; i < Math.min(15, lines.length); i++) {
+    const line = lines[i].trim();
+    const sectionOnlyMatch = line.match(/^(?:SECTION|SPEC)\s+(\d{2}[\s\-\._]*(?:\d{2}[\s\-\._]*\d{2}(?:[\s\-\._]*\d{2})?|\d{4,6}))\s*$/i);
+    if (sectionOnlyMatch) {
+      const canon = canonize(sectionOnlyMatch[1]);
+      if (!EQUIPMENT_REF_RE.test(sectionOnlyMatch[1]) && canon !== currentSection) {
+        return canon;
+      }
+    }
+  }
+
+  const standaloneRe = /^\s*(\d{2}[\s\-\._]*\d{2}[\s\-\._]*\d{2})\s*$/m;
+  const standaloneMatch = topZone.match(standaloneRe);
+  if (standaloneMatch) {
+    const canon = canonize(standaloneMatch[1]);
+    if (canon !== currentSection && !EQUIPMENT_REF_RE.test(standaloneMatch[1])) {
+      const lineIdx = lines.findIndex(l => l.trim() === standaloneMatch[0].trim());
+      if (lineIdx >= 0 && lineIdx < 10) {
+        const nextLine = lineIdx + 1 < lines.length ? lines[lineIdx + 1].trim() : "";
+        if (/^[A-Z][A-Z\s,&\/\-]{3,}/.test(nextLine) || /PART\s+1/i.test(nextLine)) {
+          return canon;
+        }
+      }
+    }
+  }
+
+  return null;
+}
+
 function findSectionEndPage(pages: string[], startPage: number, maxSearchPage: number, section: string): number {
   for (let pageNum = startPage; pageNum <= Math.min(maxSearchPage, pages.length - 1); pageNum++) {
     const pageText = pages[pageNum];
@@ -727,15 +778,27 @@ function findSectionEndPage(pages: string[], startPage: number, maxSearchPage: n
     }
 
     if (pageNum > startPage) {
-      const topZone = pageLines.slice(0, 15).join("\n");
-      const sectionHeaderMatch = topZone.match(
-        /(?:^|\n)\s*SECTION\s+(\d{2})\s*[\s\-\._]*(\d{2})\s*[\s\-\._]*(\d{2})/im
-      );
+      const topZone = pageLines.slice(0, 20).join("\n");
+      const newSection = detectAnyNewSectionHeader(topZone, section);
+      if (newSection) {
+        console.log(`[SpecExtractor] Next section header ${newSection} found at p${pageNum + 1}, ending ${section} at p${pageNum}`);
+        return pageNum - 1;
+      }
 
-      if (sectionHeaderMatch) {
-        const newSecFull = `${sectionHeaderMatch[1]} ${sectionHeaderMatch[2]} ${sectionHeaderMatch[3]}`;
-        if (newSecFull !== section) {
-          console.log(`[SpecExtractor] Next section header ${newSecFull} found at p${pageNum + 1}, ending ${section} at p${pageNum}`);
+      const pageUpper = pageText.toUpperCase();
+      if (pageUpper.includes("PART 1") && (pageUpper.includes("GENERAL") || pageUpper.includes("SUMMARY"))) {
+        const topZoneForPart1 = pageLines.slice(0, 15).join("\n");
+        const sectionRe = /\b(\d{2}[\s\-\._]*\d{2}[\s\-\._]*\d{2})\b/g;
+        let m2;
+        const candidateSections: string[] = [];
+        while ((m2 = sectionRe.exec(topZoneForPart1)) !== null) {
+          const canon = canonize(m2[1]);
+          if (!EQUIPMENT_REF_RE.test(m2[1]) && canon !== section && !candidateSections.includes(canon)) {
+            candidateSections.push(canon);
+          }
+        }
+        if (candidateSections.length === 1) {
+          console.log(`[SpecExtractor] PART 1 boundary: ${candidateSections[0]} found at p${pageNum + 1}, ending ${section} at p${pageNum}`);
           return pageNum - 1;
         }
       }
@@ -782,6 +845,31 @@ function filterHeaders(headers: ExtractedHeader[], tocBounds: TOCBounds): Extrac
   return filtered;
 }
 
+function verifyStartPageContent(pages: string[], startPage: number, section: string): boolean {
+  const pageText = pages[startPage];
+  const lines = pageText.split(/[\n\r]+/);
+  const topZone = lines.slice(0, 20).join("\n");
+
+  const sectionDigits = section.replace(/\s/g, "");
+  const flexPattern = new RegExp(
+    sectionDigits.split("").map((d, i) => {
+      if (i > 0 && i % 2 === 0) return `[\\s\\-\\._]*${d}`;
+      return d;
+    }).join(""),
+    "i"
+  );
+
+  if (flexPattern.test(topZone)) {
+    return true;
+  }
+
+  if (topZone.includes(section) || topZone.includes(sectionDigits)) {
+    return true;
+  }
+
+  return false;
+}
+
 function makeRangesFromHeaders(headers: ExtractedHeader[], totalPages: number, pages: string[]): SectionRange[] {
   const ranges: SectionRange[] = [];
 
@@ -800,6 +888,32 @@ function makeRangesFromHeaders(headers: ExtractedHeader[], totalPages: number, p
     }
 
     const end = findSectionEndPage(pages, start, maxEnd, h.section);
+
+    if (!verifyStartPageContent(pages, start, h.section)) {
+      console.log(`[SpecExtractor] WARNING: Start page p${start + 1} does not contain section number ${h.section}, checking detected page p${h.page + 1}`);
+      const detectedPageVerified = verifyStartPageContent(pages, h.page, h.section);
+      if (detectedPageVerified) {
+        const correctedEnd = findSectionEndPage(pages, h.page, maxEnd, h.section);
+        let pageCount = correctedEnd - h.page + 1;
+        let finalEnd = correctedEnd;
+        if (pageCount > 100) {
+          finalEnd = h.page + 10;
+          console.log(`[SpecExtractor] Capping ${h.section} from ${pageCount} pages to 11`);
+        }
+        const folderName = getFolderName(h.section, h.title);
+        ranges.push({
+          section: h.section,
+          title: getScopeName(h.section, h.title),
+          start: h.page,
+          end: finalEnd,
+          folderName,
+        });
+        console.log(`[SpecExtractor] Range (corrected): ${h.section} - "${folderName}" pages ${h.page + 1}-${finalEnd + 1}`);
+        continue;
+      } else {
+        console.log(`[SpecExtractor] WARNING: Neither start p${start + 1} nor detected p${h.page + 1} verified for ${h.section}, using original range`);
+      }
+    }
 
     let pageCount = end - start + 1;
     let finalEnd = end;

@@ -404,7 +404,9 @@ async function runAiReview(sessionId: string, projectName: string): Promise<void
 
   const sectionSummaries = sections.map(s => {
     const startPage = Math.max(0, Math.min(s.startPage, pages.length - 1));
-    const firstPageText = (pages[startPage] || "").slice(0, 800);
+    const endPage = Math.max(0, Math.min(s.endPage, pages.length - 1));
+    const firstPageText = (pages[startPage] || "").slice(0, 1000);
+    const lastPageText = startPage !== endPage ? (pages[endPage] || "").slice(0, 500) : "";
     return {
       id: s.id,
       sectionNumber: s.sectionNumber,
@@ -412,6 +414,7 @@ async function runAiReview(sessionId: string, projectName: string): Promise<void
       folderName: s.folderName,
       pages: `${s.startPage + 1}-${s.endPage + 1}`,
       firstPageSnippet: firstPageText,
+      lastPageSnippet: lastPageText,
     };
   });
 
@@ -421,33 +424,33 @@ async function runAiReview(sessionId: string, projectName: string): Promise<void
     messages: [
       {
         role: "system",
-        content: `You are a construction specification reviewer. You will review extracted specification sections to determine:
+        content: `You are a construction specification reviewer with expertise in Division 10 (Specialties). You will review extracted specification sections to determine:
 
-1. **Legitimacy check**: Is this actually a Division 10 (Specialties) specification section? Division 10 covers sections numbered 10 00 00 through 10 99 99 and includes items like toilet accessories, toilet partitions, fire protection, lockers, visual displays, wall protection, cubicle curtains, signage, etc. A legitimate section should contain specification language (PART 1 - GENERAL, manufacturers, materials, installation requirements, etc.). Pages that merely reference a Division 10 number but are actually part of a different division, a drawing index, a schedule, or general conditions are NOT legitimate Division 10 sections.
+1. **Content-to-section match**: This is the MOST IMPORTANT check. Does the actual page content belong to the section number shown? For example, if a section is labeled "10 21 13 - Toilet Compartments" but the page content discusses toilet ACCESSORIES, washroom accessories, soap dispensers, paper towel dispensers, etc., that is a MISMATCH — the content belongs to a different section number (likely 10 28 00). Similarly, if labeled "10 28 00 - Toilet Accessories" but the content discusses toilet partitions/compartments, that's also a mismatch. Look at the actual specification text, the PART headers, product descriptions, and manufacturer information to determine what the content is really about.
 
-2. **Title accuracy**: Does the title accurately describe the section content?
+2. **Legitimacy check**: Is this actually a Division 10 specification section? A legitimate section should contain specification language (PART 1 - GENERAL, manufacturers, materials, installation requirements). Pages that merely reference a Division 10 number but are actually drawings, schedules, or general conditions are NOT legitimate.
 
-3. **Section number match**: Does the section number match what appears in the content?
+3. **Title accuracy**: Does the title accurately describe the section content?
 
 Respond with a JSON array of objects. Each object must have:
 - "id": the section id (string)
 - "status": one of "correct" | "suggested_change" | "warning" | "not_div10"
-  - Use "correct" if the section is a legitimate Division 10 spec section with accurate labeling
+  - Use "correct" if the content matches the section number AND it's a legitimate Division 10 spec section
+  - Use "warning" if the content appears to belong to a DIFFERENT section number than what's labeled (content mismatch) — this is critical to flag
   - Use "suggested_change" if it's legitimate but the title should be improved
-  - Use "warning" if something seems off but it may still be valid
-  - Use "not_div10" if this is NOT actually a Division 10 specification section (e.g., it's a reference, drawing, schedule, general conditions, or belongs to a different division)
-- "suggestedTitle": the suggested title if you recommend a change, or the current title if correct
-- "notes": brief explanation of your assessment
+  - Use "not_div10" if this is NOT actually a Division 10 specification section
+- "suggestedTitle": the suggested title based on what the content ACTUALLY covers (not what it's labeled as)
+- "notes": brief explanation. If there's a content mismatch, clearly state what section number the content actually belongs to (e.g., "Content is actually section 10 28 00 Toilet Accessories, not 10 21 13 Toilet Compartments")
 
-Be concise. Mark sections as "not_div10" only when the content clearly shows it is not a Division 10 specification section.`,
+CRITICAL: Pay close attention to whether the page content matches the assigned section number. A page labeled as "10 21 13 Toilet Compartments" that contains content about soap dispensers, paper towel holders, and restroom accessories is WRONG — that content belongs to "10 28 00 Toilet Accessories". Flag these mismatches prominently.`,
       },
       {
         role: "user",
         content: `Project: "${projectName}"\n\nReview these extracted sections and verify each is a legitimate Division 10 specification section:\n\n${JSON.stringify(sectionSummaries, null, 2)}`,
       },
     ],
-    temperature: 0.2,
-    max_tokens: 2000,
+    temperature: 0.1,
+    max_tokens: 4000,
   });
 
   const content = response.choices[0]?.message?.content || "[]";
@@ -496,6 +499,111 @@ async function applyAiReviews(reviews: { id: string; status: string; suggestedTi
     await db.update(specExtractorSections)
       .set(updates)
       .where(eq(specExtractorSections.id, review.id));
+  }
+}
+
+async function runAiPageValidation(sessionId: string): Promise<void> {
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) {
+    console.log("[SpecExtractor] Skipping AI page validation: no API key configured");
+    return;
+  }
+
+  const sections = await db.select().from(specExtractorSections).where(eq(specExtractorSections.sessionId, sessionId));
+  if (sections.length === 0) return;
+
+  const pages = await getCachedPages(sessionId);
+
+  const validationData = sections.map(s => {
+    const startPage = Math.max(0, Math.min(s.startPage, pages.length - 1));
+    const firstPageText = (pages[startPage] || "").slice(0, 1200);
+    const topLines = (pages[startPage] || "").split(/[\n\r]+/).slice(0, 15).join("\n");
+    return {
+      id: s.id,
+      sectionNumber: s.sectionNumber,
+      title: s.title,
+      startPage: s.startPage + 1,
+      endPage: s.endPage + 1,
+      topLines,
+      firstPageText,
+    };
+  });
+
+  const openai = new OpenAI({ apiKey });
+  const response = await openai.chat.completions.create({
+    model: "gpt-4o-mini",
+    messages: [
+      {
+        role: "system",
+        content: `You are a construction specification page validator. For each extracted section, check if the page content ACTUALLY belongs to that section number.
+
+Your job: Look at the first page content and determine if it matches the assigned section number. Section numbers follow CSI MasterFormat (e.g., 10 21 13 = Toilet Compartments, 10 28 00 = Toilet Accessories).
+
+For each section, determine:
+1. Does the page content actually contain or reference the assigned section number?
+2. Does the content topic match the section number's expected topic?
+3. If mismatched, what section number does the content ACTUALLY belong to?
+
+Respond with a JSON array. Each object:
+- "id": section id
+- "match": true if content matches the section number, false if mismatched
+- "actualSection": if mismatched, the section number that the content actually belongs to (e.g., "10 28 00"). If matched, same as the assigned section.
+- "actualTitle": if mismatched, the correct title for the content. If matched, same as assigned title.
+- "confidence": "high" or "medium" - how confident you are in the assessment
+- "reason": brief explanation
+
+Only flag mismatches when you are confident. If uncertain, mark as match=true.`,
+      },
+      {
+        role: "user",
+        content: `Validate these extracted specification sections. Check if each section's page content matches its assigned section number:\n\n${JSON.stringify(validationData, null, 2)}`,
+      },
+    ],
+    temperature: 0.1,
+    max_tokens: 3000,
+  });
+
+  const content = response.choices[0]?.message?.content || "[]";
+  let validations: { id: string; match: boolean; actualSection: string; actualTitle: string; confidence: string; reason: string }[];
+  try {
+    const cleaned = content.replace(/```json\s*/g, "").replace(/```\s*/g, "").trim();
+    const parsed = JSON.parse(cleaned);
+    if (!Array.isArray(parsed)) throw new Error("Expected array");
+    validations = parsed.filter((v: any) => v && typeof v === "object" && v.id);
+  } catch (parseErr) {
+    console.error("[SpecExtractor] Failed to parse AI page validation response:", content);
+    return;
+  }
+
+  let correctionCount = 0;
+  for (const v of validations) {
+    if (v.match === false && v.confidence === "high" && v.actualSection) {
+      const [section] = await db.select().from(specExtractorSections).where(eq(specExtractorSections.id, v.id));
+      if (!section) continue;
+
+      console.log(`[SpecExtractor] AI correction: ${section.sectionNumber} -> ${v.actualSection} (${v.reason})`);
+
+      const newTitle = v.actualTitle || section.title;
+      const compactSection = v.actualSection.replace(/\s+/g, "");
+      const newFolderName = `${compactSection} - ${newTitle}`;
+
+      const isNowNonDiv10 = !v.actualSection.startsWith("10 ");
+      await db.update(specExtractorSections)
+        .set({
+          sectionNumber: v.actualSection,
+          title: newTitle,
+          folderName: newFolderName,
+          originalTitle: section.title,
+          aiReviewNotes: `Auto-corrected from ${section.sectionNumber} to ${v.actualSection}: ${v.reason}`,
+          ...(isNowNonDiv10 ? { aiReviewStatus: "not_div10" } : {}),
+        })
+        .where(eq(specExtractorSections.id, v.id));
+      correctionCount++;
+    }
+  }
+
+  if (correctionCount > 0) {
+    console.log(`[SpecExtractor] AI page validation corrected ${correctionCount} section(s) for session ${sessionId}`);
   }
 }
 
@@ -628,11 +736,25 @@ async function processInBackground(sessionId: string, pdfBuffer: Buffer, tocHint
     await db.update(specExtractorSessions)
       .set({
         status: "reviewing",
-        progress: 95,
-        message: `Found ${result.sections.length} sections — running AI review...`,
+        progress: 90,
+        message: `Found ${result.sections.length} sections — validating page content...`,
         totalPages: result.totalPages,
         tocStart: result.tocBounds.start >= 0 ? result.tocBounds.start : null,
         tocEnd: result.tocBounds.end >= 0 ? result.tocBounds.end : null,
+      })
+      .where(eq(specExtractorSessions.id, sessionId));
+
+    try {
+      await runAiPageValidation(sessionId);
+      console.log(`[SpecExtractor] AI page validation completed for session ${sessionId}`);
+    } catch (valErr: any) {
+      console.error(`[SpecExtractor] AI page validation failed for ${sessionId}:`, valErr.message);
+    }
+
+    await db.update(specExtractorSessions)
+      .set({
+        progress: 95,
+        message: `Running AI review...`,
       })
       .where(eq(specExtractorSessions.id, sessionId));
 
