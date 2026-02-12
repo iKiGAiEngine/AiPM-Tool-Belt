@@ -4,7 +4,7 @@ import {
   Upload, FileText, X, AlertCircle, CheckCircle2, Loader2,
   Download, ArrowLeft, Building2, FolderOpen, FileStack, Trash2,
   Eye, EyeOff, Sparkles, Check, Minus, SquareCheck, Pencil,
-  Package, Tag, Ban, ClipboardList,
+  Package, Tag, Ban, ClipboardList, AlertTriangle,
 } from "lucide-react";
 import { useToolUsage } from "@/lib/useToolUsage";
 import { Button } from "@/components/ui/button";
@@ -32,7 +32,7 @@ interface PreviewData {
 
 interface AiReview {
   id: string;
-  status: "correct" | "suggested_change" | "warning";
+  status: "correct" | "suggested_change" | "warning" | "not_div10";
   suggestedTitle: string;
   notes: string;
 }
@@ -96,7 +96,7 @@ export default function SpecExtractorPage() {
   useEffect(() => {
     if (sections.length > 0 && !hasInitializedSelection.current) {
       hasInitializedSelection.current = true;
-      setSelectedSections(new Set(sections.filter(s => !s.isSignage).map(s => s.id)));
+      setSelectedSections(new Set(sections.filter(s => !s.isSignage && s.aiReviewStatus !== "not_div10").map(s => s.id)));
     }
 
     if (sections.length > 0) {
@@ -337,10 +337,12 @@ export default function SpecExtractorPage() {
   };
 
   const toggleAll = () => {
-    if (selectedSections.size === sections.length) {
+    const selectableSections = sections.filter(s => !s.isSignage && s.aiReviewStatus !== "not_div10");
+    const allSelectableSelected = selectableSections.every(s => selectedSections.has(s.id));
+    if (allSelectableSelected) {
       setSelectedSections(new Set());
     } else {
-      setSelectedSections(new Set(sections.map(s => s.id)));
+      setSelectedSections(new Set(selectableSections.map(s => s.id)));
     }
   };
 
@@ -392,10 +394,29 @@ export default function SpecExtractorPage() {
 
       const changes = data.reviews.filter((r: AiReview) => r.status === "suggested_change").length;
       const warnings = data.reviews.filter((r: AiReview) => r.status === "warning").length;
-      if (changes > 0 || warnings > 0) {
-        toast({ title: "AI Review Complete", description: `${changes} suggested changes, ${warnings} warnings` });
+      const notDiv10 = data.reviews.filter((r: AiReview) => r.status === "not_div10").length;
+
+      if (notDiv10 > 0) {
+        const notDiv10Ids = data.reviews
+          .filter((r: AiReview) => r.status === "not_div10")
+          .map((r: AiReview) => r.id);
+        setSelectedSections(prev => {
+          const next = new Set(prev);
+          for (const id of notDiv10Ids) {
+            next.delete(id);
+          }
+          return next;
+        });
+      }
+
+      const parts: string[] = [];
+      if (notDiv10 > 0) parts.push(`${notDiv10} flagged as not Div 10`);
+      if (changes > 0) parts.push(`${changes} suggested changes`);
+      if (warnings > 0) parts.push(`${warnings} warnings`);
+      if (parts.length > 0) {
+        toast({ title: "AI Review Complete", description: parts.join(", ") });
       } else {
-        toast({ title: "AI Review Complete", description: "All labels look accurate" });
+        toast({ title: "AI Review Complete", description: "All sections confirmed as legitimate Division 10" });
       }
     } catch (err: any) {
       toast({ title: "AI Review Failed", description: err.message, variant: "destructive" });
@@ -524,8 +545,9 @@ export default function SpecExtractorPage() {
   const sortedSections = [...sortedDiv10, ...sortedAccessory];
   const totalPages = sections.reduce((sum, s) => sum + s.pageCount, 0);
   const selectedCount = selectedSections.size;
-  const allSelected = sections.length > 0 && selectedCount === sections.length;
-  const someSelected = selectedCount > 0 && selectedCount < sections.length;
+  const selectableCount = sections.filter(s => !s.isSignage && s.aiReviewStatus !== "not_div10").length;
+  const allSelected = selectableCount > 0 && selectedCount === selectableCount;
+  const someSelected = selectedCount > 0 && selectedCount < selectableCount;
   const signageCount = sections.filter(s => s.isSignage).length;
 
   return (
@@ -1037,7 +1059,13 @@ export default function SpecExtractorPage() {
                                         {section.matchedKeywords.join(", ")}
                                       </Badge>
                                     )}
-                                    {review && review.status !== "correct" && (
+                                    {review && review.status === "not_div10" && (
+                                      <Badge variant="destructive" className="shrink-0">
+                                        <AlertTriangle className="mr-1 h-3 w-3" />
+                                        Not Div 10
+                                      </Badge>
+                                    )}
+                                    {review && review.status !== "correct" && review.status !== "not_div10" && (
                                       <Badge
                                         variant={review.status === "suggested_change" ? "default" : "secondary"}
                                         className="shrink-0"
@@ -1116,6 +1144,13 @@ export default function SpecExtractorPage() {
                                   <div className="mt-2 flex items-center gap-2 rounded-md bg-muted/50 px-3 py-2 text-sm">
                                     <AlertCircle className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
                                     <span className="text-muted-foreground">{review.notes}</span>
+                                  </div>
+                                )}
+
+                                {review && review.status === "not_div10" && (
+                                  <div className="mt-2 flex items-center gap-2 rounded-md bg-destructive/10 px-3 py-2 text-sm">
+                                    <AlertTriangle className="h-3.5 w-3.5 text-destructive shrink-0" />
+                                    <span className="text-muted-foreground">{review.notes || "AI determined this is not a Division 10 specification section"}</span>
                                   </div>
                                 )}
                               </div>

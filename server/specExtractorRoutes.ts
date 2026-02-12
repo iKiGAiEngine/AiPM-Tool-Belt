@@ -421,22 +421,29 @@ async function runAiReview(sessionId: string, projectName: string): Promise<void
     messages: [
       {
         role: "system",
-        content: `You are a construction specification reviewer. You will review extracted Division 10 specification section labels against their actual content. For each section, verify:
-1. The section number matches the content
-2. The title accurately describes the section content
-3. The scope classification (folder name) is correct
+        content: `You are a construction specification reviewer. You will review extracted specification sections to determine:
+
+1. **Legitimacy check**: Is this actually a Division 10 (Specialties) specification section? Division 10 covers sections numbered 10 00 00 through 10 99 99 and includes items like toilet accessories, toilet partitions, fire protection, lockers, visual displays, wall protection, cubicle curtains, signage, etc. A legitimate section should contain specification language (PART 1 - GENERAL, manufacturers, materials, installation requirements, etc.). Pages that merely reference a Division 10 number but are actually part of a different division, a drawing index, a schedule, or general conditions are NOT legitimate Division 10 sections.
+
+2. **Title accuracy**: Does the title accurately describe the section content?
+
+3. **Section number match**: Does the section number match what appears in the content?
 
 Respond with a JSON array of objects. Each object must have:
 - "id": the section id (string)
-- "status": "correct" | "suggested_change" | "warning"
+- "status": one of "correct" | "suggested_change" | "warning" | "not_div10"
+  - Use "correct" if the section is a legitimate Division 10 spec section with accurate labeling
+  - Use "suggested_change" if it's legitimate but the title should be improved
+  - Use "warning" if something seems off but it may still be valid
+  - Use "not_div10" if this is NOT actually a Division 10 specification section (e.g., it's a reference, drawing, schedule, general conditions, or belongs to a different division)
 - "suggestedTitle": the suggested title if you recommend a change, or the current title if correct
 - "notes": brief explanation of your assessment
 
-Be concise. Only suggest changes when the current label is clearly wrong or misleading.`,
+Be concise. Mark sections as "not_div10" only when the content clearly shows it is not a Division 10 specification section.`,
       },
       {
         role: "user",
-        content: `Project: "${projectName}"\n\nReview these extracted Division 10 sections:\n\n${JSON.stringify(sectionSummaries, null, 2)}`,
+        content: `Project: "${projectName}"\n\nReview these extracted sections and verify each is a legitimate Division 10 specification section:\n\n${JSON.stringify(sectionSummaries, null, 2)}`,
       },
     ],
     temperature: 0.2,
@@ -453,7 +460,7 @@ Be concise. Only suggest changes when the current label is clearly wrong or misl
       .filter((r: any) => r && typeof r === "object" && r.id && r.status)
       .map((r: any) => ({
         id: String(r.id),
-        status: ["correct", "suggested_change", "warning"].includes(r.status) ? r.status : "correct",
+        status: ["correct", "suggested_change", "warning", "not_div10"].includes(r.status) ? r.status : "correct",
         suggestedTitle: String(r.suggestedTitle || r.currentTitle || ""),
         notes: String(r.notes || ""),
       }));
