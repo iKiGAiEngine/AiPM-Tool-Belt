@@ -814,9 +814,7 @@ function filterHeaders(headers: ExtractedHeader[], tocBounds: TOCBounds): Extrac
     pageCounts[h.page] = (pageCounts[h.page] || 0) + 1;
   }
 
-  const filtered: ExtractedHeader[] = [];
-  const seenSections = new Set<string>();
-
+  const eligible: ExtractedHeader[] = [];
   for (const h of headers) {
     if (tocBounds.end >= 0 && h.page <= tocBounds.end) {
       console.log(`[SpecExtractor] Filtering ${h.section} on p${h.page + 1}: within TOC`);
@@ -833,13 +831,55 @@ function filterHeaders(headers: ExtractedHeader[], tocBounds: TOCBounds): Extrac
       continue;
     }
 
-    if (seenSections.has(h.section)) {
-      console.log(`[SpecExtractor] Filtering ${h.section} on p${h.page + 1}: duplicate`);
-      continue;
-    }
+    eligible.push(h);
+  }
 
-    seenSections.add(h.section);
-    filtered.push(h);
+  const div10Pages = eligible.filter(h => h.section.startsWith("10 ")).map(h => h.page).sort((a, b) => a - b);
+  let clusterCenter = -1;
+  if (div10Pages.length > 0) {
+    const mid = Math.floor(div10Pages.length / 2);
+    clusterCenter = div10Pages.length % 2 === 0
+      ? (div10Pages[mid - 1] + div10Pages[mid]) / 2
+      : div10Pages[mid];
+  }
+
+  const duplicateGroups = new Map<string, ExtractedHeader[]>();
+  for (const h of eligible) {
+    const group = duplicateGroups.get(h.section) || [];
+    group.push(h);
+    duplicateGroups.set(h.section, group);
+  }
+
+  const filtered: ExtractedHeader[] = [];
+  const seenSections = new Set<string>();
+
+  for (const h of eligible) {
+    if (seenSections.has(h.section)) continue;
+
+    const group = duplicateGroups.get(h.section)!;
+    if (group.length > 1) {
+      const legitimate = group.filter(g => g.isLegitimate);
+      let best: ExtractedHeader;
+      if (legitimate.length === 1) {
+        best = legitimate[0];
+      } else if (clusterCenter >= 0 && h.section.startsWith("10 ")) {
+        best = group.reduce((a, b) =>
+          Math.abs(a.page - clusterCenter) <= Math.abs(b.page - clusterCenter) ? a : b
+        );
+      } else {
+        best = group[group.length - 1];
+      }
+      for (const g of group) {
+        if (g !== best) {
+          console.log(`[SpecExtractor] Filtering ${g.section} on p${g.page + 1}: duplicate (keeping p${best.page + 1})`);
+        }
+      }
+      seenSections.add(h.section);
+      filtered.push(best);
+    } else {
+      seenSections.add(h.section);
+      filtered.push(h);
+    }
   }
 
   return filtered;

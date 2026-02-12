@@ -539,10 +539,12 @@ async function runAiPageValidation(sessionId: string): Promise<void> {
 
 Your job: Look at the first page content and determine if it matches the assigned section number. Section numbers follow CSI MasterFormat (e.g., 10 21 13 = Toilet Compartments, 10 28 00 = Toilet Accessories).
 
+CRITICAL RULE: If the page contains an explicit "SECTION XX XX XX" header (with or without decimal subsections like "10 21 13.17"), that is AUTHORITATIVE. The section header on the page is always correct. Do NOT override it based on your interpretation of the content topic. For example, if the page says "SECTION 10 21 13.17 PHENOLIC TOILET COMPARTMENTS", then the section IS 10 21 13 — do NOT change it to something else like 10 28 00.
+
 For each section, determine:
-1. Does the page content actually contain or reference the assigned section number?
-2. Does the content topic match the section number's expected topic?
-3. If mismatched, what section number does the content ACTUALLY belong to?
+1. Does the page contain an explicit "SECTION XX XX XX" header? If yes, that header is authoritative — mark as match=true.
+2. If no explicit header, does the content topic match the section number's expected topic?
+3. If mismatched (and no explicit header), what section number does the content ACTUALLY belong to?
 
 Respond with a JSON array. Each object:
 - "id": section id
@@ -552,7 +554,7 @@ Respond with a JSON array. Each object:
 - "confidence": "high" or "medium" - how confident you are in the assessment
 - "reason": brief explanation
 
-Only flag mismatches when you are confident. If uncertain, mark as match=true.`,
+Only flag mismatches when you are confident AND the page does NOT contain an explicit SECTION header matching the assigned number. If uncertain, mark as match=true.`,
       },
       {
         role: "user",
@@ -580,6 +582,19 @@ Only flag mismatches when you are confident. If uncertain, mark as match=true.`,
     if (v.match === false && v.confidence === "high" && v.actualSection) {
       const [section] = await db.select().from(specExtractorSections).where(eq(specExtractorSections.id, v.id));
       if (!section) continue;
+
+      const startPage = Math.max(0, Math.min(section.startPage, pages.length - 1));
+      const pageText = (pages[startPage] || "").slice(0, 1500);
+      const sectionDigits = section.sectionNumber.replace(/\s/g, "");
+      const pairs = sectionDigits.match(/.{2}/g) || [];
+      const explicitHeaderPattern = new RegExp(
+        `SECTION\\s+${pairs.join("[\\s\\._-]*")}`,
+        "i"
+      );
+      if (explicitHeaderPattern.test(pageText)) {
+        console.log(`[SpecExtractor] AI wanted to change ${section.sectionNumber} -> ${v.actualSection}, but page has explicit SECTION header — keeping original`);
+        continue;
+      }
 
       console.log(`[SpecExtractor] AI correction: ${section.sectionNumber} -> ${v.actualSection} (${v.reason})`);
 
