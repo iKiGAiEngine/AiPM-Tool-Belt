@@ -452,8 +452,38 @@ function detectTOCBounds(pages: string[]): TOCBounds {
   return { start: tocStartPage, end: tocEndPage };
 }
 
+function extractTitleFromPage(lines: string[], sectionCanon: string): string {
+  const sectionCompact = sectionCanon.replace(/\s/g, "");
+  const escapedSection = sectionCanon.replace(/\s+/g, "[\\s\\-\\._]*");
+
+  for (let i = 0; i < Math.min(20, lines.length); i++) {
+    const line = lines[i].trim();
+
+    const titleAfterDash = line.match(new RegExp(`(?:${escapedSection}|${sectionCompact})\\s*[–—\\-:]\\s*(.+)`, "i"));
+    if (titleAfterDash && titleAfterDash[1].trim().length >= 3) {
+      return cleanSectionTitle(titleAfterDash[1].trim());
+    }
+
+    const titleAfterSpace = line.match(new RegExp(`(?:SECTION|SPEC)?\\s*(?:${escapedSection}|${sectionCompact})\\s{2,}(.+)`, "i"));
+    if (titleAfterSpace && titleAfterSpace[1].trim().length >= 3) {
+      return cleanSectionTitle(titleAfterSpace[1].trim());
+    }
+
+    const sectionOnly = line.match(new RegExp(`(?:SECTION|SPEC)?\\s*(?:${escapedSection}|${sectionCompact})\\s*$`, "i"));
+    if (sectionOnly && i + 1 < lines.length) {
+      const nextLine = lines[i + 1].trim();
+      if (nextLine.length >= 3 && /^[A-Za-z]/.test(nextLine)) {
+        return cleanSectionTitle(nextLine);
+      }
+    }
+  }
+
+  return getScopeName(sectionCanon, "");
+}
+
 function findDiv10Headers(pages: string[], tocBounds: TOCBounds): ExtractedHeader[] {
   const headers: ExtractedHeader[] = [];
+  const foundPages = new Set<number>();
 
   for (let pno = 0; pno < pages.length; pno++) {
     if (tocBounds.end >= 0 && pno <= tocBounds.end) {
@@ -485,17 +515,99 @@ function findDiv10Headers(pages: string[], tocBounds: TOCBounds): ExtractedHeade
           page: pno,
           isLegitimate: isLegit,
         });
+        foundPages.add(pno);
 
         console.log(`[SpecExtractor] Header found p${pno + 1}: ${canon} - "${cleaned}" (legit: ${isLegit})`);
         break;
       }
     }
 
-    if (!headers.find(h => h.page === pno)) {
+    if (!foundPages.has(pno)) {
       const multiLineResult = parseMultiLineHeader(lines, pno, txt);
       if (multiLineResult) {
         headers.push(multiLineResult);
+        foundPages.add(pno);
         console.log(`[SpecExtractor] Multi-line header p${pno + 1}: ${multiLineResult.section} - "${multiLineResult.title}"`);
+      }
+    }
+  }
+
+  const foundSections = new Set(headers.map(h => h.section));
+
+  for (let pno = 0; pno < pages.length; pno++) {
+    if (tocBounds.end >= 0 && pno <= tocBounds.end) continue;
+    if (foundPages.has(pno)) continue;
+
+    const txt = pages[pno];
+    const lines = txt.split(/[\n\r]+/);
+    const topZone = lines.slice(0, 20).join("\n");
+    const upper = txt.toUpperCase();
+
+    const hasPart1 = upper.includes("PART 1") && (upper.includes("GENERAL") || upper.includes("PART 2") || upper.includes("PART 3"));
+
+    const sectionNumberRe = /\b(10[\s\-\._]*\d{2}[\s\-\._]*\d{2}(?:[\s\-\._]*\d{2})?)\b/g;
+    const topMatches: string[] = [];
+    let m;
+    while ((m = sectionNumberRe.exec(topZone)) !== null) {
+      const canon = canonize(m[1]);
+      if (canon.startsWith("10 ") && !EQUIPMENT_REF_RE.test(m[1]) && !foundSections.has(canon)) {
+        topMatches.push(canon);
+      }
+    }
+
+    const uniqueTopMatches = Array.from(new Set(topMatches));
+
+    if (uniqueTopMatches.length === 1) {
+      const canon = uniqueTopMatches[0];
+      const title = extractTitleFromPage(lines, canon);
+      const isLegit = isLegitimateSection(txt, canon);
+
+      if (isLegit) {
+        headers.push({
+          section: canon,
+          title,
+          page: pno,
+          isLegitimate: true,
+        });
+        foundPages.add(pno);
+        foundSections.add(canon);
+        console.log(`[SpecExtractor] Catch-all found p${pno + 1}: ${canon} - "${title}"`);
+      }
+    }
+
+    if (!foundPages.has(pno) && hasPart1) {
+      const topZoneForPart1 = lines.slice(0, 15).join("\n");
+      const part1SectionRe = /\b(10[\s\-\._]*\d{2}[\s\-\._]*\d{2}(?:[\s\-\._]*\d{2})?)\b/g;
+      const compactRe = /\b(10\d{4,6})\b/g;
+      let fullPageMatch;
+      const candidates: string[] = [];
+
+      while ((fullPageMatch = part1SectionRe.exec(topZoneForPart1)) !== null) {
+        const canon = canonize(fullPageMatch[1]);
+        if (canon.startsWith("10 ") && !EQUIPMENT_REF_RE.test(fullPageMatch[1]) && !foundSections.has(canon) && !candidates.includes(canon)) {
+          candidates.push(canon);
+        }
+      }
+      while ((fullPageMatch = compactRe.exec(topZoneForPart1)) !== null) {
+        const canon = canonize(fullPageMatch[1]);
+        if (canon.startsWith("10 ") && !EQUIPMENT_REF_RE.test(fullPageMatch[1]) && !foundSections.has(canon) && !candidates.includes(canon)) {
+          candidates.push(canon);
+        }
+      }
+
+      if (candidates.length === 1) {
+        const canon = candidates[0];
+        const title = extractTitleFromPage(lines, canon);
+        const isLegit = isLegitimateSection(txt, canon);
+        headers.push({
+          section: canon,
+          title,
+          page: pno,
+          isLegitimate: isLegit,
+        });
+        foundPages.add(pno);
+        foundSections.add(canon);
+        console.log(`[SpecExtractor] PART1 fallback p${pno + 1}: ${canon} - "${title}" (legit: ${isLegit})`);
       }
     }
   }
@@ -648,8 +760,13 @@ function filterHeaders(headers: ExtractedHeader[], tocBounds: TOCBounds): Extrac
       continue;
     }
 
-    if ((pageCounts[h.page] || 0) > 2) {
+    if ((pageCounts[h.page] || 0) > 4) {
       console.log(`[SpecExtractor] Filtering ${h.section} on p${h.page + 1}: index page (${pageCounts[h.page]} sections)`);
+      continue;
+    }
+
+    if ((pageCounts[h.page] || 0) > 2 && !h.isLegitimate) {
+      console.log(`[SpecExtractor] Filtering ${h.section} on p${h.page + 1}: dense page and not legitimate`);
       continue;
     }
 
