@@ -494,40 +494,46 @@ function findDiv10Headers(pages: string[], tocBounds: TOCBounds): ExtractedHeade
     const lines = txt.split(/[\n\r]+/);
     const topZone = lines.slice(0, 20).join("\n");
 
-    for (const pattern of HDR_PATTERNS) {
-      const match = pattern.exec(topZone);
-      if (match) {
-        const rawSec = match[1];
-        const rawTitle = match[2].trim();
-        const canon = canonize(rawSec);
-
-        if (!canon.startsWith("10 ")) continue;
-        if (EQUIPMENT_REF_RE.test(rawSec)) continue;
-
-        const cleaned = cleanSectionTitle(rawTitle);
-        if (cleaned.length < 3) continue;
-
-        const isLegit = isLegitimateSection(txt, canon);
-
-        headers.push({
-          section: canon,
-          title: cleaned,
-          page: pno,
-          isLegitimate: isLegit,
-        });
-        foundPages.add(pno);
-
-        console.log(`[SpecExtractor] Header found p${pno + 1}: ${canon} - "${cleaned}" (legit: ${isLegit})`);
-        break;
-      }
+    const multiLineResult = parseMultiLineHeader(lines, pno, txt);
+    if (multiLineResult) {
+      headers.push(multiLineResult);
+      foundPages.add(pno);
+      console.log(`[SpecExtractor] Multi-line header p${pno + 1}: ${multiLineResult.section} - "${multiLineResult.title}"`);
     }
 
     if (!foundPages.has(pno)) {
-      const multiLineResult = parseMultiLineHeader(lines, pno, txt);
-      if (multiLineResult) {
-        headers.push(multiLineResult);
-        foundPages.add(pno);
-        console.log(`[SpecExtractor] Multi-line header p${pno + 1}: ${multiLineResult.section} - "${multiLineResult.title}"`);
+      for (const pattern of HDR_PATTERNS) {
+        const match = pattern.exec(topZone);
+        if (match) {
+          const rawSec = match[1];
+          const rawTitle = match[2].trim();
+          const canon = canonize(rawSec);
+
+          if (!canon.startsWith("10 ")) continue;
+          if (EQUIPMENT_REF_RE.test(rawSec)) continue;
+
+          const matchIndex = match.index;
+          const textBefore = topZone.slice(Math.max(0, matchIndex - 10), matchIndex);
+          if (/[A-Z]\.\s+$/i.test(textBefore)) {
+            continue;
+          }
+
+          const cleaned = cleanSectionTitle(rawTitle);
+          if (cleaned.length < 3) continue;
+
+          const isLegit = isLegitimateSection(txt, canon);
+
+          headers.push({
+            section: canon,
+            title: cleaned,
+            page: pno,
+            isLegitimate: isLegit,
+          });
+          foundPages.add(pno);
+
+          console.log(`[SpecExtractor] Header found p${pno + 1}: ${canon} - "${cleaned}" (legit: ${isLegit})`);
+          break;
+        }
       }
     }
   }
