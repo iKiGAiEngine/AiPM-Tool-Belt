@@ -47,6 +47,8 @@ interface ExtractionResult {
   processingTimeMs: number;
   modelUsed?: string;
   retried?: boolean;
+  continuationUsed?: boolean;
+  possibleTruncation?: boolean;
 }
 
 export default function ScheduleConverterPage() {
@@ -89,10 +91,19 @@ export default function ScheduleConverterPage() {
       setEditedItems(data.items.map(item => ({ ...item, needsReview: false })));
       const modelInfo = data.modelUsed ? ` via ${data.modelUsed}` : "";
       const retriedInfo = data.retried ? " (auto-upgraded)" : "";
+      const contInfo = data.continuationUsed ? " (multi-pass)" : "";
       toast({
-        title: "Schedule Extracted",
-        description: `Found ${data.items.length} line item${data.items.length !== 1 ? "s" : ""} in ${(data.processingTimeMs / 1000).toFixed(1)}s${modelInfo}${retriedInfo}`,
+        title: data.possibleTruncation ? "Schedule Partially Extracted" : "Schedule Extracted",
+        description: `Found ${data.items.length} line item${data.items.length !== 1 ? "s" : ""} in ${(data.processingTimeMs / 1000).toFixed(1)}s${modelInfo}${retriedInfo}${contInfo}`,
+        variant: data.possibleTruncation ? "destructive" : "default",
       });
+      if (data.possibleTruncation) {
+        toast({
+          title: "Possible Missing Rows",
+          description: "The schedule may have more rows than were extracted. Please compare against the original image and re-run if needed.",
+          variant: "destructive",
+        });
+      }
     },
     onError: (error: Error) => {
       toast({
@@ -367,6 +378,31 @@ export default function ScheduleConverterPage() {
 
         {editedItems.length > 0 && (
           <>
+            {result?.possibleTruncation && (
+              <Card className="mb-4 border-yellow-500/50 bg-yellow-500/5" data-testid="warning-truncation">
+                <div className="p-4 flex items-start gap-3">
+                  <AlertTriangle className="w-5 h-5 text-yellow-600 mt-0.5 shrink-0" />
+                  <div>
+                    <p className="font-medium text-sm">Some rows may be missing</p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      The schedule had too many rows for a single extraction pass. Please compare the results below against your original image. If rows are missing, try uploading a cropped portion of the schedule.
+                    </p>
+                  </div>
+                </div>
+              </Card>
+            )}
+            {result?.continuationUsed && !result?.possibleTruncation && (
+              <Card className="mb-4 border-blue-500/30 bg-blue-500/5" data-testid="info-continuation">
+                <div className="p-4 flex items-start gap-3">
+                  <CheckCircle2 className="w-5 h-5 text-blue-600 mt-0.5 shrink-0" />
+                  <div>
+                    <p className="text-xs text-muted-foreground">
+                      This schedule required multiple extraction passes to capture all rows. All items were successfully extracted.
+                    </p>
+                  </div>
+                </div>
+              </Card>
+            )}
             <Card className="mb-6">
               <div className="p-4 border-b flex items-center justify-between gap-4 flex-wrap">
                 <div className="flex items-center gap-3">
