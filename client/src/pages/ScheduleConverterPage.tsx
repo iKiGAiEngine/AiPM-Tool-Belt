@@ -428,7 +428,7 @@ export default function ScheduleConverterPage() {
                         />
                       </TableHead>
                       <TableHead className="min-w-[90px]">PLAN CALLOUT</TableHead>
-                      <TableHead className="min-w-[180px]">DESCRIPTION</TableHead>
+                      <TableHead className="min-w-[250px]">DESCRIPTION</TableHead>
                       <TableHead className="min-w-[180px]">MODEL NUMBER</TableHead>
                       <TableHead className="min-w-[60px] text-center">QTY</TableHead>
                       <TableHead className="min-w-[70px] text-center">CONFIDENCE</TableHead>
@@ -563,7 +563,7 @@ export default function ScheduleConverterPage() {
               Upload a schedule screenshot (Appliance Schedule, Accessory Schedule, Plumbing Fixtures, etc.) to get started.
             </p>
             <p className="text-xs text-muted-foreground mt-2">
-              The tool will extract plan callouts, descriptions, model numbers, and quantities into a table you can copy directly into Excel.
+              The tool will extract plan callouts, descriptions (with all additional details like finish, size, mounting, etc.), model numbers, and quantities into a table you can copy directly into Excel.
             </p>
           </Card>
         )}

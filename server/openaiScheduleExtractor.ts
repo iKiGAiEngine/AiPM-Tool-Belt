@@ -6,7 +6,7 @@ const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 const DEFAULT_MODEL = "gpt-4o-mini";
 const FALLBACK_MODEL = "gpt-4o";
 const LOW_CONFIDENCE_THRESHOLD = 80;
-const MAX_TOKENS = 4096;
+const MAX_TOKENS = 8192;
 
 const RawItemSchema = z.object({
   planCallout: z.coerce.string().default(""),
@@ -50,7 +50,7 @@ Extract every line item from the schedule table into structured JSON. Return ONL
 
 For each row in the schedule, extract:
 - planCallout: The plan callout/tag/mark (e.g. "TA-01", "PF-03", "EQ-1")
-- description: The item description (e.g. "Paper Towel Dispenser", "Grab Bar")
+- description: The item description PLUS all additional details from the row. Start with the main item name, then append every other detail from the schedule row that is not captured in the other fields (planCallout, manufacturer, model, quantity). This includes but is not limited to: finish, color, size, dimensions, mounting type, material, ADA compliance notes, door swing, hinge type, rating, installation notes, remarks, location, room numbers, specifications, series, options, accessories, voltage, capacity, weight, and any other column data. Separate additional details with semicolons. Example: "Paper Towel Dispenser; Surface Mounted; Satin Finish; ADA Compliant; 18 ga. stainless steel"
 - manufacturer: The manufacturer name (e.g. "Bobrick", "Kohler", "ASI")
 - model: The model number exactly as shown (e.g. "B-2621", "K-14367-CP")
 - quantity: The numeric quantity as an integer. If not visible, use 0
@@ -63,6 +63,8 @@ For each row in the schedule, extract:
   "Manufacturer missing" - no manufacturer identified
   "Model missing" - no model number identified
 
+IMPORTANT: Do NOT discard any information from the schedule. Every detail visible in each row must be captured. If a column exists in the schedule that is not planCallout, manufacturer, model, or quantity, its value MUST be appended to the description field.
+
 Response schema:
 { "items": [{ "planCallout": string, "description": string, "manufacturer": string, "model": string, "quantity": number, "sourceSection": string, "confidence": number, "flags": string[] }] }`;
 
@@ -70,7 +72,7 @@ const STRICT_RETRY_PROMPT = `You MUST return ONLY a valid JSON object matching t
 
 { "items": [{ "planCallout": string, "description": string, "manufacturer": string, "model": string, "quantity": number, "sourceSection": string, "confidence": number, "flags": string[] }] }
 
-Extract ALL line items from the schedule image. Each field must be present in every item.`;
+Extract ALL line items from the schedule image. Each field must be present in every item. The description field must include the item name PLUS all additional details from the row (finish, size, mounting, material, notes, etc.) separated by semicolons. Do not discard any information.`;
 
 function formatModelNumber(manufacturer: string, rawModel: string, flags: string[]): string {
   const mfr = manufacturer.trim();
