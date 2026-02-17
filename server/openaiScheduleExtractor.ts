@@ -52,7 +52,7 @@ For each row in the schedule, extract:
 - planCallout: The plan callout/tag/mark (e.g. "TA-01", "PF-03", "EQ-1")
 - description: The item description PLUS all additional details from the row. Start with the main item name, then append every other detail from the schedule row that is not captured in the other fields (planCallout, manufacturer, model, quantity). This includes but is not limited to: finish, color, size, dimensions, mounting type, material, ADA compliance notes, door swing, hinge type, rating, installation notes, remarks, location, room numbers, specifications, series, options, accessories, voltage, capacity, weight, and any other column data. Separate additional details with semicolons. Example: "Paper Towel Dispenser; Surface Mounted; Satin Finish; ADA Compliant; 18 ga. stainless steel"
 - manufacturer: The manufacturer name (e.g. "Bobrick", "Kohler", "ASI")
-- model: The model number exactly as shown (e.g. "B-2621", "K-14367-CP")
+- model: The model number, product name, or product line exactly as shown. If there is an explicit model number (e.g. "B-2621", "K-14367-CP"), use that. If there is no model number but there IS a product name or item title shown alongside the manufacturer (e.g. "RIGID SHEET PANEL", "PALLADIUM RIGID SHEET"), use the product name/title as the model. The goal is that manufacturer + model together form a complete product identifier (e.g. manufacturer="Koroseal", model="Rigid Sheet Panel")
 - quantity: The numeric quantity as an integer. If not visible, use 0
 - sourceSection: The schedule section name from the header (e.g. "ACCESSORY SCHEDULE", "FIXTURE SCHEDULE")
 - confidence: Your confidence 0-100 that this row was extracted accurately
@@ -72,7 +72,7 @@ const STRICT_RETRY_PROMPT = `You MUST return ONLY a valid JSON object matching t
 
 { "items": [{ "planCallout": string, "description": string, "manufacturer": string, "model": string, "quantity": number, "sourceSection": string, "confidence": number, "flags": string[] }] }
 
-Extract ALL line items from the schedule image. Each field must be present in every item. The description field must include the item name PLUS all additional details from the row (finish, size, mounting, material, notes, etc.) separated by semicolons. Do not discard any information.`;
+Extract ALL line items from the schedule image. Each field must be present in every item. The description field must include the item name PLUS all additional details from the row (finish, size, mounting, material, notes, etc.) separated by semicolons. Do not discard any information. For the model field: use the model number if one exists, otherwise use the product name or item title so that manufacturer + model together form a complete product identifier.`;
 
 function formatModelNumber(manufacturer: string, rawModel: string, flags: string[]): string {
   const mfr = manufacturer.trim();
