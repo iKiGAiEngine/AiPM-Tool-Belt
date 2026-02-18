@@ -453,13 +453,15 @@ function ToolCard({ tool, index, isAdmin, stats, onStatsClick }: ToolCardProps) 
   if (isComingSoon && isAdminOnlyRestricted) {
     return (
       <div
-        className="group relative flex flex-col items-center justify-start text-center p-6 pt-8 rounded-lg opacity-40 h-full animate-fade-in-scale"
+        className="group flex flex-col items-center justify-start text-center p-6 pt-3 rounded-lg opacity-40 h-full animate-fade-in-scale"
         style={{ borderColor: "var(--border-ds)", background: "var(--bg2)", border: "1px solid var(--border-ds)", animationDelay: `${0.1 + index * 0.08}s` }}
         data-testid={`tile-${tool.id}`}
       >
-        <Badge variant="outline" className="absolute top-3 right-3 font-heading text-[10px] uppercase tracking-wider" style={{ borderColor: "var(--gold-dim)", color: "var(--gold-dim)" }}>
-          Coming Soon
-        </Badge>
+        <div className="self-center mb-2">
+          <Badge variant="outline" className="font-heading text-[10px] uppercase tracking-wider" style={{ borderColor: "var(--gold-dim)", color: "var(--gold-dim)" }}>
+            Coming Soon
+          </Badge>
+        </div>
         <div className="tool-icon w-14 h-14 rounded-full flex items-center justify-center mb-4 shrink-0" style={{ background: "var(--bg3)" }}>
           <Icon className="w-7 h-7" style={{ color: "var(--text-dim)", opacity: 0.5 }} />
         </div>
@@ -496,13 +498,15 @@ function ToolCard({ tool, index, isAdmin, stats, onStatsClick }: ToolCardProps) 
           className="flex flex-col flex-1"
         >
           <div
-            className="tool-tile-animated group relative flex flex-col items-center justify-start text-center p-6 pt-8 cursor-pointer flex-1 hover-elevate active-elevate-2 rounded-b-lg opacity-60"
+            className="tool-tile-animated group flex flex-col items-center justify-start text-center p-6 pt-3 cursor-pointer flex-1 hover-elevate active-elevate-2 rounded-b-lg opacity-60"
             style={{ background: "var(--bg2)", border: "1px solid var(--border-ds)" }}
             data-testid={`tile-${tool.id}`}
           >
-            <Badge variant="outline" className="absolute top-3 right-3 font-heading text-[10px] uppercase tracking-wider" style={{ borderColor: "var(--gold-dim)", color: "var(--gold-dim)" }}>
-              Coming Soon
-            </Badge>
+            <div className="self-center mb-2">
+              <Badge variant="outline" className="font-heading text-[10px] uppercase tracking-wider" style={{ borderColor: "var(--gold-dim)", color: "var(--gold-dim)" }}>
+                Coming Soon
+              </Badge>
+            </div>
             <div className="tool-icon w-14 h-14 rounded-full flex items-center justify-center mb-4 shrink-0" style={{ background: "var(--bg3)" }}>
               <Icon className="w-7 h-7" style={{ color: "var(--text-dim)" }} />
             </div>
