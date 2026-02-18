@@ -706,9 +706,10 @@ export default function ProjectStartPage() {
                 className={cn(
                   "border-2 border-dashed rounded-md p-6 text-center cursor-pointer transition-all duration-200 outline-none",
                   screenshotDragging
-                    ? "border-primary bg-primary/10 ring-2 ring-primary/30"
-                    : "border-border hover:border-primary/50"
+                    ? "ring-2"
+                    : "border-border hover:border-muted-foreground/50"
                 )}
+                style={screenshotDragging ? { borderColor: "var(--gold)", background: "rgba(200,164,78,0.1)", ringColor: "rgba(200,164,78,0.3)" } : undefined}
                 onDragOver={(e) => {
                   e.preventDefault();
                   setScreenshotDragging(true);
@@ -737,7 +738,7 @@ export default function ProjectStartPage() {
                   }}
                   data-testid="input-screenshot-file"
                 />
-                <Camera className="w-10 h-10 mx-auto mb-2 text-primary/70" />
+                <Camera className="w-10 h-10 mx-auto mb-2" style={{ color: "var(--gold)", opacity: 0.7 }} />
                 <p className="font-medium text-foreground">
                   Click to paste from clipboard
                 </p>
@@ -747,7 +748,8 @@ export default function ProjectStartPage() {
                 <button
                   type="button"
                   onClick={(e) => { e.stopPropagation(); screenshotInputRef.current?.click(); }}
-                  className="text-xs text-primary hover:underline mt-2"
+                  className="text-xs hover:underline mt-2"
+                  style={{ color: "var(--gold)" }}
                   data-testid="button-browse-screenshot"
                 >
                   Browse files instead
@@ -927,7 +929,7 @@ export default function ProjectStartPage() {
         <div className="flex items-center justify-between gap-4">
           <div className="text-sm text-muted-foreground">
             {isReady ? (
-              <span className="flex items-center gap-1 text-green-600 dark:text-green-400">
+              <span className="flex items-center gap-1 text-green-400">
                 <CheckCircle className="w-4 h-4" />
                 {plans.file || specs.file
                   ? `Ready — will process ${[plans.file && "plans", specs.file && "specs"].filter(Boolean).join(" & ")}`
@@ -1041,7 +1043,7 @@ function ProgressStep({ step, label, description, status, progress = 0, showProg
     status === "done" ? (
       <CheckCircle className="w-5 h-5 text-green-500" />
     ) : status === "active" ? (
-      <Loader2 className="w-5 h-5 text-primary animate-spin" />
+      <Loader2 className="w-5 h-5 animate-spin" style={{ color: "var(--gold)" }} />
     ) : (
       <div className="w-5 h-5 rounded-full border-2 border-muted-foreground/30 flex items-center justify-center">
         <span className="text-[10px] text-muted-foreground/50 font-medium">{step}</span>
@@ -1107,11 +1109,12 @@ function UploadZone({ label, description, file, isDragging, onFileChange, dropHa
       <div
         className={`relative flex flex-col items-center justify-center p-6 rounded-lg border-2 border-dashed transition-colors cursor-pointer ${
           isDragging
-            ? "border-primary bg-primary/5"
+            ? ""
             : file
-            ? "border-green-500 bg-green-50 dark:bg-green-950/20"
+            ? "border-green-500 bg-green-950/20"
             : "border-border hover:border-muted-foreground/50"
         }`}
+        style={isDragging ? { borderColor: "var(--gold)", background: "rgba(200,164,78,0.06)" } : undefined}
         {...dropHandlers}
         onClick={() => document.getElementById(`file-${testId}`)?.click()}
         data-testid={testId}
@@ -1126,7 +1129,7 @@ function UploadZone({ label, description, file, isDragging, onFileChange, dropHa
         />
         {file ? (
           <div className="flex flex-col items-center gap-2 text-center">
-            <FileText className="w-8 h-8 text-green-600 dark:text-green-400" />
+            <FileText className="w-8 h-8 text-green-400" />
             <span className="text-sm font-medium truncate max-w-full" data-testid={`text-filename-${testId}`}>
               {file.name}
             </span>

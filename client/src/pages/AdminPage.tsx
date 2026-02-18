@@ -245,7 +245,7 @@ export default function AdminPage() {
                   <ArrowLeft className="w-4 h-4" />
                 </Button>
               </Link>
-              <Shield className="w-5 h-5 text-primary" />
+              <Shield className="w-5 h-5" style={{ color: "var(--gold)" }} />
               <h1 className="text-2xl font-semibold text-foreground">Admin Dashboard</h1>
             </div>
             <div className="flex items-center gap-2">
@@ -378,7 +378,7 @@ export default function AdminPage() {
                             {u.role === "admin" ? (
                               <Shield className="w-4 h-4 text-muted-foreground" />
                             ) : (
-                              <ShieldCheck className="w-4 h-4 text-primary" />
+                              <ShieldCheck className="w-4 h-4" style={{ color: "var(--gold)" }} />
                             )}
                           </Button>
                         </div>

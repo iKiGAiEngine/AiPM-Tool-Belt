@@ -191,18 +191,19 @@ export default function QuoteParserPage() {
 
         <Card className="p-6 mb-8">
           <div className="flex items-center gap-2 mb-4">
-            <FileText className="w-5 h-5 text-primary" />
+            <FileText className="w-5 h-5" style={{ color: "var(--gold)" }} />
             <h2 className="font-medium">Vendor Quote</h2>
           </div>
           <div
             {...quoteDropzone.getRootProps()}
             className={`border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors ${
               quoteDropzone.isDragActive
-                ? "border-primary bg-primary/5"
+                ? "bg-green-950"
                 : quoteFile
-                ? "border-green-500 bg-green-50 dark:bg-green-950"
-                : "border-border hover:border-primary/50"
+                ? "border-green-500 bg-green-950"
+                : "border-border hover:border-muted-foreground/50"
             }`}
+            style={quoteDropzone.isDragActive ? { borderColor: "var(--gold)", background: "rgba(200,164,78,0.06)" } : undefined}
             data-testid="dropzone-quote"
           >
             <input {...quoteDropzone.getInputProps()} />

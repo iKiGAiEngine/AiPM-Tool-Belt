@@ -5,7 +5,6 @@ import {
 } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
-import { ThemeToggle } from "./ThemeToggle";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -59,15 +58,15 @@ export function Header() {
 
   return (
     <>
-      <header className="sticky top-0 z-50 h-16 border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+      <header className="sticky top-0 z-50 h-16 border-b border-border" style={{ background: "var(--bg-header)", backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)" }}>
         <div className="mx-auto flex h-full max-w-7xl items-center justify-between px-6 lg:px-8">
           <div className="flex items-center gap-4">
-            <Link href="/" className="flex items-center gap-2">
-              <div className="flex h-9 w-9 items-center justify-center rounded-md bg-primary">
-                <Wrench className="h-5 w-5 text-primary-foreground" />
+            <Link href="/" className="flex items-center gap-2.5">
+              <div className="flex h-9 w-9 items-center justify-center rounded-md" style={{ background: "linear-gradient(135deg, var(--gold), var(--gold-dark))" }}>
+                <Wrench className="h-5 w-5" style={{ color: "var(--text-inverse)" }} />
               </div>
-              <span className="text-xl font-semibold tracking-tight" data-testid="text-logo">
-                AiPM Tool Belt
+              <span className="text-xl font-semibold tracking-tight font-heading" data-testid="text-logo" style={{ color: "var(--text-primary)" }}>
+                <span style={{ color: "var(--gold)" }}>AiPM</span> Tool Belt
               </span>
             </Link>
 
@@ -75,7 +74,7 @@ export function Header() {
               <>
                 <div className="h-6 w-px bg-border" />
                 <div className="flex items-center gap-1.5">
-                  <activeToolRoute.icon className="h-4 w-4 text-primary" />
+                  <activeToolRoute.icon className="h-4 w-4" style={{ color: "var(--gold)" }} />
                   <span className="text-sm font-medium text-foreground" data-testid="text-active-tool">
                     {activeToolRoute.label}
                   </span>
@@ -128,7 +127,6 @@ export function Header() {
                 </Button>
               </Link>
             )}
-            <ThemeToggle />
             <div className="flex items-center gap-2">
               {user && (
                 <span className="text-xs text-muted-foreground hidden sm:inline" data-testid="text-user-email">

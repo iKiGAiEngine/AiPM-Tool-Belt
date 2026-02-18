@@ -189,8 +189,9 @@ export default function HomePage() {
     <div className="min-h-[calc(100vh-4rem)] flex flex-col">
       <div className="flex-1 flex flex-col items-center px-6 py-12">
         <div className="text-center mb-12">
-          <h1 className="text-5xl sm:text-6xl font-extrabold tracking-tight mb-2 animate-brand-reveal">
-            <span className="text-primary">AiPM Tool Belt</span>
+          <h1 className="text-5xl sm:text-6xl font-extrabold tracking-tight mb-2 animate-brand-reveal font-heading">
+            <span style={{ color: "var(--gold)" }}>AiPM</span>{" "}
+            <span className="text-foreground">Tool Belt</span>
           </h1>
           <h2 className="text-lg sm:text-xl font-semibold tracking-wide text-muted-foreground mb-4 animate-subtitle-slide">
             Your AI Assisted Digital PM
@@ -340,7 +341,7 @@ export default function HomePage() {
         <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2" data-testid="text-stats-dialog-title">
-              <Activity className="w-5 h-5 text-primary" />
+              <Activity className="w-5 h-5" style={{ color: "var(--gold)" }} />
               {selectedToolTitle} Usage
             </DialogTitle>
             <DialogDescription>Usage statistics and user breakdown for {selectedToolTitle}</DialogDescription>
@@ -469,8 +470,8 @@ function ToolCard({ tool, index, isAdmin, stats, onStatsClick }: ToolCardProps) 
           className={`tool-tile-animated group relative flex flex-col items-center justify-start text-center p-6 pt-8 border border-border bg-card cursor-pointer flex-1 hover-elevate active-elevate-2 ${isAdmin ? "rounded-b-lg" : "rounded-lg"}`}
           data-testid={`tile-${tool.id}`}
         >
-          <div className="tool-icon w-14 h-14 rounded-full bg-primary/10 flex items-center justify-center mb-4 shrink-0">
-            <Icon className="w-7 h-7 text-primary" />
+          <div className="tool-icon w-14 h-14 rounded-full flex items-center justify-center mb-4 shrink-0" style={{ background: "rgba(200,164,78,0.1)" }}>
+            <Icon className="w-7 h-7" style={{ color: "var(--gold)" }} />
           </div>
           <h2 className="text-base font-semibold text-foreground mb-2">
             {tool.title}

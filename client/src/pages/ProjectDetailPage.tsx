@@ -378,7 +378,7 @@ export default function ProjectDetailPage() {
             <div className="flex items-center gap-3">
               <AlertCircle className="w-5 h-5 text-red-500 shrink-0" />
               <div className="flex-1">
-                <p className="text-sm font-medium text-red-600 dark:text-red-400">
+                <p className="text-sm font-medium text-red-400">
                   {statusInfo.label}
                 </p>
                 <p className="text-xs text-muted-foreground mt-0.5">
@@ -412,7 +412,7 @@ export default function ProjectDetailPage() {
         <Card>
           <CardHeader className="pb-3">
             <div className="flex items-center gap-2">
-              <FileText className="w-5 h-5 text-primary" />
+              <FileText className="w-5 h-5" style={{ color: "var(--gold)" }} />
               <CardTitle className="text-base">Spec Extractor</CardTitle>
             </div>
             <CardDescription className="text-xs">Spec extraction results</CardDescription>
@@ -455,7 +455,7 @@ export default function ProjectDetailPage() {
         <Card>
           <CardHeader className="pb-3">
             <div className="flex items-center gap-2">
-              <ScanSearch className="w-5 h-5 text-primary" />
+              <ScanSearch className="w-5 h-5" style={{ color: "var(--gold)" }} />
               <CardTitle className="text-base">Plan Parser</CardTitle>
             </div>
             <CardDescription className="text-xs">Plan classification results</CardDescription>
@@ -483,7 +483,7 @@ export default function ProjectDetailPage() {
         <Card className="mb-6">
           <CardHeader className="pb-3">
             <div className="flex items-center gap-2">
-              <FolderOpen className="w-5 h-5 text-primary" />
+              <FolderOpen className="w-5 h-5" style={{ color: "var(--gold)" }} />
               <CardTitle className="text-base">Project Folder</CardTitle>
             </div>
           </CardHeader>
@@ -501,7 +501,7 @@ export default function ProjectDetailPage() {
             <div className="flex items-center justify-between gap-4 flex-wrap">
               <div>
                 <div className="flex items-center gap-2">
-                  <ScanSearch className="w-5 h-5 text-primary" />
+                  <ScanSearch className="w-5 h-5" style={{ color: "var(--gold)" }} />
                   <CardTitle className="text-base">Plan Parser Results</CardTitle>
                   {showComparison && (
                     <Badge variant="secondary" className="text-xs">Spec-Pass Complete</Badge>
@@ -759,7 +759,8 @@ export default function ProjectDetailPage() {
                 return (
                   <div
                     key={scope.id}
-                    className={`rounded-lg border transition-colors ${scope.isSelected ? "border-primary/40 bg-primary/5" : ""}`}
+                    className={`rounded-lg border transition-colors`}
+                    style={scope.isSelected ? { borderColor: "var(--border-gold)", background: "rgba(200,164,78,0.06)" } : undefined}
                     data-testid={`scope-row-${scope.id}`}
                   >
                     <div className="flex items-center gap-3 p-3">

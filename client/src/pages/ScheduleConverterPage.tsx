@@ -277,7 +277,7 @@ export default function ScheduleConverterPage() {
 
         <Card className="p-6 mb-8">
           <div className="flex items-center gap-2 mb-4">
-            <ImageIcon className="w-5 h-5 text-primary" />
+            <ImageIcon className="w-5 h-5" style={{ color: "var(--gold)" }} />
             <h2 className="font-medium">Schedule Screenshot</h2>
           </div>
           <div
@@ -291,11 +291,12 @@ export default function ScheduleConverterPage() {
             onClick={imageFile ? undefined : handleClickPaste}
             className={`border-2 border-dashed rounded-md p-8 text-center cursor-pointer transition-all duration-200 outline-none ${
               isFocused
-                ? "border-primary bg-primary/10 ring-2 ring-primary/30"
+                ? "border-[var(--gold)] ring-2 ring-[rgba(200,164,78,0.3)]"
                 : imageFile
-                ? "border-green-500 bg-green-50 dark:bg-green-950/30"
-                : "border-border hover:border-primary/50"
+                ? "border-green-500 bg-green-950/30"
+                : "border-border hover:border-[rgba(200,164,78,0.5)]"
             }`}
+            style={isFocused ? { background: "rgba(200,164,78,0.1)" } : undefined}
             data-testid="dropzone-schedule"
           >
             <input
@@ -338,7 +339,7 @@ export default function ScheduleConverterPage() {
               </div>
             ) : (
               <div className="flex flex-col items-center gap-3">
-                <Camera className="w-10 h-10 text-primary/70" />
+                <Camera className="w-10 h-10" style={{ color: "rgba(200,164,78,0.7)" }} />
                 <p className="font-medium text-foreground">
                   Click to paste from clipboard
                 </p>
@@ -348,7 +349,8 @@ export default function ScheduleConverterPage() {
                 <button
                   type="button"
                   onClick={(e) => { e.stopPropagation(); fileInputRef.current?.click(); }}
-                  className="text-xs text-primary hover:underline mt-1"
+                  className="text-xs hover:underline mt-1"
+                  style={{ color: "var(--gold)" }}
                   data-testid="button-browse-files"
                 >
                   Browse files instead
@@ -572,7 +574,7 @@ export default function ScheduleConverterPage() {
                     <p>Model: {result.modelUsed || "unknown"}</p>
                     <p>Items extracted: {result.items.length}</p>
                     <p>Processing time: {(result.processingTimeMs / 1000).toFixed(1)}s</p>
-                    {result.retried && <p className="text-amber-600 dark:text-amber-400">Auto-upgraded model for better accuracy</p>}
+                    {result.retried && <p className="text-amber-400">Auto-upgraded model for better accuracy</p>}
                   </div>
                 </details>
               </Card>
@@ -582,7 +584,7 @@ export default function ScheduleConverterPage() {
 
         {extractMutation.isPending && (
           <Card className="p-8 text-center">
-            <Loader2 className="w-8 h-8 animate-spin text-primary mx-auto mb-4" />
+            <Loader2 className="w-8 h-8 animate-spin mx-auto mb-4" style={{ color: "var(--gold)" }} />
             <p className="text-muted-foreground">
               Analyzing schedule with AI vision...
             </p>

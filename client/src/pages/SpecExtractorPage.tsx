@@ -575,13 +575,14 @@ export default function SpecExtractorPage() {
                 className={cn(
                   "mx-auto max-w-2xl rounded-lg border-2 border-dashed p-12 text-center transition-colors cursor-pointer",
                   isDragging
-                    ? "border-primary bg-primary/5"
+                    ? "border-[var(--gold)]"
                     : "border-border hover:border-muted-foreground/50",
                   isUploading && "pointer-events-none opacity-60"
                 )}
                 onClick={() => {
                   if (!isUploading) document.getElementById("se-file-input")?.click();
                 }}
+                style={isDragging ? { background: "rgba(200,164,78,0.06)" } : undefined}
                 data-testid="dropzone-spec-extractor"
               >
                 <input
@@ -595,8 +596,8 @@ export default function SpecExtractorPage() {
 
                 {selectedFile ? (
                   <div className="space-y-4">
-                    <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-primary/10">
-                      <FileText className="h-6 w-6 text-primary" />
+                    <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full" style={{ background: "rgba(200,164,78,0.1)" }}>
+                      <FileText className="h-6 w-6" style={{ color: "var(--gold)" }} />
                     </div>
                     <div>
                       <p className="font-medium text-foreground" data-testid="text-se-filename">{selectedFile.name}</p>
@@ -738,9 +739,10 @@ export default function SpecExtractorPage() {
                           className={cn(
                             "flex items-center gap-2 rounded-md border px-3 py-2 text-left text-sm transition-colors",
                             isActive
-                              ? "border-primary bg-primary/5 text-foreground"
+                              ? "border-[var(--gold)] text-foreground"
                               : "border-border text-muted-foreground hover-elevate"
                           )}
+                          style={isActive ? { background: "rgba(200,164,78,0.06)" } : undefined}
                           data-testid={`button-accessory-${scope.name.replace(/[\s\/]/g, "-").toLowerCase()}`}
                         >
                           <Checkbox
@@ -778,8 +780,8 @@ export default function SpecExtractorPage() {
                     { icon: FileStack, title: "Accurate Boundaries", description: "End-of-section markers and header detection prevent page bleeding" },
                   ].map((f) => (
                     <div key={f.title} className="flex flex-col items-center text-center">
-                      <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-lg bg-primary/10">
-                        <f.icon className="h-6 w-6 text-primary" />
+                      <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-lg" style={{ background: "rgba(200,164,78,0.1)" }}>
+                        <f.icon className="h-6 w-6" style={{ color: "var(--gold)" }} />
                       </div>
                       <h3 className="text-base font-semibold text-foreground">{f.title}</h3>
                       <p className="mt-2 text-sm text-muted-foreground">{f.description}</p>
@@ -797,14 +799,14 @@ export default function SpecExtractorPage() {
                   <div className="flex items-start gap-4">
                     <div className={cn(
                       "rounded-full p-3",
-                      sessionData.status === "processing" ? "bg-primary/10" : sessionData.status === "error" ? "bg-destructive/10" : "bg-green-100 dark:bg-green-900/30"
-                    )}>
+                      sessionData.status === "error" ? "bg-destructive/10" : sessionData.status !== "processing" ? "bg-green-900/30" : ""
+                    )} style={sessionData.status === "processing" ? { background: "rgba(200,164,78,0.1)" } : undefined}>
                       {sessionData.status === "processing" ? (
-                        <Loader2 className="h-6 w-6 text-primary animate-spin" />
+                        <Loader2 className="h-6 w-6 animate-spin" style={{ color: "var(--gold)" }} />
                       ) : sessionData.status === "error" ? (
                         <AlertCircle className="h-6 w-6 text-destructive" />
                       ) : (
-                        <CheckCircle2 className="h-6 w-6 text-green-600 dark:text-green-500" />
+                        <CheckCircle2 className="h-6 w-6 text-green-500" />
                       )}
                     </div>
                     <div className="flex-1 min-w-0">
@@ -1023,8 +1025,8 @@ export default function SpecExtractorPage() {
                               <div className="flex-1 min-w-0">
                                 <div className="flex items-center justify-between gap-3 flex-wrap">
                                   <div className="flex items-center gap-3 min-w-0">
-                                    <div className="flex h-9 w-9 items-center justify-center rounded-md bg-primary/10 shrink-0">
-                                      <FileText className="h-4 w-4 text-primary" />
+                                    <div className="flex h-9 w-9 items-center justify-center rounded-md shrink-0" style={{ background: "rgba(200,164,78,0.1)" }}>
+                                      <FileText className="h-4 w-4" style={{ color: "var(--gold)" }} />
                                     </div>
                                     <div className="min-w-0">
                                       <div className="flex items-center gap-2 flex-wrap">

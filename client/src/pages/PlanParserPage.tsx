@@ -242,7 +242,7 @@ export default function PlanParserPage() {
       case "pending":
         return <Clock className="h-5 w-5 text-muted-foreground" />;
       case "processing":
-        return <Loader2 className="h-5 w-5 text-primary animate-spin" />;
+        return <Loader2 className="h-5 w-5 animate-spin" style={{ color: "var(--gold)" }} />;
       case "complete":
         return <CheckCircle2 className="h-5 w-5 text-green-500" />;
       case "error":
@@ -280,9 +280,10 @@ export default function PlanParserPage() {
             <div
               className={`relative mx-auto max-w-xl border-2 border-dashed rounded-lg p-12 text-center transition-colors cursor-pointer ${
                 isDragging 
-                  ? "border-primary bg-primary/5" 
-                  : "border-border hover:border-primary/50"
+                  ? "" 
+                  : "border-border hover:border-muted-foreground/50"
               }`}
+              style={isDragging ? { borderColor: "var(--gold)", background: "rgba(200,164,78,0.06)" } : undefined}
               onDragOver={handleDragOver}
               onDragLeave={handleDragLeave}
               onDrop={handleDrop}
@@ -396,7 +397,7 @@ export default function PlanParserPage() {
             <Card>
               <CardHeader>
                 <div className="flex items-center gap-3">
-                  <Upload className="h-5 w-5 text-primary animate-pulse" />
+                  <Upload className="h-5 w-5 animate-pulse" style={{ color: "var(--gold)" }} />
                   <CardTitle>Uploading Files</CardTitle>
                 </div>
               </CardHeader>

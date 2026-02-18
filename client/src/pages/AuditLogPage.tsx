@@ -94,7 +94,7 @@ export default function AuditLogPage() {
                 <ArrowLeft className="w-4 h-4" />
               </Button>
             </Link>
-            <ScrollText className="w-5 h-5 text-primary" />
+            <ScrollText className="w-5 h-5" style={{ color: "var(--gold)" }} />
             <h1 className="text-2xl font-semibold text-foreground">Audit Log</h1>
           </div>
           <p className="text-muted-foreground ml-12">Activity history for all users.</p>

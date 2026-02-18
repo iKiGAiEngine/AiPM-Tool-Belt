@@ -1510,9 +1510,10 @@ function FolderTemplateSection() {
             onClick={() => !uploadMutation.isPending && templateName && fileInputRef.current?.click()}
             className={`relative flex flex-col items-center justify-center gap-3 p-8 rounded-lg border-2 border-dashed cursor-pointer transition-colors ${
               isDragOver
-                ? "border-primary bg-primary/5"
+                ? "border-border"
                 : "border-border hover:border-muted-foreground/50"
             } ${uploadMutation.isPending || !templateName ? "opacity-50 cursor-not-allowed" : ""}`}
+            style={isDragOver ? { borderColor: "var(--gold)", background: "rgba(200,164,78,0.06)" } : undefined}
             data-testid="dropzone-folder-template"
           >
             <input
@@ -1525,12 +1526,12 @@ function FolderTemplateSection() {
             />
             {uploadMutation.isPending ? (
               <>
-                <Upload className="w-8 h-8 text-primary animate-pulse" />
+                <Upload className="w-8 h-8 animate-pulse" style={{ color: "var(--gold)" }} />
                 <p className="text-sm font-medium">Uploading...</p>
               </>
             ) : (
               <>
-                <FolderArchive className={`w-8 h-8 ${isDragOver ? "text-primary" : "text-muted-foreground"}`} />
+                <FolderArchive className="w-8 h-8 text-muted-foreground" style={isDragOver ? { color: "var(--gold)" } : undefined} />
                 <div className="text-center">
                   <p className="text-sm font-medium">
                     {isDragOver ? "Drop ZIP file here" : "Drag and drop a ZIP file here"}
@@ -1550,7 +1551,7 @@ function FolderTemplateSection() {
           {templates.length > 0 && (
             <div className="space-y-3">
               {templates.map((tmpl) => (
-                <Card key={tmpl.id} className={tmpl.isActive ? "border-primary" : ""}>
+                <Card key={tmpl.id} style={tmpl.isActive ? { borderColor: "var(--gold)" } : undefined}>
                   <CardContent className="p-4">
                     <div className="flex items-center justify-between gap-4 flex-wrap">
                       <div className="flex items-center gap-3 min-w-0">
@@ -1771,9 +1772,10 @@ function EstimateTemplateSection() {
             onClick={() => !uploadMutation.isPending && templateName && fileInputRef.current?.click()}
             className={`relative flex flex-col items-center justify-center gap-3 p-8 rounded-lg border-2 border-dashed cursor-pointer transition-colors ${
               isDragOver
-                ? "border-primary bg-primary/5"
+                ? "border-border"
                 : "border-border hover:border-muted-foreground/50"
             } ${uploadMutation.isPending || !templateName ? "opacity-50 cursor-not-allowed" : ""}`}
+            style={isDragOver ? { borderColor: "var(--gold)", background: "rgba(200,164,78,0.06)" } : undefined}
             data-testid="dropzone-estimate-template"
           >
             <input
@@ -1786,12 +1788,12 @@ function EstimateTemplateSection() {
             />
             {uploadMutation.isPending ? (
               <>
-                <Upload className="w-8 h-8 text-primary animate-pulse" />
+                <Upload className="w-8 h-8 animate-pulse" style={{ color: "var(--gold)" }} />
                 <p className="text-sm font-medium">Uploading...</p>
               </>
             ) : (
               <>
-                <FileSpreadsheet className={`w-8 h-8 ${isDragOver ? "text-primary" : "text-muted-foreground"}`} />
+                <FileSpreadsheet className="w-8 h-8 text-muted-foreground" style={isDragOver ? { color: "var(--gold)" } : undefined} />
                 <div className="text-center">
                   <p className="text-sm font-medium">
                     {isDragOver ? "Drop Excel file here" : "Drag and drop an Excel file here"}
@@ -1811,7 +1813,7 @@ function EstimateTemplateSection() {
           {templates.length > 0 && (
             <div className="space-y-3">
               {templates.map((tmpl) => (
-                <Card key={tmpl.id} className={tmpl.isActive ? "border-primary" : ""}>
+                <Card key={tmpl.id} style={tmpl.isActive ? { borderColor: "var(--gold)" } : undefined}>
                   <CardContent className="p-4">
                     <div className="flex items-center justify-between gap-4 flex-wrap">
                       <div className="flex items-center gap-3 min-w-0">
@@ -2340,8 +2342,9 @@ function SpecExtractorSettingsSection() {
               <div
                 key={version.id}
                 className={`p-3 rounded border flex items-center justify-between gap-4 ${
-                  version.isActive ? "bg-primary/5 border-primary" : "bg-muted/30"
+                  version.isActive ? "" : "bg-muted/30"
                 }`}
+                style={version.isActive ? { background: "rgba(200,164,78,0.06)", borderColor: "var(--gold)" } : undefined}
               >
                 <div className="flex items-center gap-3">
                   <Badge variant={version.isActive ? "default" : "outline"}>

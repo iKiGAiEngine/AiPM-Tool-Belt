@@ -1,0 +1,333 @@
+Apply AiPM Tool Belt Dark + Gold Theme Across the Entire App
+OVERVIEW
+Update every page, component, and layout in this app to use the AiPM dark theme with gold accents. This is a professional construction-tech platform — the look should feel like a premium dark-mode SaaS dashboard. Apply these changes globally across ALL files. Do NOT change any login page background animation code.
+
+CSS VARIABLES — Define at Root Level
+Add or replace these CSS custom properties at the :root level in your global stylesheet. Every component should reference these variables instead of hardcoded color values.
+css:root {
+  /* === Primary Brand === */
+  --gold: #C8A44E;
+  --gold-light: #D4B86A;
+  --gold-dark: #A8873A;
+  --gold-hover: #D4B86A;
+  --gold-glow: rgba(200, 164, 78, 0.15);
+
+  /* === Backgrounds === */
+  --bg-page: #0A0C10;
+  --bg-card: #12151C;
+  --bg-card-hover: #161A24;
+  --bg-input: #181C26;
+  --bg-sidebar: #0E1017;
+  --bg-header: rgba(10, 12, 16, 0.85);
+  --bg-modal-overlay: rgba(0, 0, 0, 0.6);
+  --bg-tooltip: #1E2230;
+
+  /* === Borders === */
+  --border: #252A36;
+  --border-light: #2E3444;
+  --border-focus: #C8A44E;
+  --border-gold: rgba(200, 164, 78, 0.2);
+
+  /* === Text === */
+  --text-primary: #F0F0F2;
+  --text-secondary: #8A8F9E;
+  --text-muted: #5C6170;
+  --text-inverse: #0A0C10;
+  --text-gold: #C8A44E;
+  --text-link: #C8A44E;
+  --text-link-hover: #D4B86A;
+
+  /* === Status Colors === */
+  --success: #4ECB71;
+  --success-bg: rgba(78, 203, 113, 0.1);
+  --success-border: rgba(78, 203, 113, 0.2);
+  --error: #E85454;
+  --error-bg: rgba(232, 84, 84, 0.1);
+  --error-border: rgba(232, 84, 84, 0.2);
+  --warning: #F0A830;
+  --warning-bg: rgba(240, 168, 48, 0.1);
+  --warning-border: rgba(240, 168, 48, 0.2);
+  --info: #5B9CF0;
+  --info-bg: rgba(91, 156, 240, 0.1);
+  --info-border: rgba(91, 156, 240, 0.2);
+
+  /* === Shadows === */
+  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.5);
+  --shadow-gold: 0 4px 20px rgba(200, 164, 78, 0.2);
+
+  /* === Radius === */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-xl: 20px;
+
+  /* === Transitions === */
+  --transition-fast: 0.15s ease;
+  --transition-normal: 0.25s ease;
+}
+
+FONTS
+Make sure these Google Fonts are imported globally (add to <head> or CSS import if not already present):
+css@import url("https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&display=swap");
+
+Headings / page titles / branding: font-family: 'Outfit', sans-serif
+Body text / inputs / buttons / everything else: font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif
+
+
+COMPONENT-BY-COMPONENT STYLING
+Page / Body
+cssbody {
+  background: var(--bg-page);
+  color: var(--text-primary);
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+}
+Sidebar / Navigation
+css/* Sidebar container */
+background: var(--bg-sidebar);
+border-right: 1px solid var(--border);
+
+/* Nav links - default */
+color: var(--text-secondary);
+padding: 0.65rem 1rem;
+border-radius: var(--radius-md);
+transition: all var(--transition-normal);
+
+/* Nav links - hover */
+color: var(--text-primary);
+background: rgba(200, 164, 78, 0.06);
+
+/* Nav links - active/selected */
+color: var(--gold);
+background: rgba(200, 164, 78, 0.1);
+border-left: 2px solid var(--gold); /* or use a left accent bar */
+
+/* Nav section headers */
+color: var(--text-muted);
+font-size: 0.7rem;
+font-weight: 600;
+letter-spacing: 0.08em;
+text-transform: uppercase;
+Top Header / App Bar
+cssbackground: var(--bg-header);
+backdrop-filter: blur(20px);
+-webkit-backdrop-filter: blur(20px);
+border-bottom: 1px solid var(--border);
+Cards / Panels
+cssbackground: var(--bg-card);
+border: 1px solid var(--border);
+border-radius: var(--radius-lg);
+box-shadow: var(--shadow-sm);
+
+/* Card hover state (if clickable) */
+&:hover {
+  border-color: var(--border-light);
+  background: var(--bg-card-hover);
+  box-shadow: var(--shadow-md);
+}
+Buttons — Primary (Gold)
+cssbackground: linear-gradient(135deg, var(--gold), var(--gold-dark));
+color: var(--text-inverse);
+border: none;
+border-radius: var(--radius-md);
+font-weight: 600;
+box-shadow: var(--shadow-gold);
+transition: all var(--transition-normal);
+
+/* Hover */
+transform: translateY(-1px);
+box-shadow: 0 6px 28px rgba(200, 164, 78, 0.35);
+
+/* Disabled */
+opacity: 0.5;
+cursor: not-allowed;
+transform: none;
+Buttons — Secondary / Outline
+cssbackground: transparent;
+color: var(--text-primary);
+border: 1.5px solid var(--border);
+border-radius: var(--radius-md);
+font-weight: 500;
+transition: all var(--transition-normal);
+
+/* Hover */
+border-color: var(--gold);
+background: rgba(200, 164, 78, 0.06);
+color: var(--gold);
+Buttons — Ghost / Tertiary
+cssbackground: transparent;
+color: var(--text-secondary);
+border: none;
+transition: color var(--transition-fast);
+
+/* Hover */
+color: var(--gold);
+Buttons — Danger / Destructive
+cssbackground: var(--error);
+color: white;
+border: none;
+Input Fields / Text Areas / Selects
+cssbackground: var(--bg-input);
+border: 1.5px solid var(--border);
+border-radius: var(--radius-md);
+color: var(--text-primary);
+font-family: 'Inter', sans-serif;
+font-size: 0.9rem;
+padding: 0.75rem 1rem;
+transition: all var(--transition-normal);
+
+/* Placeholder */
+color: var(--text-muted);
+
+/* Focus */
+border-color: var(--gold);
+box-shadow: 0 0 0 3px rgba(200, 164, 78, 0.1);
+outline: none;
+
+/* Labels */
+color: var(--text-secondary);
+font-size: 0.78rem;
+font-weight: 500;
+letter-spacing: 0.03em;
+Tables
+css/* Table container */
+background: var(--bg-card);
+border: 1px solid var(--border);
+border-radius: var(--radius-lg);
+overflow: hidden;
+
+/* Header row */
+background: rgba(255, 255, 255, 0.02);
+border-bottom: 1px solid var(--border);
+color: var(--text-secondary);
+font-size: 0.75rem;
+font-weight: 600;
+text-transform: uppercase;
+letter-spacing: 0.05em;
+
+/* Body rows */
+border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+color: var(--text-primary);
+
+/* Row hover */
+background: rgba(200, 164, 78, 0.03);
+
+/* Alternating rows (optional) */
+background: rgba(255, 255, 255, 0.01);
+Modals / Dialogs
+css/* Overlay */
+background: var(--bg-modal-overlay);
+backdrop-filter: blur(8px);
+
+/* Modal card */
+background: var(--bg-card);
+border: 1px solid var(--border);
+border-radius: var(--radius-xl);
+box-shadow: var(--shadow-lg);
+Tooltips
+cssbackground: var(--bg-tooltip);
+color: var(--text-primary);
+border: 1px solid var(--border-light);
+border-radius: var(--radius-sm);
+font-size: 0.78rem;
+box-shadow: var(--shadow-md);
+Badges / Tags / Chips
+css/* Default */
+background: rgba(255, 255, 255, 0.06);
+color: var(--text-secondary);
+border-radius: 6px;
+font-size: 0.72rem;
+font-weight: 500;
+padding: 0.25rem 0.6rem;
+
+/* Gold/Active */
+background: rgba(200, 164, 78, 0.12);
+color: var(--gold);
+
+/* Success */
+background: var(--success-bg);
+color: var(--success);
+
+/* Error */
+background: var(--error-bg);
+color: var(--error);
+
+/* Warning */
+background: var(--warning-bg);
+color: var(--warning);
+Toast / Notification Messages
+css/* Success */
+background: var(--success-bg);
+border: 1px solid var(--success-border);
+color: var(--success);
+
+/* Error */
+background: var(--error-bg);
+border: 1px solid var(--error-border);
+color: var(--error);
+
+/* Warning */
+background: var(--warning-bg);
+border: 1px solid var(--warning-border);
+color: var(--warning);
+
+/* Info */
+background: var(--info-bg);
+border: 1px solid var(--info-border);
+color: var(--info);
+Scrollbars (Webkit)
+css::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+Links
+csscolor: var(--gold);
+text-decoration: none;
+font-weight: 500;
+transition: color var(--transition-fast);
+
+/* Hover */
+color: var(--gold-light);
+Dividers / Horizontal Rules
+cssborder: none;
+height: 1px;
+background: var(--border);
+Selection Highlight
+css::selection {
+  background: rgba(200, 164, 78, 0.3);
+  color: var(--text-primary);
+}
+
+IMPORTANT RULES
+
+Search every file for hardcoded color values (#hex, rgb, rgba, hsl) and replace them with the appropriate CSS variable from above
+Do NOT touch the login page canvas animation JavaScript — only change colors/styles, not the background animation code
+No white or light backgrounds anywhere — this is a fully dark theme. If any component currently has a white/light background, replace it with the appropriate dark variable
+Gold is the only accent color — do not introduce blue, purple, or other accent colors for interactive elements. Status colors (success/error/warning/info) are the only exceptions
+Apply backdrop-filter: blur() to any fixed/sticky header or overlay for the frosted glass effect. Always include the -webkit- prefix
+Interior page backgrounds should be solid var(--bg-page) — do NOT add the animated canvas background to any page other than the login page
+Test every page after applying — make sure no text is invisible (dark text on dark background) and no components look broken
+
+
+QUICK CHECKLIST
+After applying, verify these pages/components look correct:
+
+ Login page (colors match, animation still works)
+ Dashboard / home page
+ Sidebar navigation
+ All form inputs and buttons
+ Tables and data displays
+ Modals and dialogs
+ Toast/notification messages
+ Mobile/responsive views
