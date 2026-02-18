@@ -246,7 +246,7 @@ export default function AdminPage() {
                 </Button>
               </Link>
               <Shield className="w-5 h-5" style={{ color: "var(--gold)" }} />
-              <h1 className="text-2xl font-semibold text-foreground">Admin Dashboard</h1>
+              <h1 className="text-2xl font-heading font-semibold text-foreground">Admin Dashboard</h1>
             </div>
             <div className="flex items-center gap-2">
               <Link href="/admin/audit">
@@ -260,9 +260,9 @@ export default function AdminPage() {
           <p className="text-muted-foreground ml-12">Manage users, profiles, and access control.</p>
         </div>
 
-        <Card>
+        <Card className="card-accent-bar">
           <div className="flex items-center justify-between gap-4 p-4 border-b flex-wrap">
-            <h2 className="font-medium">Users</h2>
+            <h2 className="font-heading font-medium">Users</h2>
             <Button size="sm" onClick={openCreateDialog} data-testid="button-add-user">
               <Plus className="w-3.5 h-3.5 mr-1.5" />
               Add User

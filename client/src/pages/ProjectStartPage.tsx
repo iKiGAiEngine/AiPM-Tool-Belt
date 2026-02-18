@@ -485,7 +485,7 @@ export default function ProjectStartPage() {
     let stepNumber = 0;
 
     return (
-      <div className="container max-w-2xl mx-auto py-8 px-4">
+      <div className="container max-w-2xl mx-auto py-8 px-4 animate-page-enter">
         <div className="flex items-center gap-4 mb-8">
           <Link href="/">
             <Button variant="ghost" size="icon" data-testid="button-back" disabled={isProcessing}>
@@ -493,7 +493,7 @@ export default function ProjectStartPage() {
             </Button>
           </Link>
           <div>
-            <h1 className="text-2xl font-semibold text-foreground">Project Start</h1>
+            <h1 className="text-2xl font-heading font-semibold text-foreground">Project Start</h1>
             <p className="text-muted-foreground">
               {createdProject ? `Creating ${createdProject.projectId}` : "Creating project..."}
             </p>
@@ -502,7 +502,7 @@ export default function ProjectStartPage() {
 
         <Card>
           <CardHeader>
-            <CardTitle className="text-lg" data-testid="text-progress-title">
+            <CardTitle className="text-lg font-heading" data-testid="text-progress-title">
               {getProgressTitle()}
             </CardTitle>
             <CardDescription>
@@ -666,7 +666,7 @@ export default function ProjectStartPage() {
   }
 
   return (
-    <div className="container max-w-3xl mx-auto py-8 px-4">
+    <div className="container max-w-3xl mx-auto py-8 px-4 animate-page-enter">
       <div className="flex items-center gap-4 mb-8">
         <Link href="/">
           <Button variant="ghost" size="icon" data-testid="button-back">
@@ -674,7 +674,7 @@ export default function ProjectStartPage() {
           </Button>
         </Link>
         <div>
-          <h1 className="text-2xl font-semibold text-foreground">Project Start</h1>
+          <h1 className="text-2xl font-heading font-semibold text-foreground">Project Start</h1>
           <p className="text-muted-foreground">Create a new project folder, optionally with plans and specs</p>
         </div>
       </div>
@@ -683,7 +683,7 @@ export default function ProjectStartPage() {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between gap-4 flex-wrap">
             <div>
-              <CardTitle className="text-lg">Quick Fill from Screenshot</CardTitle>
+              <CardTitle className="text-lg font-heading">Quick Fill from Screenshot</CardTitle>
               <CardDescription>
                 Paste a BuildingConnected screenshot to auto-fill project details
               </CardDescription>
@@ -709,7 +709,7 @@ export default function ProjectStartPage() {
                     ? "ring-2"
                     : "border-border hover:border-muted-foreground/50"
                 )}
-                style={screenshotDragging ? { borderColor: "var(--gold)", background: "rgba(200,164,78,0.1)", ringColor: "rgba(200,164,78,0.3)" } : undefined}
+                style={screenshotDragging ? { borderColor: "var(--gold)", background: "rgba(200,164,78,0.1)", boxShadow: "0 0 0 2px rgba(201,168,76,0.3)" } : undefined}
                 onDragOver={(e) => {
                   e.preventDefault();
                   setScreenshotDragging(true);
@@ -800,9 +800,9 @@ export default function ProjectStartPage() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="card-accent-bar">
           <CardHeader>
-            <CardTitle className="text-lg">Project Details</CardTitle>
+            <CardTitle className="text-lg font-heading">Project Details</CardTitle>
             <CardDescription>Basic information about the project</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -895,7 +895,7 @@ export default function ProjectStartPage() {
 
         <Card>
           <CardHeader>
-            <CardTitle className="text-lg">Documents</CardTitle>
+            <CardTitle className="text-lg font-heading">Documents</CardTitle>
             <CardDescription>
               Upload plans and/or specs to process. Leave both empty to create just the project folder.
             </CardDescription>

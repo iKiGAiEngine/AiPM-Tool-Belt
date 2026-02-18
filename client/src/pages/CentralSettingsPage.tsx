@@ -20,7 +20,7 @@ export default function CentralSettingsPage() {
   const [activeTab, setActiveTab] = useState("vendors");
 
   return (
-    <div className="container max-w-6xl mx-auto py-8 px-4">
+    <div className="container max-w-6xl mx-auto py-8 px-4 animate-page-enter">
       <div className="flex items-center gap-4 mb-8">
         <Link href="/">
           <Button variant="ghost" size="icon" data-testid="button-back">
@@ -28,7 +28,7 @@ export default function CentralSettingsPage() {
           </Button>
         </Link>
         <div>
-          <h1 className="text-2xl font-semibold text-foreground">Settings</h1>
+          <h1 className="text-2xl font-semibold text-foreground font-heading">Settings</h1>
           <p className="text-muted-foreground">Manage vendors, products, scope dictionaries, regions, templates, and spec extraction settings</p>
         </div>
       </div>
@@ -131,7 +131,7 @@ function VendorSection() {
       <CardHeader>
         <div className="flex items-center justify-between gap-4">
           <div>
-            <CardTitle>Vendor Profiles</CardTitle>
+            <CardTitle className="font-heading">Vendor Profiles</CardTitle>
             <CardDescription>
               Manage vendor information and quote parsing patterns
             </CardDescription>
@@ -483,7 +483,7 @@ function ProductSection() {
       <CardHeader>
         <div className="flex items-center justify-between gap-4">
           <div>
-            <CardTitle>Division 10 Product Dictionary</CardTitle>
+            <CardTitle className="font-heading">Division 10 Product Dictionary</CardTitle>
             <CardDescription>
               Manage known products and model numbers for better quote parsing
             </CardDescription>
@@ -531,7 +531,7 @@ function ProductSection() {
           <div className="space-y-6">
             {Object.entries(groupedProducts).map(([scope, scopeProducts]) => (
               <div key={scope}>
-                <h3 className="text-sm font-medium text-muted-foreground mb-2 flex items-center gap-2">
+                <h3 className="text-sm font-medium text-muted-foreground mb-2 flex items-center gap-2 font-heading">
                   {scope}
                   <Badge variant="secondary">{scopeProducts.length}</Badge>
                 </h3>
@@ -849,7 +849,7 @@ function ScopeDictionarySection() {
       <CardHeader>
         <div className="flex items-center justify-between gap-4 flex-wrap">
           <div>
-            <CardTitle>Scope Dictionaries</CardTitle>
+            <CardTitle className="font-heading">Scope Dictionaries</CardTitle>
             <CardDescription>
               Manage keywords per scope type for Plan Parser and Spec Extractor relevance scoring
             </CardDescription>
@@ -1221,7 +1221,7 @@ function RegionSection() {
       <CardHeader>
         <div className="flex items-center justify-between gap-4">
           <div>
-            <CardTitle>Regions / Airport Codes</CardTitle>
+            <CardTitle className="font-heading">Regions / Airport Codes</CardTitle>
             <CardDescription>
               Manage region codes used in project naming (e.g., LAX, DFW, ORD)
             </CardDescription>
@@ -1487,7 +1487,7 @@ function FolderTemplateSection() {
       <Card>
         <CardHeader className="flex flex-row items-center justify-between gap-4">
           <div>
-            <CardTitle>Folder Templates</CardTitle>
+            <CardTitle className="font-heading">Folder Templates</CardTitle>
             <CardDescription>Upload ZIP files that define the standard estimate folder structure. The active template is copied for every new project.</CardDescription>
           </div>
         </CardHeader>
@@ -1749,7 +1749,7 @@ function EstimateTemplateSection() {
       <Card>
         <CardHeader className="flex flex-row items-center justify-between gap-4">
           <div>
-            <CardTitle>Estimate File Templates</CardTitle>
+            <CardTitle className="font-heading">Estimate File Templates</CardTitle>
             <CardDescription>Upload Excel estimate templates (.xlsx/.xlsm). Configure which cells get stamped with project data when a new project is created.</CardDescription>
           </div>
         </CardHeader>
@@ -2071,7 +2071,7 @@ function SpecExtractorSettingsSection() {
     <div className="space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-4">
         <div>
-          <h2 className="text-lg font-semibold text-foreground flex items-center gap-2">
+          <h2 className="text-lg font-semibold text-foreground flex items-center gap-2 font-heading">
             <FileSearch className="h-5 w-5" />
             Spec Extractor Configuration
           </h2>
@@ -2126,7 +2126,7 @@ function SpecExtractorSettingsSection() {
         <TabsContent value="patterns" className="space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle>Division 10 Section Pattern</CardTitle>
+              <CardTitle className="font-heading">Division 10 Section Pattern</CardTitle>
               <CardDescription>
                 Regular expression pattern used to identify Division 10 section numbers in PDF text.
               </CardDescription>
@@ -2155,7 +2155,7 @@ function SpecExtractorSettingsSection() {
         <TabsContent value="scopes" className="space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle>Default Scope Titles</CardTitle>
+              <CardTitle className="font-heading">Default Scope Titles</CardTitle>
               <CardDescription>
                 Mapping of section numbers to default titles used when a title cannot be extracted.
               </CardDescription>
@@ -2222,7 +2222,7 @@ function SpecExtractorSettingsSection() {
             <CardHeader>
               <div className="flex items-center justify-between flex-wrap gap-2">
                 <div>
-                  <CardTitle>Accessory Scope Definitions</CardTitle>
+                  <CardTitle className="font-heading">Accessory Scope Definitions</CardTitle>
                   <CardDescription>
                     Define accessory scopes with keywords for matching in spec documents.
                   </CardDescription>

@@ -1,0 +1,60 @@
+AiPM Design System — Font & Color Scheme Prompt
+Apply the following design system consistently across all pages, components, and UI elements of the AiPM Tool Belt application. Do not change any functionality — only update visual styling.
+Typography
+
+Display / Headings / Labels / Buttons / Badges: Rajdhani (Google Font) — weights 400, 500, 600, 700. Use for all page titles, section headers, column headers, navigation labels, button text, stat card values, badge text, and any ALL-CAPS UI labels.
+Body / UI Text / Inputs / Paragraphs: DM Sans (Google Font) — weights 300, 400, 500. Use for all body copy, form inputs, dropdown text, table cell content, tooltips, and descriptions.
+Import both via: https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=DM+Sans:wght@300;400;500&display=swap
+Never use Inter, Roboto, Arial, or system-ui fonts anywhere in the app.
+
+Color Palette — add these as CSS variables to the global :root
+css:root {
+  --gold:       #C9A84C;
+  --gold-light: #E2C97E;
+  --gold-dim:   #8B6E2A;
+  --bg:         #0D0D0F;
+  --bg2:        #141418;
+  --bg3:        #1C1C22;
+  --bg4:        #242430;
+  --border:     #2A2A36;
+  --text:       #E8E8EC;
+  --text-dim:   #8A8A9A;
+  --win:        #3DAA6A;
+  --loss:       #C0392B;
+  --pending:    #C9A84C;
+}
+Color Usage Rules
+
+Page background: var(--bg)
+Cards, panels, modals: var(--bg2)
+Inputs, table headers, sidebars: var(--bg3)
+Hover states, active rows: var(--bg4)
+All borders and dividers: var(--border)
+Primary text: var(--text)
+Secondary / muted text: var(--text-dim)
+All accent color (active states, highlights, icons, gold bars): var(--gold)
+Hover accent: var(--gold-light)
+Subtle accent (borders, underlines): var(--gold-dim)
+Success / positive states: var(--win)
+Error / negative states: var(--loss)
+
+Component Styling Rules
+
+Buttons (primary): background: linear-gradient(135deg, var(--gold), var(--gold-dim)), text color #0D0D0F, font Rajdhani bold, uppercase, letter-spacing 1px
+Buttons (secondary): background: var(--bg3), border var(--border), text var(--text-dim), hover border var(--gold-dim)
+Inputs / selects: background var(--bg3), border var(--border), focus border var(--gold-dim), font DM Sans
+Navigation / tabs: active tab uses var(--gold) text with a var(--gold) bottom border; inactive uses var(--text-dim)
+Cards / panels: background var(--bg2), border var(--border), border-radius 8–10px. Top accent bar: height: 2px; background: linear-gradient(90deg, var(--gold-dim), var(--gold))
+Logo / brand mark: hexagon shape using clip-path: polygon(50% 0%,100% 25%,100% 75%,50% 100%,0% 75%,0% 25%) filled with linear-gradient(135deg, var(--gold), var(--gold-dim))
+Stat values / numbers: Rajdhani bold, color var(--gold)
+Section labels / eyebrow text: Rajdhani 600, uppercase, letter-spacing 1–1.5px, color var(--text-dim) or var(--gold-dim)
+Badges / tags: small Rajdhani uppercase pill with colored background at 12–15% opacity of the badge color, matching border at 25–30% opacity
+Modals / overlays: backdrop rgba(0,0,0,0.72) with backdrop-filter: blur(4px), modal background var(--bg2)
+Sticky headers: background var(--bg2), bottom border var(--border)
+
+Animations (apply globally)
+
+Page/card entrance: opacity 0 → 1, translateY(8–10px) → 0, duration 0.4s ease, stagger siblings with animation-delay
+Modal open: scale(0.96) translateY(12px) → scale(1) translateY(0), duration 0.25s ease
+Button hover: transform: translateY(-1px), opacity: 0.88
+Input focus: border-color transition 0.2s

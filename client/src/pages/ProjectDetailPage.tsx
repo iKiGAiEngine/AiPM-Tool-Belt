@@ -307,7 +307,7 @@ export default function ProjectDetailPage() {
         </Link>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-3 flex-wrap">
-            <h1 className="text-2xl font-semibold text-foreground" data-testid="text-project-name">
+            <h1 className="text-2xl font-heading font-semibold text-foreground" data-testid="text-project-name">
               {project.projectName}
             </h1>
             <Badge variant="outline" className="font-mono" data-testid="text-project-id">
@@ -409,13 +409,13 @@ export default function ProjectDetailPage() {
       )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-        <Card>
+        <Card className="card-accent-bar">
           <CardHeader className="pb-3">
             <div className="flex items-center gap-2">
               <FileText className="w-5 h-5" style={{ color: "var(--gold)" }} />
-              <CardTitle className="text-base">Spec Extractor</CardTitle>
+              <CardTitle className="text-base font-heading">Spec Extractor</CardTitle>
             </div>
-            <CardDescription className="text-xs">Spec extraction results</CardDescription>
+            <CardDescription className="text-xs eyebrow">Spec extraction results</CardDescription>
           </CardHeader>
           <CardContent>
             {project.specsFilename && (
@@ -452,13 +452,13 @@ export default function ProjectDetailPage() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="card-accent-bar">
           <CardHeader className="pb-3">
             <div className="flex items-center gap-2">
               <ScanSearch className="w-5 h-5" style={{ color: "var(--gold)" }} />
-              <CardTitle className="text-base">Plan Parser</CardTitle>
+              <CardTitle className="text-base font-heading">Plan Parser</CardTitle>
             </div>
-            <CardDescription className="text-xs">Plan classification results</CardDescription>
+            <CardDescription className="text-xs eyebrow">Plan classification results</CardDescription>
           </CardHeader>
           <CardContent>
             {project.plansFilename && (
@@ -480,11 +480,11 @@ export default function ProjectDetailPage() {
       </div>
 
       {project.folderPath && (
-        <Card className="mb-6">
+        <Card className="mb-6 card-accent-bar">
           <CardHeader className="pb-3">
             <div className="flex items-center gap-2">
               <FolderOpen className="w-5 h-5" style={{ color: "var(--gold)" }} />
-              <CardTitle className="text-base">Project Folder</CardTitle>
+              <CardTitle className="text-base font-heading">Project Folder</CardTitle>
             </div>
           </CardHeader>
           <CardContent>
@@ -496,13 +496,13 @@ export default function ProjectDetailPage() {
       )}
 
       {showPlanResults && (
-        <Card className="mb-6">
+        <Card className="mb-6 card-accent-bar">
           <CardHeader>
             <div className="flex items-center justify-between gap-4 flex-wrap">
               <div>
                 <div className="flex items-center gap-2">
                   <ScanSearch className="w-5 h-5" style={{ color: "var(--gold)" }} />
-                  <CardTitle className="text-base">Plan Parser Results</CardTitle>
+                  <CardTitle className="text-base font-heading">Plan Parser Results</CardTitle>
                   {showComparison && (
                     <Badge variant="secondary" className="text-xs">Spec-Pass Complete</Badge>
                   )}
@@ -660,14 +660,14 @@ export default function ProjectDetailPage() {
 
                 {showComparison && hasBaselineData && (
                   <div className="mt-4 p-3 rounded-lg bg-muted/50">
-                    <p className="text-xs font-medium text-muted-foreground mb-2">Spec-Pass Comparison</p>
+                    <p className="eyebrow mb-2">Spec-Pass Comparison</p>
                     <div className="grid grid-cols-2 gap-4">
                       <div>
-                        <p className="text-2xl font-semibold" data-testid="text-current-flagged">{relevantPages.length}</p>
+                        <p className="text-2xl font-heading font-bold" style={{ color: "var(--gold)" }} data-testid="text-current-flagged">{relevantPages.length}</p>
                         <p className="text-xs text-muted-foreground">Current flagged pages</p>
                       </div>
                       <div>
-                        <p className="text-2xl font-semibold text-muted-foreground" data-testid="text-baseline-flagged">{baselineFlaggedPages}</p>
+                        <p className="text-2xl font-heading font-bold text-muted-foreground" data-testid="text-baseline-flagged">{baselineFlaggedPages}</p>
                         <p className="text-xs text-muted-foreground">Baseline flagged pages</p>
                       </div>
                     </div>
@@ -705,11 +705,11 @@ export default function ProjectDetailPage() {
         </Card>
       )}
 
-      <Card>
+      <Card className="card-accent-bar">
         <CardHeader>
           <div className="flex items-center justify-between gap-4 flex-wrap">
             <div>
-              <CardTitle className="text-base">Detected Scopes</CardTitle>
+              <CardTitle className="text-base font-heading">Detected Scopes</CardTitle>
               <CardDescription>
                 Spec sections extracted by Spec Extractor. Toggle scopes on/off, then run the spec-informed second pass to boost Plan Parser accuracy.
               </CardDescription>

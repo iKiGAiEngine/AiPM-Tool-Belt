@@ -171,11 +171,11 @@ export default function QuoteParserPage() {
   }, [result]);
 
   return (
-    <div className="min-h-[calc(100vh-4rem)] bg-background">
+    <div className="min-h-[calc(100vh-4rem)] bg-background animate-page-enter">
       <div className="max-w-4xl mx-auto px-6 py-8">
         <div className="mb-8">
           <div className="flex items-center justify-between mb-2">
-            <h1 className="text-2xl font-semibold text-foreground">
+            <h1 className="text-2xl font-heading font-semibold text-foreground">
               Quote Parser
             </h1>
             <Link href="/">
@@ -189,10 +189,10 @@ export default function QuoteParserPage() {
           </p>
         </div>
 
-        <Card className="p-6 mb-8">
+        <Card className="p-6 mb-8 card-accent-bar">
           <div className="flex items-center gap-2 mb-4">
             <FileText className="w-5 h-5" style={{ color: "var(--gold)" }} />
-            <h2 className="font-medium">Vendor Quote</h2>
+            <h2 className="font-heading font-medium">Vendor Quote</h2>
           </div>
           <div
             {...quoteDropzone.getRootProps()}
@@ -271,7 +271,7 @@ export default function QuoteParserPage() {
         {result && (
           <Card className="mb-6">
             <div className="p-4 border-b flex items-center justify-between flex-wrap gap-4">
-              <h2 className="font-medium">Result</h2>
+              <h2 className="font-heading font-medium">Result</h2>
               <div className="flex gap-2">
                 <Button
                   variant="outline"
@@ -343,7 +343,7 @@ export default function QuoteParserPage() {
 
         {result && result.errors.length > 0 && (
           <Card className="p-4 border-destructive bg-destructive/10">
-            <h3 className="font-medium text-destructive mb-2">Errors</h3>
+            <h3 className="font-heading font-medium text-destructive mb-2">Errors</h3>
             {result.errors.map((error, idx) => (
               <p key={idx} className="text-sm text-destructive">
                 {error.message}

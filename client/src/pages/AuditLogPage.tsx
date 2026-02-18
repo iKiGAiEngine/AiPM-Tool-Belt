@@ -95,15 +95,15 @@ export default function AuditLogPage() {
               </Button>
             </Link>
             <ScrollText className="w-5 h-5" style={{ color: "var(--gold)" }} />
-            <h1 className="text-2xl font-semibold text-foreground">Audit Log</h1>
+            <h1 className="text-2xl font-heading font-semibold text-foreground">Audit Log</h1>
           </div>
           <p className="text-muted-foreground ml-12">Activity history for all users.</p>
         </div>
 
-        <Card className="p-4 mb-6">
+        <Card className="p-4 mb-6 card-accent-bar">
           <div className="flex items-center gap-2 mb-3">
             <Filter className="w-4 h-4 text-muted-foreground" />
-            <span className="text-sm font-medium">Filters</span>
+            <span className="text-sm font-heading font-medium">Filters</span>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
             <div className="space-y-1">
@@ -168,13 +168,13 @@ export default function AuditLogPage() {
             <Button variant="ghost" size="sm" onClick={clearFilters} data-testid="button-clear-filters">
               Clear
             </Button>
-            <span className="text-xs text-muted-foreground ml-auto">
+            <span className="text-xs text-muted-foreground ml-auto font-heading font-bold" style={{ color: "var(--gold)" }}>
               {logs.length} entries
             </span>
           </div>
         </Card>
 
-        <Card>
+        <Card className="card-accent-bar">
           <div className="overflow-x-auto">
             <Table>
               <TableHeader>

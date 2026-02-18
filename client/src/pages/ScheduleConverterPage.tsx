@@ -255,7 +255,7 @@ export default function ScheduleConverterPage() {
   };
 
   return (
-    <div className="min-h-[calc(100vh-4rem)] bg-background">
+    <div className="min-h-[calc(100vh-4rem)] bg-background animate-page-enter">
       <div className="max-w-6xl mx-auto px-6 py-8">
         <div className="mb-8">
           <div className="flex items-center justify-between gap-4 flex-wrap mb-2">
@@ -265,7 +265,7 @@ export default function ScheduleConverterPage() {
                   <ArrowLeft className="w-4 h-4" />
                 </Button>
               </Link>
-              <h1 className="text-2xl font-semibold text-foreground">
+              <h1 className="text-2xl font-semibold text-foreground font-heading">
                 Schedule Converter
               </h1>
             </div>
@@ -275,10 +275,10 @@ export default function ScheduleConverterPage() {
           </p>
         </div>
 
-        <Card className="p-6 mb-8">
+        <Card className="p-6 mb-8 card-accent-bar">
           <div className="flex items-center gap-2 mb-4">
             <ImageIcon className="w-5 h-5" style={{ color: "var(--gold)" }} />
-            <h2 className="font-medium">Schedule Screenshot</h2>
+            <h2 className="font-medium font-heading">Schedule Screenshot</h2>
           </div>
           <div
             tabIndex={0}
@@ -408,7 +408,7 @@ export default function ScheduleConverterPage() {
             <Card className="mb-6">
               <div className="p-4 border-b flex items-center justify-between gap-4 flex-wrap">
                 <div className="flex items-center gap-3">
-                  <h2 className="font-medium">Extracted Items</h2>
+                  <h2 className="font-medium font-heading">Extracted Items</h2>
                   <Badge variant="secondary" className="text-xs" data-testid="badge-total-count">
                     {totalCount} item{totalCount !== 1 ? "s" : ""}
                   </Badge>

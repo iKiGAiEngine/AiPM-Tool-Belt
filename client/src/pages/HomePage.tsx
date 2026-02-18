@@ -186,17 +186,15 @@ export default function HomePage() {
   const selectedToolTitle = tools.find(t => t.id === selectedToolForStats)?.title || "";
 
   return (
-    <div className="min-h-[calc(100vh-4rem)] flex flex-col">
+    <div className="min-h-[calc(100vh-3.5rem)] flex flex-col">
       <div className="flex-1 flex flex-col items-center px-6 py-12">
-        <div className="text-center mb-12">
-          <h1 className="text-5xl sm:text-6xl font-extrabold tracking-tight mb-2 animate-brand-reveal font-heading">
+        <div className="text-center mb-12 animate-page-enter">
+          <h1 className="text-5xl sm:text-6xl font-bold tracking-tight mb-2 font-heading" style={{ color: "var(--text)" }}>
             <span style={{ color: "var(--gold)" }}>AiPM</span>{" "}
-            <span className="text-foreground">Tool Belt</span>
+            Tool Belt
           </h1>
-          <h2 className="text-lg sm:text-xl font-semibold tracking-wide text-muted-foreground mb-4 animate-subtitle-slide">
-            Your AI Assisted Digital PM
-          </h2>
-          <p className="text-muted-foreground/80 text-base font-light max-w-xl mx-auto animate-subtitle-slide" style={{ animationDelay: "0.15s" }}>
+          <p className="eyebrow mb-4">Your AI Assisted Digital PM</p>
+          <p className="text-base font-light max-w-xl mx-auto" style={{ color: "var(--text-dim)" }}>
             Transform your estimating workflow with intelligent automation. Save time, reduce errors, and win more bids.
           </p>
         </div>
@@ -259,7 +257,7 @@ export default function HomePage() {
         {recentProjects.length > 0 && (
           <div className="mt-10 max-w-5xl w-full animate-fade-in-up" style={{ animationDelay: "0.4s" }}>
             <div className="flex items-center justify-between mb-4 gap-4 flex-wrap">
-              <h2 className="text-lg font-medium text-foreground">Recent Projects</h2>
+              <h2 className="text-lg font-semibold font-heading" style={{ color: "var(--text)" }}>Recent Projects</h2>
               <Link href="/project-log">
                 <Button variant="ghost" size="sm" className="gap-1 text-muted-foreground" data-testid="link-view-all-projects">
                   <BarChart3 className="w-4 h-4" />
@@ -349,17 +347,17 @@ export default function HomePage() {
           {usageDetail ? (
             <div className="space-y-6">
               <div className="grid grid-cols-2 gap-4">
-                <div className="rounded-lg border p-4 text-center">
-                  <p className="text-2xl font-bold text-foreground" data-testid="text-stats-total-uses">
+                <div className="rounded-lg p-4 text-center" style={{ background: "var(--bg3)", border: "1px solid var(--border-ds)" }}>
+                  <p className="text-2xl font-bold font-heading" style={{ color: "var(--gold)" }} data-testid="text-stats-total-uses">
                     {usageSummary?.[selectedToolForStats || ""]?.totalUses || 0}
                   </p>
-                  <p className="text-xs text-muted-foreground">Total Uses</p>
+                  <p className="text-xs" style={{ color: "var(--text-dim)" }}>Total Uses</p>
                 </div>
-                <div className="rounded-lg border p-4 text-center">
-                  <p className="text-2xl font-bold text-foreground" data-testid="text-stats-unique-users">
+                <div className="rounded-lg p-4 text-center" style={{ background: "var(--bg3)", border: "1px solid var(--border-ds)" }}>
+                  <p className="text-2xl font-bold font-heading" style={{ color: "var(--gold)" }} data-testid="text-stats-unique-users">
                     {usageSummary?.[selectedToolForStats || ""]?.uniqueUsers || 0}
                   </p>
-                  <p className="text-xs text-muted-foreground">Unique Users</p>
+                  <p className="text-xs" style={{ color: "var(--text-dim)" }}>Unique Users</p>
                 </div>
               </div>
 
@@ -428,16 +426,17 @@ function ToolCard({ tool, index, isAdmin, stats, onStatsClick }: ToolCardProps) 
   if (!tool.available) {
     return (
       <div
-        className="group relative flex flex-col items-center justify-start text-center p-6 pt-8 rounded-lg border border-dashed border-border/50 bg-muted/20 opacity-50 h-full"
+        className="group relative flex flex-col items-center justify-start text-center p-6 pt-8 rounded-lg border border-dashed opacity-50 h-full"
+        style={{ borderColor: "rgba(42,42,54,0.5)", background: "rgba(20,20,24,0.5)" }}
         data-testid={`tile-${tool.id}`}
       >
-        <div className="tool-icon w-14 h-14 rounded-full bg-muted/50 flex items-center justify-center mb-4 shrink-0">
-          <Icon className="w-7 h-7 text-muted-foreground/50" />
+        <div className="tool-icon w-14 h-14 rounded-full flex items-center justify-center mb-4 shrink-0" style={{ background: "var(--bg3)" }}>
+          <Icon className="w-7 h-7" style={{ color: "var(--text-dim)", opacity: 0.5 }} />
         </div>
-        <h2 className="text-base font-semibold text-muted-foreground/70 mb-2">
+        <h2 className="text-base font-semibold font-heading mb-2" style={{ color: "var(--text-dim)", opacity: 0.7 }}>
           {tool.title}
         </h2>
-        <p className="text-sm text-muted-foreground/50 leading-relaxed">
+        <p className="text-sm leading-relaxed" style={{ color: "var(--text-dim)", opacity: 0.5 }}>
           {tool.description}
         </p>
       </div>
@@ -451,12 +450,13 @@ function ToolCard({ tool, index, isAdmin, stats, onStatsClick }: ToolCardProps) 
           variant="ghost"
           size="sm"
           onClick={(e) => { e.preventDefault(); onStatsClick(); }}
-          className="rounded-b-none rounded-t-lg border border-b-0 border-border bg-muted/60 text-xs text-muted-foreground gap-1.5 w-full justify-center"
+          className="rounded-b-none rounded-t-lg border border-b-0 text-xs gap-1.5 w-full justify-center font-heading"
+          style={{ borderColor: "var(--border-ds)", background: "var(--bg3)", color: "var(--text-dim)" }}
           data-testid={`button-stats-${tool.id}`}
         >
           <Activity className="w-3 h-3" />
           <span>{stats?.totalUses || 0} uses</span>
-          <span className="text-muted-foreground/50">|</span>
+          <span style={{ opacity: 0.4 }}>|</span>
           <Users className="w-3 h-3" />
           <span>{stats?.uniqueUsers || 0}</span>
         </Button>
@@ -467,16 +467,17 @@ function ToolCard({ tool, index, isAdmin, stats, onStatsClick }: ToolCardProps) 
         className="flex flex-col flex-1"
       >
         <div
-          className={`tool-tile-animated group relative flex flex-col items-center justify-start text-center p-6 pt-8 border border-border bg-card cursor-pointer flex-1 hover-elevate active-elevate-2 ${isAdmin ? "rounded-b-lg" : "rounded-lg"}`}
+          className={`card-accent-bar tool-tile-animated group relative flex flex-col items-center justify-start text-center p-6 pt-8 cursor-pointer flex-1 hover-elevate active-elevate-2 ${isAdmin ? "rounded-b-lg" : "rounded-lg"}`}
+          style={{ background: "var(--bg2)", border: "1px solid var(--border-ds)" }}
           data-testid={`tile-${tool.id}`}
         >
-          <div className="tool-icon w-14 h-14 rounded-full flex items-center justify-center mb-4 shrink-0" style={{ background: "rgba(200,164,78,0.1)" }}>
+          <div className="tool-icon w-14 h-14 rounded-full flex items-center justify-center mb-4 shrink-0" style={{ background: "rgba(201,168,76,0.1)" }}>
             <Icon className="w-7 h-7" style={{ color: "var(--gold)" }} />
           </div>
-          <h2 className="text-base font-semibold text-foreground mb-2">
+          <h2 className="text-base font-semibold font-heading mb-2" style={{ color: "var(--text)" }}>
             {tool.title}
           </h2>
-          <p className="text-sm text-muted-foreground leading-relaxed">
+          <p className="text-sm leading-relaxed" style={{ color: "var(--text-dim)" }}>
             {tool.description}
           </p>
         </div>

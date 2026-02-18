@@ -260,10 +260,10 @@ export default function PlanParserPage() {
     : 0;
 
   return (
-    <div className="min-h-[calc(100vh-4rem)]">
+    <div className="min-h-[calc(100vh-4rem)] animate-page-enter">
       <div className="mx-auto max-w-7xl px-6 py-12 lg:px-8">
         <div className="mx-auto max-w-3xl text-center mb-12">
-          <h1 className="text-4xl font-semibold tracking-tight text-foreground sm:text-5xl" data-testid="text-tool-name">
+          <h1 className="text-4xl font-heading font-semibold tracking-tight text-foreground sm:text-5xl" data-testid="text-tool-name">
             Plan Parser
           </h1>
           <p className="mt-2 text-xl text-muted-foreground sm:text-2xl" data-testid="text-page-title">
@@ -342,7 +342,7 @@ export default function PlanParserPage() {
               <div className="mx-auto max-w-xl">
                 <Card>
                   <CardHeader className="pb-3">
-                    <CardTitle className="text-base">Selected Files ({selectedFiles.length})</CardTitle>
+                    <CardTitle className="text-base font-heading">Selected Files ({selectedFiles.length})</CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-2">
                     {selectedFiles.map((file, index) => (
@@ -398,14 +398,14 @@ export default function PlanParserPage() {
               <CardHeader>
                 <div className="flex items-center gap-3">
                   <Upload className="h-5 w-5 animate-pulse" style={{ color: "var(--gold)" }} />
-                  <CardTitle>Uploading Files</CardTitle>
+                  <CardTitle className="font-heading">Uploading Files</CardTitle>
                 </div>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div>
                   <div className="flex justify-between text-sm mb-2">
                     <span>Uploading {selectedFiles.length} file{selectedFiles.length > 1 ? "s" : ""} to server...</span>
-                    <span className="font-mono font-bold">{uploadProgress}%</span>
+                    <span className="font-heading font-bold" style={{ color: "var(--gold)" }}>{uploadProgress}%</span>
                   </div>
                   <Progress value={uploadProgress} className="h-3" data-testid="progress-upload" />
                 </div>
@@ -425,7 +425,7 @@ export default function PlanParserPage() {
               <CardHeader>
                 <div className="flex items-center gap-3">
                   {getStatusIcon(activeJob.status)}
-                  <CardTitle>Processing PDFs</CardTitle>
+                  <CardTitle className="font-heading">Processing PDFs</CardTitle>
                 </div>
               </CardHeader>
               <CardContent className="space-y-4">
@@ -436,20 +436,20 @@ export default function PlanParserPage() {
                         ? `Analyzing page ${activeJob.processedPages} of ${activeJob.totalPages}...`
                         : "Extracting pages from PDF..."}
                     </span>
-                    <span className="font-mono font-bold">{progressPercent}%</span>
+                    <span className="font-heading font-bold" style={{ color: "var(--gold)" }}>{progressPercent}%</span>
                   </div>
                   <Progress value={progressPercent} className="h-3" data-testid="progress-processing" />
                 </div>
                 <div className="grid grid-cols-2 gap-4 text-sm">
                   <div>
                     <span className="text-muted-foreground">Pages processed:</span>
-                    <span className="ml-2 font-bold">
+                    <span className="ml-2 font-heading font-bold" style={{ color: "var(--gold)" }}>
                       {activeJob.processedPages} / {activeJob.totalPages}
                     </span>
                   </div>
                   <div>
                     <span className="text-muted-foreground">Flagged so far:</span>
-                    <span className="ml-2 font-bold text-green-600">
+                    <span className="ml-2 font-heading font-bold" style={{ color: "var(--gold)" }}>
                       {activeJob.flaggedPages}
                     </span>
                   </div>
@@ -468,12 +468,12 @@ export default function PlanParserPage() {
         {activeJob && activeJob.status === "complete" && (
           <div className="space-y-6">
             <div className="mx-auto max-w-4xl">
-              <Card>
+              <Card className="card-accent-bar">
                 <CardHeader>
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
                       {getStatusIcon(activeJob.status)}
-                      <CardTitle>Results</CardTitle>
+                      <CardTitle className="font-heading">Results</CardTitle>
                     </div>
                     <div className="flex gap-2">
                       <Button
@@ -521,27 +521,27 @@ export default function PlanParserPage() {
                 <CardContent className="space-y-6">
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                     <div className="text-center p-4 bg-muted/50 rounded-lg">
-                      <div className="text-2xl font-bold">{activeJob.totalPages}</div>
-                      <div className="text-sm text-muted-foreground">Total Pages</div>
+                      <div className="text-2xl font-heading font-bold" style={{ color: "var(--gold)" }}>{activeJob.totalPages}</div>
+                      <div className="text-sm text-muted-foreground eyebrow">Total Pages</div>
                     </div>
                     <div className="text-center p-4 bg-green-500/10 rounded-lg">
-                      <div className="text-2xl font-bold text-green-600">{activeJob.flaggedPages}</div>
-                      <div className="text-sm text-muted-foreground">Flagged</div>
+                      <div className="text-2xl font-heading font-bold" style={{ color: "var(--gold)" }}>{activeJob.flaggedPages}</div>
+                      <div className="text-sm text-muted-foreground eyebrow">Flagged</div>
                     </div>
                     <div className="text-center p-4 bg-muted/50 rounded-lg">
-                      <div className="text-2xl font-bold">{activeJob.filenames.length}</div>
-                      <div className="text-sm text-muted-foreground">Files</div>
+                      <div className="text-2xl font-heading font-bold" style={{ color: "var(--gold)" }}>{activeJob.filenames.length}</div>
+                      <div className="text-sm text-muted-foreground eyebrow">Files</div>
                     </div>
                     <div className="text-center p-4 bg-muted/50 rounded-lg">
-                      <div className="text-2xl font-bold">
+                      <div className="text-2xl font-heading font-bold" style={{ color: "var(--gold)" }}>
                         {Object.keys(activeJob.scopeCounts).filter(k => activeJob.scopeCounts[k] > 0).length}
                       </div>
-                      <div className="text-sm text-muted-foreground">Scopes Found</div>
+                      <div className="text-sm text-muted-foreground eyebrow">Scopes Found</div>
                     </div>
                   </div>
 
                   <div>
-                    <h3 className="text-sm font-medium mb-3">Pages by Scope</h3>
+                    <h3 className="text-sm font-heading font-medium mb-3 eyebrow">Pages by Scope</h3>
                     <div className="flex flex-wrap gap-2">
                       {PLAN_PARSER_SCOPES.map(scope => {
                         const count = activeJob.scopeCounts[scope] || 0;
@@ -562,7 +562,7 @@ export default function PlanParserPage() {
                     </div>
                   ) : relevantPages.length > 0 ? (
                     <div>
-                      <h3 className="text-sm font-medium mb-3">Flagged Pages ({relevantPages.length})</h3>
+                      <h3 className="text-sm font-heading font-medium mb-3 eyebrow">Flagged Pages ({relevantPages.length})</h3>
                       <div className="border rounded-lg overflow-hidden">
                         <table className="w-full text-sm">
                           <thead className="bg-muted/50">
@@ -626,7 +626,7 @@ export default function PlanParserPage() {
               <CardHeader>
                 <div className="flex items-center gap-3">
                   {getStatusIcon(activeJob.status)}
-                  <CardTitle className="text-destructive">Processing Failed</CardTitle>
+                  <CardTitle className="font-heading text-destructive">Processing Failed</CardTitle>
                 </div>
               </CardHeader>
               <CardContent className="space-y-4">

@@ -223,7 +223,7 @@ export default function ProjectLogPage() {
           </Button>
         </Link>
         <div className="flex-1">
-          <h1 className="text-2xl font-semibold text-foreground">Project Log</h1>
+          <h1 className="text-2xl font-heading font-semibold text-foreground">Project Log</h1>
           <p className="text-muted-foreground">Complete log of all projects with export capabilities</p>
         </div>
         <div className="flex items-center gap-2">
@@ -293,7 +293,7 @@ export default function ProjectLogPage() {
         </div>
       </div>
 
-      <Card>
+      <Card className="card-accent-bar">
         <CardHeader className="pb-4">
           <div className="flex items-center gap-4 flex-wrap">
             <div className="relative flex-1 min-w-[200px]">

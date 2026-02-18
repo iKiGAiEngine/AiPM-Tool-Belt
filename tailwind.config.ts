@@ -11,7 +11,6 @@ export default {
         sm: ".1875rem", /* 3px */
       },
       colors: {
-        // Flat / base colors (regular buttons)
         background: "hsl(var(--background) / <alpha-value>)",
         foreground: "hsl(var(--foreground) / <alpha-value>)",
         border: "hsl(var(--border) / <alpha-value>)",
@@ -83,10 +82,10 @@ export default {
         },
       },
       fontFamily: {
-        sans: ["var(--font-sans)"],
-        serif: ["var(--font-serif)"],
-        mono: ["var(--font-mono)"],
-        heading: ["var(--font-heading)"],
+        sans: ["'DM Sans'", "sans-serif"],
+        serif: ["Georgia", "serif"],
+        mono: ["'JetBrains Mono'", "monospace"],
+        heading: ["'Rajdhani'", "sans-serif"],
       },
       keyframes: {
         "accordion-down": {

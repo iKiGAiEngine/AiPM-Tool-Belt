@@ -30,6 +30,20 @@ const toolRoutes: ToolRoute[] = [
   { path: "/admin", label: "Admin", icon: Shield },
 ];
 
+function HexagonLogo() {
+  return (
+    <div
+      className="flex h-9 w-9 items-center justify-center"
+      style={{
+        clipPath: "polygon(50% 0%,100% 25%,100% 75%,50% 100%,0% 75%,0% 25%)",
+        background: "linear-gradient(135deg, var(--gold), var(--gold-dim))",
+      }}
+    >
+      <Wrench className="h-4.5 w-4.5" style={{ color: "var(--bg)" }} />
+    </div>
+  );
+}
+
 export function Header() {
   const [location, navigate] = useLocation();
   const { isTestMode, toggleTestMode } = useTestMode();
@@ -58,24 +72,31 @@ export function Header() {
 
   return (
     <>
-      <header className="sticky top-0 z-50 h-16 border-b border-border" style={{ background: "var(--bg-header)", backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)" }}>
+      <header
+        className="sticky top-0 z-50 h-14"
+        style={{
+          background: "var(--bg-header)",
+          backdropFilter: "blur(20px)",
+          WebkitBackdropFilter: "blur(20px)",
+          borderBottom: "1px solid var(--border-ds)",
+        }}
+      >
         <div className="mx-auto flex h-full max-w-7xl items-center justify-between px-6 lg:px-8">
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3">
             <Link href="/" className="flex items-center gap-2.5">
-              <div className="flex h-9 w-9 items-center justify-center rounded-md" style={{ background: "linear-gradient(135deg, var(--gold), var(--gold-dark))" }}>
-                <Wrench className="h-5 w-5" style={{ color: "var(--text-inverse)" }} />
-              </div>
-              <span className="text-xl font-semibold tracking-tight font-heading" data-testid="text-logo" style={{ color: "var(--text-primary)" }}>
-                <span style={{ color: "var(--gold)" }}>AiPM</span> Tool Belt
+              <HexagonLogo />
+              <span className="text-xl font-bold tracking-tight font-heading" data-testid="text-logo">
+                <span style={{ color: "var(--gold)" }}>AiPM</span>
+                <span style={{ color: "var(--text)" }}> Tool Belt</span>
               </span>
             </Link>
 
             {activeToolRoute && (
               <>
-                <div className="h-6 w-px bg-border" />
+                <div className="h-5 w-px" style={{ background: "var(--border-ds)" }} />
                 <div className="flex items-center gap-1.5">
                   <activeToolRoute.icon className="h-4 w-4" style={{ color: "var(--gold)" }} />
-                  <span className="text-sm font-medium text-foreground" data-testid="text-active-tool">
+                  <span className="text-sm font-medium font-heading" style={{ color: "var(--text)" }} data-testid="text-active-tool">
                     {activeToolRoute.label}
                   </span>
                 </div>
@@ -87,7 +108,8 @@ export function Header() {
             {!isHome && (
               <Link
                 href="/"
-                className="flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
+                className="flex items-center gap-2 text-sm font-medium transition-colors font-heading"
+                style={{ color: "var(--text-dim)" }}
                 data-testid="link-nav-home"
               >
                 <Home className="h-4 w-4" />
@@ -100,7 +122,8 @@ export function Header() {
             {processingProjects.length > 0 && (
               <button
                 onClick={() => navigate(`/projects/${processingProjects[0].id}`)}
-                className="flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium text-yellow-600 dark:text-yellow-400 bg-yellow-500/10 hover-elevate cursor-pointer"
+                className="flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium font-heading hover-elevate cursor-pointer"
+                style={{ color: "var(--gold)", background: "rgba(201,168,76,0.1)" }}
                 data-testid="button-processing-indicator"
               >
                 <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -109,14 +132,14 @@ export function Header() {
             )}
             {isAdmin && (
               <label className="flex items-center gap-2 cursor-pointer" data-testid="toggle-test-mode">
-                <FlaskConical className={cn("h-4 w-4", isTestMode ? "text-amber-500" : "text-muted-foreground")} />
-                <span className={cn("text-xs font-medium select-none", isTestMode ? "text-amber-500" : "text-muted-foreground")}>
+                <FlaskConical className={cn("h-4 w-4")} style={{ color: isTestMode ? "var(--gold)" : "var(--text-dim)" }} />
+                <span className="text-xs font-medium select-none font-heading" style={{ color: isTestMode ? "var(--gold)" : "var(--text-dim)" }}>
                   Test
                 </span>
                 <Switch
                   checked={isTestMode}
                   onCheckedChange={toggleTestMode}
-                  className="data-[state=checked]:bg-amber-500"
+                  className="data-[state=checked]:bg-primary"
                 />
               </label>
             )}
@@ -129,7 +152,7 @@ export function Header() {
             )}
             <div className="flex items-center gap-2">
               {user && (
-                <span className="text-xs text-muted-foreground hidden sm:inline" data-testid="text-user-email">
+                <span className="text-xs hidden sm:inline" style={{ color: "var(--text-dim)" }} data-testid="text-user-email">
                   {user.email}
                 </span>
               )}
@@ -141,9 +164,13 @@ export function Header() {
         </div>
       </header>
       {isAdmin && isTestMode && (
-        <div className="sticky top-16 z-40 flex items-center justify-center gap-2 bg-amber-500 px-4 py-1.5 text-sm font-medium text-white" data-testid="banner-test-mode">
+        <div
+          className="sticky top-14 z-40 flex items-center justify-center gap-2 px-4 py-1.5 text-sm font-bold font-heading uppercase tracking-wider"
+          style={{ background: "linear-gradient(135deg, var(--gold), var(--gold-dim))", color: "var(--bg)" }}
+          data-testid="banner-test-mode"
+        >
           <FlaskConical className="h-4 w-4" />
-          Test Mode Active — Projects created now will be tagged as test data
+          Test Mode Active
         </div>
       )}
     </>

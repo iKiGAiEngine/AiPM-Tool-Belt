@@ -551,10 +551,10 @@ export default function SpecExtractorPage() {
   const signageCount = sections.filter(s => s.isSignage).length;
 
   return (
-    <div className="min-h-[calc(100vh-4rem)]">
+    <div className="min-h-[calc(100vh-4rem)] animate-page-enter">
       <div className="mx-auto max-w-7xl px-6 py-12 lg:px-8 lg:py-20">
         <div className="mx-auto max-w-3xl text-center">
-          <h1 className="text-4xl font-semibold tracking-tight text-foreground sm:text-5xl" data-testid="text-tool-name">
+          <h1 className="text-4xl font-semibold tracking-tight text-foreground sm:text-5xl font-heading" data-testid="text-tool-name">
             Spec Extractor
           </h1>
           <p className="mt-2 text-xl text-muted-foreground sm:text-2xl" data-testid="text-page-subtitle">
@@ -783,7 +783,7 @@ export default function SpecExtractorPage() {
                       <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-lg" style={{ background: "rgba(200,164,78,0.1)" }}>
                         <f.icon className="h-6 w-6" style={{ color: "var(--gold)" }} />
                       </div>
-                      <h3 className="text-base font-semibold text-foreground">{f.title}</h3>
+                      <h3 className="text-base font-semibold text-foreground font-heading">{f.title}</h3>
                       <p className="mt-2 text-sm text-muted-foreground">{f.description}</p>
                     </div>
                   ))}
@@ -811,7 +811,7 @@ export default function SpecExtractorPage() {
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <h3 className="font-semibold text-foreground">
+                        <h3 className="font-semibold text-foreground font-heading">
                           {sessionData.status === "processing" ? "Processing" : sessionData.status === "error" ? "Error" : "Complete"}
                         </h3>
                         <Badge variant="secondary" data-testid="badge-se-status">{sessionData.status}</Badge>

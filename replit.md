@@ -9,7 +9,14 @@ Preferred communication style: Simple, everyday language.
 ## System Architecture
 
 ### Frontend
-The frontend uses React 18 with TypeScript, Wouter for routing, and TanStack React Query for state management. Styling is handled with Tailwind CSS and CSS variables for theming, using shadcn/ui for components. The build process uses Vite. The UI follows a page-based structure for tools like Project Start, Spec Extractor, Plan Parser, and Quote Parser, prioritizing data clarity and a professional aesthetic with Inter and JetBrains Mono typography.
+The frontend uses React 18 with TypeScript, Wouter for routing, and TanStack React Query for state management. Styling is handled with Tailwind CSS and CSS variables for theming, using shadcn/ui for components. The build process uses Vite. The UI follows a page-based structure for tools like Project Start, Spec Extractor, Plan Parser, and Quote Parser, prioritizing data clarity and a professional aesthetic.
+
+### Design System (AiPM Design System)
+- **Typography**: Rajdhani (Google Font) for headings, labels, buttons, badges, stat values. DM Sans (Google Font) for body text, form inputs, descriptions. Never use Inter, Roboto, Arial, or system-ui. Tailwind classes: `font-heading` (Rajdhani), `font-sans` (DM Sans).
+- **Color Palette**: Dark-only theme. Page bg: `--bg: #0D0D0F`. Cards: `--bg2: #141418`. Inputs/sidebars: `--bg3: #1C1C22`. Hover: `--bg4: #242430`. Borders: `--border-ds: #2A2A36`. Text: `--text: #E8E8EC`, dim: `--text-dim: #8A8A9A`. Gold accent: `--gold: #C9A84C`, light: `--gold-light: #E2C97E`, dim: `--gold-dim: #8B6E2A`. Success: `--win: #3DAA6A`. Error: `--loss: #C0392B`.
+- **Component Patterns**: Primary buttons use `btn-primary-gradient` (gold gradient, Rajdhani bold, uppercase). Cards use `card-accent-bar` class for 2px gold gradient top bar. Section labels use `eyebrow` class (Rajdhani 600, uppercase, letter-spacing). Stat values use `font-heading font-bold` with gold color. Logo shape: hexagon clip-path with gold gradient fill.
+- **Animations**: `animate-page-enter` (fade up 0.4s), `animate-fade-in-scale` (scale in 0.5s), `animate-modal-enter` (scale+translate 0.25s). Button hover: translateY(-1px). Input focus: border-color transition 0.2s.
+- **Theme**: Dark-only (no light mode toggle). localStorage key: `aipm-theme`.
 
 ### Backend
 The backend is an Express.js application written in TypeScript. It uses Multer for PDF uploads and pdf-parse for PDF text extraction. APIs are RESTful. Key modules include `specExtractorEngine.ts` for spec section extraction and `planparser/` for OCR processing with tesseract.js and keyword-based classification.
@@ -52,9 +59,6 @@ The system provides various export functionalities:
 - **ZIP Export**: Generates a ZIP with spec extract PDFs, plan pages organized by scope, and text summaries.
 - **Bookmarked PDF**: Creates a single navigable PDF with plan pages bookmarked by scope name.
 - **Per-Scope PDF**: Downloads individual scope's pages as a standalone PDF.
-
-### Design System
-A system-based design approach, inspired by Linear/Notion, features consistent typography (Inter, JetBrains Mono) and spacing for a professional aesthetic.
 
 ## External Dependencies
 

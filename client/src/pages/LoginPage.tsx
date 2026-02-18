@@ -284,7 +284,7 @@ export default function LoginPage() {
     borderRadius: "10px",
     color: "#F0F0F2",
     fontSize: "0.88rem",
-    fontFamily: "Inter, sans-serif",
+    fontFamily: "'DM Sans', sans-serif",
     outline: "none",
     transition: "border-color 0.2s, box-shadow 0.2s",
   };
@@ -292,13 +292,15 @@ export default function LoginPage() {
   const goldBtnStyles: React.CSSProperties = {
     width: "100%",
     padding: "0.75rem",
-    background: "linear-gradient(135deg, #C8A44E, #A8873A)",
-    border: "1px solid rgba(200,164,78,0.3)",
+    background: "linear-gradient(135deg, var(--gold), var(--gold-dim))",
+    border: "1px solid rgba(201,168,76,0.3)",
     borderRadius: "10px",
-    color: "#0A0C10",
+    color: "var(--bg)",
     fontSize: "0.88rem",
-    fontWeight: 600,
-    fontFamily: "Inter, sans-serif",
+    fontWeight: 700,
+    fontFamily: "'Rajdhani', sans-serif",
+    textTransform: "uppercase" as const,
+    letterSpacing: "1px",
     cursor: "pointer",
     transition: "all 0.2s",
     display: "flex",
@@ -310,7 +312,7 @@ export default function LoginPage() {
   return (
     <>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=DM+Sans:wght@300;400;500&display=swap');
         .login-page-root * { box-sizing: border-box; }
         .login-card::before {
           content: "";
@@ -352,7 +354,7 @@ export default function LoginPage() {
           color: #8A8F9E;
           font-size: 0.8rem;
           cursor: pointer;
-          font-family: Inter, sans-serif;
+          font-family: 'DM Sans', sans-serif;
           padding: 0.25rem 0;
           transition: color 0.2s;
         }
@@ -371,7 +373,7 @@ export default function LoginPage() {
         .success-animate { animation: scaleIn 0.5s ease-out; }
       `}</style>
 
-      <div className="login-page-root" style={{ fontFamily: "Inter, sans-serif", background: "#080A0F", minHeight: "100vh", overflow: "hidden" }}>
+      <div className="login-page-root" style={{ fontFamily: "'DM Sans', sans-serif", background: "var(--bg)", minHeight: "100vh", overflow: "hidden" }}>
         <AnimatedCanvas />
 
         <div style={{ position: "relative", zIndex: 10, minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", padding: "1rem" }}>
@@ -393,9 +395,10 @@ export default function LoginPage() {
           >
             <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "0.85rem", marginBottom: "2rem", paddingTop: "0.25rem" }}>
               <div style={{
-                width: "48px", height: "48px", borderRadius: "12px",
-                background: "linear-gradient(135deg, #C8A44E, #A8873A)",
-                boxShadow: "0 4px 16px rgba(200,164,78,0.25)",
+                width: "48px", height: "48px",
+                clipPath: "polygon(50% 0%,100% 25%,100% 75%,50% 100%,0% 75%,0% 25%)",
+                background: "linear-gradient(135deg, var(--gold), var(--gold-dim))",
+                boxShadow: "0 4px 16px rgba(201,168,76,0.25)",
                 display: "flex", alignItems: "center", justifyContent: "center",
                 flexShrink: 0,
               }}>
@@ -403,15 +406,15 @@ export default function LoginPage() {
                   <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
                 </svg>
               </div>
-              <span style={{ fontFamily: "Outfit, sans-serif", fontSize: "1.65rem", fontWeight: 700, letterSpacing: "-0.01em" }}>
-                <span style={{ background: "linear-gradient(135deg, #D4B86A, #C8A44E)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>AiPM</span>
-                <span style={{ color: "#F0F0F2" }}> Tool Belt</span>
+              <span style={{ fontFamily: "'Rajdhani', sans-serif", fontSize: "1.65rem", fontWeight: 700, letterSpacing: "-0.01em" }}>
+                <span style={{ background: "linear-gradient(135deg, var(--gold-light), var(--gold))", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>AiPM</span>
+                <span style={{ color: "var(--text)" }}> Tool Belt</span>
               </span>
             </div>
 
             {step === 0 && (
               <div className="step-animate" key="step0" style={{ textAlign: "center" }}>
-                <h2 style={{ fontFamily: "Outfit, sans-serif", fontSize: "1.55rem", fontWeight: 700, color: "#F0F0F2", margin: "0 0 0.4rem" }} data-testid="text-login-title">Sign in</h2>
+                <h2 style={{ fontFamily: "'Rajdhani', sans-serif", fontSize: "1.55rem", fontWeight: 700, color: "var(--text)", margin: "0 0 0.4rem" }} data-testid="text-login-title">Sign in</h2>
                 <p style={{ fontSize: "0.88rem", color: "#8A8F9E", margin: "0 0 1.5rem" }}>Select your access level to continue.</p>
 
                 <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem", marginBottom: "1.25rem" }}>
@@ -483,8 +486,8 @@ export default function LoginPage() {
 
             {step === 1 && (
               <div className="step-animate" key="step1" style={{ textAlign: "center" }}>
-                <h2 style={{ fontFamily: "Outfit, sans-serif", fontSize: "1.55rem", fontWeight: 700, color: "#F0F0F2", margin: "0 0 0.4rem" }}>Sign in</h2>
-                <p style={{ fontSize: "0.88rem", color: "#8A8F9E", margin: "0 0 1.5rem" }}>Enter your email address to continue.</p>
+                <h2 style={{ fontFamily: "'Rajdhani', sans-serif", fontSize: "1.55rem", fontWeight: 700, color: "var(--text)", margin: "0 0 0.4rem" }}>Sign in</h2>
+                <p style={{ fontSize: "0.88rem", color: "var(--text-dim)", margin: "0 0 1.5rem" }}>Enter your email address to continue.</p>
 
                 <form onSubmit={handleEmailNext}>
                   <div style={{ textAlign: "left", marginBottom: "1rem" }}>
@@ -528,7 +531,7 @@ export default function LoginPage() {
 
             {step === 2 && (
               <div className="step-animate" key="step2" style={{ textAlign: "center" }}>
-                <h2 style={{ fontFamily: "Outfit, sans-serif", fontSize: "1.55rem", fontWeight: 700, color: "#F0F0F2", margin: "0 0 0.4rem" }}>Welcome back</h2>
+                <h2 style={{ fontFamily: "'Rajdhani', sans-serif", fontSize: "1.55rem", fontWeight: 700, color: "var(--text)", margin: "0 0 0.4rem" }}>Welcome back</h2>
                 <p style={{ fontSize: "0.88rem", color: "#C8A44E", margin: "0 0 0.3rem" }}>{sentEmail}</p>
                 <p style={{ fontSize: "0.78rem", color: "#5C6170", margin: "0 0 1.5rem" }}>Check your email for a 6-digit verification code</p>
 
@@ -622,7 +625,7 @@ export default function LoginPage() {
                     <polyline points={successCheckPoly}/>
                   </svg>
                 </div>
-                <h2 style={{ fontFamily: "Outfit, sans-serif", fontSize: "1.55rem", fontWeight: 700, color: "#F0F0F2", margin: "0 0 0.4rem" }} data-testid="text-success">You're in!</h2>
+                <h2 style={{ fontFamily: "'Rajdhani', sans-serif", fontSize: "1.55rem", fontWeight: 700, color: "var(--text)", margin: "0 0 0.4rem" }} data-testid="text-success">You're in!</h2>
                 <p style={{ fontSize: "0.88rem", color: "#8A8F9E" }}>
                   {selectedRole === "admin" ? "Redirecting to admin dashboard..." : "Redirecting to your dashboard..."}
                 </p>
