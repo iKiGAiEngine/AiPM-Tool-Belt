@@ -1,0 +1,166 @@
+AiPM Tool Belt — Login Page: Complete Replit Recreation Prompt
+
+OVERVIEW
+Recreate a single-page login screen for AiPM Tool Belt — an AI-powered construction project management platform by NBS (National Building Specialties). The design is inspired by Autodesk's sign-in page: a full-screen animated graphic background with a centered floating glassmorphic card containing a multi-step login flow.
+This is a single HTML file with inline CSS and JavaScript. No frameworks, no build tools, no external dependencies other than Google Fonts. It must work as a standalone page.
+
+BRANDING & DESIGN TOKENS
+Primary Gold:      #C8A44E
+Gold Light:        #D4B86A
+Gold Dark:         #A8873A
+Background Dark:   #0A0C10
+Card Background:   rgba(14, 17, 24, 0.88)  (semi-transparent dark with blur)
+Input Background:  rgba(255, 255, 255, 0.04)
+Input Border:      rgba(255, 255, 255, 0.1)
+Input Focus:       border #C8A44E + box-shadow 0 0 0 3px rgba(200,164,78,.1)
+Text Primary:      #F0F0F2
+Text Secondary:    #8A8F9E
+Text Muted:        #5C6170
+Success Green:     #4ECB71
+Fonts (Google Fonts)
+
+Inter (weights: 300, 400, 500, 600, 700) — body text, inputs, buttons
+Outfit (weights: 400, 500, 600, 700, 800) — headings, logo wordmark
+
+Import URL:
+https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&display=swap
+
+PAGE LAYOUT
+
+Body: Full viewport, no scroll, dark background #080A0F
+Canvas: Fixed, full-screen (position:fixed; inset:0), z-index 0 — this is the animated background
+Card Wrapper: position:relative; z-index:10; min-height:100vh; display:flex; align-items:center; justify-content:center — centers the card
+Login Card: Floating centered card, max-width 380px
+Bottom-left: "Issues signing in? Get help" text
+Bottom-right: "NBS · National Building Specialties" badge
+
+
+FLOATING LOGIN CARD — Exact Styles
+css.login-card {
+  width: 100%;
+  max-width: 380px;
+  background: rgba(14, 17, 24, 0.88);
+  backdrop-filter: blur(40px);
+  -webkit-backdrop-filter: blur(40px);
+  border: 1px solid rgba(200, 164, 78, 0.12);
+  border-radius: 20px;
+  padding: 2.25rem 2rem 1.75rem;
+  box-shadow:
+    0 24px 80px rgba(0, 0, 0, 0.5),
+    0 0 0 1px rgba(255, 255, 255, 0.04),
+    0 0 60px rgba(200, 164, 78, 0.08);
+  position: relative;
+  overflow: hidden;
+}
+Top glow accent (pseudo-element ::before):
+css.login-card::before {
+  content: "";
+  position: absolute;
+  top: 0; left: 10%; right: 10%;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(200,164,78,0.3), transparent);
+}
+
+LOGO (top of card, centered)
+A horizontal flex row centered: gold square icon + "AiPM Tool Belt" wordmark.
+
+Icon: 40×40px, border-radius 10px, gradient background linear-gradient(135deg, #C8A44E, #A8873A), box-shadow 0 4px 16px rgba(200,164,78,.25)
+SVG inside icon: A layered chevron/stack shape: <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/> — stroke dark #0A0C10, stroke-width 2.2, fill none
+Wordmark: "AiPM" in gold gradient text (background: linear-gradient(135deg, #D4B86A, #C8A44E) with -webkit-background-clip: text), followed by " Tool Belt" in white. Font: Outfit, 1.3rem, weight 700
+
+
+LOGIN FLOW — 4 Steps (only one visible at a time)
+All text within steps is centered.
+Step 0: Role Selection (default/active)
+
+Title: "Sign in" (Outfit, 1.55rem, weight 700, centered)
+Subtitle: "Select your access level to continue." (0.88rem, secondary color, centered)
+Two role buttons stacked vertically with 0.75rem gap:
+
+Admin Button:
+
+Shield SVG icon in a 42×42px gold-tinted square (rgba(200,164,78,.1) background, border-radius 10px)
+Label: "Admin" (Inter, 0.92rem, weight 600)
+Description: "Full platform access" (0.76rem, muted color)
+Right chevron arrow > icon (16px, muted, turns gold on hover)
+On hover: gold border, subtle gold background glow, translateY(-1px), box-shadow
+
+User Button:
+
+Person SVG icon (same container style as admin)
+Label: "User"
+Description: "Standard team access"
+Same hover behavior
+
+SVG for shield icon:
+html<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+SVG for person icon:
+html<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>
+SVG for right chevron arrow:
+html<path d="m9 18 6-6-6-6"/>
+Step 1: Email Entry
+
+Title: "Sign in"
+Subtitle: "Enter your email address to continue."
+Email input: labeled "Email", placeholder "you@company.com", full width, rounded (10px), dark transparent bg
+"Next" button: Full-width gold gradient button. On click: shows spinner (2.5px border spinning circle) for 800ms, then transitions to Step 2
+Footer: "No account yet? Request Access" link + "← Back" link to return to role selection
+Enter key triggers Next
+
+Step 2: Password / PIN Entry
+
+Title: "Welcome back"
+Subtitle: Shows the user's email in gold color (populated dynamically from Step 1)
+Password input: labeled "Password or PIN", placeholder "Enter password or PIN", type=password
+Eye toggle button: Positioned absolute right inside the input. Toggles between show/hide password. Uses SVG eye icons
+"Sign In" button: Same gold gradient style. Shows spinner for 1200ms, then goes to Step 3
+Bottom row: "← Back" link (returns to email step) on left, "Forgot password?" link on right
+Enter key triggers Sign In
+
+SVG for eye open:
+html<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
+SVG for eye closed:
+html<path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/>
+Step 3: Success
+
+Green circle icon (64px, green-tinted bg with green border) containing a checkmark SVG
+Title: "You're in!" (centered)
+Subtitle: "Redirecting to admin dashboard..." if admin was selected, or "Redirecting to your dashboard..." if user was selected
+
+SVG for success checkmark:
+html<path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/>
+
+ANIMATED CANVAS BACKGROUND — Critical Details
+This is the most important visual element. It is a full-screen HTML5 Canvas rendered with requestAnimationFrame. The canvas fills the entire viewport behind the floating card.
+Base Fill
+Each frame, clear the canvas and fill with #0C0E14 (very dark blue-gray, NOT pure black).
+Layer 1: Grid Lines
+
+80px spacing, both horizontal and vertical
+Color: rgba(200, 164, 78, 0.04) (very subtle gold)
+Line width: 1px
+
+Layer 2: Sweeping Light Beams (4 beams)
+Simulates metallic reflections sweeping across the screen. Each beam is a rotated linear gradient fill across the full canvas.
+javascriptvar beams = [
+  { angle: 0.4,  width: 400, speed: 0.0003, offset: 0 },
+  { angle: -0.3, width: 300, speed: 0.0002, offset: 2 },
+  { angle: 0.7,  width: 350, speed: 0.00025, offset: 4 },
+  { angle: 1.1,  width: 280, speed: 0.00018, offset: 5.5 }
+];
+For each beam:
+
+Calculate sweep position: Math.sin(t * beam.speed * 60 + beam.offset) * canvasWidth * 0.6 + canvasWidth * 0.5
+Create a linear gradient from sweep - width to sweep + width:
+
+Stop 0.0: rgba(200, 164, 78, 0) (transparent)
+Stop 0.5: rgba(200, 164, 78, 0.09) (gold glow peak)
+Stop 1.0: rgba(200, 164, 78, 0) (transparent)
+
+
+Rotate the canvas by beam.angle + Math.sin(t * 0.0005) * 0.05 (slight oscillation)
+Fill a full-canvas rect with the gradient
+
+Layer 3: Organic Blobs (8 blobs)
+Large, soft, glowing blob shapes that drift slowly across the canvas.
+Blob colors (8 gold/amber variations):
