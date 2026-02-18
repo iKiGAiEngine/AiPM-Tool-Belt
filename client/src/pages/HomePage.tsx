@@ -197,7 +197,7 @@ export default function HomePage() {
             <span style={{ color: "var(--gold)" }}>AiPM</span>{" "}
             Tool Belt
           </h1>
-          <p className="eyebrow mb-4">Your AI Assisted Digital PM</p>
+          <p className="text-4xl sm:text-5xl font-bold tracking-tight font-heading uppercase mb-4" style={{ color: "var(--text-dim)", letterSpacing: "0.08em" }}>Your AI Assisted Digital PM</p>
           <p className="text-base font-light max-w-xl mx-auto" style={{ color: "var(--text-dim)" }}>
             Transform your estimating workflow with intelligent automation. Save time, reduce errors, and win more bids.
           </p>
