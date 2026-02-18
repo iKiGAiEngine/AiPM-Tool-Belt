@@ -391,18 +391,19 @@ export default function LoginPage() {
               overflow: "hidden",
             }}
           >
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "0.7rem", marginBottom: "1.75rem" }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "0.85rem", marginBottom: "2rem", paddingTop: "0.25rem" }}>
               <div style={{
-                width: "40px", height: "40px", borderRadius: "10px",
+                width: "48px", height: "48px", borderRadius: "12px",
                 background: "linear-gradient(135deg, #C8A44E, #A8873A)",
                 boxShadow: "0 4px 16px rgba(200,164,78,0.25)",
                 display: "flex", alignItems: "center", justifyContent: "center",
+                flexShrink: 0,
               }}>
-                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#0A0C10" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#0A0C10" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
                 </svg>
               </div>
-              <span style={{ fontFamily: "Outfit, sans-serif", fontSize: "1.3rem", fontWeight: 700 }}>
+              <span style={{ fontFamily: "Outfit, sans-serif", fontSize: "1.65rem", fontWeight: 700, letterSpacing: "-0.01em" }}>
                 <span style={{ background: "linear-gradient(135deg, #D4B86A, #C8A44E)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>AiPM</span>
                 <span style={{ color: "#F0F0F2" }}> Tool Belt</span>
               </span>
