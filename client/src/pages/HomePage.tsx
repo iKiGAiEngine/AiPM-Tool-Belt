@@ -193,11 +193,12 @@ export default function HomePage() {
     <div className="min-h-[calc(100vh-3.5rem)] flex flex-col">
       <div className="flex-1 flex flex-col items-center px-6 py-12">
         <div className="text-center mb-12 animate-page-enter">
-          <h1 className="text-5xl sm:text-6xl font-bold tracking-tight mb-2 font-heading" style={{ color: "var(--text)" }}>
+          <h1 className="text-5xl sm:text-6xl font-bold tracking-tight mb-3 font-heading" style={{ color: "var(--text)" }}>
             <span style={{ color: "var(--gold)" }}>AiPM</span>{" "}
             Tool Belt
           </h1>
-          <p className="text-4xl sm:text-5xl font-bold tracking-tight font-heading uppercase mb-4" style={{ color: "var(--text-dim)", letterSpacing: "0.08em" }}>Your AI Assisted Digital PM</p>
+          <div className="mx-auto mb-4" style={{ width: "100%", maxWidth: "28rem", height: "2px", background: "linear-gradient(90deg, transparent, var(--gold), transparent)" }} />
+          <p className="text-2xl sm:text-3xl font-semibold tracking-wide font-heading uppercase mb-4" style={{ color: "var(--text-dim)", letterSpacing: "0.1em" }}>Your AI Assisted Digital PM</p>
           <p className="text-base font-light max-w-xl mx-auto" style={{ color: "var(--text-dim)" }}>
             Transform your estimating workflow with intelligent automation. Save time, reduce errors, and win more bids.
           </p>
