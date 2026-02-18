@@ -1,0 +1,164 @@
+FIX: Replace the animated background canvas code
+The current background animation is glitchy/blurry and moves too fast. Replace it with the exact code below. Do NOT interpret or rewrite this code — use it verbatim.
+What to do
+
+Find the existing <canvas> element and its associated JavaScript animation code
+Keep the canvas element in the HTML: <canvas id="bgCanvas"></canvas>
+Make sure the canvas has this CSS (add if missing):
+
+csscanvas { position: fixed; inset: 0; width: 100%; height: 100%; z-index: 0; }
+
+Delete ALL existing canvas/background animation JavaScript and replace it with the exact code below
+
+EXACT background animation code — paste verbatim, do NOT modify
+javascript(function(){
+  var canvas=document.getElementById("bgCanvas");
+  var ctx=canvas.getContext("2d");
+  var w,h;
+
+  function resize(){w=canvas.width=window.innerWidth;h=canvas.height=window.innerHeight}
+  window.addEventListener("resize",resize);resize();
+
+  var blobs=[];
+  var blobColors=[
+    {r:220,g:180,b:80},{r:200,g:164,b:78},{r:180,g:150,b:70},
+    {r:160,g:140,b:65},{r:210,g:175,b:90},{r:140,g:125,b:60},
+    {r:190,g:160,b:80},{r:230,g:190,b:95}
+  ];
+  for(var i=0;i<8;i++){
+    blobs.push({
+      x:Math.random()*2000-200,y:Math.random()*1200-100,
+      vx:(Math.random()-.5)*.45,vy:(Math.random()-.5)*.45,
+      radius:Math.random()*320+200,
+      color:blobColors[i],
+      opacity:Math.random()*.18+.1,
+      phase:Math.random()*Math.PI*2,
+      speed:Math.random()*.002+.001
+    });
+  }
+
+  var particles=[];
+  for(var i=0;i<50;i++){
+    particles.push({
+      x:Math.random()*2000,y:Math.random()*1200,
+      vx:(Math.random()-.5)*.25,vy:(Math.random()-.5)*.25,
+      size:Math.random()*2.5+.8,
+      opacity:Math.random()*.45+.15,
+      pulse:Math.random()*Math.PI*2
+    });
+  }
+
+  var beams=[
+    {x:0,y:0,angle:0.4,width:400,speed:.0003,offset:0},
+    {x:0,y:0,angle:-0.3,width:300,speed:.0002,offset:2},
+    {x:0,y:0,angle:0.7,width:350,speed:.00025,offset:4},
+    {x:0,y:0,angle:1.1,width:280,speed:.00018,offset:5.5}
+  ];
+
+  var t=0;
+
+  function drawGrid(){
+    ctx.strokeStyle="rgba(200,164,78,.04)";
+    ctx.lineWidth=1;
+    var size=80;
+    for(var x=0;x<w;x+=size){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,h);ctx.stroke()}
+    for(var y=0;y<h;y+=size){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(w,y);ctx.stroke()}
+  }
+
+  function drawBlob(b){
+    var pulse=1+Math.sin(t*b.speed*60+b.phase)*.12;
+    var r=b.radius*pulse;
+    var grad=ctx.createRadialGradient(b.x,b.y,0,b.x,b.y,r);
+    grad.addColorStop(0,"rgba("+b.color.r+","+b.color.g+","+b.color.b+","+(b.opacity*2.5)+")");
+    grad.addColorStop(.5,"rgba("+b.color.r+","+b.color.g+","+b.color.b+","+(b.opacity*1.4)+")");
+    grad.addColorStop(1,"rgba("+b.color.r+","+b.color.g+","+b.color.b+",0)");
+    ctx.fillStyle=grad;
+    ctx.beginPath();
+    var pts=7;
+    for(var i=0;i<=pts;i++){
+      var a=(i/pts)*Math.PI*2;
+      var wobble=Math.sin(t*b.speed*35+a*2.5+b.phase)*.18+1;
+      var px=b.x+Math.cos(a)*r*wobble;
+      var py=b.y+Math.sin(a)*r*wobble;
+      if(i===0)ctx.moveTo(px,py);
+      else{
+        var ca=((i-.5)/pts)*Math.PI*2;
+        var cw=Math.sin(t*b.speed*35+ca*2.5+b.phase+1)*.18+1;
+        ctx.quadraticCurveTo(b.x+Math.cos(ca)*r*cw*1.1,b.y+Math.sin(ca)*r*cw*1.1,px,py);
+      }
+    }
+    ctx.closePath();ctx.fill();
+  }
+
+  function drawBeams(){
+    for(var i=0;i<beams.length;i++){
+      var bm=beams[i];
+      var sweep=Math.sin(t*bm.speed*60+bm.offset)*w*.6+w*.5;
+      var grad=ctx.createLinearGradient(sweep-bm.width,0,sweep+bm.width,0);
+      grad.addColorStop(0,"rgba(200,164,78,0)");
+      grad.addColorStop(.5,"rgba(200,164,78,.09)");
+      grad.addColorStop(1,"rgba(200,164,78,0)");
+      ctx.save();
+      ctx.translate(w/2,h/2);
+      ctx.rotate(bm.angle+Math.sin(t*.0005)*0.05);
+      ctx.translate(-w/2,-h/2);
+      ctx.fillStyle=grad;
+      ctx.fillRect(0,0,w,h);
+      ctx.restore();
+    }
+  }
+
+  function drawConnections(){
+    ctx.lineWidth=.5;
+    for(var i=0;i<particles.length;i++){
+      for(var j=i+1;j<particles.length;j++){
+        var dx=particles[i].x-particles[j].x;
+        var dy=particles[i].y-particles[j].y;
+        var dist=Math.sqrt(dx*dx+dy*dy);
+        if(dist<140){
+          ctx.strokeStyle="rgba(200,164,78,"+(1-dist/140)*.15+")";
+          ctx.beginPath();ctx.moveTo(particles[i].x,particles[i].y);ctx.lineTo(particles[j].x,particles[j].y);ctx.stroke();
+        }
+      }
+    }
+  }
+
+  function animate(){
+    t+=.016;
+    ctx.clearRect(0,0,w,h);
+    ctx.fillStyle="#0C0E14";ctx.fillRect(0,0,w,h);
+
+    drawGrid();
+    drawBeams();
+
+    for(var i=0;i<blobs.length;i++){
+      var b=blobs[i];
+      b.x+=b.vx;b.y+=b.vy;
+      if(b.x<-200)b.vx=Math.abs(b.vx);if(b.x>w+200)b.vx=-Math.abs(b.vx);
+      if(b.y<-200)b.vy=Math.abs(b.vy);if(b.y>h+200)b.vy=-Math.abs(b.vy);
+      drawBlob(b);
+    }
+
+    drawConnections();
+    for(var i=0;i<particles.length;i++){
+      var p=particles[i];
+      p.x+=p.vx;p.y+=p.vy;
+      if(p.x<0)p.x=w;if(p.x>w)p.x=0;if(p.y<0)p.y=h;if(p.y>h)p.y=0;
+      var po=p.opacity*(1+Math.sin(t*2+p.pulse)*.4);
+      ctx.fillStyle="rgba(200,164,78,"+po+")";
+      ctx.beginPath();ctx.arc(p.x,p.y,p.size,0,Math.PI*2);ctx.fill();
+    }
+
+    requestAnimationFrame(animate);
+  }
+  animate();
+})();
+What this animation does (for context, not for recreating)
+
+Base: Dark fill #0C0E14 each frame
+Grid: Subtle gold grid lines at 80px spacing
+Beams: 4 slow-sweeping gold light beams that rotate slightly
+Blobs: 8 large organic gold shapes that drift slowly, pulse gently, and have wobbly edges drawn with bezier curves
+Particles: 50 small gold dots that float and pulse, with connection lines between nearby particles
+
+The movement should be SLOW and ORGANIC — like lava lamp speed, not fast/jittery. If it looks fast or glitchy, something was modified. Use the code above exactly as-is.
