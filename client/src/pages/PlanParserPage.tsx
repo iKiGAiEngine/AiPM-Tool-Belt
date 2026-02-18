@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/lib/auth";
 import type { PlanParserJob, ParsedPage } from "@shared/schema";
 import { PLAN_PARSER_SCOPES } from "@shared/schema";
 
@@ -27,8 +28,14 @@ interface ParsedPageWithoutText extends Omit<ParsedPage, "ocrText"> {
 }
 
 export default function PlanParserPage() {
+  const { isAdmin } = useAuth();
+  const [, navigate] = useLocation();
   useToolUsage("planparser");
-  const [, setLocation] = useLocation();
+
+  if (!isAdmin) {
+    navigate("/home");
+    return null;
+  }
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [activeJobId, setActiveJobId] = useState<string | null>(null);

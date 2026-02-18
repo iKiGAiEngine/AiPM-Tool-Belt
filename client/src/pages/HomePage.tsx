@@ -25,6 +25,8 @@ interface ToolTile {
   icon: typeof FileSearch;
   href: string;
   available: boolean;
+  comingSoon?: boolean;
+  adminOnly?: boolean;
 }
 
 const tools: ToolTile[] = [
@@ -37,11 +39,11 @@ const tools: ToolTile[] = [
     available: true,
   },
   {
-    id: "planparser",
-    title: "Plan Parser",
-    description: "OCR and classify construction plan pages by Division 10 scope categories",
-    icon: ScanSearch,
-    href: "/planparser",
+    id: "specextractor",
+    title: "Spec Extractor",
+    description: "Regex-based Division 10 spec extractor with organized folder export",
+    icon: ClipboardList,
+    href: "/spec-extractor",
     available: true,
   },
   {
@@ -61,12 +63,14 @@ const tools: ToolTile[] = [
     available: true,
   },
   {
-    id: "specextractor",
-    title: "Spec Extractor",
-    description: "Regex-based Division 10 spec extractor with organized folder export",
-    icon: ClipboardList,
-    href: "/spec-extractor",
+    id: "planparser",
+    title: "Plan Parser",
+    description: "OCR and classify construction plan pages by Division 10 scope categories",
+    icon: ScanSearch,
+    href: "/planparser",
     available: true,
+    comingSoon: true,
+    adminOnly: true,
   },
   {
     id: "comingsoon",
@@ -439,6 +443,77 @@ function ToolCard({ tool, index, isAdmin, stats, onStatsClick }: ToolCardProps) 
         <p className="text-sm leading-relaxed" style={{ color: "var(--text-dim)", opacity: 0.5 }}>
           {tool.description}
         </p>
+      </div>
+    );
+  }
+
+  const isComingSoon = tool.comingSoon === true;
+  const isAdminOnlyRestricted = tool.adminOnly === true && !isAdmin;
+
+  if (isComingSoon && isAdminOnlyRestricted) {
+    return (
+      <div
+        className="group relative flex flex-col items-center justify-start text-center p-6 pt-8 rounded-lg opacity-40 h-full animate-fade-in-scale"
+        style={{ borderColor: "var(--border-ds)", background: "var(--bg2)", border: "1px solid var(--border-ds)", animationDelay: `${0.1 + index * 0.08}s` }}
+        data-testid={`tile-${tool.id}`}
+      >
+        <Badge variant="outline" className="absolute top-3 right-3 font-heading text-[10px] uppercase tracking-wider" style={{ borderColor: "var(--gold-dim)", color: "var(--gold-dim)" }}>
+          Coming Soon
+        </Badge>
+        <div className="tool-icon w-14 h-14 rounded-full flex items-center justify-center mb-4 shrink-0" style={{ background: "var(--bg3)" }}>
+          <Icon className="w-7 h-7" style={{ color: "var(--text-dim)", opacity: 0.5 }} />
+        </div>
+        <h2 className="text-base font-semibold font-heading mb-2" style={{ color: "var(--text-dim)", opacity: 0.7 }}>
+          {tool.title}
+        </h2>
+        <p className="text-sm leading-relaxed" style={{ color: "var(--text-dim)", opacity: 0.5 }}>
+          {tool.description}
+        </p>
+      </div>
+    );
+  }
+
+  if (isComingSoon && isAdmin) {
+    return (
+      <div className="flex flex-col h-full animate-fade-in-scale" style={{ animationDelay: `${0.1 + index * 0.08}s` }}>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={(e) => { e.preventDefault(); onStatsClick(); }}
+          className="rounded-b-none rounded-t-lg border border-b-0 text-xs gap-1.5 w-full justify-center font-heading"
+          style={{ borderColor: "var(--border-ds)", background: "var(--bg3)", color: "var(--text-dim)" }}
+          data-testid={`button-stats-${tool.id}`}
+        >
+          <Activity className="w-3 h-3" />
+          <span>{stats?.totalUses || 0} uses</span>
+          <span style={{ opacity: 0.4 }}>|</span>
+          <Users className="w-3 h-3" />
+          <span>{stats?.uniqueUsers || 0}</span>
+        </Button>
+        <Link
+          href={tool.href}
+          data-testid={`link-tool-${tool.id}`}
+          className="flex flex-col flex-1"
+        >
+          <div
+            className="tool-tile-animated group relative flex flex-col items-center justify-start text-center p-6 pt-8 cursor-pointer flex-1 hover-elevate active-elevate-2 rounded-b-lg opacity-60"
+            style={{ background: "var(--bg2)", border: "1px solid var(--border-ds)" }}
+            data-testid={`tile-${tool.id}`}
+          >
+            <Badge variant="outline" className="absolute top-3 right-3 font-heading text-[10px] uppercase tracking-wider" style={{ borderColor: "var(--gold-dim)", color: "var(--gold-dim)" }}>
+              Coming Soon
+            </Badge>
+            <div className="tool-icon w-14 h-14 rounded-full flex items-center justify-center mb-4 shrink-0" style={{ background: "var(--bg3)" }}>
+              <Icon className="w-7 h-7" style={{ color: "var(--text-dim)" }} />
+            </div>
+            <h2 className="text-base font-semibold font-heading mb-2" style={{ color: "var(--text-dim)" }}>
+              {tool.title}
+            </h2>
+            <p className="text-sm leading-relaxed" style={{ color: "var(--text-dim)", opacity: 0.6 }}>
+              {tool.description}
+            </p>
+          </div>
+        </Link>
       </div>
     );
   }
