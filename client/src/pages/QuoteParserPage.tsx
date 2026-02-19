@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import { useDropzone } from "react-dropzone";
 import { useMutation } from "@tanstack/react-query";
 import { useToolUsage } from "@/lib/useToolUsage";
@@ -22,6 +22,9 @@ import {
   Download,
   CheckCircle2,
   AlertCircle,
+  ClipboardPaste,
+  Image,
+  X,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Link } from "wouter";
@@ -51,12 +54,50 @@ export default function QuoteParserPage() {
   const { toast } = useToast();
   const [quoteFile, setQuoteFile] = useState<File | null>(null);
   const [quoteText, setQuoteText] = useState("");
+  const [pastedImage, setPastedImage] = useState<File | null>(null);
+  const [pastedPreview, setPastedPreview] = useState<string | null>(null);
+  const [pasteZoneFocused, setPasteZoneFocused] = useState(false);
+  const pasteZoneRef = useRef<HTMLDivElement>(null);
   const [result, setResult] = useState<ParseResult | null>(null);
+
+  const handlePaste = useCallback((e: ClipboardEvent) => {
+    if (!pasteZoneFocused) return;
+    const items = e.clipboardData?.items;
+    if (!items) return;
+    for (let i = 0; i < items.length; i++) {
+      if (items[i].type.startsWith("image/")) {
+        e.preventDefault();
+        const blob = items[i].getAsFile();
+        if (blob) {
+          const file = new File([blob], `screenshot-${Date.now()}.png`, { type: blob.type });
+          setPastedImage(file);
+          setPastedPreview((prev) => {
+            if (prev) URL.revokeObjectURL(prev);
+            return URL.createObjectURL(blob);
+          });
+          toast({ title: "Screenshot Pasted", description: "Image ready to parse" });
+        }
+        return;
+      }
+    }
+  }, [pasteZoneFocused, toast]);
+
+  useEffect(() => {
+    document.addEventListener("paste", handlePaste);
+    return () => document.removeEventListener("paste", handlePaste);
+  }, [handlePaste]);
+
+  const clearPastedImage = useCallback(() => {
+    if (pastedPreview) URL.revokeObjectURL(pastedPreview);
+    setPastedImage(null);
+    setPastedPreview(null);
+  }, [pastedPreview]);
 
   const parseMutation = useMutation({
     mutationFn: async () => {
       const formData = new FormData();
-      if (quoteFile) formData.append("quoteFile", quoteFile);
+      if (pastedImage) formData.append("quoteFile", pastedImage);
+      else if (quoteFile) formData.append("quoteFile", quoteFile);
       if (quoteText) formData.append("quoteText", quoteText);
 
       const response = await fetch("/api/quoteparser/parse", {
@@ -101,7 +142,7 @@ export default function QuoteParserPage() {
     },
   });
 
-  const canParse = quoteFile !== null || quoteText.trim() !== "";
+  const canParse = quoteFile !== null || pastedImage !== null || quoteText.trim() !== "";
 
   const copyToClipboard = useCallback(() => {
     if (!result) return;
@@ -234,6 +275,66 @@ export default function QuoteParserPage() {
                 </p>
               </div>
             )}
+          </div>
+          <div className="mt-4">
+            <Label className="text-sm text-muted-foreground flex items-center gap-1.5 mb-2">
+              <ClipboardPaste className="w-3.5 h-3.5" />
+              Or paste a screenshot:
+            </Label>
+            <div
+              ref={pasteZoneRef}
+              tabIndex={0}
+              onFocus={() => setPasteZoneFocused(true)}
+              onBlur={() => setPasteZoneFocused(false)}
+              className={`border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-colors outline-none ${
+                pastedPreview
+                  ? "border-green-500 bg-green-950"
+                  : pasteZoneFocused
+                  ? "border-border"
+                  : "border-border hover:border-muted-foreground/50"
+              }`}
+              style={pasteZoneFocused && !pastedPreview ? { borderColor: "var(--gold)", background: "rgba(200,164,78,0.06)" } : undefined}
+              onClick={() => pasteZoneRef.current?.focus()}
+              data-testid="paste-zone-screenshot"
+            >
+              {pastedPreview ? (
+                <div className="flex flex-col items-center gap-3">
+                  <div className="relative inline-block">
+                    <img
+                      src={pastedPreview}
+                      alt="Pasted screenshot"
+                      className="max-h-48 rounded-md border"
+                      style={{ borderColor: "var(--border)" }}
+                      data-testid="img-pasted-preview"
+                    />
+                    <button
+                      className="absolute -top-2 -right-2 rounded-full flex items-center justify-center w-5 h-5"
+                      style={{ background: "var(--bg3)", border: "1px solid var(--border)", color: "var(--text-dim)", cursor: "pointer" }}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        clearPastedImage();
+                      }}
+                      data-testid="button-remove-pasted"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </div>
+                  <p className="text-sm font-medium text-foreground">Screenshot ready to parse</p>
+                </div>
+              ) : (
+                <div className="flex flex-col items-center gap-2">
+                  <Image className="w-8 h-8 text-muted-foreground" />
+                  <p className="text-muted-foreground text-sm">
+                    {pasteZoneFocused
+                      ? "Now press Ctrl+V (or Cmd+V) to paste your screenshot"
+                      : "Click here, then paste a screenshot (Ctrl+V)"}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    Works with screenshots of quote sections from PDFs or emails
+                  </p>
+                </div>
+              )}
+            </div>
           </div>
           <div className="mt-4">
             <Label htmlFor="quote-text" className="text-sm text-muted-foreground">
