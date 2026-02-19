@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NBS Proposal Log</title>
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+:root {
+  --gold:#C9A84C;--gold-light:#E2C97E;--gold-dim:#8B6E2A;
+  --bg:#0D0D0F;--bg2:#141418;--bg3:#1C1C22;--bg4:#242430;
+  --border:#2A2A36;--text:#E8E8EC;--text-dim:#8A8A9A;
+  --win:#3DAA6A;--loss:#C0392B;--pending:#C9A84C;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;}
+
+/* HEADER */
+header{background:var(--bg2);border-bottom:1px solid var(--border);padding:0 20px;display:flex;align-items:center;justify-content:space-between;height:56px;position:sticky;top:0;z-index:200;}
+.logo{display:flex;align-items:center;gap:10px;}
+.logo-hex{width:28px;height:28px;background:linear-gradient(135deg,var(--gold),var(--gold-dim));clip-path:polygon(50% 0%,100% 25%,100% 75%,50% 100%,0% 75%,0% 25%);flex-shrink:0;}
+.logo-text{font-family:'Rajdhani',sans-serif;font-size:17px;font-weight:700;letter-spacing:2px;color:var(--gold);}
+.logo-sub{font-size:9px;color:var(--text-dim);letter-spacing:1px;text-transform:uppercase;}
+.mode-toggle{display:flex;background:var(--bg3);border:1px solid var(--border);border-radius:6px;overflow:hidden;}
+.mode-btn{padding:5px 13px;font-size:11px;font-weight:600;font-family:'Rajdhani',sans-serif;letter-spacing:1px;text-transform:uppercase;cursor:pointer;border:none;background:none;color:var(--text-dim);transition:all .2s;}
+.mode-btn.active{background:linear-gradient(135deg,var(--gold),var(--gold-dim));color:#0D0D0F;}
+
+.nav-tabs{display:flex;padding:0 20px;background:var(--bg2);border-bottom:1px solid var(--border);}
+.nav-tab{padding:10px 16px;font-size:11px;font-weight:600;font-family:'Rajdhani',sans-serif;letter-spacing:1px;text-transform:uppercase;cursor:pointer;color:var(--text-dim);border-bottom:2px solid transparent;transition:all .2s;}
+.nav-tab:hover{color:var(--text);}
+.nav-tab.active{color:var(--gold);border-bottom-color:var(--gold);}
+
+main{padding:16px 20px;max-width:100%;}
+.view{display:none;}.view.active{display:block;}
+
+/* ── DASHBOARD ─────────────────────────────────────────── */
+@keyframes fadeUp{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:none;}}
+
+/* Dashboard filter bar */
+.dash-filters{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:18px;padding:12px 16px;background:var(--bg2);border:1px solid var(--border);border-radius:8px;}
+.dash-filters-label{font-family:'Rajdhani',sans-serif;font-size:10px;font-weight:600;letter-spacing:1.5px;text-transform:uppercase;color:var(--gold-dim);white-space:nowrap;}
+.dash-filter-sep{width:1px;height:20px;background:var(--border);flex-shrink:0;}
+.df{background:var(--bg3);border:1px solid var(--border);color:var(--text);padding:6px 10px;border-radius:5px;font-size:11px;font-family:'DM Sans',sans-serif;outline:none;cursor:pointer;transition:border-color .2s;}
+.df:focus{border-color:var(--gold-dim);}
+input[type="date"].df::-webkit-calendar-picker-indicator{filter:invert(.5);cursor:pointer;}
+.dash-filter-clear{font-size:10px;color:var(--text-dim);cursor:pointer;text-decoration:underline;}
+.dash-filter-clear:hover{color:var(--gold);}
+
+/* KPI Cards */
+.kpi-row{display:grid;grid-template-columns:repeat(6,1fr);gap:10px;margin-bottom:16px;}
+.kpi-card{background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:14px 16px;position:relative;overflow:hidden;animation:fadeUp .35s ease both;}
+.kpi-card::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,var(--gold-dim),var(--gold));}
+.kpi-label{font-size:9px;color:var(--text-dim);text-transform:uppercase;letter-spacing:1.2px;margin-bottom:6px;}
+.kpi-val{font-family:'Rajdhani',sans-serif;font-size:26px;font-weight:700;color:var(--gold);line-height:1;}
+.kpi-sub{font-size:10px;color:var(--text-dim);margin-top:4px;}
+.kpi-trend{display:inline-flex;align-items:center;gap:3px;font-size:10px;font-family:'Rajdhani',sans-serif;font-weight:600;margin-top:4px;padding:1px 5px;border-radius:3px;}
+.kpi-trend.up{color:var(--win);background:rgba(61,170,106,.12);}
+.kpi-trend.down{color:var(--loss);background:rgba(192,57,43,.12);}
+.kpi-trend.flat{color:var(--text-dim);background:rgba(138,138,154,.1);}
+
+/* Row 2: Funnel + Win Rate Trend + Awarded by Month */
+.dash-row2{display:grid;grid-template-columns:1.1fr 1fr 1fr;gap:12px;margin-bottom:14px;}
+
+/* Row 3: Region + Market Conversion + GC Leaderboard */
+.dash-row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:14px;}
+
+/* Row 4: Estimator Workload + Upcoming Due Dates + On-Hold Tracker */
+.dash-row4{display:grid;grid-template-columns:1fr 1.1fr 0.9fr;gap:12px;margin-bottom:8px;}
+
+/* Generic panel */
+.dp{background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:16px;animation:fadeUp .4s ease both;overflow:hidden;}
+.dp-title{font-family:'Rajdhani',sans-serif;font-size:11px;font-weight:600;letter-spacing:1.2px;text-transform:uppercase;color:var(--gold);margin-bottom:4px;}
+.dp-sub{font-size:10px;color:var(--text-dim);margin-bottom:12px;}
+.dp-chart{position:relative;}
+
+/* Funnel bars */
+.funnel-wrap{display:flex;flex-direction:column;gap:6px;margin-top:6px;}
+.funnel-row{display:grid;grid-template-columns:90px 1fr 60px;align-items:center;gap:8px;}
+.funnel-label{font-size:10px;color:var(--text-dim);white-space:nowrap;text-align:right;}
+.funnel-bar-track{height:18px;background:var(--bg4);border-radius:4px;overflow:hidden;position:relative;}
+.funnel-bar-fill{height:100%;border-radius:4px;transition:width .6s ease;display:flex;align-items:center;padding-left:6px;}
+.funnel-bar-count{font-size:9px;font-family:'Rajdhani',sans-serif;font-weight:700;color:rgba(255,255,255,.8);white-space:nowrap;}
+.funnel-val{font-size:10px;font-family:'Rajdhani',sans-serif;font-weight:600;color:var(--text-dim);text-align:right;white-space:nowrap;}
+
+/* Leaderboard table */
+.lb-table{width:100%;border-collapse:collapse;}
+.lb-table thead tr{border-bottom:1px solid var(--border);}
+.lb-table th{font-family:'Rajdhani',sans-serif;font-size:9px;letter-spacing:1px;text-transform:uppercase;color:var(--gold-dim);padding:4px 6px;text-align:left;font-weight:600;}
+.lb-table th:last-child,.lb-table td:last-child{text-align:right;}
+.lb-table td{font-size:11px;padding:7px 6px;border-bottom:1px solid rgba(42,42,54,.6);color:var(--text);}
+.lb-table tr:last-child td{border-bottom:none;}
+.lb-table tr:hover td{background:rgba(201,168,76,.04);}
+.lb-rank{font-family:'Rajdhani',sans-serif;font-size:12px;font-weight:700;color:var(--gold-dim);width:20px;}
+.lb-name{max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.lb-badge{font-family:'Rajdhani',sans-serif;font-size:10px;font-weight:700;}
+.lb-bar-mini{height:3px;background:var(--bg4);border-radius:2px;margin-top:3px;overflow:hidden;}
+.lb-bar-mini-fill{height:100%;border-radius:2px;background:linear-gradient(90deg,var(--gold-dim),var(--gold));}

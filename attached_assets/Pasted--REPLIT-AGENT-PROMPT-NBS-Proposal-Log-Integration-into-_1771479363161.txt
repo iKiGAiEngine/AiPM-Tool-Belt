@@ -1,0 +1,689 @@
+# REPLIT AGENT PROMPT — NBS Proposal Log Integration into AiPM
+
+## Copy and paste this entire document into the Replit Agent chat.
+
+-----
+
+## OVERVIEW
+
+I need you to integrate a fully pre-built NBS Proposal Log module into the AiPM application. The module is a single self-contained HTML file I have already uploaded to the project. Your job is to:
+
+1. Serve it at a route
+1. Add it as the first tile on the AiPM home page
+1. Connect it to the existing AiPM session auth
+1. Do not modify any existing AiPM routes, database, or auth logic
+
+Do not rewrite or simplify the HTML file. Serve it exactly as-is. Every behavior described below is already built into that file — you are just wiring it into the app.
+
+-----
+
+## STEP 1 — UPLOAD THE FILE
+
+Place the file `nbs-proposal-log.html` at this exact path in the project:
+
+```
+public/tools/proposal-log.html
+```
+
+If the `public/tools/` directory does not exist, create it.
+
+-----
+
+## STEP 2 — ADD THE SERVER ROUTE
+
+In `server.js` (or `index.js`, wherever Express routes are defined), add this route. It must be added **after** your session middleware is initialized so the session cookie is available:
+
+```javascript
+// NBS Proposal Log — serves the pre-built HTML module
+app.get('/tools/proposal-log', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'tools', 'proposal-log.html'));
+});
+```
+
+Make sure `path` is already imported at the top of the file. If not, add:
+
+```javascript
+const path = require('path');
+```
+
+-----
+
+## STEP 3 — ADD THE HOME PAGE TILE
+
+On the AiPM home page, add the Proposal Log as the **first tile** in the tools/modules grid. It must be the first item — position matters.
+
+Match the exact same card/tile style used by existing AiPM tool tiles. The tile content is:
+
+- **Icon:** 📋
+- **Title:** `Proposal Log`
+- **Subtitle:** `NBS bid tracking, pipeline & estimating`
+- **On click / href:** `/tools/proposal-log`
+- **Position:** First tile in the grid, before all other tools
+
+This tile should be visible to all authenticated users. The proposal log page itself handles role-based access — no additional gating is needed on the tile.
+
+-----
+
+## STEP 4 — AUTH CONNECTION (READ CAREFULLY — NO CODE CHANGES NEEDED ON THE SERVER)
+
+The proposal log HTML file already contains all auth logic. It calls your existing `GET /api/auth/me` endpoint on page load using:
+
+```javascript
+fetch('/api/auth/me', { credentials: 'include' })
+```
+
+The session cookie (`connect.sid`) is sent automatically because the proposal log is served from the same domain. **No changes are needed to your auth endpoint or session middleware.**
+
+The endpoint must return this JSON shape (which it already does):
+
+```json
+{
+  "user": {
+    "id": 1,
+    "email": "user@example.com",
+    "role": "admin",
+    "displayName": "Haley",
+    "username": "hkkruse"
+  }
+}
+```
+
+If the user is not authenticated, it returns `401` — the proposal log will show a sign-in gate automatically.
+
+**Role behavior (already built into the HTML — do not modify):**
+
+- `role: "admin"` → Full access to everything
+- `role: "user"` → Standard access only (see full breakdown below)
+
+-----
+
+## STEP 5 — CONFIRM LOGOUT ENDPOINT
+
+The proposal log’s Sign Out button calls:
+
+```javascript
+fetch('/api/auth/logout', { method: 'POST', credentials: 'include' })
+```
+
+Confirm this endpoint exists in AiPM. If your logout route is at a different path (e.g. `/api/logout` or `/auth/logout`), find the line in `proposal-log.html` that reads:
+
+```javascript
+fetch('/api/auth/logout', { method:'POST', credentials:'include' })
+```
+
+And update the path to match your actual logout route.
+
+-----
+
+## WHAT NOT TO TOUCH
+
+- Do not modify the HTML file’s CSS, JavaScript, or HTML structure
+- Do not add a database table or schema for this module — it uses browser `localStorage` with the key `nbs_v4`
+- Do not add auth middleware to the `/tools/proposal-log` route — the file handles its own auth check client-side
+- Do not install any npm packages — the file loads Chart.js and SheetJS from CDN
+
+-----
+
+## FULL FEATURE REFERENCE (for your understanding — already built, do not rebuild)
+
+Everything below is already implemented in the HTML file. This section is for your reference so you understand what you’re serving and don’t accidentally overwrite or simplify anything.
+
+-----
+
+### DESIGN SYSTEM
+
+**Color palette (CSS variables):**
+
+- `--gold: #C9A84C` / `--gold-light: #E2C97E` / `--gold-dim: #8B6E2A`
+- `--bg: #0D0D0F` / `--bg2: #141418` / `--bg3: #1C1C22` / `--bg4: #242430`
+- `--border: #2A2A36` / `--text: #E8E8EC` / `--text-dim: #8A8A9A`
+- `--win: #3DAA6A` / `--loss: #C0392B` / `--pending: #C9A84C`
+
+**Fonts:**
+
+- Headings/labels: `Rajdhani` (Google Fonts) — weights 400, 500, 600, 700
+- Body/inputs: `DM Sans` (Google Fonts) — weights 300, 400, 500
+
+**CDN scripts loaded in `<head>`:**
+
+- Chart.js 4.4.1: `https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js`
+- SheetJS 0.18.5: `https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js`
+
+-----
+
+### LAYOUT STRUCTURE
+
+The page has three layout layers stacked vertically:
+
+1. **Sticky header** (56px tall) — logo left, mode toggle + user pill right
+1. **Nav tabs** — “Proposal Log” tab and “Dashboard” tab
+1. **Main content area** — shows the active tab view
+
+-----
+
+### AUTH GATE SCREEN
+
+Shown fullscreen (fixed overlay, z-index 9000) when the user is not authenticated. Contains:
+
+- NBS hexagon logo mark
+- “Sign In via AiPM →” button that redirects to `/login?redirect=[current path]`
+- **Temporary admin bypass section** (below a divider) — password field + “Continue as Admin” button. Temp password: `NBS2025!`. This section should be removed once AiPM auth is fully connected.
+- Error message area below buttons
+
+The gate hides automatically when `GET /api/auth/me` returns a valid user.
+
+-----
+
+### HEADER
+
+- **Left:** NBS hexagon logo mark (gold gradient, CSS clip-path polygon) + “NBS” wordmark in Rajdhani + “PROPOSAL LOG” subtext
+- **Right:** Two elements side by side:
+  - **Mode toggle** (Estimator | Leadership) — pill-style toggle, gold gradient on active state. Admin only — hidden for standard users.
+  - **User pill** — displays the logged-in user’s `displayName`, their role badge (gold for admin, green for user), and a “Sign out” text link
+
+-----
+
+### NAV TABS
+
+Two tabs: `PROPOSAL LOG` and `DASHBOARD`.
+
+- Active tab has gold underline and gold text
+- Dashboard tab is hidden entirely for `role: "user"` — they never see it
+- Switching tabs shows/hides the corresponding `<div class="view">` section
+
+-----
+
+### ROLE-BASED ACCESS CONTROL
+
+Two roles, two capability sets:
+
+**`role: "admin"`** — Full access:
+
+- Proposal Log tab ✅
+- Dashboard tab ✅
+- Add Proposal button ✅
+- Import Excel button ✅
+- Edit rows (modal + inline cell editing) ✅
+- Delete individual rows ✅
+- Bulk select + delete rows ✅
+- Clear All Data button ✅
+- Estimator / Leadership mode toggle ✅
+- Export CSV ✅
+- Reset Columns ✅
+
+**`role: "user"`** — Standard access:
+
+- Proposal Log tab ✅
+- Add Proposal button ✅
+- Edit rows (modal + inline cell editing) ✅
+- Export CSV ✅
+- Reset Columns ✅
+- Dashboard tab ❌ (hidden)
+- Import Excel ❌ (hidden)
+- Delete rows ❌ (buttons not rendered)
+- Bulk delete ❌ (select bar never shown)
+- Clear All Data ❌ (hidden)
+- Mode toggle ❌ (hidden — locked to estimator view)
+
+All restrictions are enforced both at the UI level (elements hidden) and at the function level (actions blocked with toast notification even if called directly).
+
+-----
+
+### PROPOSAL LOG TAB — TOOLBAR
+
+The toolbar sits above the table and contains (left to right):
+
+**Filter controls (left side, flex row):**
+
+1. Search box — searches all columns simultaneously (project name, estimate number, estimator, GC lead, region, market, owner)
+1. Region dropdown — filters by region
+1. Status dropdown — filters by status
+1. Market dropdown — filters by primary market
+1. Swinerton dropdown — Yes / No / All
+1. Due Date range — “Due [from date] — [to date]” with two date inputs
+
+**Action buttons (right side):**
+
+- ⚙ Columns — opens the column manager panel
+- ⬆ Import Excel — opens import modal (admin only)
+- - Add Proposal — opens new proposal modal (hidden in leadership mode and for no-access roles)
+
+**Select bar** (appears below toolbar when rows are checked, admin only):
+
+- Checkbox + “N rows selected” label
+- 🗑 Delete Selected button (red danger style)
+- Clear button (deselects all)
+
+-----
+
+### PROPOSAL LOG TAB — TABLE
+
+**Table features:**
+
+- Fixed layout, horizontal scroll container
+- Every column is sortable (click header label, toggle asc/desc, gold underline on sorted column)
+- Every column has an inline filter input in a second header row beneath the labels
+- Columns are drag-reorderable (grab the ⠿ grip on the left of each header)
+- Columns are resizable (drag the resize handle on the right edge of each header)
+- Column visibility is toggleable via the Column Manager panel
+- Column layout (order, widths, visibility) is persisted to `localStorage` under key `nbs_layout`
+- Rows animate in with `rowIn` keyframe (fade + slide right)
+- Row hover: background lightens to `--bg3`
+- Sorted column cells get a subtle gold left/right border highlight
+
+**Column definitions (in default order):**
+
+|Key                |Label           |Default Width|Filter Type           |
+|-------------------|----------------|-------------|----------------------|
+|`projectName`      |Project Name    |180px        |text                  |
+|`estimateNumber`   |Estimate #      |110px        |text                  |
+|`region`           |Region          |140px        |select (regions list) |
+|`primaryMarket`    |Primary Market  |130px        |select (markets list) |
+|`inviteDate`       |Invite Date     |100px        |date                  |
+|`dueDate`          |Due Date        |100px        |date                  |
+|`nbsEstimator`     |NBS Estimator   |130px        |text                  |
+|`gcEstimateLead`   |GC Estimate Lead|140px        |text                  |
+|`proposalTotal`    |Proposal Total  |120px        |text                  |
+|`estimateStatus`   |Status          |150px        |select (statuses list)|
+|`finalReviewer`    |Final Reviewer  |130px        |text                  |
+|`anticipatedStart` |Est. Start      |100px        |date                  |
+|`anticipatedFinish`|Est. End        |100px        |date                  |
+|`swinertonProject` |Swinerton       |90px         |select (Y/N)          |
+|`owner`            |Owner           |110px        |text                  |
+|`filePath`         |File Path       |90px         |none                  |
+|`_actions`         |(blank)         |70px         |none                  |
+
+**Special cell rendering:**
+
+- `projectName` — bold font-weight
+- `proposalTotal` — Rajdhani font, `$` formatted with commas. Inline editable (click to edit) for users with editRow permission
+- `estimateStatus` — rendered as colored badge pill. When status is “Lost - Note Why in Comments”, shows a two-line cell: top line is “GC Lost” (blue, #6495ED) or “NBS Lost” (red) badge, bottom line shows the loss reason or “⚠ no reason” warning
+- `inviteDate` / `dueDate` — formatted as MM/DD/YYYY in muted color
+- `anticipatedStart` / `anticipatedFinish` — formatted as MM/YY. Inline editable (month picker) for users with editRow permission
+- `nbsEstimator` — inline editable dropdown (HK, GM, GT) for users with editRow permission
+- `swinertonProject` — “Y” in green pill, “N” in grey pill
+- `filePath` — renders as “📂 Open” link if value is present
+- `_actions` — edit ✏️ and delete 🗑 icon buttons. Edit button hidden in leadership mode. Delete button only rendered for admin role.
+
+**Empty state:** When no proposals match filters, shows centered clipboard emoji + “No proposals found.”
+
+**Row checkbox column** (admin / estimator mode only):
+
+- 36px wide column prepended before all other columns
+- Header checkbox selects/deselects all visible (filtered) rows
+- Individual row checkboxes track selection state
+- Selected rows get a subtle gold background tint
+
+-----
+
+### PROPOSAL LOG TAB — EXPORT BAR
+
+Below the table, right-aligned row of buttons:
+
+- ↺ Reset Columns — resets column order, widths, and per-column filters to defaults (confirm dialog)
+- 🗑 Clear All Data — deletes all proposals from localStorage (confirm dialog, admin only, red text)
+- ⬇ Export CSV — exports currently filtered data as a CSV file
+
+-----
+
+### ADD/EDIT PROPOSAL MODAL
+
+Triggered by “+ Add Proposal” button or the ✏️ row edit button. Full-screen centered overlay with blur backdrop.
+
+**Modal header:** “NEW PROPOSAL” or “EDIT PROPOSAL” title + ✕ close button. Clicking outside the modal closes it.
+
+**Form sections:**
+
+**Project Info section:**
+
+- Project Name * (required text input)
+- Estimate Number (text input, placeholder “EST-2024-001”)
+- Region (dropdown — full list of 25 regions, see below)
+- Primary Market (dropdown — 11 markets, see below)
+- Swinerton Project (dropdown — Yes / No)
+- Owner / entered by (text input)
+
+**Dates section:**
+
+- Invite Date (date input)
+- Due Date (date input)
+- Est. Start (date input) — displayed as MM/YY in table
+- Est. End (date input) — displayed as MM/YY in table
+
+**Team & Financials section:**
+
+- NBS Estimator (dropdown: HK — Haley Kruse / GM — Gonzalo Martinez / GT — Gene Trabert)
+- GC Estimate Lead (text input)
+- Proposal Total ($) (number input — triggers auto-status-promote logic)
+- Final Reviewer / Auditor (text input)
+
+**Status & Files section:**
+
+- Estimate Status (dropdown: Estimating / Revising / Submitted / Awarded / Lost - Note Why in Comments)
+- File Path — URL or server path (text input)
+
+**Loss Capture panel** (appears only when Status = “Lost - Note Why in Comments”):
+
+This is a three-tier branching UI:
+
+*Tier 1 — Who lost?* (two large clickable buttons side by side):
+
+- 🏗 **GC Lost** — “GC didn’t win the project — outside our control”
+- 📋 **NBS Lost** — “GC won but chose a different Division 10 sub”
+
+*Tier 2 — Why did NBS lose?* (shown only when “NBS Lost” is selected, 6 clickable reason buttons in a 3×2 grid):
+
+- 💰 Price — “We were too high”
+- 🤝 Relationship — “Preferred sub used”
+- 📐 Scope Gap — “Scope didn’t match”
+- 📄 Submittal — “Compliance / late / format”
+- 🔄 Spec Sub — “Alt. manufacturer accepted”
+- ✏️ Other — “Write in below”
+
+*Tier 3 — Enrichment* (shown when any Tier 1 selection is made):
+
+- “Describe Why” text field (shown only when “Other” reason selected)
+- Who Won? (competitor name or “unknown”)
+- Estimator Notes (brief context or lesson learned)
+
+**Auto-status promotion:** When a Proposal Total dollar amount is entered and current status is “Estimating”, status automatically changes to “Submitted” with a brief gold border flash on the status dropdown and a toast notification.
+
+**Comments / Notes:** Full-width textarea at the bottom of the form.
+
+**Modal footer:** Cancel button + Save Proposal button (sticky at bottom of modal)
+
+-----
+
+### INLINE CELL EDITING
+
+Three columns support click-to-edit directly in the table cell (admin and user roles with editRow permission, estimator mode only):
+
+- **Proposal Total** — clicking shows a number input with `$` prefix, ✓ save and ✕ cancel buttons. Auto-promotes status from Estimating → Submitted if value > 0.
+- **NBS Estimator** — clicking shows a dropdown (HK / GM / GT). Note at bottom says “Use ✏ edit for Lost status”
+- **Est. Start / Est. End** — clicking shows a month picker (`<input type="month">`). Value stored as YYYY-MM-01.
+
+All inline edits:
+
+- Show a faint ✏ hint on hover
+- Highlight the cell with gold outline when active
+- Save on Enter or Tab, cancel on Escape
+- Clicking outside the active cell auto-saves
+- Only one cell can be in edit mode at a time
+
+-----
+
+### COLUMN MANAGER PANEL
+
+Opened via ⚙ Columns button. Slides in from the right as an overlay panel.
+
+- Lists all columns (except `_actions`) in current order
+- Each row has a visibility checkbox and a ⠿ drag handle
+- Rows are drag-reorderable within the panel
+- Toggling visibility immediately updates the table
+- Reordering in the panel immediately updates the table
+- Changes persist to `localStorage`
+
+-----
+
+### IMPORT EXCEL MODAL (admin only)
+
+Two-step modal, max-width 920px:
+
+**Step 1 — Upload:**
+
+- Large dashed dropzone area — supports drag-and-drop or click-to-browse
+- Accepts `.xlsx` and `.xls` files only
+- “Expected Columns” hint section shows: Project Name, Bid Date, Estimator, Proposal Amount, Swinerton Builders Contact, Project Location, Scope Start Date, Scope End Date, Status
+
+**Step 2 — Preview (shown after file is parsed):**
+
+- Summary row showing: Total / Ready (green) / Region? (orange) / Dupes (red) counts
+- Scrollable preview table with columns: checkbox, row #, flag, project name, estimate #, bid date, estimator, amount, status, region, raw location, GC contact, start, end
+- Each row flagged as: OK (green), REGION? (orange — location string couldn’t be matched to known region), or DUPE (red — project name matches existing entry)
+- Duplicate rows are unchecked by default
+- Header checkbox toggles all rows
+- Footer shows “N of M rows selected” count + Cancel + “⬆ Import Selected” buttons
+
+**Import logic:**
+
+- Auto-generates estimate numbers in format `RB-YY001`, `RB-YY002` etc. where YY = 2-digit year from bid date, incrementing from the highest existing number for that year
+- Fuzzy column header matching (case-insensitive partial match) for: project name, bid date, estimator, proposal amount, swinerton contact, location/region, scope start, scope end, status
+- Date parsing handles: MM/DD/YY, MM/DD/YYYY, Excel serial numbers
+- Scope date parsing handles: MM/YY format, ISO dates
+- Dollar parsing strips $, commas, spaces
+- Status mapping: “pending/submitted” → Submitted, “bidding/estimating/in progress” → Estimating, “revising/revision” → Revising, “lost/loss” → Lost, “win/won/awarded” → Awarded
+- Auto-promotes Estimating → Submitted if dollar amount > 0
+- Region fuzzy matching against the full 25-region list (exact match, prefix match, airport code match)
+
+-----
+
+### DATA STORAGE
+
+All proposal data is stored in the browser’s `localStorage`:
+
+- Key: `nbs_v4` — JSON array of proposal objects
+- Key: `nbs_layout` — JSON object with column order, widths, visibility
+
+Each proposal object has these fields:
+
+```
+projectName, estimateNumber, region, primaryMarket,
+inviteDate, dueDate, nbsEstimator, gcEstimateLead,
+proposalTotal, estimateStatus, finalReviewer,
+anticipatedStart, anticipatedFinish, swinertonProject,
+owner, filePath, comments,
+lossWho, lossReason, lossDetail, lossCompetitor, lossNotes
+```
+
+No server-side database changes are needed. Data is entirely client-side.
+
+-----
+
+### DASHBOARD TAB (admin only)
+
+The dashboard renders 5 tiers of analytics panels using Chart.js. All data comes from the same `localStorage` array — no server calls needed.
+
+The dashboard has a **filter bar** at the top with: Region, Market, Swinerton (Y/N), Due Date range (from/to), and a “Clear Filters” link. All dashboard panels respond to these filters.
+
+-----
+
+**TIER 1 — KPI Cards (6-column grid):**
+
+1. **Total Proposals** — count of all proposals + “X awarded · Y lost” subtext
+1. **Active Pipeline** — sum of proposalTotal for active statuses (Estimating, Revising, Submitted), formatted as $XM or $XK. Subtext: “N active proposals”
+1. **Total Awarded** — sum of proposalTotal for Awarded status. Subtext: “from N won bids”
+1. **Overall Win Rate** — awarded ÷ (awarded + lost) as %. Subtext: “all decided bids incl. GC losses”
+1. **True NBS Win Rate** — awarded ÷ (awarded + NBS Lost only, excluding GC Lost). Subtext: “excl. N GC-lost bids”
+1. **Pending Decision** — sum of proposalTotal for Submitted status. Subtext: “N submitted bids”
+
+Each card has a 2px gold gradient top border and a fadeUp animation.
+
+-----
+
+**TIER 2 — Three panels in a 1.1fr / 1fr / 1fr grid:**
+
+**Panel 1 — Pipeline Funnel:**
+
+- Horizontal bar chart showing count and value for each of the 5 workflow stages: Estimating → Revising → Submitted → Awarded → Lost
+- Each stage bar colored to match the status badge color
+- Arrow connectors between stages
+- Bar width proportional to value relative to max stage value
+- Shows count of bids and dollar value per stage
+
+**Panel 2 — Win Rate Trend (Chart.js line chart):**
+
+- Monthly win rate % over the last 12 months
+- Green line with filled area below
+- Dashed gold 50% target line
+- X-axis: month abbreviations (Jan ’25, Feb ’25, etc.)
+- Y-axis: 0–100%
+
+**Panel 3 — Loss Intelligence:**
+
+- GC Lost vs NBS Lost split bar (blue vs red segmented bar) showing count and percentage
+- Dollar values below the bar for each split
+- Warning count if any lost bids have no “who” recorded
+- NBS loss reasons listed with mini horizontal bar chart below the split bar (one row per reason, sorted by frequency)
+
+-----
+
+**TIER 3 — Three panels in a 1fr / 1fr / 1fr grid:**
+
+**Panel 1 — Pipeline by Region (Chart.js horizontal bar chart):**
+
+- Total proposal value per region (top 10 regions by value)
+- Gold color bars with decreasing opacity
+- Y-axis labels strip airport codes (just city name)
+- X-axis formatted as $K or $M
+
+**Panel 2 — Market Sector Performance (Chart.js horizontal grouped bar chart):**
+
+- Two datasets: Submitted (light blue) and Awarded (green) per market
+- Only shows markets with at least one bid
+- Legend shown
+
+**Panel 3 — Top GC / Clients leaderboard table:**
+
+- Top 7 GC/clients by total proposal value
+- Columns: rank #, GC name (with mini gold progress bar below name), bid count, won count, total value
+- Sorted by total value descending
+
+-----
+
+**TIER 4 — Three panels in a 1fr / 1.1fr / 0.9fr grid:**
+
+**Panel 1 — Estimator Workload:**
+
+- One row per estimator who has active bids (Estimating / Revising / Submitted)
+- Horizontal bar relative to highest-value estimator
+- Shows bid count and total value
+
+**Panel 2 — Bid Due Dates:**
+
+- Business day countdown to due dates for active bids (Estimating / Revising / Submitted)
+- Four color-coded buckets:
+  - 🔴 1–3 Business Days — “Due very soon — act now”
+  - 🟡 4–7 Business Days — “Due this week”
+  - 🔵 8–14 Business Days — “Due next 2 weeks”
+  - ⬜ 15+ Business Days — “Further out”
+- Each bucket shows count + up to 3 project names with business-day countdown (“Tomorrow”, “3bd”, etc.)
+- Business day calculator skips weekends (Saturday/Sunday)
+
+**Panel 3 — Project Start Follow-Up:**
+
+- Scrollable list (max-height 240px) of all non-lost proposals + all Swinerton projects that have an Est. Start date
+- Each card shows: project name + SWINERTON tag if applicable, urgency pill, start date range, status, market, region, GC lead, NBS estimator, days-until-start count
+- Four urgency levels with left-border color and pill color:
+  - Overdue (bright red) — past start date
+  - Urgent (red) — starts within 14 days
+  - Soon (gold) — starts within 45 days
+  - Upcoming (blue) — more than 45 days out
+- Sorted by start date ascending (soonest first)
+
+-----
+
+**TIER 5 — Two panels side by side (1fr / 1fr):**
+
+**Panel 1 — Loss Breakdown:**
+
+- Header: total lost count + total lost value
+- One row per loss reason (including GC Lost as its own category)
+- Horizontal bar chart with count and value per reason
+- GC Lost shown in blue, all NBS reasons in red
+- Sorted by frequency descending
+
+**Panel 2 — Lost Bids Detail:**
+
+- Scrollable list (max-height 220px) of all lost bids
+- Sorted: bids with who/reason recorded first, then by due date descending
+- Each card: project name, proposal value, GC Lost / NBS Lost badge, reason pill, competitor name if known, estimator notes if present, due date
+
+-----
+
+### REGIONS LIST (exact strings — do not alter)
+
+```
+Atlanta (ATL), Austin (AUS), Colorado (DEN), Dallas (DFW),
+Hawaii (HNL), Idaho (PDX), N Carolina (CLT), New York (LGA),
+Nor Cal (SFO), OCLA (LAX), Portland (PDX), S Carolina (CLT),
+FS (LAX), SD (SAN), SPD (LAX), TM (LAX), Washington (SEA),
+PCL - External, Spokane & Boise (GEG), Hensel Phelps - External,
+McCarthy - External, CBU - External, Bristol Industries - External,
+BN Builders - External, Jacobs - External
+```
+
+### MARKETS LIST (exact strings)
+
+```
+Aviation, Education, Entertainment, Healthcare, Hospitality,
+Residential, Retail, Office, Parking Structure, Public Facility,
+Special Projects
+```
+
+### STATUSES LIST (exact strings)
+
+```
+Estimating, Revising, Submitted, Awarded, Lost - Note Why in Comments
+```
+
+### NBS ESTIMATORS (exact values stored in data)
+
+```
+HK (display: HK — Haley Kruse)
+GM (display: GM — Gonzalo Martinez)
+GT (display: GT — Gene Trabert)
+```
+
+-----
+
+### TOAST NOTIFICATIONS
+
+A floating green toast appears at the bottom center of the screen (fixed position, z-index 9999) for:
+
+- “✓ N proposals imported”
+- “🗑 N proposals deleted”
+- “🗑 All proposals cleared”
+- “💡 Status auto-updated to Submitted”
+- “⛔ Admin access required” (if a restricted action is attempted)
+
+Toast fades out after 3 seconds.
+
+-----
+
+### MODES (admin only feature)
+
+Admins can toggle between two viewing modes using the header toggle:
+
+**Estimator Mode** (default):
+
+- Full table interaction
+- Row checkboxes visible
+- Add/Import/Delete buttons visible
+- Inline cell editing active
+- No read-only banner
+
+**Leadership Mode:**
+
+- Read-only gold banner: “🔒 Leadership View — read only.”
+- No Add Proposal button
+- No Import button
+- No row checkboxes
+- No delete buttons in rows
+- Inline editing disabled
+- Select bar hidden
+- Dashboard still accessible
+
+Standard users (`role: "user"`) never see this toggle — they are permanently in estimator-equivalent mode without destructive actions.
+
+-----
+
+## SUMMARY CHECKLIST
+
+- [ ] `proposal-log.html` placed at `public/tools/proposal-log.html`
+- [ ] `GET /tools/proposal-log` route added to Express server
+- [ ] Home page tile added as first tile (📋 Proposal Log, links to `/tools/proposal-log`)
+- [ ] Confirmed `GET /api/auth/me` returns `{ user: { role, displayName, username, email } }`
+- [ ] Confirmed `POST /api/auth/logout` endpoint exists (or path updated in HTML file)
+- [ ] No database changes made
+- [ ] No npm packages installed
+- [ ] HTML file served exactly as-is without modification
