@@ -26,6 +26,7 @@ function Router() {
   return (
     <Switch>
       <Route path="/" component={HomePage} />
+      <Route path="/home" component={HomePage} />
       <Route path="/planparser" component={PlanParserPage} />
       <Route path="/quoteparser" component={QuoteParserPage} />
       <Route path="/settings" component={CentralSettingsPage} />
