@@ -97,3 +97,2004 @@ input[type="date"].df::-webkit-calendar-picker-indicator{filter:invert(.5);curso
 .lb-badge{font-family:'Rajdhani',sans-serif;font-size:10px;font-weight:700;}
 .lb-bar-mini{height:3px;background:var(--bg4);border-radius:2px;margin-top:3px;overflow:hidden;}
 .lb-bar-mini-fill{height:100%;border-radius:2px;background:linear-gradient(90deg,var(--gold-dim),var(--gold));}
+
+/* Workload bars */
+.wl-row{display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid rgba(42,42,54,.5);}
+.wl-row:last-child{border-bottom:none;}
+.wl-name{font-size:11px;min-width:100px;max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.wl-bar-track{flex:1;height:8px;background:var(--bg4);border-radius:4px;overflow:hidden;}
+.wl-bar-fill{height:100%;border-radius:4px;background:linear-gradient(90deg,var(--gold-dim),var(--gold));transition:width .5s ease;}
+.wl-meta{font-size:10px;font-family:'Rajdhani',sans-serif;font-weight:600;color:var(--text-dim);white-space:nowrap;min-width:60px;text-align:right;}
+
+/* Due date buckets */
+.due-buckets{display:flex;flex-direction:column;gap:10px;margin-top:4px;}
+.due-bucket{background:var(--bg3);border-radius:6px;padding:10px 12px;border-left:3px solid var(--border);}
+.due-bucket.hot{border-left-color:var(--loss);}
+.due-bucket.warm{border-left-color:var(--gold);}
+.due-bucket.future{border-left-color:var(--border);}
+.due-bucket-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;}
+.due-bucket-label{font-family:'Rajdhani',sans-serif;font-size:11px;font-weight:700;letter-spacing:.5px;}
+.due-bucket.hot .due-bucket-label{color:var(--loss);}
+.due-bucket.warm .due-bucket-label{color:var(--gold);}
+.due-bucket.cool .due-bucket-label{color:#6495ED;}
+.due-count{font-family:'Rajdhani',sans-serif;font-size:18px;font-weight:700;}
+.due-item{font-size:10px;color:var(--text-dim);padding:2px 0;display:flex;justify-content:space-between;gap:4px;}
+.due-item-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;}
+.due-item-date{color:var(--text);font-size:10px;white-space:nowrap;}
+.due-empty{font-size:10px;color:var(--text-dim);font-style:italic;}
+
+/* Project Start Follow-Up tracker */
+.followup-list{display:flex;flex-direction:column;gap:5px;margin-top:4px;max-height:240px;overflow-y:auto;}
+.followup-item{background:var(--bg3);border-radius:6px;padding:9px 11px;border-left:3px solid var(--border);cursor:default;transition:background .15s;}
+.followup-item:hover{background:var(--bg4);}
+.followup-item.urgent{border-left-color:var(--loss);}
+.followup-item.soon{border-left-color:var(--gold);}
+.followup-item.upcoming{border-left-color:#6495ED;}
+.followup-item.overdue{border-left-color:#FF4444;background:rgba(192,57,43,.07);}
+.followup-top{display:flex;align-items:flex-start;justify-content:space-between;gap:6px;margin-bottom:4px;}
+.followup-name{font-size:11px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;}
+.followup-pill{font-family:'Rajdhani',sans-serif;font-size:9px;font-weight:700;letter-spacing:.5px;padding:2px 6px;border-radius:3px;white-space:nowrap;flex-shrink:0;}
+.followup-pill.overdue{background:rgba(255,68,68,.15);color:#FF4444;border:1px solid rgba(255,68,68,.3);}
+.followup-pill.urgent{background:rgba(192,57,43,.15);color:var(--loss);border:1px solid rgba(192,57,43,.3);}
+.followup-pill.soon{background:rgba(201,168,76,.15);color:var(--gold);border:1px solid rgba(201,168,76,.3);}
+.followup-pill.upcoming{background:rgba(100,149,237,.12);color:#6495ED;border:1px solid rgba(100,149,237,.3);}
+.followup-meta{display:flex;align-items:center;gap:10px;font-size:10px;color:var(--text-dim);}
+.followup-meta-item{display:flex;align-items:center;gap:3px;white-space:nowrap;}
+.followup-meta-item span{color:var(--text);}
+.followup-gcrow{display:flex;align-items:center;justify-content:space-between;margin-top:5px;padding-top:5px;border-top:1px solid rgba(42,42,54,.8);}
+.followup-gc{font-size:10px;color:var(--text-dim);}
+.followup-gc span{color:var(--text);}
+.followup-days{font-family:'Rajdhani',sans-serif;font-size:11px;font-weight:700;}
+.followup-days.overdue{color:#FF4444;}
+.followup-days.urgent{color:var(--loss);}
+.followup-days.soon{color:var(--gold);}
+.followup-days.upcoming{color:#6495ED;}
+
+/* Empty panel state */
+.dash-empty{text-align:center;padding:28px 12px;color:var(--text-dim);font-size:11px;}
+.dash-empty-icon{font-size:22px;opacity:.25;margin-bottom:6px;}
+
+/* Loss analysis panel */
+.loss-reason-row{display:grid;grid-template-columns:110px 1fr 50px 70px;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid rgba(42,42,54,.5);}
+.loss-reason-row:last-child{border-bottom:none;}
+.loss-reason-label{font-size:11px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.loss-reason-track{height:10px;background:var(--bg4);border-radius:5px;overflow:hidden;}
+.loss-reason-fill{height:100%;border-radius:5px;background:linear-gradient(90deg,rgba(192,57,43,.5),rgba(192,57,43,.85));transition:width .5s ease;}
+.loss-reason-count{font-family:'Rajdhani',sans-serif;font-size:12px;font-weight:700;color:var(--loss);text-align:right;}
+.loss-reason-val{font-family:'Rajdhani',sans-serif;font-size:11px;font-weight:600;color:var(--text-dim);text-align:right;}
+.loss-detail-row{background:var(--bg3);border-radius:5px;padding:8px 10px;margin-bottom:5px;border-left:3px solid rgba(192,57,43,.5);}
+.loss-detail-row:last-child{margin-bottom:0;}
+.loss-detail-top{display:flex;justify-content:space-between;align-items:flex-start;gap:6px;margin-bottom:3px;}
+.loss-detail-name{font-size:11px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;}
+.loss-detail-val{font-family:'Rajdhani',sans-serif;font-size:11px;font-weight:700;color:var(--loss);white-space:nowrap;}
+.loss-detail-meta{display:flex;gap:8px;font-size:10px;color:var(--text-dim);flex-wrap:wrap;}
+.loss-reason-pill{font-family:'Rajdhani',sans-serif;font-size:9px;font-weight:700;padding:1px 6px;border-radius:3px;background:rgba(192,57,43,.15);color:var(--loss);border:1px solid rgba(192,57,43,.3);}
+.loss-no-reason{font-size:10px;color:var(--text-dim);font-style:italic;}
+/* Loss capture panel */
+.loss-panel{background:rgba(192,57,43,.07);border:1px solid rgba(192,57,43,.3);border-radius:8px;padding:14px 16px;margin-bottom:12px;animation:fadeUp .2s ease;}
+.loss-panel-title{font-family:'Rajdhani',sans-serif;font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--loss);margin-bottom:12px;display:flex;align-items:center;gap:6px;}
+.loss-tier1{display:flex;gap:8px;margin-bottom:4px;}
+.loss-who-btn{flex:1;padding:10px 12px;border-radius:7px;border:2px solid var(--border);background:var(--bg3);cursor:pointer;transition:all .2s;text-align:center;user-select:none;}
+.loss-who-btn:hover{border-color:rgba(192,57,43,.4);}
+.loss-who-btn.selected{border-color:var(--loss);background:rgba(192,57,43,.1);}
+.loss-who-btn.selected.gc{border-color:#6495ED;background:rgba(100,149,237,.08);}
+.loss-who-icon{font-size:18px;margin-bottom:3px;}
+.loss-who-label{font-family:'Rajdhani',sans-serif;font-size:12px;font-weight:700;letter-spacing:.5px;color:var(--text);display:block;}
+.loss-who-sub{font-size:9px;color:var(--text-dim);margin-top:2px;display:block;line-height:1.3;}
+.loss-tier2{display:none;border-top:1px solid rgba(192,57,43,.2);padding-top:12px;margin-top:10px;}
+.loss-tier2.show{display:block;}
+.loss-tier2-label{font-family:'Rajdhani',sans-serif;font-size:9px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--text-dim);margin-bottom:8px;}
+.loss-reason-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:0;}
+.loss-reason-btn{padding:8px 6px;border-radius:6px;border:1px solid var(--border);background:var(--bg4);cursor:pointer;transition:all .15s;text-align:center;user-select:none;}
+.loss-reason-btn:hover{border-color:rgba(192,57,43,.4);background:var(--bg3);}
+.loss-reason-btn.selected{border-color:var(--loss);background:rgba(192,57,43,.12);}
+.loss-reason-btn-icon{font-size:14px;display:block;margin-bottom:2px;}
+.loss-reason-btn-label{font-family:'Rajdhani',sans-serif;font-size:10px;font-weight:700;letter-spacing:.3px;color:var(--text);display:block;}
+.loss-reason-btn-sub{font-size:9px;color:var(--text-dim);display:block;margin-top:1px;line-height:1.2;}
+.loss-tier3{display:none;border-top:1px solid rgba(42,42,54,.8);padding-top:10px;margin-top:10px;}
+.loss-tier3.show{display:block;}
+.loss-other-wrap{display:none;margin-bottom:8px;}
+.loss-other-wrap.show{display:block;}
+.loss-detail{margin-top:8px;display:none;}
+.loss-detail.show{display:block;}
+/* Loss summary badge in table */
+.loss-summary{display:inline-flex;flex-direction:column;gap:1px;}
+.loss-summary-who{font-family:'Rajdhani',sans-serif;font-size:10px;font-weight:700;white-space:nowrap;}
+.loss-summary-why{font-size:9px;color:var(--text-dim);white-space:nowrap;}
+
+.toolbar{display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap;}
+.toolbar-filters{display:flex;gap:7px;flex:1;flex-wrap:wrap;align-items:center;}
+.search-wrap{position:relative;min-width:170px;}
+.search-wrap input{width:100%;background:var(--bg3);border:1px solid var(--border);color:var(--text);padding:7px 10px 7px 30px;border-radius:5px;font-size:12px;font-family:'DM Sans',sans-serif;outline:none;transition:border-color .2s;}
+.search-wrap input:focus{border-color:var(--gold-dim);}
+.search-icon{position:absolute;left:9px;top:50%;transform:translateY(-50%);color:var(--text-dim);font-size:12px;}
+select.fs,input[type="date"].fd{background:var(--bg3);border:1px solid var(--border);color:var(--text);padding:7px 9px;border-radius:5px;font-size:12px;font-family:'DM Sans',sans-serif;outline:none;cursor:pointer;transition:border-color .2s;}
+select.fs:focus,input[type="date"].fd:focus{border-color:var(--gold-dim);}
+input[type="date"].fd::-webkit-calendar-picker-indicator{filter:invert(.5);cursor:pointer;}
+.date-row{display:flex;align-items:center;gap:5px;}
+.date-row span{font-size:10px;color:var(--text-dim);text-transform:uppercase;letter-spacing:1px;white-space:nowrap;}
+.btn-primary{background:linear-gradient(135deg,var(--gold),var(--gold-dim));color:#0D0D0F;border:none;padding:7px 14px;border-radius:5px;font-size:11px;font-weight:700;font-family:'Rajdhani',sans-serif;letter-spacing:1px;text-transform:uppercase;cursor:pointer;transition:opacity .2s,transform .1s;white-space:nowrap;}
+.btn-primary:hover{opacity:.88;transform:translateY(-1px);}
+.btn-secondary{background:var(--bg3);color:var(--text-dim);border:1px solid var(--border);padding:7px 11px;border-radius:5px;font-size:11px;font-family:'DM Sans',sans-serif;cursor:pointer;transition:all .2s;white-space:nowrap;}
+.btn-secondary:hover{border-color:var(--gold-dim);color:var(--text);}
+.btn-icon-sm{background:var(--bg3);border:1px solid var(--border);color:var(--text-dim);padding:7px 10px;border-radius:5px;font-size:11px;cursor:pointer;transition:all .2s;white-space:nowrap;}
+.btn-icon-sm:hover{border-color:var(--gold-dim);color:var(--gold);}
+
+.readonly-banner{display:none;align-items:center;gap:8px;background:rgba(201,168,76,.08);border:1px solid rgba(201,168,76,.25);border-radius:7px;padding:8px 12px;margin-bottom:10px;font-size:11px;color:var(--gold);}
+.readonly-banner.show{display:flex;}
+
+/* TABLE WRAPPER */
+.table-outer{overflow-x:auto;border:1px solid var(--border);border-radius:8px;position:relative;}
+
+/* COLUMN FILTER ROW */
+table{width:100%;border-collapse:collapse;table-layout:fixed;}
+thead{background:var(--bg3);border-bottom:1px solid var(--border);}
+
+/* HEADER CELL */
+th{
+position:relative;padding:0;background:var(--bg3);
+border-right:1px solid var(--border);
+user-select:none;
+}
+th:last-child{border-right:none;}
+.th-inner{
+display:flex;align-items:center;gap:4px;
+padding:9px 10px 9px 8px;
+font-family:'Rajdhani',sans-serif;font-size:10px;font-weight:600;
+letter-spacing:1.2px;text-transform:uppercase;color:var(--gold);
+cursor:pointer;white-space:nowrap;overflow:hidden;
+}
+.th-inner:hover{color:var(--gold-light);}
+th.sorted{background:rgba(201,168,76,0.18) !important;box-shadow:inset 0 -3px 0 var(--gold), inset 3px 0 0 rgba(201,168,76,0.4);}
+th.sorted .th-inner{color:#fff;font-weight:700;text-shadow:0 0 12px rgba(201,168,76,0.5);}
+.sort-arrow{font-size:9px;opacity:.4;flex-shrink:0;}
+th.sorted .sort-arrow{opacity:1;color:var(--gold-light);}
+/* highlight sorted column cells */
+tbody tr td.col-sorted{background:rgba(201,168,76,0.05);border-left:1px solid rgba(201,168,76,0.12);border-right:1px solid rgba(201,168,76,0.12);}
+tbody tr:hover td.col-sorted{background:rgba(201,168,76,0.1);}
+
+/* DRAG HANDLE */
+.col-drag{
+position:absolute;top:0;left:0;width:14px;height:100%;
+cursor:grab;display:flex;align-items:center;justify-content:center;
+color:var(--text-dim);font-size:10px;opacity:0;transition:opacity .15s;
+z-index:2;
+}
+th:hover .col-drag{opacity:.6;}
+.col-drag:active{cursor:grabbing;}
+
+/* RESIZE HANDLE */
+.col-resize{
+position:absolute;top:0;right:0;width:6px;height:100%;
+cursor:col-resize;z-index:3;background:transparent;
+}
+.col-resize:hover{background:var(--gold-dim);opacity:.5;}
+
+/* COLUMN FILTER INPUT */
+.col-filter-row th{padding:4px 6px;background:var(--bg4);border-top:1px solid var(--border);border-bottom:1px solid var(--border);}
+.col-filter-input{width:100%;background:var(--bg3);border:1px solid var(--border);color:var(--text);padding:4px 7px;border-radius:4px;font-size:11px;font-family:'DM Sans',sans-serif;outline:none;transition:border-color .2s;}
+.col-filter-input:focus{border-color:var(--gold-dim);}
+.col-filter-select{width:100%;background:var(--bg3);border:1px solid var(--border);color:var(--text);padding:4px 5px;border-radius:4px;font-size:11px;font-family:'DM Sans',sans-serif;outline:none;cursor:pointer;}
+
+tbody tr{border-bottom:1px solid var(--border);transition:background .12s;animation:rowIn .22s ease both;}
+@keyframes rowIn{from{opacity:0;transform:translateX(-4px);}to{opacity:1;transform:none;}}
+tbody tr:last-child{border-bottom:none;}
+tbody tr:hover{background:var(--bg3);}
+td{padding:10px 10px;font-size:12px;vertical-align:middle;border-right:1px solid rgba(42,42,54,.5);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+td:last-child{border-right:none;}
+
+.proj-name{font-weight:500;}
+.badge{display:inline-flex;align-items:center;gap:3px;padding:2px 7px;border-radius:20px;font-size:10px;font-weight:600;font-family:'Rajdhani',sans-serif;letter-spacing:.5px;text-transform:uppercase;white-space:nowrap;}
+.badge::before{content:'';width:4px;height:4px;border-radius:50%;background:currentColor;flex-shrink:0;}
+.s-lead{background:rgba(100,149,237,.15);color:#6495ED;border:1px solid rgba(100,149,237,.3);}
+.s-notbidding{background:rgba(138,138,154,.12);color:#8A8A9A;border:1px solid rgba(138,138,154,.25);}
+.s-onhold{background:rgba(255,165,0,.12);color:#FFA500;border:1px solid rgba(255,165,0,.3);}
+.s-estimating{background:rgba(201,168,76,.15);color:var(--gold);border:1px solid rgba(201,168,76,.3);}
+.s-revising{background:rgba(167,139,250,.15);color:#A78BFA;border:1px solid rgba(167,139,250,.3);}
+.s-submitted{background:rgba(100,200,255,.12);color:#64C8FF;border:1px solid rgba(100,200,255,.3);}
+.s-awarded{background:rgba(61,170,106,.15);color:var(--win);border:1px solid rgba(61,170,106,.3);}
+.s-lost{background:rgba(192,57,43,.15);color:var(--loss);border:1px solid rgba(192,57,43,.3);}
+.swin-yes{background:rgba(61,170,106,.12);color:var(--win);border:1px solid rgba(61,170,106,.25);border-radius:4px;padding:2px 6px;font-size:10px;font-family:'Rajdhani',sans-serif;font-weight:600;}
+.swin-no{background:rgba(138,138,154,.1);color:#8A8A9A;border:1px solid rgba(138,138,154,.2);border-radius:4px;padding:2px 6px;font-size:10px;font-family:'Rajdhani',sans-serif;font-weight:600;}
+.val-cell{font-family:'Rajdhani',sans-serif;font-size:13px;font-weight:600;}
+.date-dim{color:var(--text-dim);font-size:11px;}
+.link-cell a{color:var(--gold-dim);text-decoration:none;font-size:11px;}
+.link-cell a:hover{color:var(--gold);}
+.row-actions{display:flex;gap:4px;}
+.btn-row{background:none;border:1px solid var(--border);color:var(--text-dim);width:24px;height:24px;border-radius:4px;cursor:pointer;font-size:11px;display:flex;align-items:center;justify-content:center;transition:all .15s;}
+.btn-row:hover{border-color:var(--gold-dim);color:var(--gold);}
+.btn-row.del:hover{border-color:var(--loss);color:var(--loss);}
+.empty-state{text-align:center;padding:48px 24px;color:var(--text-dim);}
+.empty-icon{font-size:30px;margin-bottom:10px;opacity:.3;}
+.export-bar{display:flex;justify-content:flex-end;margin-top:10px;gap:8px;}
+
+/* COLUMN MANAGER PANEL */
+.col-panel-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:300;align-items:flex-start;justify-content:flex-end;padding:70px 20px 20px;}
+.col-panel-overlay.open{display:flex;}
+.col-panel{background:var(--bg2);border:1px solid var(--border);border-radius:10px;width:280px;max-height:80vh;overflow-y:auto;animation:slideIn .2s ease;}
+@keyframes slideIn{from{opacity:0;transform:translateX(10px);}to{opacity:1;transform:none;}}
+.col-panel-header{padding:14px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;}
+.col-panel-title{font-family:'Rajdhani',sans-serif;font-size:14px;font-weight:700;letter-spacing:1px;color:var(--gold);}
+.col-panel-body{padding:10px 0;}
+.col-item{display:flex;align-items:center;gap:10px;padding:8px 16px;cursor:grab;transition:background .15s;}
+.col-item:hover{background:var(--bg3);}
+.col-item.dragging{opacity:.4;}
+.col-item.drag-over{border-top:2px solid var(--gold);}
+.col-check{width:14px;height:14px;accent-color:var(--gold);cursor:pointer;flex-shrink:0;}
+.col-item-name{font-size:12px;flex:1;}
+.col-drag-icon{color:var(--text-dim);font-size:12px;flex-shrink:0;}
+
+/* MODAL */
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);backdrop-filter:blur(4px);z-index:400;align-items:center;justify-content:center;padding:16px;}
+.modal-overlay.open{display:flex;}
+.modal{background:var(--bg2);border:1px solid var(--border);border-radius:12px;width:100%;max-width:680px;max-height:92vh;overflow-y:auto;animation:modalIn .25s ease;}
+@keyframes modalIn{from{opacity:0;transform:scale(.96) translateY(10px);}to{opacity:1;transform:none;}}
+.modal-header{padding:18px 22px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;background:var(--bg2);z-index:10;}
+.modal-title{font-family:'Rajdhani',sans-serif;font-size:16px;font-weight:700;letter-spacing:1px;color:var(--gold);}
+.modal-body{padding:18px 22px;}
+.modal-section{font-family:'Rajdhani',sans-serif;font-size:10px;font-weight:600;letter-spacing:1.5px;text-transform:uppercase;color:var(--gold-dim);border-bottom:1px solid var(--border);padding-bottom:5px;margin-bottom:12px;margin-top:18px;}
+.modal-section:first-child{margin-top:0;}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;}
+.form-row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:10px;}
+.form-group{margin-bottom:10px;}
+.fl{display:block;font-size:9px;font-weight:500;letter-spacing:1px;text-transform:uppercase;color:var(--text-dim);margin-bottom:3px;}
+.fi{width:100%;background:var(--bg3);border:1px solid var(--border);color:var(--text);padding:8px 10px;border-radius:5px;font-size:12px;font-family:'DM Sans',sans-serif;outline:none;transition:border-color .2s;}
+.fi:focus{border-color:var(--gold-dim);}
+select.fi{cursor:pointer;}
+input[type="date"].fi::-webkit-calendar-picker-indicator{filter:invert(.5);cursor:pointer;}
+textarea.fi{resize:vertical;min-height:60px;}
+.modal-footer{padding:10px 22px 18px;display:flex;gap:8px;justify-content:flex-end;border-top:1px solid var(--border);position:sticky;bottom:0;background:var(--bg2);}
+
+/* drag-over line for col reorder */
+th.col-drop-before::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--gold);z-index:10;}
+th.col-drop-after::after{content:'';position:absolute;right:0;top:0;bottom:0;width:3px;background:var(--gold);z-index:10;}
+/* ── INLINE CELL EDITING ─────────────────────────────── */
+.inline-edit-wrap{position:relative;display:inline-flex;align-items:center;gap:4px;width:100%;cursor:pointer;}
+.inline-edit-wrap:hover .inline-edit-hint{opacity:1;}
+.inline-edit-hint{opacity:0;font-size:9px;color:var(--gold-dim);transition:opacity .15s;flex-shrink:0;user-select:none;}
+td.inline-editing{padding:2px 4px !important;background:rgba(201,168,76,.06) !important;outline:2px solid var(--gold-dim);outline-offset:-1px;border-radius:3px;}
+.inline-input{background:var(--bg4);border:1px solid var(--gold-dim);color:var(--text);padding:3px 6px;border-radius:4px;font-size:12px;font-family:'DM Sans',sans-serif;outline:none;width:90px;}
+.inline-select{background:var(--bg4);border:1px solid var(--gold-dim);color:var(--text);padding:3px 6px;border-radius:4px;font-size:11px;font-family:'DM Sans',sans-serif;outline:none;cursor:pointer;}
+.inline-date{background:var(--bg4);border:1px solid var(--gold-dim);color:var(--text);padding:3px 6px;border-radius:4px;font-size:11px;font-family:'DM Sans',sans-serif;outline:none;color-scheme:dark;}
+.inline-actions{display:flex;gap:2px;flex-shrink:0;}
+.inline-save{background:rgba(61,170,106,.2);border:1px solid rgba(61,170,106,.4);color:var(--win);width:20px;height:20px;border-radius:3px;cursor:pointer;font-size:10px;display:flex;align-items:center;justify-content:center;}
+.inline-cancel{background:rgba(192,57,43,.15);border:1px solid rgba(192,57,43,.3);color:var(--loss);width:20px;height:20px;border-radius:3px;cursor:pointer;font-size:10px;display:flex;align-items:center;justify-content:center;}
+
+/* ── ROW SELECTION ───────────────────────────────────── */
+.select-bar{display:flex;align-items:center;gap:10px;background:rgba(192,57,43,.08);border:1px solid rgba(192,57,43,.25);border-radius:6px;padding:7px 12px;margin-bottom:8px;}
+.btn-danger{background:rgba(192,57,43,.15);color:var(--loss);border:1px solid rgba(192,57,43,.35);padding:5px 12px;border-radius:5px;font-size:11px;font-family:'Rajdhani',sans-serif;font-weight:700;letter-spacing:.5px;cursor:pointer;transition:all .2s;}
+.btn-danger:hover{background:rgba(192,57,43,.3);}
+.row-check-col{width:36px;min-width:36px;text-align:center;}
+
+/* ── IMPORT MODAL ────────────────────────────────────── */
+.import-dropzone{border:2px dashed var(--border);border-radius:10px;padding:32px 24px;text-align:center;cursor:pointer;transition:all .2s;background:var(--bg3);margin-bottom:16px;}
+.import-dropzone:hover,.import-dropzone.drag-over{border-color:var(--gold);background:rgba(201,168,76,.05);}
+.import-drop-icon{font-size:32px;margin-bottom:8px;}
+.import-drop-label{font-family:'Rajdhani',sans-serif;font-size:15px;font-weight:700;color:var(--text);letter-spacing:.5px;}
+.import-drop-sub{font-size:11px;color:var(--text-dim);margin-top:4px;}
+.import-col-hint{background:var(--bg3);border:1px solid var(--border);border-radius:7px;padding:12px 14px;}
+.import-hint-title{font-family:'Rajdhani',sans-serif;font-size:9px;font-weight:700;letter-spacing:1.5px;color:var(--text-dim);margin-bottom:8px;}
+.import-hint-grid{display:flex;flex-wrap:wrap;gap:5px;}
+.import-hint-grid span{font-size:10px;background:var(--bg4);border:1px solid var(--border);border-radius:4px;padding:2px 8px;color:var(--text);}
+.import-preview-table{width:100%;border-collapse:collapse;font-size:11px;}
+.import-preview-table th{background:var(--bg3);padding:7px 8px;text-align:left;font-family:'Rajdhani',sans-serif;font-size:9px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--gold);border-bottom:1px solid var(--border);white-space:nowrap;position:sticky;top:0;z-index:2;}
+.import-preview-table td{padding:6px 8px;border-bottom:1px solid rgba(42,42,54,.6);vertical-align:middle;white-space:nowrap;max-width:160px;overflow:hidden;text-overflow:ellipsis;}
+.import-preview-table tr.irow-dup td{background:rgba(192,57,43,.05);}
+.import-preview-table tr.irow-warn td{background:rgba(255,165,0,.03);}
+.import-preview-table tr.irow-ok:hover td{background:rgba(201,168,76,.04);}
+.irow-dup td:first-child{border-left:3px solid rgba(192,57,43,.5);}
+.irow-warn td:first-child{border-left:3px solid rgba(255,165,0,.5);}
+.import-flag{font-size:9px;padding:1px 5px;border-radius:3px;font-family:'Rajdhani',sans-serif;font-weight:700;white-space:nowrap;display:inline-block;}
+.import-flag.dup{background:rgba(192,57,43,.2);color:var(--loss);border:1px solid rgba(192,57,43,.3);}
+.import-flag.warn{background:rgba(255,165,0,.15);color:#FFA500;border:1px solid rgba(255,165,0,.3);}
+.import-flag.ok{background:rgba(61,170,106,.12);color:var(--win);border:1px solid rgba(61,170,106,.25);}
+.import-stat{display:inline-flex;flex-direction:column;align-items:center;gap:1px;min-width:56px;}
+.import-stat-val{font-family:'Rajdhani',sans-serif;font-size:20px;font-weight:700;line-height:1;}
+.import-stat-label{font-size:9px;color:var(--text-dim);text-transform:uppercase;letter-spacing:.8px;}
+
+/* ── LOGIN SCREEN ────────────────────────────────────── */
+#login-screen{position:fixed;inset:0;background:var(--bg);z-index:9000;display:flex;align-items:center;justify-content:center;}
+.login-card{background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:40px 36px;width:100%;max-width:380px;animation:fadeUp .4s ease both;}
+.login-card::before{content:'';display:block;width:36px;height:36px;background:linear-gradient(135deg,var(--gold),var(--gold-dim));clip-path:polygon(50% 0%,100% 25%,100% 75%,50% 100%,0% 75%,0% 25%);margin:0 auto 18px;}
+.login-title{font-family:'Rajdhani',sans-serif;font-size:22px;font-weight:700;letter-spacing:2px;color:var(--gold);text-align:center;margin-bottom:4px;}
+.login-sub{font-size:11px;color:var(--text-dim);text-align:center;letter-spacing:.5px;margin-bottom:28px;}
+.login-label{font-size:10px;color:var(--text-dim);text-transform:uppercase;letter-spacing:1px;margin-bottom:5px;display:block;}
+.login-input{width:100%;background:var(--bg3);border:1px solid var(--border);color:var(--text);padding:10px 12px;border-radius:6px;font-size:13px;font-family:'DM Sans',sans-serif;outline:none;transition:border-color .2s;margin-bottom:14px;}
+.login-input:focus{border-color:var(--gold-dim);}
+.login-btn{width:100%;background:linear-gradient(135deg,var(--gold),var(--gold-dim));color:#0D0D0F;border:none;padding:11px;border-radius:6px;font-size:12px;font-weight:700;font-family:'Rajdhani',sans-serif;letter-spacing:1.5px;text-transform:uppercase;cursor:pointer;margin-top:4px;transition:opacity .2s;}
+.login-btn:hover{opacity:.88;}
+.login-error{font-size:11px;color:var(--loss);text-align:center;margin-top:10px;min-height:16px;}
+.login-role-badge{display:inline-flex;align-items:center;gap:5px;font-family:'Rajdhani',sans-serif;font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;padding:3px 9px;border-radius:4px;margin-bottom:8px;}
+.role-admin{background:rgba(201,168,76,.15);color:var(--gold);border:1px solid rgba(201,168,76,.3);}
+.role-leadership{background:rgba(100,149,237,.12);color:#6495ED;border:1px solid rgba(100,149,237,.3);}
+.role-user{background:rgba(61,170,106,.1);color:var(--win);border:1px solid rgba(61,170,106,.25);}
+/* user pill in header */
+#user-pill{display:flex;align-items:center;gap:8px;font-size:11px;color:var(--text-dim);}
+#user-pill .uname{font-family:'Rajdhani',sans-serif;font-weight:600;letter-spacing:.5px;color:var(--text);}
+#user-pill .logout-btn{font-size:10px;color:var(--text-dim);cursor:pointer;text-decoration:underline;background:none;border:none;padding:0;font-family:'DM Sans',sans-serif;}
+#user-pill .logout-btn:hover{color:var(--loss);}
+
+/* Back to AiPM link */
+.back-link{display:inline-flex;align-items:center;gap:5px;font-size:11px;color:var(--text-dim);text-decoration:none;font-family:'Rajdhani',sans-serif;font-weight:600;letter-spacing:.5px;transition:color .2s;}
+.back-link:hover{color:var(--gold);}
+</style>
+</head>
+<body>
+
+<!-- AUTH GATE -->
+<div id="login-screen" style="display:none">
+  <div class="login-card">
+    <div class="login-title">NBS</div>
+    <div class="login-sub">PROPOSAL LOG</div>
+    <p style="font-size:12px;color:var(--text-dim);text-align:center;margin-bottom:24px;line-height:1.6">
+      You need to be signed in to AiPM<br>to access this tool.
+    </p>
+    <button class="login-btn" onclick="goToAiPM()">Sign In via AiPM &rarr;</button>
+    <div style="margin-top:28px;padding-top:20px;border-top:1px solid var(--border)">
+      <div style="font-size:9px;color:var(--text-dim);text-align:center;letter-spacing:1px;text-transform:uppercase;margin-bottom:12px">Temporary Admin Access</div>
+      <input class="login-input" id="temp-pass" type="password" placeholder="Enter admin password"
+        onkeydown="if(event.key==='Enter')tempLogin()">
+      <button class="login-btn" style="margin-top:4px;background:var(--bg3);color:var(--gold);border:1px solid var(--gold-dim)" onclick="tempLogin()">Continue as Admin</button>
+    </div>
+    <div class="login-error" id="login-error"></div>
+  </div>
+</div>
+
+<header>
+  <div class="logo">
+    <a href="/home" class="back-link" title="Back to AiPM">&larr;</a>
+    <div class="logo-hex"></div>
+    <div><div class="logo-text">NBS</div><div class="logo-sub">Proposal Log</div></div>
+  </div>
+  <div style="display:flex;align-items:center;gap:16px">
+    <div id="mode-toggle-wrap" class="mode-toggle">
+      <button class="mode-btn active" id="btn-est" onclick="setMode('estimator')">Estimator</button>
+      <button class="mode-btn" id="btn-lead" onclick="setMode('leadership')">Leadership</button>
+    </div>
+    <div id="user-pill">
+      <span class="uname" id="user-pill-name"></span>
+      <span id="user-pill-badge"></span>
+      <button class="logout-btn" onclick="doLogout()">Sign out</button>
+    </div>
+  </div>
+</header>
+
+<div class="nav-tabs">
+  <div class="nav-tab active" id="tab-log" onclick="setTab('log')">Proposal Log</div>
+  <div class="nav-tab" id="tab-dash" onclick="setTab('dash')">Dashboard</div>
+</div>
+
+<main>
+  <!-- DASHBOARD -->
+  <div class="view" id="view-dash">
+    <div class="dash-filters">
+      <span class="dash-filters-label">Filter Dashboard</span>
+      <div class="dash-filter-sep"></div>
+      <select class="df" id="df-region"><option value="">All Regions</option></select>
+      <select class="df" id="df-market"><option value="">All Markets</option></select>
+      <select class="df" id="df-swinerton"><option value="">Swinerton?</option><option value="Y">Yes</option><option value="N">No</option></select>
+      <div class="dash-filter-sep"></div>
+      <span style="font-size:10px;color:var(--text-dim)">Due Date</span>
+      <input type="date" class="df" id="df-from">
+      <span style="font-size:10px;color:var(--text-dim)">&rarr;</span>
+      <input type="date" class="df" id="df-to">
+      <span class="dash-filter-clear" onclick="clearDashFilters()">Clear filters</span>
+    </div>
+    <div class="kpi-row" id="dash-kpis"></div>
+    <div class="dash-row2">
+      <div class="dp" style="animation-delay:.06s">
+        <div class="dp-title">Pipeline Funnel</div>
+        <div class="dp-sub">Value & count by stage</div>
+        <div class="funnel-wrap" id="dash-funnel"></div>
+      </div>
+      <div class="dp" style="animation-delay:.1s">
+        <div class="dp-title">Win Rate Trend</div>
+        <div class="dp-sub">Monthly award rate %</div>
+        <div class="dp-chart" style="height:168px"><canvas id="chart-wintrend"></canvas></div>
+      </div>
+      <div class="dp" style="animation-delay:.14s">
+        <div class="dp-title">Loss Intelligence</div>
+        <div class="dp-sub">GC Lost vs NBS Lost &middot; reason breakdown</div>
+        <div id="dash-loss-intel" style="height:168px;overflow-y:auto"></div>
+      </div>
+    </div>
+    <div class="dash-row3">
+      <div class="dp" style="animation-delay:.18s">
+        <div class="dp-title">Pipeline by Region</div>
+        <div class="dp-sub">Total proposal value per region</div>
+        <div class="dp-chart" style="height:190px"><canvas id="chart-region"></canvas></div>
+      </div>
+      <div class="dp" style="animation-delay:.22s">
+        <div class="dp-title">Market Sector Performance</div>
+        <div class="dp-sub">Submitted vs. Awarded by market</div>
+        <div class="dp-chart" style="height:190px"><canvas id="chart-market"></canvas></div>
+      </div>
+      <div class="dp" style="animation-delay:.26s">
+        <div class="dp-title">Top GC / Clients</div>
+        <div class="dp-sub">By total proposal value</div>
+        <div id="dash-gcs"></div>
+      </div>
+    </div>
+    <div class="dash-row4">
+      <div class="dp" style="animation-delay:.3s">
+        <div class="dp-title">Estimator Workload</div>
+        <div class="dp-sub">Active bids per estimator</div>
+        <div id="dash-workload"></div>
+      </div>
+      <div class="dp" style="animation-delay:.34s">
+        <div class="dp-title">Bid Due Dates</div>
+        <div class="dp-sub">Business days until proposal is due to GC</div>
+        <div class="due-buckets" id="dash-due"></div>
+      </div>
+      <div class="dp" style="animation-delay:.38s">
+        <div class="dp-title">Project Start Follow-Up</div>
+        <div class="dp-sub">Awarded projects starting soon &mdash; check GC status</div>
+        <div class="followup-list" id="dash-followup"></div>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:8px">
+      <div class="dp" style="animation-delay:.42s">
+        <div class="dp-title">Loss Breakdown</div>
+        <div class="dp-sub">Why NBS lost &mdash; by reason frequency and value</div>
+        <div id="dash-loss-bars"></div>
+      </div>
+      <div class="dp" style="animation-delay:.46s">
+        <div class="dp-title">Lost Bids Detail</div>
+        <div class="dp-sub">Most recent losses with reason recorded</div>
+        <div id="dash-loss-list" style="max-height:220px;overflow-y:auto"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- LOG -->
+  <div class="view active" id="view-log">
+    <div class="readonly-banner" id="ro-banner">&#128274; Leadership View &mdash; read only.</div>
+    <div class="toolbar">
+      <div class="toolbar-filters">
+        <div class="search-wrap"><span class="search-icon">&#128269;</span><input type="text" id="search" placeholder="Search all columns..."></div>
+        <select class="fs" id="f-region"><option value="">All Regions</option></select>
+        <select class="fs" id="f-status"><option value="">All Statuses</option></select>
+        <select class="fs" id="f-market"><option value="">All Markets</option></select>
+        <select class="fs" id="f-swinerton"><option value="">Swinerton?</option><option value="Y">Yes</option><option value="N">No</option></select>
+        <div class="date-row">
+          <span>Due</span>
+          <input type="date" class="fd" id="f-from">
+          <span>&mdash;</span>
+          <input type="date" class="fd" id="f-to">
+        </div>
+      </div>
+      <button class="btn-icon-sm" onclick="openColPanel()" title="Manage Columns">&#9881; Columns</button>
+      <button class="btn-icon-sm" id="btn-import" onclick="openImportModal()">&#11014; Import Excel</button>
+      <button class="btn-primary" id="btn-add" onclick="openModal()">+ Add Proposal</button>
+    </div>
+    <div class="select-bar" id="select-bar" style="display:none">
+      <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:11px">
+        <input type="checkbox" id="select-all-cb" onchange="toggleSelectAll(this.checked)">
+        <span id="select-bar-label">0 selected</span>
+      </label>
+      <button class="btn-danger" onclick="deleteSelected()">&#128465; Delete Selected</button>
+      <button class="btn-secondary" style="font-size:11px;padding:5px 10px" onclick="clearSelection()">Clear</button>
+    </div>
+
+    <div class="table-outer">
+      <table id="main-table">
+        <thead>
+          <tr id="header-row"></tr>
+          <tr id="filter-row" class="col-filter-row"></tr>
+        </thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </div>
+    <div class="export-bar">
+      <button class="btn-secondary" onclick="resetColLayout()">&#8634; Reset Columns</button>
+      <button class="btn-secondary" style="color:var(--loss);border-color:rgba(192,57,43,.3)" onclick="clearAllData()">&#128465; Clear All Data</button>
+      <button class="btn-secondary" onclick="exportCSV()">&#11015; Export CSV</button>
+    </div>
+  </div>
+</main>
+
+<!-- IMPORT MODAL -->
+<div class="modal-overlay" id="import-modal" onclick="importOutsideClose(event)">
+  <div class="modal" style="max-width:920px;width:95vw">
+    <div class="modal-header">
+      <div class="modal-title">IMPORT EXCEL</div>
+      <button class="btn-row" onclick="closeImportModal()">&#10005;</button>
+    </div>
+    <div class="modal-body" style="padding:0">
+      <div id="import-step1" style="padding:20px">
+        <div class="import-dropzone" id="import-dropzone"
+          ondragover="importDragOver(event)" ondragleave="importDragLeave(event)" ondrop="importDrop(event)"
+          onclick="document.getElementById('import-file-input').click()">
+          <div class="import-drop-icon">&#128202;</div>
+          <div class="import-drop-label">Drop your Excel file here</div>
+          <div class="import-drop-sub">or click to browse &mdash; .xlsx or .xls files only</div>
+          <input type="file" id="import-file-input" accept=".xlsx,.xls" style="display:none" onchange="importFileSelected(this)">
+        </div>
+        <div class="import-col-hint">
+          <div class="import-hint-title">EXPECTED COLUMNS</div>
+          <div class="import-hint-grid">
+            <span>Project Name</span><span>Bid Date</span><span>Estimator</span>
+            <span>Proposal Amount</span><span>Swinerton Builders Contact</span>
+            <span>Project Location</span><span>Scope Start Date</span>
+            <span>Scope End Date</span><span>Status</span>
+          </div>
+        </div>
+      </div>
+      <div id="import-step2" style="display:none;padding:0 20px">
+        <div id="import-summary" style="padding:12px 0 10px;display:flex;align-items:center;gap:16px;border-bottom:1px solid var(--border);flex-wrap:wrap"></div>
+        <div style="font-size:10px;color:var(--text-dim);padding:8px 0 6px">Review rows before importing. Uncheck any to skip. Duplicates unchecked by default.</div>
+        <div style="overflow-x:auto;max-height:400px;overflow-y:auto">
+          <table class="import-preview-table">
+            <thead id="import-preview-head"></thead>
+            <tbody id="import-preview-body"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer" id="import-footer" style="display:none">
+      <div style="font-size:11px;color:var(--text-dim)" id="import-footer-count"></div>
+      <button class="btn-secondary" onclick="closeImportModal()">Cancel</button>
+      <button class="btn-primary" onclick="commitImport()">&#11014; Import Selected</button>
+    </div>
+  </div>
+</div>
+
+<!-- COLUMN MANAGER PANEL -->
+<div class="col-panel-overlay" id="col-panel-overlay" onclick="closePanelOutside(event)">
+  <div class="col-panel">
+    <div class="col-panel-header">
+      <div class="col-panel-title">MANAGE COLUMNS</div>
+      <button class="btn-row" onclick="closeColPanel()">&#10005;</button>
+    </div>
+    <div class="col-panel-body" id="col-panel-body"></div>
+  </div>
+</div>
+
+<!-- ENTRY MODAL -->
+<div class="modal-overlay" id="modal" onclick="outsideClose(event)">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title" id="modal-title">NEW PROPOSAL</div>
+      <button class="btn-row" onclick="closeModal()">&#10005;</button>
+    </div>
+    <div class="modal-body">
+      <div class="modal-section">Project Info</div>
+      <div class="form-row">
+        <div class="form-group"><label class="fl">Project Name *</label><input type="text" class="fi" id="f-projectName" placeholder="Project name"></div>
+        <div class="form-group"><label class="fl">Estimate Number</label><input type="text" class="fi" id="f-estimateNumber" placeholder="EST-2024-001"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label class="fl">Region</label>
+          <select class="fi" id="f-region-input">
+            <option value="">&mdash; Select &mdash;</option>
+            <option>Atlanta (ATL)</option><option>Austin (AUS)</option><option>Colorado (DEN)</option>
+            <option>Dallas (DFW)</option><option>Hawaii (HNL)</option><option>Idaho (PDX)</option>
+            <option>N Carolina (CLT)</option><option>New York (LGA)</option><option>Nor Cal (SFO)</option>
+            <option>OCLA (LAX)</option><option>Portland (PDX)</option><option>S Carolina (CLT)</option>
+            <option>FS (LAX)</option><option>SD (SAN)</option><option>SPD (LAX)</option>
+            <option>TM (LAX)</option><option>Washington (SEA)</option><option>PCL - External</option>
+            <option>Spokane &amp; Boise (GEG)</option><option>Hensel Phelps - External</option>
+            <option>McCarthy - External</option><option>CBU - External</option>
+            <option>Bristol Industries - External</option><option>BN Builders - External</option>
+            <option>Jacobs - External</option>
+          </select>
+        </div>
+        <div class="form-group"><label class="fl">Primary Market</label>
+          <select class="fi" id="f-primaryMarket">
+            <option value="">&mdash; Select &mdash;</option>
+            <option>Aviation</option><option>Education</option><option>Entertainment</option>
+            <option>Healthcare</option><option>Hospitality</option><option>Residential</option>
+            <option>Retail</option><option>Office</option><option>Parking Structure</option>
+            <option>Public Facility</option><option>Special Projects</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label class="fl">Swinerton Project</label>
+          <select class="fi" id="f-swinertonProject"><option value="">&mdash; Select &mdash;</option><option value="Y">Yes</option><option value="N">No</option></select>
+        </div>
+        <div class="form-group"><label class="fl">Owner (entered by)</label><input type="text" class="fi" id="f-owner" placeholder="Your name"></div>
+      </div>
+      <div class="modal-section">Dates</div>
+      <div class="form-row3">
+        <div class="form-group"><label class="fl">Invite Date</label><input type="date" class="fi" id="f-inviteDate"></div>
+        <div class="form-group"><label class="fl">Due Date</label><input type="date" class="fi" id="f-dueDate"></div>
+        <div class="form-group"><label class="fl">Est. Start</label><input type="date" class="fi" id="f-anticipatedStart"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label class="fl">Est. End</label><input type="date" class="fi" id="f-anticipatedFinish"></div>
+      </div>
+      <div class="modal-section">Team &amp; Financials</div>
+      <div class="form-row">
+        <div class="form-group"><label class="fl">NBS Estimator</label>
+          <select class="fi" id="f-nbsEstimator">
+            <option value="">&mdash; Select &mdash;</option>
+            <option value="HK">HK &mdash; Haley Kruse</option>
+            <option value="GM">GM &mdash; Gonzalo Martinez</option>
+            <option value="GT">GT &mdash; Gene Trabert</option>
+          </select>
+        </div>
+        <div class="form-group"><label class="fl">GC Estimate Lead</label><input type="text" class="fi" id="f-gcEstimateLead" placeholder="GC lead name"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label class="fl">Proposal Total ($)</label><input type="number" class="fi" id="f-proposalTotal" placeholder="0" min="0" oninput="autoPromoteStatus()"></div>
+        <div class="form-group"><label class="fl">Final Reviewer / Auditor</label><input type="text" class="fi" id="f-finalReviewer" placeholder="Reviewer name"></div>
+      </div>
+      <div class="modal-section">Status &amp; Files</div>
+      <div class="form-row">
+        <div class="form-group"><label class="fl">Estimate Status</label>
+          <select class="fi" id="f-estimateStatus" onchange="onStatusChange(this.value)">
+            <option value="">&mdash; Select &mdash;</option>
+            <option>Estimating</option>
+            <option>Revising</option>
+            <option>Submitted</option>
+            <option>Awarded</option>
+            <option>Lost - Note Why in Comments</option>
+          </select>
+        </div>
+        <div class="form-group"><label class="fl">File Path (URL or path)</label><input type="text" class="fi" id="f-filePath" placeholder="https://... or \\server\path"></div>
+      </div>
+
+      <!-- LOSS CAPTURE -->
+      <div class="loss-panel" id="loss-panel" style="display:none">
+        <div class="loss-panel-title">&#9888; Loss Capture</div>
+        <div class="loss-tier1">
+          <div class="loss-who-btn" id="lwho-gc" onclick="selectLossWho('GC Lost')">
+            <div class="loss-who-icon">&#127959;</div>
+            <span class="loss-who-label">GC Lost</span>
+            <span class="loss-who-sub">GC didn't win the project &mdash; outside our control</span>
+          </div>
+          <div class="loss-who-btn" id="lwho-nbs" onclick="selectLossWho('NBS Lost')">
+            <div class="loss-who-icon">&#128203;</div>
+            <span class="loss-who-label">NBS Lost</span>
+            <span class="loss-who-sub">GC won but chose a different Division 10 sub</span>
+          </div>
+        </div>
+        <input type="hidden" id="f-lossWho">
+        <div class="loss-tier2" id="loss-tier2">
+          <div class="loss-tier2-label">Why did NBS lose the bid?</div>
+          <div class="loss-reason-grid">
+            <div class="loss-reason-btn" id="lr-price" onclick="selectLossReason('Price')">
+              <span class="loss-reason-btn-icon">&#128176;</span>
+              <span class="loss-reason-btn-label">Price</span>
+              <span class="loss-reason-btn-sub">We were too high</span>
+            </div>
+            <div class="loss-reason-btn" id="lr-relationship" onclick="selectLossReason('Relationship')">
+              <span class="loss-reason-btn-icon">&#129309;</span>
+              <span class="loss-reason-btn-label">Relationship</span>
+              <span class="loss-reason-btn-sub">Preferred sub used</span>
+            </div>
+            <div class="loss-reason-btn" id="lr-scope" onclick="selectLossReason('Scope Gap')">
+              <span class="loss-reason-btn-icon">&#128208;</span>
+              <span class="loss-reason-btn-label">Scope Gap</span>
+              <span class="loss-reason-btn-sub">Scope didn't match</span>
+            </div>
+            <div class="loss-reason-btn" id="lr-submittal" onclick="selectLossReason('Submittal')">
+              <span class="loss-reason-btn-icon">&#128196;</span>
+              <span class="loss-reason-btn-label">Submittal</span>
+              <span class="loss-reason-btn-sub">Compliance / late / format</span>
+            </div>
+            <div class="loss-reason-btn" id="lr-spec" onclick="selectLossReason('Spec Sub')">
+              <span class="loss-reason-btn-icon">&#128260;</span>
+              <span class="loss-reason-btn-label">Spec Sub</span>
+              <span class="loss-reason-btn-sub">Alt. manufacturer accepted</span>
+            </div>
+            <div class="loss-reason-btn" id="lr-other" onclick="selectLossReason('Other')">
+              <span class="loss-reason-btn-icon">&#9999;&#65039;</span>
+              <span class="loss-reason-btn-label">Other</span>
+              <span class="loss-reason-btn-sub">Write in below</span>
+            </div>
+          </div>
+          <input type="hidden" id="f-lossReason">
+        </div>
+        <div class="loss-tier3" id="loss-tier3">
+          <div class="loss-other-wrap" id="loss-other-wrap">
+            <label class="fl">Describe Why <span style="color:var(--loss)">*</span></label>
+            <input type="text" class="fi" id="f-lossDetail" placeholder="Explain the specific reason NBS lost...">
+          </div>
+          <div class="form-row">
+            <div class="form-group" style="margin-bottom:0">
+              <label class="fl">Who Won? (competitor)</label>
+              <input type="text" class="fi" id="f-lossCompetitor" placeholder="Competitor name or unknown">
+            </div>
+            <div class="form-group" style="margin-bottom:0">
+              <label class="fl">Estimator Notes</label>
+              <input type="text" class="fi" id="f-lossNotes" placeholder="Brief context or lesson learned...">
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="form-group"><label class="fl">Comments / Notes</label><textarea class="fi" id="f-comments" placeholder="Additional notes, follow-up actions..."></textarea></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-secondary" onclick="closeModal()">Cancel</button>
+      <button class="btn-primary" onclick="saveProposal()">Save Proposal</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const REGIONS = ['Atlanta (ATL)','Austin (AUS)','Colorado (DEN)','Dallas (DFW)','Hawaii (HNL)','Idaho (PDX)','N Carolina (CLT)','New York (LGA)','Nor Cal (SFO)','OCLA (LAX)','Portland (PDX)','S Carolina (CLT)','FS (LAX)','SD (SAN)','SPD (LAX)','TM (LAX)','Washington (SEA)','PCL - External','Spokane & Boise (GEG)','Hensel Phelps - External','McCarthy - External','CBU - External','Bristol Industries - External','BN Builders - External','Jacobs - External'];
+const MARKETS = ['Aviation','Education','Entertainment','Healthcare','Hospitality','Residential','Retail','Office','Parking Structure','Public Facility','Special Projects'];
+const STATUSES = ['Estimating','Revising','Submitted','Awarded','Lost - Note Why in Comments'];
+
+const COL_DEFS = [
+  {key:'projectName',    label:'Project Name',       w:180, filter:'text'},
+  {key:'estimateNumber', label:'Estimate #',          w:110, filter:'text'},
+  {key:'region',         label:'Region',              w:140, filter:'select', opts:REGIONS},
+  {key:'primaryMarket',  label:'Primary Market',      w:130, filter:'select', opts:MARKETS},
+  {key:'inviteDate',     label:'Invite Date',         w:100, filter:'date'},
+  {key:'dueDate',        label:'Due Date',            w:100, filter:'date'},
+  {key:'nbsEstimator',   label:'NBS Estimator',       w:130, filter:'text'},
+  {key:'gcEstimateLead', label:'GC Estimate Lead',    w:140, filter:'text'},
+  {key:'proposalTotal',  label:'Proposal Total',      w:120, filter:'text'},
+  {key:'estimateStatus', label:'Status',              w:150, filter:'select', opts:STATUSES},
+  {key:'finalReviewer',  label:'Final Reviewer',      w:130, filter:'text'},
+  {key:'anticipatedStart',  label:'Est. Start',       w:100, filter:'date'},
+  {key:'anticipatedFinish', label:'Est. End',         w:100, filter:'date'},
+  {key:'swinertonProject',  label:'Swinerton',        w:90,  filter:'select', opts:['Y','N']},
+  {key:'owner',          label:'Owner',               w:110, filter:'text'},
+  {key:'filePath',       label:'File Path',           w:90,  filter:'none'},
+  {key:'_actions',       label:'',                    w:70,  filter:'none'},
+];
+
+let data = JSON.parse(localStorage.getItem('nbs_v4') || '[]');
+let editIdx = null, sk = 'dueDate', sd = 1, mode = 'estimator', tab = 'log';
+let charts = {};
+
+function defaultLayout() {
+  return {
+    order: COL_DEFS.map(c=>c.key),
+    widths: Object.fromEntries(COL_DEFS.map(c=>[c.key, c.w])),
+    visible: Object.fromEntries(COL_DEFS.map(c=>[c.key, true]))
+  };
+}
+let layout = JSON.parse(localStorage.getItem('nbs_layout') || 'null') || defaultLayout();
+let colFilters = {};
+
+const save = () => localStorage.setItem('nbs_v4', JSON.stringify(data));
+const saveLayout = () => localStorage.setItem('nbs_layout', JSON.stringify(layout));
+
+const fmt$ = n => (!n&&n!==0)?'\u2014':'$'+Number(n).toLocaleString();
+const fmtD = d => { if(!d) return '\u2014'; const [y,m,dy]=d.split('-'); return `${m}/${dy}/${y}`; };
+const fmtMY = d => { if(!d) return '\u2014'; const [y,m]=d.split('-'); return `${m}/${y.slice(2)}`; };
+
+function statusBadge(s) {
+  const map = {'Estimating':'s-estimating','Revising':'s-revising','Submitted':'s-submitted','Awarded':'s-awarded','Lost - Note Why in Comments':'s-lost'};
+  if(!s) return '\u2014';
+  return `<span class="badge ${map[s]||''}">${s==='Lost - Note Why in Comments'?'Lost':s}</span>`;
+}
+
+function getColDef(key) { return COL_DEFS.find(c=>c.key===key); }
+
+function setMode(m) {
+  mode=m;
+  document.getElementById('btn-est').classList.toggle('active',m==='estimator');
+  document.getElementById('btn-lead').classList.toggle('active',m==='leadership');
+  document.getElementById('ro-banner').classList.toggle('show',m==='leadership');
+  document.getElementById('btn-add').style.display=m==='leadership'?'none':'';
+  document.getElementById('btn-import').style.display=m==='leadership'?'none':'';
+  if(m==='leadership'){selectedIndices.clear();document.getElementById('select-bar').style.display='none';}
+  render();
+}
+function setTab(t) {
+  tab=t;
+  ['log','dash'].forEach(x=>{
+    document.getElementById('tab-'+x).classList.toggle('active',x===t);
+    document.getElementById('view-'+x).classList.toggle('active',x===t);
+  });
+  if(t==='dash') renderDash();
+}
+
+function getFiltered() {
+  const s=document.getElementById('search').value.toLowerCase();
+  const fr=document.getElementById('f-region').value;
+  const fs=document.getElementById('f-status').value;
+  const fm=document.getElementById('f-market').value;
+  const fsw=document.getElementById('f-swinerton').value;
+  const ff=document.getElementById('f-from').value;
+  const ft=document.getElementById('f-to').value;
+
+  return data.filter(p=>{
+    if(s && ![p.projectName,p.estimateNumber,p.nbsEstimator,p.gcEstimateLead,p.region,p.primaryMarket,p.owner,p.estimateNumber].some(v=>v&&v.toLowerCase().includes(s))) return false;
+    if(fr && p.region!==fr) return false;
+    if(fs && p.estimateStatus!==fs) return false;
+    if(fm && p.primaryMarket!==fm) return false;
+    if(fsw && p.swinertonProject!==fsw) return false;
+    if(ff && p.dueDate && p.dueDate<ff) return false;
+    if(ft && p.dueDate && p.dueDate>ft) return false;
+    for(const [key,val] of Object.entries(colFilters)) {
+      if(!val) continue;
+      const pv = (p[key]||'').toLowerCase();
+      if(!pv.includes(val.toLowerCase())) return false;
+    }
+    return true;
+  });
+}
+
+function render() {
+  populateGlobalFilters();
+  buildHeaders();
+  buildRows();
+}
+
+function populateGlobalFilters() {
+  const pop = (id, items) => {
+    const el=document.getElementById(id); if(!el) return;
+    const cur=el.value;
+    el.innerHTML='<option value="">'+el.options[0].text+'</option>'+items.map(v=>`<option${v===cur?' selected':''}>${v}</option>`).join('');
+  };
+  pop('f-region', REGIONS);
+  pop('f-status', STATUSES);
+  pop('f-market', MARKETS);
+}
+
+function getVisibleCols() {
+  return layout.order.filter(k => {
+    if(k==='_actions') return true;
+    return layout.visible[k] !== false;
+  });
+}
+
+function buildHeaders() {
+  const hr = document.getElementById('header-row');
+  const fr = document.getElementById('filter-row');
+  const visKeys = getVisibleCols();
+
+  hr.innerHTML = '';
+  fr.innerHTML = '';
+  if(mode==='estimator') {
+    const cbTh=document.createElement('th'); cbTh.className='row-check-col'; cbTh.style.cssText='width:36px;min-width:36px;background:var(--bg3)';
+    cbTh.innerHTML='<input type="checkbox" id="thead-select-all" onchange="toggleSelectAll(this.checked)" title="Select all">';
+    hr.appendChild(cbTh);
+    const cbFr=document.createElement('th'); cbFr.className='row-check-col'; fr.appendChild(cbFr);
+  }
+
+  visKeys.forEach(key => {
+    const def = getColDef(key);
+    if(!def) return;
+    const w = layout.widths[key] || def.w;
+    const isAction = key==='_actions';
+
+    const th = document.createElement('th');
+    th.dataset.col = key;
+    th.style.width = w+'px';
+    th.style.minWidth = w+'px';
+    if(key===sk) th.classList.add('sorted');
+
+    if(!isAction) {
+      const grip = document.createElement('div');
+      grip.className='col-drag'; grip.title='Drag to reorder'; grip.textContent='\u2807';
+      grip.draggable=true;
+      grip.addEventListener('dragstart', e=>onColDragStart(e,key));
+      th.appendChild(grip);
+
+      const inner = document.createElement('div');
+      inner.className='th-inner';
+      inner.innerHTML=`${def.label} <span class="sort-arrow">${key===sk?(sd===1?'\u2191':'\u2193'):'\u2195'}</span>`;
+      inner.addEventListener('click', ()=>sortBy(key));
+      th.appendChild(inner);
+
+      const rz = document.createElement('div');
+      rz.className='col-resize';
+      rz.addEventListener('mousedown', e=>onResizeStart(e,key,th));
+      th.appendChild(rz);
+
+      th.addEventListener('dragover', e=>{e.preventDefault(); highlightDrop(th,e);});
+      th.addEventListener('dragleave', ()=>clearDropHighlight(th));
+      th.addEventListener('drop', e=>onColDrop(e,key));
+    }
+
+    hr.appendChild(th);
+
+    const ftd = document.createElement('th');
+    ftd.style.width=w+'px'; ftd.style.minWidth=w+'px';
+    if(!isAction && def.filter!=='none') {
+      if(def.filter==='select') {
+        const sel=document.createElement('select');
+        sel.className='col-filter-select';
+        sel.innerHTML='<option value=""></option>'+(def.opts||[]).map(o=>`<option${(colFilters[key]||'')===(o)?'selected':''}>${o}</option>`).join('');
+        sel.addEventListener('change',e=>{colFilters[key]=e.target.value;buildRows();});
+        if(colFilters[key]) sel.value=colFilters[key];
+        ftd.appendChild(sel);
+      } else {
+        const inp=document.createElement('input');
+        inp.type=def.filter==='date'?'date':'text';
+        inp.className='col-filter-input';
+        inp.placeholder=def.filter==='date'?'':'Filter...';
+        inp.value=colFilters[key]||'';
+        inp.addEventListener('input',e=>{colFilters[key]=e.target.value;buildRows();});
+        if(def.filter==='date') inp.style.fontSize='10px';
+        ftd.appendChild(inp);
+      }
+    }
+    fr.appendChild(ftd);
+  });
+}
+
+function buildRows() {
+  let filtered = getFiltered();
+  filtered.sort((a,b)=>{
+    let av=a[sk]||'', bv=b[sk]||'';
+    if(sk==='proposalTotal'){av=Number(av);bv=Number(bv);}
+    return av<bv?-sd:av>bv?sd:0;
+  });
+
+  const visKeys = getVisibleCols();
+  const tbody = document.getElementById('tbody');
+
+  if(!filtered.length) {
+    tbody.innerHTML=`<tr><td colspan="${visKeys.length}"><div class="empty-state"><div class="empty-icon">&#128203;</div><p>No proposals found.</p></div></td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = filtered.map((p,fi)=>{
+    const oi=data.indexOf(p);
+    const cells = visKeys.map(key=>{
+      if(key==='_actions') {
+        if(mode==='leadership') return `<td></td>`;
+        return `<td><div class="row-actions">
+          ${can('editRow')   ? `<button class="btn-row" onclick="openModal(${oi})" title="Edit">&#9999;&#65039;</button>` : ''}
+          ${can('deleteRow') ? `<button class="btn-row del" onclick="del(${oi})" title="Delete">&#128465;</button>` : ''}
+        </div></td>`;
+      }
+      const w=layout.widths[key]||getColDef(key)?.w||100;
+      let val='\u2014';
+      switch(key) {
+        case 'projectName': val=`<div class="proj-name" title="${p.projectName||''}">${p.projectName||'\u2014'}</div>`; break;
+        case 'proposalTotal': val=`<span class="val-cell">${fmt$(p.proposalTotal)}</span>`; break;
+        case 'estimateStatus': {
+          if(p.estimateStatus === 'Lost - Note Why in Comments') {
+            const who = p.lossWho || '';
+            const why = p.lossReason || '';
+            const whoColor = who==='GC Lost' ? '#6495ED' : 'var(--loss)';
+            const whoLabel = who==='GC Lost' ? 'GC Lost' : who==='NBS Lost' ? 'NBS Lost' : 'Lost';
+            val = `<div class="loss-summary">
+              <span class="badge s-lost" style="border-color:${whoColor}40;color:${whoColor};background:${who==='GC Lost'?'rgba(100,149,237,.12)':'rgba(192,57,43,.15)'}">${whoLabel}</span>
+              ${why ? `<span class="loss-summary-why">${why}</span>` : '<span class="loss-summary-why" style="color:rgba(192,57,43,.5)">\u26a0 no reason</span>'}
+            </div>`;
+          } else {
+            val = statusBadge(p.estimateStatus);
+          }
+          break;
+        }
+        case 'swinertonProject': val=p.swinertonProject==='Y'?'<span class="swin-yes">Y</span>':p.swinertonProject==='N'?'<span class="swin-no">N</span>':'\u2014'; break;
+        case 'inviteDate': case 'dueDate': val=`<span class="date-dim">${fmtD(p[key])}</span>`; break;
+        case 'anticipatedStart': case 'anticipatedFinish':
+          if(mode==='estimator' && can('editRow')) {
+            val=`<div class="inline-edit-wrap" onclick="startInlineEdit(event,${oi},'${key}')">
+              <span class="date-dim">${fmtMY(p[key])}</span>
+              <span class="inline-edit-hint">\u270f</span></div>`;
+          } else { val=`<span class="date-dim">${fmtMY(p[key])}</span>`; }
+          break;
+        case 'nbsEstimator':
+          if(mode==='estimator' && can('editRow')) {
+            val=`<div class="inline-edit-wrap" onclick="startInlineEdit(event,${oi},'nbsEstimator')">
+              <span>${p.nbsEstimator||'\u2014'}</span>
+              <span class="inline-edit-hint">\u270f</span></div>`;
+          } else { val=p.nbsEstimator||'\u2014'; }
+          break;
+        case 'filePath': val=p.filePath?`<span class="link-cell"><a href="${p.filePath}" target="_blank">&#128194; Open</a></span>`:'\u2014'; break;
+        default: val=p[key]||'\u2014';
+      }
+      const sortedCls = key===sk ? ' col-sorted' : '';
+      return `<td class="${sortedCls}" style="max-width:${w}px" title="${(p[key]||'').toString().replace(/"/g,'')}">${val}</td>`;
+    });
+    const isSelected = selectedIndices.has(oi);
+    const checkCell = mode==='estimator'
+      ? `<td class="row-check-col"><input type="checkbox" class="row-select-cb" data-oi="${oi}" ${isSelected?'checked':''} onchange="onRowCheckChange(${oi},this.checked)"></td>`
+      : `<td class="row-check-col"></td>`;
+    return `<tr style="animation-delay:${fi*.02}s${isSelected?';background:rgba(201,168,76,.06)':''}">${checkCell}${cells.join('')}</tr>`;
+  }).join('');
+}
+
+function sortBy(key) {
+  sk===key?sd*=-1:(sk=key,sd=1);
+  buildHeaders();
+  buildRows();
+}
+
+let resizing = null;
+function onResizeStart(e, key, th) {
+  e.preventDefault();
+  e.stopPropagation();
+  const startX=e.clientX;
+  const startW=layout.widths[key]||getColDef(key)?.w||100;
+  resizing={key,startX,startW};
+
+  const onMove=e2=>{
+    const delta=e2.clientX-resizing.startX;
+    layout.widths[resizing.key]=Math.max(60,resizing.startW+delta);
+    const idx=getVisibleCols().indexOf(key);
+    document.querySelectorAll(`#main-table th:nth-child(${idx+1}), #main-table td:nth-child(${idx+1})`).forEach(el=>{
+      el.style.width=layout.widths[key]+'px';
+      el.style.minWidth=layout.widths[key]+'px';
+    });
+  };
+  const onUp=()=>{
+    resizing=null;
+    saveLayout();
+    document.removeEventListener('mousemove',onMove);
+    document.removeEventListener('mouseup',onUp);
+  };
+  document.addEventListener('mousemove',onMove);
+  document.addEventListener('mouseup',onUp);
+}
+
+let dragSrcKey = null;
+function onColDragStart(e, key) {
+  dragSrcKey=key;
+  e.dataTransfer.effectAllowed='move';
+}
+function highlightDrop(th,e) {
+  const rect=th.getBoundingClientRect();
+  const mid=(rect.left+rect.right)/2;
+  th.classList.toggle('col-drop-before',e.clientX<mid);
+  th.classList.toggle('col-drop-after',e.clientX>=mid);
+}
+function clearDropHighlight(th) {
+  th.classList.remove('col-drop-before','col-drop-after');
+}
+function onColDrop(e,targetKey) {
+  e.preventDefault();
+  clearDropHighlight(e.currentTarget);
+  if(!dragSrcKey||dragSrcKey===targetKey) return;
+  const rect=e.currentTarget.getBoundingClientRect();
+  const insertBefore=e.clientX<(rect.left+rect.right)/2;
+  const arr=layout.order.filter(k=>k!==dragSrcKey);
+  const ti=arr.indexOf(targetKey);
+  arr.splice(insertBefore?ti:ti+1,0,dragSrcKey);
+  layout.order=arr;
+  saveLayout();
+  buildHeaders();
+  buildRows();
+  dragSrcKey=null;
+}
+
+let panelDragKey=null, panelDragOver=null;
+
+function openColPanel() {
+  renderColPanel();
+  document.getElementById('col-panel-overlay').classList.add('open');
+}
+function closeColPanel() { document.getElementById('col-panel-overlay').classList.remove('open'); }
+function closePanelOutside(e) { if(e.target===document.getElementById('col-panel-overlay')) closeColPanel(); }
+
+function renderColPanel() {
+  const body=document.getElementById('col-panel-body');
+  body.innerHTML='';
+  layout.order.forEach(key=>{
+    if(key==='_actions') return;
+    const def=getColDef(key); if(!def) return;
+    const item=document.createElement('div');
+    item.className='col-item'; item.dataset.key=key; item.draggable=true;
+    item.innerHTML=`
+      <input type="checkbox" class="col-check" ${layout.visible[key]!==false?'checked':''}>
+      <span class="col-item-name">${def.label}</span>
+      <span class="col-drag-icon">\u2807</span>`;
+    item.querySelector('.col-check').addEventListener('change',e=>{
+      layout.visible[key]=e.target.checked;
+      saveLayout(); buildHeaders(); buildRows();
+    });
+    item.addEventListener('dragstart',e=>{panelDragKey=key;item.classList.add('dragging');e.dataTransfer.effectAllowed='move';});
+    item.addEventListener('dragend',()=>item.classList.remove('dragging'));
+    item.addEventListener('dragover',e=>{e.preventDefault();item.classList.add('drag-over');});
+    item.addEventListener('dragleave',()=>item.classList.remove('drag-over'));
+    item.addEventListener('drop',e=>{
+      e.preventDefault(); item.classList.remove('drag-over');
+      if(!panelDragKey||panelDragKey===key) return;
+      const arr=layout.order.filter(k=>k!==panelDragKey);
+      arr.splice(arr.indexOf(key),0,panelDragKey);
+      layout.order=arr;
+      saveLayout(); renderColPanel(); buildHeaders(); buildRows();
+      panelDragKey=null;
+    });
+    body.appendChild(item);
+  });
+}
+
+function resetColLayout() {
+  if(!confirm('Reset all columns to default order and sizes?')) return;
+  layout=defaultLayout();
+  colFilters={};
+  saveLayout();
+  buildHeaders();
+  buildRows();
+}
+
+const FIELDS=['projectName','estimateNumber','region','primaryMarket','inviteDate','dueDate','nbsEstimator','gcEstimateLead','proposalTotal','estimateStatus','lossWho','lossReason','lossDetail','lossCompetitor','lossNotes','finalReviewer','anticipatedStart','anticipatedFinish','swinertonProject','owner','filePath','comments'];
+
+function onStatusChange(val) {
+  const isLost = val === 'Lost - Note Why in Comments';
+  document.getElementById('loss-panel').style.display = isLost ? 'block' : 'none';
+  if(!isLost) resetLossPanel();
+}
+
+function resetLossPanel() {
+  ['lwho-gc','lwho-nbs'].forEach(id => document.getElementById(id)?.classList.remove('selected','gc'));
+  document.getElementById('f-lossWho').value = '';
+  document.getElementById('loss-tier2').classList.remove('show');
+  document.getElementById('loss-tier3').classList.remove('show');
+  ['lr-price','lr-relationship','lr-scope','lr-submittal','lr-spec','lr-other'].forEach(id=>document.getElementById(id)?.classList.remove('selected'));
+  document.getElementById('f-lossReason').value = '';
+  ['f-lossDetail','f-lossCompetitor','f-lossNotes'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  document.getElementById('loss-other-wrap').classList.remove('show');
+}
+
+function selectLossWho(who) {
+  document.getElementById('f-lossWho').value = who;
+  const gcBtn  = document.getElementById('lwho-gc');
+  const nbsBtn = document.getElementById('lwho-nbs');
+  gcBtn.classList.remove('selected','gc');
+  nbsBtn.classList.remove('selected');
+  if(who === 'GC Lost') {
+    gcBtn.classList.add('selected','gc');
+    document.getElementById('loss-tier2').classList.remove('show');
+    document.getElementById('f-lossReason').value = '';
+    ['lr-price','lr-relationship','lr-scope','lr-submittal','lr-spec','lr-other'].forEach(id=>document.getElementById(id)?.classList.remove('selected'));
+    document.getElementById('loss-other-wrap').classList.remove('show');
+  } else {
+    nbsBtn.classList.add('selected');
+    document.getElementById('loss-tier2').classList.add('show');
+  }
+  document.getElementById('loss-tier3').classList.add('show');
+}
+
+function selectLossReason(reason) {
+  document.getElementById('f-lossReason').value = reason;
+  ['lr-price','lr-relationship','lr-scope','lr-submittal','lr-spec','lr-other'].forEach(id=>document.getElementById(id)?.classList.remove('selected'));
+  const map = {'Price':'lr-price','Relationship':'lr-relationship','Scope Gap':'lr-scope','Submittal':'lr-submittal','Spec Sub':'lr-spec','Other':'lr-other'};
+  if(map[reason]) document.getElementById(map[reason]).classList.add('selected');
+  document.getElementById('loss-other-wrap').classList.toggle('show', reason === 'Other');
+}
+
+function openModal(idx=null) {
+  if(mode==='leadership') return;
+  editIdx=idx;
+  document.getElementById('modal-title').textContent=idx!==null?'EDIT PROPOSAL':'NEW PROPOSAL';
+  const p=idx!==null?data[idx]:{};
+  resetLossPanel();
+  FIELDS.filter(k=>!['lossWho','lossReason','lossDetail','lossCompetitor','lossNotes'].includes(k))
+    .forEach(k=>{ const el=document.getElementById('f-'+k); if(el) el.value=p[k]||''; });
+  onStatusChange(p.estimateStatus||'');
+  if(p.estimateStatus==='Lost - Note Why in Comments' && p.lossWho) {
+    selectLossWho(p.lossWho);
+    if(p.lossReason) selectLossReason(p.lossReason);
+    if(p.lossDetail) document.getElementById('f-lossDetail').value = p.lossDetail;
+    if(p.lossCompetitor) document.getElementById('f-lossCompetitor').value = p.lossCompetitor;
+    if(p.lossNotes) document.getElementById('f-lossNotes').value = p.lossNotes;
+  }
+  document.getElementById('modal').classList.add('open');
+}
+function closeModal(){document.getElementById('modal').classList.remove('open');editIdx=null;}
+function outsideClose(e){if(e.target===document.getElementById('modal'))closeModal();}
+
+function saveProposal(){
+  const name=document.getElementById('f-projectName').value.trim();
+  if(!name){alert('Project name is required.');return;}
+  const p={};
+  FIELDS.forEach(k=>{const el=document.getElementById('f-'+k);if(el)p[k]=el.value.trim();});
+  if(Number(p.proposalTotal)>0 && p.estimateStatus==='Estimating'){
+    p.estimateStatus='Submitted';
+  }
+  editIdx!==null?data[editIdx]=p:data.push(p);
+  save();closeModal();render();
+}
+function autoPromoteStatus(){
+  const a=document.getElementById('f-proposalTotal'), s=document.getElementById('f-estimateStatus');
+  if(a&&s&&Number(a.value)>0&&s.value==='Estimating'){
+    s.value='Submitted'; onStatusChange('Submitted');
+    s.style.borderColor='var(--win)'; setTimeout(()=>s.style.borderColor='',1200);
+  }
+}
+function del(i){if(!confirm('Delete this proposal?'))return;data.splice(i,1);save();render();}
+
+function exportCSV(){
+  const visKeys=getVisibleCols().filter(k=>k!=='_actions');
+  const h=visKeys.map(k=>getColDef(k)?.label||k);
+  const rows=data.map(p=>visKeys.map(k=>`"${(p[k]||'').toString().replace(/"/g,'""')}"`).join(','));
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([[h.join(','),...rows].join('\n')],{type:'text/csv'}));
+  a.download='NBS_Proposals.csv';a.click();
+}
+
+function getDashFiltered() {
+  const dr = document.getElementById('df-region')?.value || '';
+  const dm = document.getElementById('df-market')?.value || '';
+  const dsw = document.getElementById('df-swinerton')?.value || '';
+  const df = document.getElementById('df-from')?.value || '';
+  const dt = document.getElementById('df-to')?.value || '';
+  return data.filter(p =>
+    (!dr || p.region===dr) && (!dm || p.primaryMarket===dm) &&
+    (!dsw || p.swinertonProject===dsw) &&
+    (!df || (p.dueDate && p.dueDate>=df)) &&
+    (!dt || (p.dueDate && p.dueDate<=dt))
+  );
+}
+
+function clearDashFilters() {
+  ['df-region','df-market','df-swinerton','df-from','df-to'].forEach(id => { const el=document.getElementById(id); if(el) el.value=''; });
+  renderDash();
+}
+
+function fmtShort(n) {
+  if(!n) return '\u2014';
+  n=Number(n);
+  if(n>=1e6) return '$'+(n/1e6).toFixed(1)+'M';
+  if(n>=1000) return '$'+Math.round(n/1000)+'K';
+  return '$'+n;
+}
+
+const moN=['','Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const STATUS_COLORS={
+  'Estimating':'#C9A84C',
+  'Revising':  '#A78BFA',
+  'Submitted': '#64C8FF',
+  'Awarded':   '#3DAA6A',
+  'Lost - Note Why in Comments':'#C0392B'
+};
+const FUNNEL_STAGES=[
+  {key:'Estimating', color:'#C9A84C', label:'Estimating'},
+  {key:'Revising',   color:'#A78BFA', label:'Revising'},
+  {key:'Submitted',  color:'#64C8FF', label:'Submitted'},
+  {key:'Awarded',    color:'#3DAA6A', label:'Awarded'},
+  {key:'Lost - Note Why in Comments', color:'#C0392B', label:'Lost'},
+];
+
+function renderDash() {
+  const popDf=(id,items)=>{const el=document.getElementById(id);if(!el)return;const cur=el.value;el.innerHTML='<option value="">'+el.options[0].text+'</option>'+items.map(v=>`<option${v===cur?' selected':''}>${v}</option>`).join('');};
+  popDf('df-region',REGIONS); popDf('df-market',MARKETS);
+
+  const all = getDashFiltered();
+  const awarded  = all.filter(p=>p.estimateStatus==='Awarded');
+  const lost     = all.filter(p=>p.estimateStatus==='Lost - Note Why in Comments');
+  const active   = all.filter(p=>['Estimating','Revising','Submitted'].includes(p.estimateStatus));
+  const submitted= all.filter(p=>p.estimateStatus==='Submitted');
+  const decided  = awarded.length + lost.length;
+  const winRate  = decided ? Math.round(awarded.length/decided*100) : 0;
+  const pipeline = active.reduce((s,p)=>s+(Number(p.proposalTotal)||0),0);
+  const wonV     = awarded.reduce((s,p)=>s+(Number(p.proposalTotal)||0),0);
+
+  const gcLost   = all.filter(p=>p.estimateStatus==='Lost - Note Why in Comments' && p.lossWho==='GC Lost');
+  const nbsLost  = all.filter(p=>p.estimateStatus==='Lost - Note Why in Comments' && p.lossWho==='NBS Lost');
+  const trueDecided = awarded.length + nbsLost.length;
+  const trueWinRate = trueDecided ? Math.round(awarded.length/trueDecided*100) : 0;
+  const submittedVal = submitted.reduce((s,p)=>s+(Number(p.proposalTotal)||0),0);
+
+  document.getElementById('dash-kpis').innerHTML = [
+    {label:'Total Proposals',   val:all.length,              sub:`${awarded.length} awarded \u00b7 ${lost.length} lost`,           delay:0},
+    {label:'Active Pipeline',   val:fmtShort(pipeline),      sub:`${active.length} active proposals`,                         delay:.05},
+    {label:'Total Awarded',     val:fmtShort(wonV),          sub:`from ${awarded.length} won bids`,                           delay:.1},
+    {label:'Overall Win Rate',  val:decided?winRate+'%':'\u2014', sub:`all decided bids incl. GC losses`,                          delay:.15},
+    {label:'True NBS Win Rate', val:trueDecided?trueWinRate+'%':'\u2014', sub:`excl. ${gcLost.length} GC-lost bids`,               delay:.2},
+    {label:'Pending Decision',  val:fmtShort(submittedVal),  sub:`${submitted.length} submitted bids`,                        delay:.25},
+  ].map(c=>`<div class="kpi-card" style="animation-delay:${c.delay}s">
+    <div class="kpi-label">${c.label}</div>
+    <div class="kpi-val">${c.val}</div>
+    <div class="kpi-sub">${c.sub}</div>
+  </div>`).join('');
+
+  const lostCount = lost.length;
+  const gcLostVal = gcLost.reduce((s,p)=>s+(Number(p.proposalTotal)||0),0);
+  const nbsLostVal= nbsLost.reduce((s,p)=>s+(Number(p.proposalTotal)||0),0);
+  const noReasonCount = lost.filter(p=>!p.lossWho).length;
+
+  const NBS_REASON_LABELS = {'Price':'\ud83d\udcb0 Price','Relationship':'\ud83e\udd1d Relationship','Scope Gap':'\ud83d\udcd0 Scope Gap','Submittal':'\ud83d\udcc4 Submittal','Spec Sub':'\ud83d\udd04 Spec Sub','Other':'\u270f\ufe0f Other'};
+  const nbsReasonMap = {};
+  nbsLost.forEach(p=>{const r=p.lossReason||'';nbsReasonMap[r]=(nbsReasonMap[r]||0)+1;});
+  const nbsReasonSorted = Object.entries(nbsReasonMap).sort((a,b)=>b[1]-a[1]);
+  const maxNbsReason = nbsReasonSorted[0]?.[1]||1;
+
+  if(!lostCount) {
+    document.getElementById('dash-loss-intel').innerHTML =
+      '<div class="dash-empty" style="padding:40px 12px"><div class="dash-empty-icon">\ud83c\udfaf</div>No lost bids yet</div>';
+  } else {
+    const gcPct = lostCount ? Math.round(gcLost.length/lostCount*100) : 0;
+    const nbsPct = 100-gcPct;
+    document.getElementById('dash-loss-intel').innerHTML = `
+      <div style="margin-bottom:10px">
+        <div style="display:flex;justify-content:space-between;margin-bottom:4px">
+          <span style="font-size:10px;color:#6495ED;font-family:'Rajdhani',sans-serif;font-weight:700">GC LOST ${gcLost.length} (${gcPct}%)</span>
+          <span style="font-size:10px;color:var(--loss);font-family:'Rajdhani',sans-serif;font-weight:700">NBS LOST ${nbsLost.length} (${nbsPct}%)</span>
+        </div>
+        <div style="height:8px;background:var(--bg4);border-radius:4px;overflow:hidden;display:flex">
+          <div style="width:${gcPct}%;background:rgba(100,149,237,.6);border-radius:4px 0 0 4px;transition:width .5s"></div>
+          <div style="width:${nbsPct}%;background:rgba(192,57,43,.6);border-radius:0 4px 4px 0;transition:width .5s"></div>
+        </div>
+        <div style="display:flex;justify-content:space-between;margin-top:3px">
+          <span style="font-size:9px;color:var(--text-dim)">${fmtShort(gcLostVal)} value</span>
+          ${noReasonCount?`<span style="font-size:9px;color:rgba(192,57,43,.7)">\u26a0 ${noReasonCount} missing reason</span>`:''}
+          <span style="font-size:9px;color:var(--text-dim)">${fmtShort(nbsLostVal)} value</span>
+        </div>
+      </div>
+      ${nbsLost.length ? `
+        <div style="font-family:'Rajdhani',sans-serif;font-size:9px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:var(--text-dim);margin-bottom:6px">NBS Loss Reasons</div>
+        ${nbsReasonSorted.map(([reason,count])=>`
+          <div style="display:grid;grid-template-columns:80px 1fr 22px;align-items:center;gap:6px;margin-bottom:5px">
+            <div style="font-size:10px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${NBS_REASON_LABELS[reason]||reason||'No Reason'}</div>
+            <div style="height:8px;background:var(--bg4);border-radius:4px;overflow:hidden">
+              <div style="height:100%;width:${Math.round(count/maxNbsReason*100)}%;background:linear-gradient(90deg,rgba(192,57,43,.45),rgba(192,57,43,.8));border-radius:4px;transition:width .5s ease"></div>
+            </div>
+            <div style="font-family:'Rajdhani',sans-serif;font-size:11px;font-weight:700;color:var(--loss);text-align:right">${count}</div>
+          </div>`).join('')}
+      ` : `<div style="font-size:10px;color:var(--text-dim);font-style:italic;margin-top:6px">No NBS losses recorded yet</div>`}
+    `;
+  }
+
+  const stageTotals = FUNNEL_STAGES.map(s=>({
+    ...s,
+    count: all.filter(p=>p.estimateStatus===s.key).length,
+    val:   all.filter(p=>p.estimateStatus===s.key).reduce((t,p)=>t+(Number(p.proposalTotal)||0),0)
+  }));
+  const maxFunnelVal = Math.max(...stageTotals.map(s=>s.val), 1);
+  document.getElementById('dash-funnel').innerHTML = stageTotals.map((s,i)=>{
+    const pct = s.val ? Math.max((s.val/maxFunnelVal)*100, 5) : 0;
+    const arrow = i < stageTotals.length-1
+      ? `<div style="display:flex;align-items:center;justify-content:center;padding:1px 0;color:var(--border);font-size:10px;line-height:1">\u2193</div>`
+      : '';
+    return `<div class="funnel-row">
+      <div class="funnel-label" style="color:${s.count?s.color:'var(--text-dim)'}">${s.label}</div>
+      <div class="funnel-bar-track">
+        <div class="funnel-bar-fill" style="width:${pct}%;background:${s.color}20;border:1px solid ${s.color}${s.count?'66':'22'}">
+          ${s.count ? `<span class="funnel-bar-count" style="color:${s.color}">${s.count} bid${s.count!==1?'s':''}</span>` : ''}
+        </div>
+      </div>
+      <div class="funnel-val" style="color:${s.count?'var(--text)':'var(--text-dim)'}">${s.val?fmtShort(s.val):'\u2014'}</div>
+    </div>${arrow}`;
+  }).join('');
+
+  const ax={ticks:{color:'#8A8A9A',font:{size:10}},grid:{color:'#1E1E28'}};
+
+  const monthDecided={}, monthWon={};
+  all.filter(p=>p.dueDate&&(p.estimateStatus==='Awarded'||p.estimateStatus==='Lost - Note Why in Comments')).forEach(p=>{
+    const m=p.dueDate.slice(0,7);
+    monthDecided[m]=(monthDecided[m]||0)+1;
+    if(p.estimateStatus==='Awarded') monthWon[m]=(monthWon[m]||0)+1;
+  });
+  const wrMonths=Object.keys(monthDecided).sort().slice(-12);
+  const wrRates=wrMonths.map(m=>monthDecided[m]?Math.round((monthWon[m]||0)/monthDecided[m]*100):0);
+
+  if(charts.wintrend) charts.wintrend.destroy();
+  charts.wintrend=new Chart(document.getElementById('chart-wintrend'),{
+    type:'line',
+    data:{
+      labels:wrMonths.map(m=>{const[y,mo]=m.split('-');return `${moN[+mo]} '${y.slice(2)}`;}),
+      datasets:[{
+        label:'Win Rate %', data:wrRates,
+        borderColor:'#3DAA6A', backgroundColor:'rgba(61,170,106,.08)',
+        tension:.4, fill:true, pointBackgroundColor:'#3DAA6A', pointRadius:4, pointHoverRadius:6
+      },{
+        label:'Target (50%)', data:wrMonths.map(()=>50),
+        borderColor:'rgba(201,168,76,.3)', borderDash:[4,4], borderWidth:1,
+        pointRadius:0, fill:false
+      }]
+    },
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>`${c.dataset.label}: ${c.parsed.y}%`}}},
+      scales:{
+        x:{...ax},
+        y:{...ax, min:0, max:100, ticks:{...ax.ticks,callback:v=>v+'%'}}
+      }
+    }
+  });
+
+  const rMap={};
+  all.forEach(p=>{if(!p.region)return;const r=p.region.replace(/ \(.*\)/,'');rMap[r]=(rMap[r]||0)+(Number(p.proposalTotal)||0);});
+  const rSorted=Object.entries(rMap).sort((a,b)=>b[1]-a[1]).slice(0,10);
+
+  if(charts.region) charts.region.destroy();
+  charts.region=new Chart(document.getElementById('chart-region'),{
+    type:'bar',
+    data:{
+      labels:rSorted.map(([r])=>r),
+      datasets:[{data:rSorted.map(([,v])=>v),backgroundColor:rSorted.map((_,i)=>`rgba(201,168,76,${0.75-i*.05})`),borderColor:'#C9A84C',borderWidth:1,borderRadius:4}]
+    },
+    options:{
+      indexAxis:'y', responsive:true, maintainAspectRatio:false,
+      plugins:{legend:{display:false}},
+      scales:{
+        x:{...ax,ticks:{...ax.ticks,callback:v=>v>=1e6?(v/1e6).toFixed(1)+'M':v>=1000?Math.round(v/1000)+'K':''}},
+        y:{...ax,ticks:{...ax.ticks}}
+      }
+    }
+  });
+
+  const mktMap={};
+  MARKETS.forEach(m=>mktMap[m]={submitted:0,awarded:0});
+  all.forEach(p=>{
+    if(!p.primaryMarket||!mktMap[p.primaryMarket]) return;
+    if(['Submitted','Awarded'].includes(p.estimateStatus)) mktMap[p.primaryMarket].submitted++;
+    if(p.estimateStatus==='Awarded') mktMap[p.primaryMarket].awarded++;
+  });
+  const mktActive=MARKETS.filter(m=>mktMap[m].submitted>0||mktMap[m].awarded>0);
+
+  if(charts.market) charts.market.destroy();
+  charts.market=new Chart(document.getElementById('chart-market'),{
+    type:'bar',
+    data:{
+      labels:mktActive,
+      datasets:[
+        {label:'Submitted',data:mktActive.map(m=>mktMap[m].submitted),backgroundColor:'rgba(100,200,255,.35)',borderColor:'#64C8FF',borderWidth:1,borderRadius:3},
+        {label:'Awarded', data:mktActive.map(m=>mktMap[m].awarded), backgroundColor:'rgba(61,170,106,.5)', borderColor:'#3DAA6A',borderWidth:1,borderRadius:3}
+      ]
+    },
+    options:{
+      indexAxis:'y', responsive:true, maintainAspectRatio:false,
+      plugins:{legend:{labels:{color:'#8A8A9A',font:{size:10},boxWidth:10,padding:8}}},
+      scales:{
+        x:{...ax,ticks:{...ax.ticks,stepSize:1}},
+        y:{...ax,ticks:{...ax.ticks,font:{size:10}}}
+      }
+    }
+  });
+
+  const gcMap={};
+  all.forEach(p=>{
+    if(!p.gcEstimateLead) return;
+    if(!gcMap[p.gcEstimateLead]) gcMap[p.gcEstimateLead]={count:0,val:0,won:0};
+    gcMap[p.gcEstimateLead].count++;
+    gcMap[p.gcEstimateLead].val+=(Number(p.proposalTotal)||0);
+    if(p.estimateStatus==='Awarded') gcMap[p.gcEstimateLead].won++;
+  });
+  const gcTop=Object.entries(gcMap).sort((a,b)=>b[1].val-a[1].val).slice(0,7);
+  const gcMaxVal=gcTop[0]?gcTop[0][1].val:1;
+
+  if(!gcTop.length) {
+    document.getElementById('dash-gcs').innerHTML='<div class="dash-empty"><div class="dash-empty-icon">\ud83d\udc65</div>No GC data yet</div>';
+  } else {
+    document.getElementById('dash-gcs').innerHTML=`<table class="lb-table">
+      <thead><tr><th>#</th><th>GC / Client</th><th>Bids</th><th>Won</th><th style="text-align:right">Value</th></tr></thead>
+      <tbody>${gcTop.map(([name,d],i)=>`<tr>
+        <td class="lb-rank">${i+1}</td>
+        <td><div class="lb-name" title="${name}">${name}</div><div class="lb-bar-mini"><div class="lb-bar-mini-fill" style="width:${Math.round(d.val/gcMaxVal*100)}%"></div></div></td>
+        <td class="lb-badge" style="color:var(--text-dim)">${d.count}</td>
+        <td class="lb-badge" style="color:var(--win)">${d.won}</td>
+        <td style="text-align:right;font-family:'Rajdhani',sans-serif;font-weight:600;font-size:12px">${fmtShort(d.val)}</td>
+      </tr>`).join('')}</tbody>
+    </table>`;
+  }
+
+  const estMap={};
+  all.forEach(p=>{
+    if(!p.nbsEstimator) return;
+    if(!['Estimating','Revising','Submitted'].includes(p.estimateStatus)) return;
+    if(!estMap[p.nbsEstimator]) estMap[p.nbsEstimator]={count:0,val:0};
+    estMap[p.nbsEstimator].count++;
+    estMap[p.nbsEstimator].val+=(Number(p.proposalTotal)||0);
+  });
+  const estList=Object.entries(estMap).sort((a,b)=>b[1].val-a[1].val);
+  const estMaxVal=estList[0]?estList[0][1].val:1;
+
+  if(!estList.length) {
+    document.getElementById('dash-workload').innerHTML='<div class="dash-empty"><div class="dash-empty-icon">\ud83d\udc64</div>No active bids assigned</div>';
+  } else {
+    document.getElementById('dash-workload').innerHTML=estList.map(([name,d])=>`
+      <div class="wl-row">
+        <div class="wl-name" title="${name}">${name}</div>
+        <div class="wl-bar-track"><div class="wl-bar-fill" style="width:${Math.round(d.val/estMaxVal*100)}%"></div></div>
+        <div class="wl-meta">${d.count} bid${d.count!==1?'s':''} \u00b7 ${fmtShort(d.val)}</div>
+      </div>`).join('');
+  }
+
+  const today = new Date(); today.setHours(0,0,0,0);
+
+  function bizDaysUntil(dateStr) {
+    const target = new Date(dateStr+'T00:00:00');
+    const start = new Date(today);
+    if(target < start) return -1;
+    let count = 0, cur = new Date(start);
+    while(cur < target) {
+      cur.setDate(cur.getDate()+1);
+      const dow = cur.getDay();
+      if(dow !== 0 && dow !== 6) count++;
+    }
+    return count;
+  }
+
+  const bidsDue = all
+    .filter(p => p.dueDate && ['Estimating','Revising','Submitted'].includes(p.estimateStatus))
+    .map(p => ({...p, _bizDays: bizDaysUntil(p.dueDate)}))
+    .filter(p => p._bizDays >= 0)
+    .sort((a,b) => a._bizDays - b._bizDays);
+
+  const biz1_3  = bidsDue.filter(p => p._bizDays >= 1 && p._bizDays <= 3);
+  const biz4_7  = bidsDue.filter(p => p._bizDays >= 4 && p._bizDays <= 7);
+  const biz8_14 = bidsDue.filter(p => p._bizDays >= 8 && p._bizDays <= 14);
+  const biz15p  = bidsDue.filter(p => p._bizDays >= 15);
+
+  function dueBucket(items, label, sublabel, cls, maxShow=3) {
+    const shown = items.slice(0, maxShow);
+    return `<div class="due-bucket ${cls}">
+      <div class="due-bucket-head">
+        <div>
+          <span class="due-bucket-label">${label}</span>
+          <div style="font-size:9px;color:var(--text-dim);margin-top:1px">${sublabel}</div>
+        </div>
+        <span class="due-count" style="font-size:18px;color:${cls==='hot'?'var(--loss)':cls==='warm'?'var(--gold)':cls==='cool'?'#6495ED':'var(--text-dim)'}">${items.length}</span>
+      </div>
+      ${shown.length
+        ? shown.map(p=>`<div class="due-item">
+            <span class="due-item-name" title="${p.projectName||''}">${p.projectName||'\u2014'}</span>
+            <span class="due-item-date">${p._bizDays===0?'Today':p._bizDays===1?'Tomorrow':p._bizDays+'bd'}</span>
+          </div>`).join('')
+          + (items.length > maxShow ? `<div class="due-empty">+${items.length-maxShow} more</div>` : '')
+        : '<div class="due-empty">None</div>'}
+    </div>`;
+  }
+
+  document.getElementById('dash-due').innerHTML =
+    dueBucket(biz1_3,  '1\u20133 Business Days',  'Due very soon \u2014 act now',     'hot')  +
+    dueBucket(biz4_7,  '4\u20137 Business Days',  'Due this week',               'warm') +
+    dueBucket(biz8_14, '8\u201314 Business Days', 'Due next 2 weeks',            'cool') +
+    dueBucket(biz15p,  '15+ Business Days',  'Further out',                 'future', 2);
+
+  const EXCLUDED_STATUSES = new Set(['Lost - Note Why in Comments']);
+
+  const startItems = all
+    .filter(p => {
+      if(!p.anticipatedStart) return false;
+      const isSwinerton = p.swinertonProject === 'Y';
+      const isActive = !EXCLUDED_STATUSES.has(p.estimateStatus);
+      return isSwinerton || isActive;
+    })
+    .map(p => {
+      const startD = new Date(p.anticipatedStart+'T00:00:00');
+      const daysUntil = Math.round((startD - today) / 86400000);
+      let urgency, pillCls;
+      if(daysUntil < 0)         { urgency='overdue';  pillCls='overdue'; }
+      else if(daysUntil <= 14)  { urgency='urgent';   pillCls='urgent'; }
+      else if(daysUntil <= 45)  { urgency='soon';     pillCls='soon'; }
+      else                      { urgency='upcoming'; pillCls='upcoming'; }
+      return {...p, _startD:startD, daysUntil, urgency, pillCls};
+    })
+    .sort((a,b) => a._startD - b._startD);
+
+  const lostAll2 = all.filter(p => p.estimateStatus === 'Lost - Note Why in Comments');
+  const REASON_LABELS2 = {'Price':'\ud83d\udcb0 Price','Relationship':'\ud83e\udd1d Relationship','Scope Gap':'\ud83d\udcd0 Scope Gap','Submittal':'\ud83d\udcc4 Submittal','Spec Sub':'\ud83d\udd04 Spec Sub','Other':'\u270f\ufe0f Other','':'No Reason Recorded'};
+  const reasonMap2 = {};
+  lostAll2.forEach(p => {
+    const r = (p.lossWho==='GC Lost') ? '__GC_LOST__' : (p.lossReason || '');
+    if(!reasonMap2[r]) reasonMap2[r]={count:0,val:0};
+    reasonMap2[r].count++;
+    reasonMap2[r].val+=Number(p.proposalTotal)||0;
+  });
+  const reasonSorted2 = Object.entries(reasonMap2).sort((a,b)=>b[1].count-a[1].count);
+  const maxReasonCount2 = reasonSorted2[0]?.[1].count||1;
+
+  if(!lostAll2.length) {
+    document.getElementById('dash-loss-bars').innerHTML='<div class="dash-empty"><div class="dash-empty-icon">\ud83c\udfaf</div>No lost bids recorded yet</div>';
+    document.getElementById('dash-loss-list').innerHTML='';
+  } else {
+    const totalLostVal2 = lostAll2.reduce((s,p)=>s+(Number(p.proposalTotal)||0),0);
+    document.getElementById('dash-loss-bars').innerHTML =
+      `<div style="margin-bottom:10px">
+        <span style="font-family:'Rajdhani',sans-serif;font-size:22px;font-weight:700;color:var(--loss)">${lostAll2.length}</span>
+        <span style="font-size:11px;color:var(--text-dim);margin-left:6px">lost bids \u00b7 ${fmtShort(totalLostVal2)} total value</span>
+      </div>` +
+      reasonSorted2.map(([r,d])=>{
+        const label = r==='__GC_LOST__' ? '\ud83c\udfd7 GC Lost Project' : (REASON_LABELS2[r]||r||'No Reason');
+        const color = r==='__GC_LOST__' ? '#6495ED' : 'var(--loss)';
+        const fillColor = r==='__GC_LOST__' ? 'rgba(100,149,237,.5)' : 'linear-gradient(90deg,rgba(192,57,43,.45),rgba(192,57,43,.8))';
+        return `<div class="loss-reason-row">
+          <div class="loss-reason-label" style="color:${color}" title="${label}">${label}</div>
+          <div class="loss-reason-track"><div class="loss-reason-fill" style="width:${Math.round(d.count/maxReasonCount2*100)}%;background:${fillColor}"></div></div>
+          <div class="loss-reason-count" style="color:${color}">${d.count}</div>
+          <div class="loss-reason-val">${fmtShort(d.val)}</div>
+        </div>`;
+      }).join('');
+
+    const lostSorted2 = [...lostAll2].sort((a,b)=>{
+      const aHas=a.lossWho?1:0, bHas=b.lossWho?1:0;
+      if(bHas!==aHas) return bHas-aHas;
+      return (b.dueDate||'')>(a.dueDate||'')?1:-1;
+    });
+    document.getElementById('dash-loss-list').innerHTML = lostSorted2.map(p=>{
+      const whoColor = p.lossWho==='GC Lost'?'#6495ED':'var(--loss)';
+      const whoBg    = p.lossWho==='GC Lost'?'rgba(100,149,237,.12)':'rgba(192,57,43,.15)';
+      const whoLabel = p.lossWho==='GC Lost'?'GC Lost':p.lossWho==='NBS Lost'?'NBS Lost':null;
+      const reasonLabel = p.lossWho==='NBS Lost'&&p.lossReason ? (REASON_LABELS2[p.lossReason]||p.lossReason) : null;
+      const detail = p.lossReason==='Other'&&p.lossDetail ? p.lossDetail : p.lossCompetitor ? `vs. ${p.lossCompetitor}` : null;
+      return `<div class="loss-detail-row">
+        <div class="loss-detail-top">
+          <div class="loss-detail-name" title="${p.projectName||''}">${p.projectName||'\u2014'}</div>
+          <div class="loss-detail-val">${p.proposalTotal?fmtShort(p.proposalTotal):'\u2014'}</div>
+        </div>
+        <div class="loss-detail-meta">
+          ${whoLabel
+            ? `<span class="loss-reason-pill" style="background:${whoBg};color:${whoColor};border-color:${whoColor}40">${whoLabel}</span>`
+            : `<span class="loss-no-reason">\u26a0 No who recorded</span>`}
+          ${reasonLabel?`<span class="loss-reason-pill">${reasonLabel}</span>`:''}
+          ${detail?`<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:130px" title="${detail}">${detail}</span>`:''}
+          ${p.lossNotes?`<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:130px;font-style:italic" title="${p.lossNotes}">"${p.lossNotes}"</span>`:''}
+          ${p.dueDate?`<span>${fmtD(p.dueDate)}</span>`:''}
+        </div>
+      </div>`;
+    }).join('');
+  }
+
+  if(!startItems.length) {
+    document.getElementById('dash-followup').innerHTML=
+      '<div class="dash-empty"><div class="dash-empty-icon">\ud83c\udfd7</div>No active projects with Est. Start dates yet</div>';
+  } else {
+    document.getElementById('dash-followup').innerHTML = startItems.map(p => {
+      const pillLabel = p.daysUntil < 0 ? `${Math.abs(p.daysUntil)}d OVERDUE`
+        : p.daysUntil === 0 ? 'STARTS TODAY'
+        : p.daysUntil <= 14 ? `${p.daysUntil}d \u2014 URGENT`
+        : p.daysUntil <= 45 ? `${p.daysUntil}d \u2014 SOON`
+        : `${p.daysUntil}d out`;
+      const daysLabel = p.daysUntil < 0 ? `${Math.abs(p.daysUntil)} days overdue`
+        : p.daysUntil === 0 ? 'Starts today' : `${p.daysUntil} days to start`;
+      const endStr = p.anticipatedFinish ? ` \u2192 ${fmtD(p.anticipatedFinish)}` : '';
+      const swTag = p.swinertonProject==='Y'
+        ? `<span style="font-family:'Rajdhani',sans-serif;font-size:9px;font-weight:700;background:rgba(61,170,106,.15);color:var(--win);border:1px solid rgba(61,170,106,.3);padding:1px 5px;border-radius:3px;margin-left:5px">SWINERTON</span>` : '';
+      return `<div class="followup-item ${p.urgency}">
+        <div class="followup-top">
+          <div class="followup-name" title="${p.projectName||''}">${p.projectName||'\u2014'}${swTag}</div>
+          <span class="followup-pill ${p.pillCls}">${pillLabel}</span>
+        </div>
+        <div class="followup-meta">
+          <div class="followup-meta-item">\ud83d\udcc5 <span>${fmtD(p.anticipatedStart)}${endStr}</span></div>
+          ${p.estimateStatus?`<div class="followup-meta-item">\u25cf <span style="font-family:'Rajdhani',sans-serif;font-size:9px;color:var(--text-dim)">${p.estimateStatus}</span></div>`:''}
+          ${p.primaryMarket?`<div class="followup-meta-item">\ud83c\udff7 <span>${p.primaryMarket}</span></div>`:''}
+          ${p.region?`<div class="followup-meta-item">\ud83d\udccd <span>${p.region.replace(/ \(.*\)/,'')}</span></div>`:''}
+        </div>
+        <div class="followup-gcrow">
+          <div class="followup-gc">GC Lead: <span>${p.gcEstimateLead||'\u2014'}</span>${p.nbsEstimator?` &nbsp;\u00b7&nbsp; NBS: <span>${p.nbsEstimator}</span>`:''}</div>
+          <div class="followup-days ${p.urgency}">${daysLabel}</div>
+        </div>
+      </div>`;
+    }).join('');
+  }
+}
+
+let selectedIndices = new Set();
+function onRowCheckChange(oi,checked){checked?selectedIndices.add(oi):selectedIndices.delete(oi);updateSelectBar();}
+function toggleSelectAll(checked){
+  getFiltered().forEach(p=>{const oi=data.indexOf(p);checked?selectedIndices.add(oi):selectedIndices.delete(oi);});
+  document.querySelectorAll('.row-select-cb').forEach(cb=>{cb.checked=selectedIndices.has(parseInt(cb.dataset.oi));});
+  updateSelectBar();
+}
+function clearSelection(){
+  selectedIndices.clear();
+  document.querySelectorAll('.row-select-cb').forEach(cb=>cb.checked=false);
+  const h=document.getElementById('thead-select-all'); if(h)h.checked=false;
+  updateSelectBar();
+}
+function updateSelectBar(){
+  const bar=document.getElementById('select-bar'), lbl=document.getElementById('select-bar-label');
+  const n=selectedIndices.size;
+  if(n>0&&mode==='estimator'){
+    bar.style.display='flex'; lbl.textContent=`${n} row${n!==1?'s':''} selected`;
+    const vis=getFiltered().map(p=>data.indexOf(p));
+    const all=vis.length>0&&vis.every(i=>selectedIndices.has(i));
+    const h=document.getElementById('thead-select-all'); if(h){h.checked=all;h.indeterminate=!all&&n>0;}
+  } else { bar.style.display='none'; }
+}
+function deleteSelected(){
+  const n=selectedIndices.size; if(!n)return;
+  if(!confirm(`Delete ${n} selected proposal${n!==1?'s':''}? This cannot be undone.`))return;
+  [...selectedIndices].sort((a,b)=>b-a).forEach(i=>data.splice(i,1));
+  selectedIndices.clear(); save(); render();
+  showToast(`\ud83d\uddd1 ${n} proposal${n!==1?'s':''} deleted`);
+}
+function clearAllData(){
+  if(!data.length){alert('Log is already empty.');return;}
+  if(!confirm(`Delete ALL ${data.length} proposals? This cannot be undone.`))return;
+  data=[];selectedIndices.clear();save();render();showToast('\ud83d\uddd1 All proposals cleared');
+}
+
+const ESTIMATORS=[
+  {code:'HK',label:'HK \u2014 Haley Kruse'},
+  {code:'GM',label:'GM \u2014 Gonzalo Martinez'},
+  {code:'GT',label:'GT \u2014 Gene Trabert'},
+];
+const INLINE_FIELDS={proposalTotal:'number',estimateStatus:'select-status',nbsEstimator:'select-estimator',anticipatedStart:'month',anticipatedFinish:'month'};
+let activeInlineEdit=null;
+
+function startInlineEdit(e,oi,field){
+  e.stopPropagation();
+  if(activeInlineEdit)cancelInlineEdit();
+  const p=data[oi]; if(!p)return;
+  const td=e.currentTarget.closest('td'); if(!td)return;
+  activeInlineEdit={oi,field,td,originalHTML:td.innerHTML};
+  td.classList.add('inline-editing');
+  const type=INLINE_FIELDS[field];
+  if(type==='number'){
+    td.innerHTML=`<div style="display:flex;align-items:center;gap:4px">
+      <span style="font-size:11px;color:var(--text-dim)">$</span>
+      <input class="inline-input" id="inline-inp" type="number" value="${p[field]||''}" min="0" step="1" placeholder="0"
+        onkeydown="inlineKeydown(event,${oi},'${field}')" onclick="event.stopPropagation()">
+      <div class="inline-actions">
+        <button class="inline-save" onclick="commitInlineEdit(${oi},'${field}')">\u2713</button>
+        <button class="inline-cancel" onclick="cancelInlineEdit()">\u2715</button>
+      </div></div>`;
+  } else if(type==='select-status'){
+    const opts=['Estimating','Revising','Submitted','Awarded'].map(s=>`<option value="${s}"${p[field]===s?' selected':''}>${s}</option>`).join('');
+    td.innerHTML=`<div style="display:flex;align-items:center;gap:4px">
+      <select class="inline-select" id="inline-inp" onkeydown="inlineKeydown(event,${oi},'${field}')" onclick="event.stopPropagation()">${opts}</select>
+      <div class="inline-actions">
+        <button class="inline-save" onclick="commitInlineEdit(${oi},'${field}')">\u2713</button>
+        <button class="inline-cancel" onclick="cancelInlineEdit()">\u2715</button>
+      </div></div>
+      <div style="font-size:9px;color:var(--text-dim);margin-top:2px">Use \u270f edit for Lost status</div>`;
+  } else if(type==='select-estimator'){
+    const opts=[`<option value="">\u2014 Select \u2014</option>`,...ESTIMATORS.map(est=>`<option value="${est.code}"${p[field]===est.code?' selected':''}>${est.label}</option>`)].join('');
+    td.innerHTML=`<div style="display:flex;align-items:center;gap:4px">
+      <select class="inline-select" id="inline-inp" style="min-width:150px" onkeydown="inlineKeydown(event,${oi},'${field}')" onclick="event.stopPropagation()">${opts}</select>
+      <div class="inline-actions">
+        <button class="inline-save" onclick="commitInlineEdit(${oi},'${field}')">\u2713</button>
+        <button class="inline-cancel" onclick="cancelInlineEdit()">\u2715</button>
+      </div></div>`;
+  } else if(type==='month'){
+    const cur=p[field]?p[field].slice(0,7):'';
+    td.innerHTML=`<div style="display:flex;align-items:center;gap:4px">
+      <input class="inline-date" id="inline-inp" type="month" value="${cur}" onkeydown="inlineKeydown(event,${oi},'${field}')" onclick="event.stopPropagation()">
+      <div class="inline-actions">
+        <button class="inline-save" onclick="commitInlineEdit(${oi},'${field}')">\u2713</button>
+        <button class="inline-cancel" onclick="cancelInlineEdit()">\u2715</button>
+      </div></div>`;
+  }
+  setTimeout(()=>{const i=document.getElementById('inline-inp');if(i){i.focus();if(i.select)i.select();}},30);
+  setTimeout(()=>document.addEventListener('click',inlineClickAway,{once:true}),50);
+}
+function inlineKeydown(e,oi,field){
+  if(e.key==='Enter'||e.key==='Tab'){e.preventDefault();commitInlineEdit(oi,field);}
+  if(e.key==='Escape')cancelInlineEdit();
+}
+function inlineClickAway(e){if(activeInlineEdit&&!activeInlineEdit.td.contains(e.target))commitInlineEdit(activeInlineEdit.oi,activeInlineEdit.field);}
+function commitInlineEdit(oi,field){
+  if(!activeInlineEdit)return;
+  document.removeEventListener('click',inlineClickAway);
+  const inp=document.getElementById('inline-inp');
+  if(!inp){cancelInlineEdit();return;}
+  let v=inp.value.trim();
+  if(field==='proposalTotal'){
+    v=v.replace(/[^0-9.]/g,'');
+    if(Number(v)>0&&data[oi].estimateStatus==='Estimating'){
+      data[oi].estimateStatus='Submitted'; showToast('\ud83d\udca1 Status auto-updated to Submitted');
+    }
+  } else if(field==='anticipatedStart'||field==='anticipatedFinish'){
+    v=v?v+'-01':'';
+  }
+  data[oi][field]=v; activeInlineEdit=null; save(); render();
+}
+function cancelInlineEdit(){
+  document.removeEventListener('click',inlineClickAway);
+  if(!activeInlineEdit)return;
+  const{td,originalHTML}=activeInlineEdit;
+  td.classList.remove('inline-editing'); td.innerHTML=originalHTML; activeInlineEdit=null;
+}
+
+const KNOWN_REGIONS=['Atlanta (ATL)','Austin (AUS)','Colorado (DEN)','Dallas (DFW)','Hawaii (HNL)','Idaho (PDX)','N Carolina (CLT)','New York (LGA)','Nor Cal (SFO)','OCLA (LAX)','Portland (PDX)','S Carolina (CLT)','FS (LAX)','SD (SAN)','SPD (LAX)','TM (LAX)','Washington (SEA)','PCL - External','Spokane & Boise (GEG)','Hensel Phelps - External','McCarthy - External','CBU - External','Bristol Industries - External','BN Builders - External','Jacobs - External'];
+const STATUS_MAP={'pending':'Submitted','submitted':'Submitted','bidding':'Estimating','estimating':'Estimating','in progress':'Estimating','revising':'Revising','revision':'Revising','lost':'Lost - Note Why in Comments','loss':'Lost - Note Why in Comments','win':'Awarded','won':'Awarded','awarded':'Awarded'};
+let importRows=[];
+
+function parseRegion(raw){if(!raw)return'';const s=raw.toString().trim();if(KNOWN_REGIONS.includes(s))return s;for(const r of KNOWN_REGIONS){if(s.startsWith(r))return r;}for(const r of KNOWN_REGIONS){const c=r.match(/\(([^)]+)\)/)?.[1];if(c&&s.includes('('+c+')'))return r;if(!c&&s.includes(r))return r;}return'';}
+function parseScopeDate(raw){if(!raw)return'';const s=raw.toString().trim();if(!s||s==='-'||s.toLowerCase()==='n/a'||s==='?')return'';const m=s.match(/^(\d{1,2})\/(\d{2})$/);if(m)return`20${m[2]}-${m[1].padStart(2,'0')}-01`;if(s.match(/^\d{4}-\d{2}-\d{2}$/))return s;return'';}
+function parseBidDate(raw){if(!raw)return'';const s=raw.toString().trim();let m=s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2})$/);if(m)return`20${m[3]}-${m[1].padStart(2,'0')}-${m[2].padStart(2,'0')}`;m=s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);if(m)return`${m[3]}-${m[1].padStart(2,'0')}-${m[2].padStart(2,'0')}`;if(!isNaN(s)&&Number(s)>40000){const d=new Date((Number(s)-25569)*86400000);return`${d.getUTCFullYear()}-${String(d.getUTCMonth()+1).padStart(2,'0')}-${String(d.getUTCDate()).padStart(2,'0')}`;}return'';}
+function parseDollar(raw){if(!raw&&raw!==0)return'';return raw.toString().replace(/[$,\s]/g,'').trim()||'';}
+function matchCol(headers,...cands){for(const c of cands){const i=headers.findIndex(h=>h.toLowerCase().includes(c.toLowerCase()));if(i!==-1)return i;}return-1;}
+
+function openImportModal(){importRows=[];document.getElementById('import-step1').style.display='block';document.getElementById('import-step2').style.display='none';document.getElementById('import-footer').style.display='none';document.getElementById('import-file-input').value='';document.getElementById('import-modal').classList.add('open');}
+function closeImportModal(){document.getElementById('import-modal').classList.remove('open');importRows=[];}
+function importOutsideClose(e){if(e.target===document.getElementById('import-modal'))closeImportModal();}
+function importDragOver(e){e.preventDefault();document.getElementById('import-dropzone').classList.add('drag-over');}
+function importDragLeave(){document.getElementById('import-dropzone').classList.remove('drag-over');}
+function importDrop(e){e.preventDefault();document.getElementById('import-dropzone').classList.remove('drag-over');const f=e.dataTransfer.files[0];if(f)processImportFile(f);}
+function importFileSelected(inp){if(inp.files[0])processImportFile(inp.files[0]);}
+
+function processImportFile(file){
+  const reader=new FileReader();
+  reader.onload=function(e){
+    try{
+      const wb=XLSX.read(e.target.result,{type:'binary'});
+      const ws=wb.Sheets[wb.SheetNames[0]];
+      const raw=XLSX.utils.sheet_to_json(ws,{header:1,defval:''});
+      if(raw.length<2){alert('File appears empty.');return;}
+      let hi=0;
+      for(let i=0;i<Math.min(5,raw.length);i++){if(raw[i].filter(c=>c!=='').length>=3){hi=i;break;}}
+      const headers=raw[hi].map(h=>h.toString().trim());
+      const ci={name:matchCol(headers,'project name','project','name'),bidDate:matchCol(headers,'bid date','due date','date'),estimator:matchCol(headers,'estimator','est.'),amount:matchCol(headers,'proposal amount','amount','total','value','proposal'),contact:matchCol(headers,'swinerton','contact','gc contact','builder'),location:matchCol(headers,'location','region','project location'),startDate:matchCol(headers,'scope start','start date','start'),endDate:matchCol(headers,'scope end','end date','end'),status:matchCol(headers,'status')};
+      const rbCounters={};
+      importRows=[];
+      for(let i=hi+1;i<raw.length;i++){
+        const row=raw[i];
+        if(row.every(c=>c===''||c===null||c===undefined))continue;
+        const projectName=ci.name>=0?row[ci.name].toString().trim():'';
+        if(!projectName)continue;
+        const bidDate=parseBidDate(ci.bidDate>=0?row[ci.bidDate]:'');
+        const yr=bidDate?bidDate.slice(2,4):String(new Date().getFullYear()).slice(2);
+        if(!rbCounters[yr]){
+          const pre=`RB-${yr}`;
+          const ex=data.map(p=>p.estimateNumber||'').filter(n=>n.startsWith(pre)).map(n=>parseInt(n.slice(pre.length))||0);
+          const bx=importRows.map(p=>p.estimateNumber||'').filter(n=>n.startsWith(pre)).map(n=>parseInt(n.slice(pre.length))||0);
+          rbCounters[yr]=Math.max(0,...ex,...bx);
+        }
+        rbCounters[yr]++;
+        const estimateNumber=`RB-${yr}${String(rbCounters[yr]).padStart(3,'0')}`;
+        const rawLoc=ci.location>=0?row[ci.location].toString().trim():'';
+        const region=parseRegion(rawLoc);
+        const regionWarning=!!(rawLoc&&!region);
+        const proposalTotal=parseDollar(ci.amount>=0?row[ci.amount]:'');
+        let estimateStatus=STATUS_MAP[(ci.status>=0?row[ci.status].toString().trim():'').toLowerCase()]||'';
+        if(Number(proposalTotal)>0&&estimateStatus==='Estimating')estimateStatus='Submitted';
+        const isDuplicate=data.some(p=>p.projectName&&projectName&&p.projectName.toLowerCase().trim()===projectName.toLowerCase().trim());
+        importRows.push({_rowNum:i-hi,_isDuplicate:isDuplicate,_regionWarning:regionWarning,_rawLocation:rawLoc,projectName,estimateNumber,region,dueDate:bidDate,nbsEstimator:ci.estimator>=0?row[ci.estimator].toString().trim():'',gcEstimateLead:ci.contact>=0?row[ci.contact].toString().trim():'',proposalTotal,estimateStatus,anticipatedStart:parseScopeDate(ci.startDate>=0?row[ci.startDate]:''),anticipatedFinish:parseScopeDate(ci.endDate>=0?row[ci.endDate]:''),swinertonProject:''});
+      }
+      renderImportPreview();
+    }catch(err){alert('Error reading file: '+err.message);}
+  };
+  reader.readAsBinaryString(file);
+}
+
+function renderImportPreview(){
+  document.getElementById('import-step1').style.display='none';
+  document.getElementById('import-step2').style.display='block';
+  document.getElementById('import-footer').style.display='flex';
+  const total=importRows.length,dups=importRows.filter(r=>r._isDuplicate).length,warns=importRows.filter(r=>r._regionWarning&&!r._isDuplicate).length,clean=total-dups-warns;
+  document.getElementById('import-summary').innerHTML=`
+    <div class="import-stat"><span class="import-stat-val">${total}</span><span class="import-stat-label">Total</span></div>
+    <div style="width:1px;height:32px;background:var(--border)"></div>
+    <div class="import-stat"><span class="import-stat-val" style="color:var(--win)">${clean}</span><span class="import-stat-label">Ready</span></div>
+    <div class="import-stat"><span class="import-stat-val" style="color:#FFA500">${warns}</span><span class="import-stat-label">Region?</span></div>
+    <div class="import-stat"><span class="import-stat-val" style="color:var(--loss)">${dups}</span><span class="import-stat-label">Dupes</span></div>
+    <div style="margin-left:auto;font-size:10px;color:var(--text-dim);text-align:right">Duplicates unchecked by default.</div>`;
+  document.getElementById('import-preview-head').innerHTML=`<tr>
+    <th><input type="checkbox" id="import-check-all" onchange="importToggleAll(this.checked)"></th>
+    <th>#</th><th>Flag</th><th>Project Name</th><th>Est #</th><th>Bid Date</th>
+    <th>Estimator</th><th>Amount</th><th>Status</th><th>Region</th><th>Raw Location</th>
+    <th>GC Contact</th><th>Start</th><th>End</th></tr>`;
+  document.getElementById('import-preview-body').innerHTML=importRows.map((r,idx)=>{
+    const checked=!r._isDuplicate;
+    const cls=r._isDuplicate?'irow-dup':r._regionWarning?'irow-warn':'irow-ok';
+    const flag=r._isDuplicate?`<span class="import-flag dup">DUPE</span>`:r._regionWarning?`<span class="import-flag warn">REGION?</span>`:`<span class="import-flag ok">OK</span>`;
+    const sMap={'Estimating':'s-estimating','Revising':'s-revising','Submitted':'s-submitted','Awarded':'s-awarded','Lost - Note Why in Comments':'s-lost'};
+    const statusBadgeHtml=r.estimateStatus?`<span class="badge ${sMap[r.estimateStatus]||''}">${r.estimateStatus==='Lost - Note Why in Comments'?'Lost':r.estimateStatus}</span>`:'\u2014';
+    return`<tr class="${cls}">
+      <td><input type="checkbox" class="import-row-check" data-idx="${idx}" ${checked?'checked':''} onchange="updateImportFooter()"></td>
+      <td style="color:var(--text-dim)">${r._rowNum}</td><td>${flag}</td>
+      <td style="font-weight:500;max-width:180px;overflow:hidden;text-overflow:ellipsis" title="${r.projectName}">${r.projectName}</td>
+      <td style="font-family:'Rajdhani',sans-serif;color:var(--gold)">${r.estimateNumber}</td>
+      <td>${fmtD(r.dueDate)}</td><td>${r.nbsEstimator||'\u2014'}</td>
+      <td>${r.proposalTotal?'$'+Number(r.proposalTotal).toLocaleString():'\u2014'}</td>
+      <td>${statusBadgeHtml}</td>
+      <td style="${!r.region?'color:rgba(255,165,0,.8)':''}">${r.region||'\u2014'}</td>
+      <td style="color:var(--text-dim);font-size:10px;max-width:120px;overflow:hidden;text-overflow:ellipsis" title="${r._rawLocation}">${r._rawLocation||'\u2014'}</td>
+      <td style="max-width:120px;overflow:hidden;text-overflow:ellipsis" title="${r.gcEstimateLead}">${r.gcEstimateLead||'\u2014'}</td>
+      <td>${fmtMY(r.anticipatedStart)}</td><td>${fmtMY(r.anticipatedFinish)}</td>
+    </tr>`;
+  }).join('');
+  updateImportFooter();
+}
+function importToggleAll(checked){document.querySelectorAll('.import-row-check').forEach(cb=>cb.checked=checked);updateImportFooter();}
+function updateImportFooter(){
+  const n=document.querySelectorAll('.import-row-check:checked').length;
+  document.getElementById('import-footer-count').textContent=`${n} of ${importRows.length} rows selected`;
+}
+function commitImport(){
+  let added=0;
+  document.querySelectorAll('.import-row-check').forEach((cb,idx)=>{
+    if(!cb.checked)return;
+    const r={...importRows[idx]};
+    delete r._rowNum;delete r._isDuplicate;delete r._regionWarning;delete r._rawLocation;
+    data.push(r);added++;
+  });
+  save();closeImportModal();render();
+  showToast(`\u2713 ${added} proposal${added!==1?'s':''} imported`);
+}
+
+function showToast(msg){
+  let t=document.getElementById('nbs-toast');
+  if(!t){t=document.createElement('div');t.id='nbs-toast';t.style.cssText='position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:rgba(61,170,106,.95);color:#0D0D0F;padding:10px 20px;border-radius:8px;font-family:\'Rajdhani\',sans-serif;font-size:13px;font-weight:700;letter-spacing:.5px;z-index:9999;opacity:0;transition:opacity .3s;pointer-events:none;white-space:nowrap;';document.body.appendChild(t);}
+  t.textContent=msg;t.style.opacity='1';setTimeout(()=>t.style.opacity='0',3000);
+}
+
+let currentUser = null;
+
+const CAPS = {
+  admin: { dashboard:true,  addRow:true,  editRow:true,  deleteRow:true,  importExcel:true,  clearAll:true,  modeToggle:true  },
+  user:  { dashboard:false, addRow:true,  editRow:true,  deleteRow:false, importExcel:false, clearAll:false, modeToggle:false },
+};
+function can(cap) { return !!(currentUser && CAPS[currentUser.role]?.[cap]); }
+
+async function checkAuth() {
+  try {
+    const res = await fetch('/api/auth/me', { credentials: 'include' });
+    if (res.status === 401) { showAuthGate(); return; }
+    const json = await res.json();
+    currentUser = json.user;
+    if (!['admin','user'].includes(currentUser.role)) currentUser.role = 'user';
+    hideAuthGate();
+    applyRoleUI();
+    initApp();
+  } catch(e) {
+    showAuthGate('Could not reach AiPM. Make sure you are signed in.');
+  }
+}
+
+function showAuthGate(msg) {
+  document.getElementById('login-screen').style.display = 'flex';
+  if (msg) document.getElementById('login-error').textContent = msg;
+}
+
+function hideAuthGate() {
+  document.getElementById('login-screen').style.display = 'none';
+}
+
+function goToAiPM() {
+  window.location.href = '/login?redirect=' + encodeURIComponent(window.location.pathname);
+}
+
+const TEMP_ADMIN_PASS = 'NBS2025!';
+function tempLogin() {
+  const val = document.getElementById('temp-pass').value;
+  if (val !== TEMP_ADMIN_PASS) {
+    document.getElementById('login-error').textContent = 'Incorrect password.';
+    return;
+  }
+  currentUser = { role: 'admin', displayName: 'Admin (Temp)', username: 'temp', email: '' };
+  hideAuthGate();
+  applyRoleUI();
+  initApp();
+}
+
+function doLogout() {
+  fetch('/api/auth/logout', { method:'POST', credentials:'include' })
+    .finally(() => {
+      currentUser = null;
+      showAuthGate();
+    });
+}
+
+function applyRoleUI() {
+  if (!currentUser) return;
+  const role = currentUser.role;
+  const caps = CAPS[role] || CAPS.user;
+
+  document.getElementById('user-pill-name').textContent = currentUser.displayName || currentUser.username || currentUser.email;
+  const badge = document.getElementById('user-pill-badge');
+  badge.textContent = role.toUpperCase();
+  badge.className = 'login-role-badge role-' + role;
+
+  document.getElementById('mode-toggle-wrap').style.display = caps.modeToggle ? '' : 'none';
+  document.getElementById('tab-dash').style.display = caps.dashboard ? '' : 'none';
+
+  const btnAdd    = document.getElementById('btn-add');
+  const btnImport = document.getElementById('btn-import');
+  if (btnAdd)    btnAdd.style.display    = caps.addRow     ? '' : 'none';
+  if (btnImport) btnImport.style.display = caps.importExcel ? '' : 'none';
+}
+
+function applyModeRestrictions() {
+  if (!currentUser) return;
+  const caps = CAPS[currentUser.role] || CAPS.user;
+
+  const selBar = document.getElementById('select-bar');
+  if (selBar && !caps.deleteRow) selBar.style.display = 'none';
+
+  const exportBar = document.querySelector('.export-bar');
+  if (exportBar) {
+    const clearBtn = exportBar.querySelector('button[onclick="clearAllData()"]');
+    if (clearBtn) clearBtn.style.display = caps.clearAll ? '' : 'none';
+  }
+}
+
+function initApp() {
+  document.getElementById('search').addEventListener('input', () => buildRows());
+  ['f-region','f-status','f-market','f-swinerton','f-from','f-to']
+    .forEach(id => document.getElementById(id).addEventListener('change', () => buildRows()));
+  ['df-region','df-market','df-swinerton','df-from','df-to']
+    .forEach(id => { const el = document.getElementById(id); if(el) el.addEventListener('change', renderDash); });
+
+  setMode('estimator');
+  render();
+  applyModeRestrictions();
+}
+
+checkAuth();
+</script>
+
+</body>
+</html>

@@ -5,7 +5,7 @@ import {
   FileSearch, ScanSearch, Receipt, FolderPlus, ChevronRight,
   Clock, ClipboardList, Settings, CheckCircle, AlertCircle,
   Loader2, TrendingUp, FolderOpen, BarChart3, FlaskConical, Trash2,
-  TableProperties, Sparkles, Users, Activity, X
+  TableProperties, Sparkles, Users, Activity, X, FileBarChart
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -27,9 +27,19 @@ interface ToolTile {
   available: boolean;
   comingSoon?: boolean;
   adminOnly?: boolean;
+  isExternal?: boolean;
 }
 
 const tools: ToolTile[] = [
+  {
+    id: "proposallog",
+    title: "Proposal Log",
+    description: "NBS bid tracking, pipeline analytics & estimating workflow",
+    icon: FileBarChart,
+    href: "/tools/proposal-log",
+    available: true,
+    isExternal: true,
+  },
   {
     id: "projectstart",
     title: "Project Start",
@@ -541,27 +551,51 @@ function ToolCard({ tool, index, isAdmin, stats, onStatsClick }: ToolCardProps) 
           <span>{stats?.uniqueUsers || 0}</span>
         </Button>
       )}
-      <Link
-        href={tool.href}
-        data-testid={`link-tool-${tool.id}`}
-        className="flex flex-col flex-1"
-      >
-        <div
-          className={`card-accent-bar tool-tile-animated group relative flex flex-col items-center justify-start text-center p-6 pt-8 cursor-pointer flex-1 hover-elevate active-elevate-2 ${isAdmin ? "rounded-b-lg" : "rounded-lg"}`}
-          style={{ background: "var(--bg2)", border: "1px solid var(--border-ds)" }}
-          data-testid={`tile-${tool.id}`}
+      {tool.isExternal ? (
+        <a
+          href={tool.href}
+          data-testid={`link-tool-${tool.id}`}
+          className="flex flex-col flex-1"
         >
-          <div className="tool-icon w-14 h-14 rounded-full flex items-center justify-center mb-4 shrink-0" style={{ background: "rgba(201,168,76,0.1)" }}>
-            <Icon className="w-7 h-7" style={{ color: "var(--gold)" }} />
+          <div
+            className={`card-accent-bar tool-tile-animated group relative flex flex-col items-center justify-start text-center p-6 pt-8 cursor-pointer flex-1 hover-elevate active-elevate-2 ${isAdmin ? "rounded-b-lg" : "rounded-lg"}`}
+            style={{ background: "var(--bg2)", border: "1px solid var(--border-ds)" }}
+            data-testid={`tile-${tool.id}`}
+          >
+            <div className="tool-icon w-14 h-14 rounded-full flex items-center justify-center mb-4 shrink-0" style={{ background: "rgba(201,168,76,0.1)" }}>
+              <Icon className="w-7 h-7" style={{ color: "var(--gold)" }} />
+            </div>
+            <h2 className="text-base font-semibold font-heading mb-2" style={{ color: "var(--text)" }}>
+              {tool.title}
+            </h2>
+            <p className="text-sm leading-relaxed" style={{ color: "var(--text-dim)" }}>
+              {tool.description}
+            </p>
           </div>
-          <h2 className="text-base font-semibold font-heading mb-2" style={{ color: "var(--text)" }}>
-            {tool.title}
-          </h2>
-          <p className="text-sm leading-relaxed" style={{ color: "var(--text-dim)" }}>
-            {tool.description}
-          </p>
-        </div>
-      </Link>
+        </a>
+      ) : (
+        <Link
+          href={tool.href}
+          data-testid={`link-tool-${tool.id}`}
+          className="flex flex-col flex-1"
+        >
+          <div
+            className={`card-accent-bar tool-tile-animated group relative flex flex-col items-center justify-start text-center p-6 pt-8 cursor-pointer flex-1 hover-elevate active-elevate-2 ${isAdmin ? "rounded-b-lg" : "rounded-lg"}`}
+            style={{ background: "var(--bg2)", border: "1px solid var(--border-ds)" }}
+            data-testid={`tile-${tool.id}`}
+          >
+            <div className="tool-icon w-14 h-14 rounded-full flex items-center justify-center mb-4 shrink-0" style={{ background: "rgba(201,168,76,0.1)" }}>
+              <Icon className="w-7 h-7" style={{ color: "var(--gold)" }} />
+            </div>
+            <h2 className="text-base font-semibold font-heading mb-2" style={{ color: "var(--text)" }}>
+              {tool.title}
+            </h2>
+            <p className="text-sm leading-relaxed" style={{ color: "var(--text-dim)" }}>
+              {tool.description}
+            </p>
+          </div>
+        </Link>
+      )}
     </div>
   );
 }

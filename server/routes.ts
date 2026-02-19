@@ -66,6 +66,10 @@ export async function registerRoutes(
 
   registerAuthRoutes(app);
 
+  app.get("/tools/proposal-log", (req, res) => {
+    res.sendFile(path.resolve(process.cwd(), "public", "tools", "proposal-log.html"));
+  });
+
   const publicPaths = ["/api/auth/", "/api/version", "/health"];
   app.use("/api", (req, res, next) => {
     const fullPath = req.originalUrl || req.path;
