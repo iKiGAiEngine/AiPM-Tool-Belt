@@ -86,6 +86,8 @@ export default function ProjectStartPage() {
     expectedFinish: string | null;
     clientName: string | null;
     clientLocation: string | null;
+    gcContactName: string | null;
+    gcContactEmail: string | null;
     primaryMarket: string | null;
     rawText: string | null;
   } | null>(null);
@@ -866,6 +868,30 @@ export default function ProjectStartPage() {
                         <span className="font-medium text-foreground">{extractionResult.primaryMarket}</span>
                       </div>
                     )}
+                    {extractionResult.gcContactName && (
+                      <div className="flex items-start gap-2 p-2 rounded-md bg-muted/50">
+                        <span className="text-muted-foreground whitespace-nowrap">GC Contact:</span>
+                        <span className="font-medium text-foreground">{extractionResult.gcContactName}{extractionResult.gcContactEmail ? ` (${extractionResult.gcContactEmail})` : ""}</span>
+                      </div>
+                    )}
+                    {!extractionResult.gcContactName && extractionResult.gcContactEmail && (
+                      <div className="flex items-start gap-2 p-2 rounded-md bg-muted/50">
+                        <span className="text-muted-foreground whitespace-nowrap">GC Email:</span>
+                        <span className="font-medium text-foreground">{extractionResult.gcContactEmail}</span>
+                      </div>
+                    )}
+                    {extractionResult.expectedStart && (
+                      <div className="flex items-start gap-2 p-2 rounded-md bg-muted/50">
+                        <span className="text-muted-foreground whitespace-nowrap">Est. Start:</span>
+                        <span className="font-medium text-foreground">{extractionResult.expectedStart}</span>
+                      </div>
+                    )}
+                    {extractionResult.expectedFinish && (
+                      <div className="flex items-start gap-2 p-2 rounded-md bg-muted/50">
+                        <span className="text-muted-foreground whitespace-nowrap">Est. End:</span>
+                        <span className="font-medium text-foreground">{extractionResult.expectedFinish}</span>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -892,7 +918,7 @@ export default function ProjectStartPage() {
                     <SelectValue placeholder="Select region">
                       {selectedRegionId ? (() => {
                         const sel = regions.find((r) => String(r.id) === selectedRegionId);
-                        return sel ? sel.code : regionCode;
+                        return sel ? `${sel.code}${sel.name ? ` - ${sel.name}` : ""}` : regionCode;
                       })() : null}
                     </SelectValue>
                   </SelectTrigger>
@@ -1042,10 +1068,22 @@ export default function ProjectStartPage() {
               </div>
             </div>
             {extractionResult && (
-              <div className="flex items-center gap-2 text-xs text-muted-foreground" data-testid="text-extraction-source">
-                <ImageIcon className="w-3 h-3" />
-                {extractionResult.clientName && (
-                  <span>Client: <span className="font-medium text-foreground">{extractionResult.clientName}{extractionResult.clientLocation ? ` — ${extractionResult.clientLocation}` : ""}</span></span>
+              <div className="flex flex-col gap-1 text-xs text-muted-foreground" data-testid="text-extraction-source">
+                <div className="flex items-center gap-2">
+                  <ImageIcon className="w-3 h-3" />
+                  {extractionResult.clientName && (
+                    <span>Client: <span className="font-medium text-foreground">{extractionResult.clientName}{extractionResult.clientLocation ? ` — ${extractionResult.clientLocation}` : ""}</span></span>
+                  )}
+                </div>
+                {extractionResult.gcContactName && (
+                  <div className="flex items-center gap-2 ml-5">
+                    <span>GC Contact: <span className="font-medium text-foreground">{extractionResult.gcContactName}{extractionResult.gcContactEmail ? ` (${extractionResult.gcContactEmail})` : ""}</span></span>
+                  </div>
+                )}
+                {!extractionResult.gcContactName && extractionResult.gcContactEmail && (
+                  <div className="flex items-center gap-2 ml-5">
+                    <span>GC Email: <span className="font-medium text-foreground">{extractionResult.gcContactEmail}</span></span>
+                  </div>
                 )}
               </div>
             )}

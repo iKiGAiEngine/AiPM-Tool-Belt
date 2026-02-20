@@ -19,6 +19,8 @@ export interface ExtractedProjectDetails {
   expectedFinish: string | null;
   clientName: string | null;
   clientLocation: string | null;
+  gcContactName: string | null;
+  gcContactEmail: string | null;
   rawText: string;
 }
 
@@ -35,10 +37,10 @@ export async function extractProjectDetailsFromScreenshot(
   const tradeName = extractTradeName(text);
   const inviteDate = extractLabeledDate(text, ["Date\\s*Invite", "Invite\\s*Date", "Invited"]);
   const expectedStart = extractLabeledDate(text, ["Expected\\s*Start", "Est\\.?\\s*Start", "Anticipated\\s*Start", "Start\\s*Date"]);
-  const expectedFinish = extractLabeledDate(text, ["Expected\\s*Finish", "Expected\\s*End", "Est\\.?\\s*End", "Est\\.?\\s*Finish", "Anticipated\\s*Finish", "End\\s*Date"]);
-  const { clientName, clientLocation } = extractClientInfo(text);
+  const expectedFinish = extractLabeledDate(text, ["Expected\\s*Finish", "Expected\\s*End", "Est\\.?\\s*End", "Est\\.?\\s*Finish", "Anticipated\\s*Finish", "Anticipated\\s*End", "End\\s*Date", "Completion\\s*Date"]);
+  const { clientName, clientLocation, gcContactName, gcContactEmail } = extractClientInfo(text);
 
-  return {
+  const result: ExtractedProjectDetails = {
     projectName,
     dueDate,
     location,
@@ -48,8 +50,14 @@ export async function extractProjectDetailsFromScreenshot(
     expectedFinish,
     clientName,
     clientLocation,
+    gcContactName,
+    gcContactEmail,
     rawText: text,
   };
+
+  comprehensiveFieldScan(text, result);
+
+  return result;
 }
 
 function extractProjectName(text: string): string | null {
@@ -183,6 +191,19 @@ function extractTradeName(text: string): string | null {
 
 function extractLabeledDate(text: string, labelPatterns: string[]): string | null {
   const lines = text.split("\n");
+
+  let labelFoundAnywhere = false;
+  for (const labelPattern of labelPatterns) {
+    const labelRegex = new RegExp(labelPattern, "i");
+    if (labelRegex.test(text)) {
+      labelFoundAnywhere = true;
+      break;
+    }
+  }
+  if (!labelFoundAnywhere) {
+    return null;
+  }
+
   for (const labelPattern of labelPatterns) {
     const inlinePatterns = [
       new RegExp(`${labelPattern}\\s*[:\\-]?\\s*(\\w+\\.?\\s+\\d{1,2},?\\s+\\d{4})`, "i"),
@@ -193,7 +214,7 @@ function extractLabeledDate(text: string, labelPatterns: string[]): string | nul
       const match = text.match(pattern);
       if (match && match[1]) {
         const parsed = parseDate(match[1].trim());
-        if (parsed) return parsed;
+        if (parsed && !isToday(parsed)) return parsed;
       }
     }
 
@@ -204,12 +225,12 @@ function extractLabeledDate(text: string, labelPatterns: string[]): string | nul
           const dateMatch = lines[j].match(/(\w{3,9}\.?\s+\d{1,2},?\s+\d{4})/);
           if (dateMatch) {
             const parsed = parseDate(dateMatch[1]);
-            if (parsed) return parsed;
+            if (parsed && !isToday(parsed)) return parsed;
           }
           const slashMatch = lines[j].match(/(\d{1,2}\/\d{1,2}\/\d{2,4})/);
           if (slashMatch) {
             const parsed = parseDate(slashMatch[1]);
-            if (parsed) return parsed;
+            if (parsed && !isToday(parsed)) return parsed;
           }
         }
       }
@@ -218,41 +239,219 @@ function extractLabeledDate(text: string, labelPatterns: string[]): string | nul
   return null;
 }
 
-function extractClientInfo(text: string): { clientName: string | null; clientLocation: string | null } {
+function extractClientInfo(text: string): { 
+  clientName: string | null; 
+  clientLocation: string | null;
+  gcContactName: string | null;
+  gcContactEmail: string | null;
+} {
   const lines = text.split("\n").map(l => l.trim()).filter(Boolean);
 
   let clientLineIdx = -1;
   for (let i = 0; i < lines.length; i++) {
-    if (/^Client$/i.test(lines[i])) {
+    if (/^Client\s*:?\s*$/i.test(lines[i])) {
       clientLineIdx = i;
       break;
     }
   }
 
   if (clientLineIdx === -1) {
-    return { clientName: null, clientLocation: null };
+    for (let i = 0; i < lines.length; i++) {
+      if (/\bClient\s*:\s*/i.test(lines[i])) {
+        const afterLabel = lines[i].replace(/.*Client\s*:\s*/i, "").trim();
+        if (afterLabel.length > 3) {
+          const dashMatch = afterLabel.match(/^(.+?)\s*[-–—]\s*(.+)$/);
+          if (dashMatch) {
+            const gcInfo = extractGCContact(lines, i);
+            return { 
+              clientName: dashMatch[1].trim(), 
+              clientLocation: dashMatch[2].trim().replace(/\s*[-–—]\s*.*$/, "").trim(),
+              ...gcInfo
+            };
+          }
+          const gcInfo = extractGCContact(lines, i);
+          return { clientName: afterLabel, clientLocation: null, ...gcInfo };
+        }
+      }
+    }
+  }
+
+  if (clientLineIdx === -1) {
+    const knownGCs = [
+      "swinerton", "turner", "skanska", "hensel phelps", "dpr", "mccarthy",
+      "webcor", "holder", "brasfield", "balfour beatty", "gilbane", "whiting-turner",
+      "mortenson", "suffolk", "clark", "jacobs", "kiewit", "lendlease"
+    ];
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      const lineLower = line.toLowerCase();
+      for (const gc of knownGCs) {
+        if (lineLower.includes(gc)) {
+          const dashMatch = line.match(/^(.+?)\s*[-–—]\s*(.+)$/);
+          if (dashMatch) {
+            const gcInfo = extractGCContact(lines, i);
+            return { 
+              clientName: dashMatch[1].trim(), 
+              clientLocation: dashMatch[2].trim().replace(/\s*[-–—]\s*.*$/, "").trim(),
+              ...gcInfo
+            };
+          }
+        }
+      }
+    }
+  }
+
+  if (clientLineIdx === -1) {
+    return { clientName: null, clientLocation: null, gcContactName: null, gcContactEmail: null };
   }
 
   for (let j = clientLineIdx + 1; j < Math.min(clientLineIdx + 5, lines.length); j++) {
     const line = lines[j];
-    if (line.length < 5) continue;
-    if (/^(Bidding|Overview|Files|Messages|Vendors|Status)/i.test(line)) break;
-    if (line.includes("@") || line.match(/^\+?\d[\d\s\-().]+$/)) continue;
+    if (line.length < 3) continue;
+    if (/^(Bidding|Overview|Files|Messages|Vendors|Status|Links|Search)/i.test(line)) break;
+    if (line.match(/^\+?\d[\d\s\-().]+$/)) continue;
+
+    if (line.includes("@")) continue;
 
     const dashMatch = line.match(/^(.+?)\s*[-–—]\s*(.+)$/);
     if (dashMatch) {
       const company = dashMatch[1].trim();
       let locationPart = dashMatch[2].trim();
       locationPart = locationPart.replace(/\s*[-–—]\s*.*$/, "").trim();
-      return { clientName: company, clientLocation: locationPart };
+      const gcInfo = extractGCContact(lines, j);
+      return { clientName: company, clientLocation: locationPart, ...gcInfo };
     }
 
     if (line.length > 3 && !line.includes("|")) {
-      return { clientName: line, clientLocation: null };
+      const gcInfo = extractGCContact(lines, j);
+      return { clientName: line, clientLocation: null, ...gcInfo };
     }
   }
 
-  return { clientName: null, clientLocation: null };
+  return { clientName: null, clientLocation: null, gcContactName: null, gcContactEmail: null };
+}
+
+function extractGCContact(lines: string[], afterIdx: number): { gcContactName: string | null; gcContactEmail: string | null } {
+  let gcContactName: string | null = null;
+  let gcContactEmail: string | null = null;
+
+  for (let k = afterIdx + 1; k < Math.min(afterIdx + 5, lines.length); k++) {
+    const line = lines[k];
+    if (/^(Bidding|Overview|Files|Messages|Vendors|Status|Links|Search|Trade|Due|Date)/i.test(line)) break;
+
+    const emailMatch = line.match(/([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/);
+    if (emailMatch) {
+      gcContactEmail = emailMatch[1];
+      const beforeEmail = line.replace(emailMatch[1], "").replace(/[-–—]/, "").trim();
+      if (beforeEmail.length > 3 && /^[A-Z]/.test(beforeEmail)) {
+        gcContactName = beforeEmail;
+      }
+      continue;
+    }
+
+    if (!gcContactName && line.length > 3 && line.length < 60) {
+      const nameMatch = line.match(/^([A-Z][a-zA-Z]+\s+[A-Z][a-zA-Z]+)/);
+      if (nameMatch) {
+        gcContactName = nameMatch[1];
+      }
+    }
+  }
+
+  return { gcContactName, gcContactEmail };
+}
+
+function comprehensiveFieldScan(text: string, result: ExtractedProjectDetails): void {
+  const lines = text.split("\n").map(l => l.trim()).filter(Boolean);
+
+  if (!result.inviteDate) {
+    for (const line of lines) {
+      const inviteMatch = line.match(/(?:Date\s*Invite|Invite\s*Date|Invited|Date\s*Received)\s*[:\-]?\s*(\w+\.?\s+\d{1,2},?\s+\d{4})/i);
+      if (inviteMatch) {
+        const parsed = parseDate(inviteMatch[1].trim());
+        if (parsed && !isToday(parsed)) { result.inviteDate = parsed; break; }
+      }
+      const inviteSlash = line.match(/(?:Date\s*Invite|Invite\s*Date|Invited|Date\s*Received)\s*[:\-]?\s*(\d{1,2}\/\d{1,2}\/\d{2,4})/i);
+      if (inviteSlash) {
+        const parsed = parseDate(inviteSlash[1].trim());
+        if (parsed && !isToday(parsed)) { result.inviteDate = parsed; break; }
+      }
+    }
+  }
+
+  if (!result.tradeName) {
+    for (const line of lines) {
+      const tradeMatch = line.match(/(?:Trade\s*Name|Trade|Scope|CSI\s*Division)\s*[:\-]?\s*(.+)/i);
+      if (tradeMatch && tradeMatch[1].trim().length > 2 && tradeMatch[1].trim().length < 100) {
+        result.tradeName = tradeMatch[1].trim();
+        break;
+      }
+    }
+  }
+
+  if (!result.location) {
+    for (const line of lines) {
+      const cityStateMatch = line.match(/(?:City|Location|Address|Site)\s*[:\-]?\s*(.+)/i);
+      if (cityStateMatch && cityStateMatch[1].trim().length > 3) {
+        let loc = cityStateMatch[1].trim();
+        loc = loc.replace(/\s*(United States|USA|US)\s*$/i, "").replace(/,\s*$/, "").trim();
+        if (loc.length > 3) { result.location = loc; break; }
+      }
+    }
+  }
+
+  if (!result.clientName) {
+    const knownGCs = [
+      "swinerton", "turner", "skanska", "hensel phelps", "dpr", "mccarthy",
+      "webcor", "holder", "brasfield", "balfour beatty", "gilbane", "whiting-turner",
+      "mortenson", "suffolk", "clark", "jacobs", "kiewit", "lendlease"
+    ];
+    for (const line of lines) {
+      const lineLower = line.toLowerCase();
+      for (const gc of knownGCs) {
+        if (lineLower.includes(gc)) {
+          const dashMatch = line.match(/^(.+?)\s*[-–—]\s*(.+)$/);
+          if (dashMatch) {
+            result.clientName = dashMatch[1].trim();
+            result.clientLocation = dashMatch[2].trim().replace(/\s*[-–—]\s*.*$/, "").trim();
+          } else {
+            result.clientName = line.trim();
+          }
+          break;
+        }
+      }
+      if (result.clientName) break;
+    }
+  }
+
+  if (!result.gcContactEmail) {
+    for (const line of lines) {
+      const emailMatch = line.match(/([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/);
+      if (emailMatch) {
+        result.gcContactEmail = emailMatch[1];
+        const beforeEmail = line.replace(emailMatch[1], "").replace(/[-–—]/, "").trim();
+        if (beforeEmail.length > 3 && /^[A-Z]/.test(beforeEmail) && !result.gcContactName) {
+          result.gcContactName = beforeEmail;
+        }
+        break;
+      }
+    }
+  }
+
+  if (!result.dueDate) {
+    for (const line of lines) {
+      const bidTimeMatch = line.match(/(?:Bid|Submit|Submission)\s*(?:by|before|deadline)\s*[:\-]?\s*(\w+\.?\s+\d{1,2},?\s+\d{4})/i);
+      if (bidTimeMatch) {
+        const parsed = parseDate(bidTimeMatch[1].trim());
+        if (parsed) { result.dueDate = parsed; break; }
+      }
+    }
+  }
+}
+
+function isToday(dateStr: string): boolean {
+  const today = new Date();
+  const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+  return dateStr === todayStr;
 }
 
 function parseDate(dateStr: string): string | null {

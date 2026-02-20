@@ -95,7 +95,7 @@ export function registerProjectRoutes(app: Express) {
 
       console.log(`[ScreenshotExtractor] Processing ${req.file.originalname} (${(req.file.size / 1024).toFixed(0)} KB)`);
       const result = await extractProjectDetailsFromScreenshot(req.file.buffer);
-      console.log(`[ScreenshotExtractor] Extracted: name="${result.projectName}", date="${result.dueDate}", location="${result.location}", client="${result.clientName}", clientLoc="${result.clientLocation}", invite="${result.inviteDate}", start="${result.expectedStart}", finish="${result.expectedFinish}"`);
+      console.log(`[ScreenshotExtractor] Extracted: name="${result.projectName}", date="${result.dueDate}", location="${result.location}", client="${result.clientName}", clientLoc="${result.clientLocation}", invite="${result.inviteDate}", start="${result.expectedStart}", finish="${result.expectedFinish}", gcContact="${result.gcContactName}", gcEmail="${result.gcContactEmail}"`);
 
       const regions = await getAllRegions();
       let matchedRegionCode: string | null = null;
@@ -171,6 +171,8 @@ export function registerProjectRoutes(app: Express) {
         expectedFinish: result.expectedFinish,
         clientName: result.clientName,
         clientLocation: result.clientLocation,
+        gcContactName: result.gcContactName,
+        gcContactEmail: result.gcContactEmail,
         primaryMarket,
         rawText: result.rawText,
       });
