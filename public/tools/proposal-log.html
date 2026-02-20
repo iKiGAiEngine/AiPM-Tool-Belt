@@ -2161,7 +2161,7 @@ async function syncFromServer() {
         primaryMarket: e.primaryMarket || '',
         inviteDate: e.inviteDate || '',
         dueDate: e.dueDate || '',
-        nbsEstimator: '',
+        nbsEstimator: e.nbsEstimator || '',
         gcEstimateLead: '',
         proposalTotal: '',
         estimateStatus: e.estimateStatus || 'Estimating',
@@ -2206,6 +2206,7 @@ function initApp() {
   render();
   applyModeRestrictions();
   syncFromServer();
+  setInterval(() => syncFromServer(), 30000);
 }
 
 checkAuth();

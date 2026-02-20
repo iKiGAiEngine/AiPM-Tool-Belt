@@ -85,6 +85,7 @@ export async function createProposalLogEntry(data: {
   estimateStatus?: string;
   anticipatedStart?: string;
   anticipatedFinish?: string;
+  nbsEstimator?: string;
 }) {
   const fallbackInviteDate = (() => {
     const today = new Date();
@@ -105,6 +106,7 @@ export async function createProposalLogEntry(data: {
     projectDbId: data.projectDbId,
     anticipatedStart: data.anticipatedStart || null,
     anticipatedFinish: data.anticipatedFinish || null,
+    nbsEstimator: data.nbsEstimator || null,
     isTest: data.isTest || false,
     syncedToLocal: false,
   }).returning();

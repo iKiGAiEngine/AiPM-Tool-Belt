@@ -188,7 +188,7 @@ export default function HomePage() {
   const [proposals, setProposals] = useState<ProposalRow[]>([]);
   const [acknowledgedIds, setAcknowledgedIds] = useState<Set<string>>(new Set());
 
-  useEffect(() => {
+  const loadProposals = useCallback(() => {
     try {
       const raw = localStorage.getItem("nbs_v4");
       if (raw) {
@@ -197,6 +197,12 @@ export default function HomePage() {
       }
     } catch { /* ignore */ }
   }, []);
+
+  useEffect(() => {
+    loadProposals();
+    const interval = setInterval(loadProposals, 15000);
+    return () => clearInterval(interval);
+  }, [loadProposals]);
 
   const userInitials = user ? getUserInitials(user) : "HK";
   const userEstimatorName = user?.displayName || user?.username || "";

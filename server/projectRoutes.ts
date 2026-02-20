@@ -793,6 +793,7 @@ export function registerProjectRoutes(app: Express) {
             estimateStatus: frontendEstimateStatus || undefined,
             anticipatedStart: frontendAnticipatedStart || undefined,
             anticipatedFinish: frontendAnticipatedFinish || undefined,
+            nbsEstimator: ownerName || undefined,
           });
           console.log(`[ProjectCreate] Proposal log entry created for ${safeName}`);
         } catch (err) {
