@@ -54,8 +54,7 @@ function UserFormDialog({
   const { toast } = useToast();
   const [email, setEmail] = useState(editUser?.email || "");
   const [displayName, setDisplayName] = useState(editUser?.displayName || "");
-  const [company, setCompany] = useState(editUser?.company || "");
-  const [phone, setPhone] = useState(editUser?.phone || "");
+  const [initials, setInitials] = useState(editUser?.initials || "");
   const [role, setRole] = useState(editUser?.role || "admin");
 
   const isEditing = !!editUser;
@@ -63,7 +62,7 @@ function UserFormDialog({
   const createMutation = useMutation({
     mutationFn: async () => {
       await apiRequest("POST", "/api/admin/users", {
-        email, displayName, company, phone, role,
+        email, displayName, initials, role,
       });
     },
     onSuccess: () => {
@@ -79,7 +78,7 @@ function UserFormDialog({
   const updateMutation = useMutation({
     mutationFn: async () => {
       await apiRequest("PATCH", `/api/admin/users/${editUser!.id}/profile`, {
-        email, displayName, company, phone,
+        email, displayName, initials,
       });
     },
     onSuccess: () => {
@@ -132,27 +131,17 @@ function UserFormDialog({
               data-testid="input-form-name"
             />
           </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-2">
-              <Label htmlFor="form-company">Company</Label>
-              <Input
-                id="form-company"
-                placeholder="Company name"
-                value={company}
-                onChange={(e) => setCompany(e.target.value)}
-                data-testid="input-form-company"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="form-phone">Phone</Label>
-              <Input
-                id="form-phone"
-                placeholder="(555) 123-4567"
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                data-testid="input-form-phone"
-              />
-            </div>
+          <div className="space-y-2">
+            <Label htmlFor="form-initials">Initials</Label>
+            <Input
+              id="form-initials"
+              placeholder="HK"
+              value={initials}
+              onChange={(e) => setInitials(e.target.value.toUpperCase())}
+              maxLength={4}
+              data-testid="input-form-initials"
+            />
+            <p className="text-xs text-muted-foreground">Used as estimator code in Proposal Log</p>
           </div>
           {!isEditing && (
             <div className="space-y-2">
@@ -273,7 +262,7 @@ export default function AdminPage() {
               <TableHeader>
                 <TableRow>
                   <TableHead>User</TableHead>
-                  <TableHead>Company</TableHead>
+                  <TableHead>Initials</TableHead>
                   <TableHead>Role</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Last Login</TableHead>
@@ -304,13 +293,10 @@ export default function AdminPage() {
                           {u.displayName && (
                             <div className="text-xs text-muted-foreground">{u.email}</div>
                           )}
-                          {u.phone && (
-                            <div className="text-xs text-muted-foreground">{u.phone}</div>
-                          )}
                         </div>
                       </TableCell>
-                      <TableCell className="text-sm text-muted-foreground">
-                        {u.company || "-"}
+                      <TableCell className="text-sm font-medium" data-testid={`text-initials-${u.id}`}>
+                        {u.initials || "-"}
                       </TableCell>
                       <TableCell>
                         <Badge

@@ -730,9 +730,6 @@ td.inline-editing{padding:2px 4px !important;background:rgba(201,168,76,.06) !im
         <div class="form-group"><label class="fl">NBS Estimator</label>
           <select class="fi" id="f-nbsEstimator">
             <option value="">&mdash; Select &mdash;</option>
-            <option value="HK">HK &mdash; Haley Kruse</option>
-            <option value="GM">GM &mdash; Gonzalo Martinez</option>
-            <option value="GT">GT &mdash; Gene Trabert</option>
           </select>
         </div>
         <div class="form-group"><label class="fl">GC Estimate Lead</label><input type="text" class="fi" id="f-gcEstimateLead" placeholder="GC lead name"></div>
@@ -1823,11 +1820,24 @@ function clearAllData(){
   data=[];selectedIndices.clear();save();render();showToast('\ud83d\uddd1 All proposals cleared');
 }
 
-const ESTIMATORS=[
+let ESTIMATORS=[
   {code:'HK',label:'HK \u2014 Haley Kruse'},
   {code:'GM',label:'GM \u2014 Gonzalo Martinez'},
   {code:'GT',label:'GT \u2014 Gene Trabert'},
 ];
+(async function loadEstimators(){
+  try{
+    const res=await fetch('/api/estimators',{credentials:'include'});
+    if(res.ok){
+      const list=await res.json();
+      if(list.length) ESTIMATORS=list;
+    }
+  }catch(e){console.warn('Could not load estimators from server, using defaults');}
+  const sel=document.getElementById('f-nbsEstimator');
+  if(sel){
+    sel.innerHTML='<option value="">\u2014 Select \u2014</option>'+ESTIMATORS.map(e=>`<option value="${e.code}">${e.label}</option>`).join('');
+  }
+})();
 const INLINE_FIELDS={proposalTotal:'number',estimateStatus:'select-status',nbsEstimator:'select-estimator',anticipatedStart:'month',anticipatedFinish:'month'};
 let activeInlineEdit=null;
 
@@ -2140,18 +2150,21 @@ function viewScreenshot(estNum) {
 
 async function syncFromServer() {
   try {
-    const res = await fetch('/api/proposal-log/unsynced');
+    const needsFullSync = data.length === 0;
+    const endpoint = needsFullSync ? '/api/proposal-log/entries' : '/api/proposal-log/unsynced';
+    const res = await fetch(endpoint);
     if (!res.ok) return;
     const entries = await res.json();
     if (!entries.length) return;
     const syncedIds = [];
+    let addedCount = 0;
     for (const e of entries) {
       const isDupe = data.some(p => p.estimateNumber === e.estimateNumber || (p.projectName === e.projectName && p.dueDate === e.dueDate));
       if (isDupe) {
         const existing = data.find(p => p.estimateNumber === e.estimateNumber || (p.projectName === e.projectName && p.dueDate === e.dueDate));
         if (existing && e.estimateNumber) existing._screenshotId = e.estimateNumber;
         if (existing && e.isTest) existing._isTest = true;
-        syncedIds.push(e.id);
+        if (!needsFullSync) syncedIds.push(e.id);
         continue;
       }
       const newEntry = {
@@ -2176,18 +2189,21 @@ async function syncFromServer() {
         _isTest: e.isTest || false,
       };
       data.push(newEntry);
-      syncedIds.push(e.id);
+      addedCount++;
+      if (!needsFullSync) syncedIds.push(e.id);
     }
-    if (syncedIds.length) {
+    if (addedCount > 0 || syncedIds.length > 0) {
       save();
-      await fetch('/api/proposal-log/mark-synced', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ids: syncedIds })
-      });
+      if (syncedIds.length) {
+        await fetch('/api/proposal-log/mark-synced', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ids: syncedIds })
+        });
+      }
       render();
-      if (entries.length > syncedIds.filter((_, i) => !data.some(p => p.estimateNumber === entries[i]?.estimateNumber)).length) {
-        showToast(syncedIds.length + ' new project(s) synced from Project Start');
+      if (addedCount > 0) {
+        showToast(addedCount + ' project(s) synced from server');
       }
     }
   } catch (err) {

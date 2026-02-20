@@ -95,9 +95,34 @@ export function registerAdminRoutes(app: Express) {
     }
   });
 
+  app.get("/api/estimators", async (_req: Request, res: Response) => {
+    try {
+      const activeUsers = await db.select({
+        id: users.id,
+        displayName: users.displayName,
+        initials: users.initials,
+        email: users.email,
+        role: users.role,
+      }).from(users).where(eq(users.isActive, true));
+
+      const estimators = activeUsers
+        .filter(u => u.initials)
+        .map(u => ({
+          code: u.initials!,
+          label: `${u.initials} — ${u.displayName || u.email}`,
+          isAdmin: u.role === "admin",
+        }));
+
+      res.json(estimators);
+    } catch (error) {
+      console.error("[Admin] Get estimators error:", error);
+      res.status(500).json({ message: "Failed to get estimators" });
+    }
+  });
+
   app.post("/api/admin/users", requireAdmin, async (req: Request, res: Response) => {
     try {
-      const { email, displayName, company, phone, role } = req.body;
+      const { email, displayName, initials, role } = req.body;
       const actorId = (req.session as any)?.userId;
 
       if (!email || typeof email !== "string") {
@@ -115,11 +140,12 @@ export function registerAdminRoutes(app: Express) {
         return res.status(409).json({ message: "A user with this email already exists" });
       }
 
+      const autoInitials = initials || (displayName ? displayName.split(/\s+/).map((w: string) => w[0]).join("").toUpperCase().substring(0, 3) : "");
+
       const [newUser] = await db.insert(users).values({
         email: normalizedEmail,
         displayName: displayName || null,
-        company: company || null,
-        phone: phone || null,
+        initials: autoInitials || null,
         role: role || "user",
         isActive: true,
       }).returning();
@@ -148,13 +174,12 @@ export function registerAdminRoutes(app: Express) {
   app.patch("/api/admin/users/:id/profile", requireAdmin, async (req: Request, res: Response) => {
     try {
       const userId = parseInt(req.params.id);
-      const { displayName, company, phone, email } = req.body;
+      const { displayName, initials, email } = req.body;
       const actorId = (req.session as any)?.userId;
 
       const updateFields: Record<string, any> = {};
       if (displayName !== undefined) updateFields.displayName = displayName || null;
-      if (company !== undefined) updateFields.company = company || null;
-      if (phone !== undefined) updateFields.phone = phone || null;
+      if (initials !== undefined) updateFields.initials = initials || null;
       if (email !== undefined) {
         const normalizedEmail = email.trim().toLowerCase();
         if (!isAllowedDomain(normalizedEmail)) {

@@ -38,7 +38,7 @@ All data is stored in PostgreSQL via Drizzle ORM. Tables include `sessions`, `ex
 
 ### Authentication & Access Control
 - **OTP Email Login**: Users receive a 6-digit code via email (SendGrid when `SENDGRID_API_KEY` secret is set, otherwise codes log to server console). Codes expire in 10 minutes, are hashed (SHA-256), and single-use.
-- **Quick Login**: Username "hkkruse" maps to hkkruse@nationalbuildingspecialties.com and logs in as admin. Username "user1" maps to user1@nationalbuildingspecialties.com and logs in as regular user. Both bypass OTP for development convenience. LoginPage shows "Admin Login" and "User Login" buttons.
+- **Quick Login**: Three quick-login buttons on LoginPage: "hk" → Haley Kruse (hkkruse@nbs, admin), "gm" → Gonzalo Martinez (gm@nbs, user), "gt" → Gene Trabert (gt@nbs, user). Each user has initials (HK, GM, GT) stored in the `initials` column of the users table. Initials are used as estimator codes in the Proposal Log and for HUD filtering.
 - **Domain Restriction**: Only emails from allowed domains (default: nationalbuildingspecialties.com, swinerton.com) can log in or be created. Configurable via `ALLOWED_EMAIL_DOMAINS` env var.
 - **Role-Based Access**: All authenticated users can access the app. Admin-only features (test mode, settings, admin dashboard, tool usage stats) are gated behind `isAdmin` checks.
 - **Session Management**: PostgreSQL-backed sessions via connect-pg-simple, 7-day cookies, secure/httpOnly/sameSite settings.

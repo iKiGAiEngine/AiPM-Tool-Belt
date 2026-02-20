@@ -46,8 +46,9 @@ function getClientIP(req: Request): string {
 }
 
 const QUICK_LOGIN_USERS: Record<string, { email: string; role: "admin" | "user" }> = {
-  hkkruse: { email: "hkkruse@nationalbuildingspecialties.com", role: "admin" },
-  user1: { email: "user1@nationalbuildingspecialties.com", role: "user" },
+  hk: { email: "hkkruse@nationalbuildingspecialties.com", role: "admin" },
+  gm: { email: "gm@nationalbuildingspecialties.com", role: "user" },
+  gt: { email: "gt@nationalbuildingspecialties.com", role: "user" },
 };
 
 export function registerAuthRoutes(app: Express) {
@@ -237,7 +238,7 @@ export function registerAuthRoutes(app: Express) {
         return res.status(401).json({ message: "Not authenticated" });
       }
 
-      res.json({ user: { id: user.id, email: user.email, role: user.role, displayName: user.displayName, company: user.company, phone: user.phone, username: user.username } });
+      res.json({ user: { id: user.id, email: user.email, role: user.role, displayName: user.displayName, initials: user.initials, username: user.username } });
     } catch (error) {
       res.status(500).json({ message: "Failed to get user info" });
     }

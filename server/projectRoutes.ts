@@ -756,9 +756,11 @@ export function registerProjectRoutes(app: Express) {
         try {
           const userId = (req.session as any)?.userId;
           let ownerName = "";
+          let ownerInitials = "";
           if (userId) {
             const [user] = await db.select().from(users).where(eq(users.id, userId));
             ownerName = user?.displayName || user?.username || user?.email || "";
+            ownerInitials = user?.initials || "";
           }
 
           const regions = await getAllRegions();
@@ -793,7 +795,7 @@ export function registerProjectRoutes(app: Express) {
             estimateStatus: frontendEstimateStatus || undefined,
             anticipatedStart: frontendAnticipatedStart || undefined,
             anticipatedFinish: frontendAnticipatedFinish || undefined,
-            nbsEstimator: ownerName || undefined,
+            nbsEstimator: ownerInitials || undefined,
           });
           console.log(`[ProjectCreate] Proposal log entry created for ${safeName}`);
         } catch (err) {

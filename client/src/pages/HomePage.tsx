@@ -245,27 +245,26 @@ export default function HomePage() {
     };
   }, [loadProposals]);
 
-  const userInitials = user ? getUserInitials(user) : "HK";
-  const userEstimatorName = user?.displayName || user?.username || "";
+  const userInitials = user?.initials || (user ? getUserInitials(user) : "HK");
+  const userEstimatorCode = (user?.initials || "").toUpperCase();
 
   const activeStatuses = ["Estimating", "Revising", "Submitted"];
 
   const activeBids = useMemo(() => {
-    const estimatorName = userEstimatorName.toLowerCase();
     return proposals
       .filter((p) => {
         if (p._isTest && !effectiveTestMode) return false;
         if (!p._isTest && effectiveTestMode) return false;
         if (!p.dueDate || !activeStatuses.includes(p.estimateStatus || "")) return false;
-        if (estimatorName && p.nbsEstimator) {
-          return p.nbsEstimator.toLowerCase().includes(estimatorName);
+        if (userEstimatorCode && p.nbsEstimator) {
+          return p.nbsEstimator.toUpperCase() === userEstimatorCode;
         }
         return true;
       })
       .map((p) => ({ ...p, _bizDays: bizDaysUntil(p.dueDate!) }))
       .filter((p) => p._bizDays >= 0)
       .sort((a, b) => a._bizDays - b._bizDays);
-  }, [proposals, userEstimatorName, effectiveTestMode]);
+  }, [proposals, userEstimatorCode, effectiveTestMode]);
 
   const newlyAssigned = useMemo(() => {
     return activeBids
