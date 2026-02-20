@@ -196,57 +196,53 @@ export default function HomePage() {
   });
 
   const [proposals, setProposals] = useState<ProposalRow[]>([]);
-  const [acknowledgedIds, setAcknowledgedIds] = useState<Set<string>>(new Set());
 
-  const loadProposals = useCallback(async () => {
+  const ACK_STORAGE_KEY = "nbs_hud_acknowledged";
+  const [acknowledgedIds, setAcknowledgedIds] = useState<Set<string>>(() => {
     try {
-      const res = await fetch("/api/proposal-log/entries");
-      if (res.ok) {
-        const entries = await res.json();
-        const mapped: ProposalRow[] = entries.map((e: any) => ({
-          projectName: e.projectName || "",
-          estimateNumber: e.estimateNumber || "",
-          region: e.region || "",
-          primaryMarket: e.primaryMarket || "",
-          inviteDate: e.inviteDate || "",
-          dueDate: e.dueDate || "",
-          nbsEstimator: e.nbsEstimator || "",
-          gcEstimateLead: "",
-          proposalTotal: "",
-          estimateStatus: e.estimateStatus || "Estimating",
-          anticipatedStart: e.anticipatedStart || "",
-          anticipatedFinish: e.anticipatedFinish || "",
-          owner: e.owner || "",
-          filePath: e.filePath || "",
-          _isTest: e.isTest || false,
-        }));
-        const localRaw = localStorage.getItem("nbs_v4");
-        if (localRaw) {
-          const localData = JSON.parse(localRaw) as ProposalRow[];
-          for (const lp of localData) {
-            const exists = mapped.some(
-              (m) => m.estimateNumber === lp.estimateNumber || (m.projectName === lp.projectName && m.dueDate === lp.dueDate)
-            );
-            if (!exists) mapped.push(lp);
-          }
-        }
-        setProposals(mapped);
-        return;
-      }
-    } catch { /* fall through to localStorage */ }
+      const raw = localStorage.getItem(ACK_STORAGE_KEY);
+      if (raw) return new Set(JSON.parse(raw) as string[]);
+    } catch { /* ignore */ }
+    return new Set();
+  });
+
+  const persistAcknowledged = useCallback((ids: Set<string>) => {
+    try {
+      localStorage.setItem(ACK_STORAGE_KEY, JSON.stringify(Array.from(ids)));
+    } catch { /* ignore */ }
+  }, []);
+
+  const loadProposals = useCallback(() => {
     try {
       const raw = localStorage.getItem("nbs_v4");
       if (raw) {
         const parsed = JSON.parse(raw) as ProposalRow[];
         setProposals(parsed);
+      } else {
+        setProposals([]);
       }
-    } catch { /* ignore */ }
+    } catch {
+      setProposals([]);
+    }
   }, []);
 
   useEffect(() => {
     loadProposals();
-    const interval = setInterval(loadProposals, 30000);
-    return () => clearInterval(interval);
+    const interval = setInterval(loadProposals, 5000);
+    const handleStorage = (e: StorageEvent) => {
+      if (e.key === "nbs_v4") loadProposals();
+      if (e.key === ACK_STORAGE_KEY) {
+        try {
+          const raw = localStorage.getItem(ACK_STORAGE_KEY);
+          if (raw) setAcknowledgedIds(new Set(JSON.parse(raw) as string[]));
+        } catch { /* ignore */ }
+      }
+    };
+    window.addEventListener("storage", handleStorage);
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener("storage", handleStorage);
+    };
   }, [loadProposals]);
 
   const userInitials = user ? getUserInitials(user) : "HK";
@@ -318,10 +314,15 @@ export default function HomePage() {
       rowEl.style.marginTop = "0";
       setTimeout(() => {
         const key = p.projectName + "|" + p.dueDate;
-        setAcknowledgedIds((prev) => new Set(prev).add(key));
+        setAcknowledgedIds((prev) => {
+          const next = new Set(prev);
+          next.add(key);
+          persistAcknowledged(next);
+          return next;
+        });
       }, 450);
     }, 300);
-  }, []);
+  }, [persistAcknowledged]);
 
   const selectedToolTitle = tools.find((t) => t.id === selectedToolForStats)?.title || "";
 
