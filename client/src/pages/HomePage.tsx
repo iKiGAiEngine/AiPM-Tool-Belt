@@ -298,7 +298,7 @@ export default function HomePage() {
                   data-testid={`tile-${tool.id}`}
                 >
                   <div className="tool-icon">
-                    <Icon style={{ width: 16, height: 16, color: "var(--text-dim)" }} />
+                    <Icon style={{ width: 22, height: 22, color: "var(--text-dim)" }} />
                   </div>
                   <div className="tool-text">
                     {(isComingSoon || isDisabled) && <div className="csb">Coming Soon</div>}
@@ -322,7 +322,7 @@ export default function HomePage() {
                 data-testid={`tile-${tool.id}`}
               >
                 <div className="tool-icon">
-                  <Icon style={{ width: 16, height: 16, color: "var(--gold)" }} />
+                  <Icon style={{ width: 22, height: 22, color: "var(--gold)" }} />
                 </div>
                 <div className="tool-text">
                   {isComingSoon && <div className="csb">Coming Soon</div>}
