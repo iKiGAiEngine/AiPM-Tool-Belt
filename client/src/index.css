@@ -553,8 +553,8 @@
 /* ===== LEFT COLUMN — TOOL TILES ===== */
 .tools-col {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 8px;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
   align-content: start;
 }
 
@@ -563,8 +563,8 @@
   overflow: hidden;
   background: var(--bg2);
   border: 1px solid var(--border-ds);
-  border-radius: 10px;
-  padding: 16px 10px 14px;
+  border-radius: 8px;
+  padding: 10px 6px 8px;
   cursor: pointer;
   text-decoration: none;
   color: inherit;
@@ -573,7 +573,7 @@
   align-items: center;
   justify-content: center;
   text-align: center;
-  gap: 8px;
+  gap: 5px;
   aspect-ratio: 1 / 1;
   transition: border-color .2s, transform .2s, box-shadow .2s;
 }
@@ -603,14 +603,14 @@
 }
 
 .tool-icon {
-  width: 38px;
-  height: 38px;
+  width: 30px;
+  height: 30px;
   border-radius: 50%;
   background: rgba(201,168,76,0.1);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 16px;
+  font-size: 14px;
   transition: background .2s;
   flex-shrink: 0;
 }
@@ -619,16 +619,16 @@
 }
 .tool-name {
   font-family: 'Rajdhani', sans-serif;
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 600;
   color: var(--text);
-  margin-bottom: 3px;
+  margin-bottom: 2px;
 }
 .tool-desc {
   font-family: 'DM Sans', sans-serif;
-  font-size: 10px;
+  font-size: 9px;
   color: var(--text-dim);
-  line-height: 1.35;
+  line-height: 1.3;
 }
 .csb {
   font-family: 'Rajdhani', sans-serif;
@@ -639,8 +639,8 @@
   color: var(--gold);
   border: 1px solid rgba(201,168,76,0.4);
   border-radius: 3px;
-  padding: 1px 5px;
-  margin-bottom: 3px;
+  padding: 1px 4px;
+  margin-bottom: 2px;
   display: inline-block;
 }
 
@@ -732,14 +732,14 @@
 }
 .pl-title {
   font-family: 'Rajdhani', sans-serif;
-  font-size: 15px;
+  font-size: 18px;
   font-weight: 600;
   color: var(--text);
   margin-bottom: 1px;
 }
 .pl-sub {
   font-family: 'DM Sans', sans-serif;
-  font-size: 11px;
+  font-size: 13px;
   color: var(--text-dim);
 }
 .pl-header-right {
@@ -750,7 +750,7 @@
 }
 .pl-badge {
   font-family: 'Rajdhani', sans-serif;
-  font-size: 13px;
+  font-size: 15px;
   font-weight: 700;
   letter-spacing: 1px;
   color: var(--gold);
@@ -761,7 +761,7 @@
 }
 .pl-open {
   font-family: 'Rajdhani', sans-serif;
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 700;
   letter-spacing: 1.5px;
   text-transform: uppercase;
@@ -816,7 +816,7 @@
 
 .hud-label {
   font-family: 'Rajdhani', sans-serif;
-  font-size: 11px;
+  font-size: 13px;
   font-weight: 700;
   letter-spacing: 2px;
   text-transform: uppercase;
@@ -827,8 +827,8 @@
   flex-shrink: 0;
 }
 .lbl-dot {
-  width: 5px;
-  height: 5px;
+  width: 6px;
+  height: 6px;
   border-radius: 50%;
   flex-shrink: 0;
 }
@@ -851,7 +851,7 @@
 }
 .hud-count {
   font-family: 'Rajdhani', sans-serif;
-  font-size: 11px;
+  font-size: 13px;
   font-weight: 700;
   color: var(--text-dim);
   white-space: nowrap;
@@ -879,7 +879,7 @@
 
 .bid-name {
   font-family: 'DM Sans', sans-serif;
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 500;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -923,8 +923,8 @@
   align-items: center;
   justify-self: center;
 }
-.bid-due .dd { font-size: 13px; }
-.bid-due .bd { font-size: 11px; opacity: .6; }
+.bid-due .dd { font-size: 14px; }
+.bid-due .bd { font-size: 12px; opacity: .6; }
 .d-hot  { color: #E05050; border: 1px solid rgba(192,57,43,0.4); }
 .d-warm { color: #E09050; border: 1px solid rgba(224,123,0,0.35); }
 .d-dim  { color: var(--text-dim); border: 1px solid rgba(255,255,255,0.07); }
@@ -966,12 +966,12 @@
 }
 .pl-footer-note {
   font-family: 'DM Sans', sans-serif;
-  font-size: 10px;
+  font-size: 12px;
   color: var(--text-dim);
 }
 .pl-footer-cta {
   font-family: 'Rajdhani', sans-serif;
-  font-size: 11px;
+  font-size: 14px;
   font-weight: 700;
   letter-spacing: 1px;
   color: #C9A84C;
@@ -997,5 +997,5 @@
   }
   .hud-col { height: auto; min-height: 0; }
   .pl-hud { max-height: 360px; height: auto; }
-  .tools-col { grid-template-columns: repeat(2, 1fr); }
+  .tools-col { grid-template-columns: repeat(3, 1fr); }
 }
