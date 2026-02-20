@@ -1,28 +1,23 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect, useCallback } from "react";
 import { Link } from "wouter";
-import { useQuery, useMutation } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import {
-  FileSearch, ScanSearch, Receipt, FolderPlus, ChevronRight,
-  Clock, ClipboardList, Settings, CheckCircle, AlertCircle,
-  Loader2, TrendingUp, FolderOpen, BarChart3, FlaskConical, Trash2,
-  TableProperties, Sparkles, Users, Activity, X, FileBarChart
+  ScanSearch, Receipt, FolderPlus, ClipboardList,
+  Loader2, FlaskConical,
+  TableProperties, Sparkles, Users, Activity, FileBarChart,
+  FolderOpenDot, Check
 } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
-import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useTestMode } from "@/lib/testMode";
 import { useAuth } from "@/lib/auth";
-import type { Project } from "@shared/schema";
 
 interface ToolTile {
   id: string;
   title: string;
   description: string;
-  icon: typeof FileSearch;
+  icon: typeof FolderPlus;
   href: string;
   available: boolean;
   comingSoon?: boolean;
@@ -43,7 +38,7 @@ const tools: ToolTile[] = [
   {
     id: "projectstart",
     title: "Project Start",
-    description: "Create a new project with plans and specs, route through Spec Extractor and Plan Parser",
+    description: "Create a new project with plans and specs",
     icon: FolderPlus,
     href: "/project-start",
     available: true,
@@ -51,7 +46,7 @@ const tools: ToolTile[] = [
   {
     id: "specextractor",
     title: "Spec Extractor",
-    description: "Regex-based Division 10 spec extractor with organized folder export",
+    description: "Division 10 spec extraction with folder export",
     icon: ClipboardList,
     href: "/spec-extractor",
     available: true,
@@ -59,7 +54,7 @@ const tools: ToolTile[] = [
   {
     id: "quoteparser",
     title: "Quote Parser",
-    description: "Parse vendor quotes into structured estimate tables with optional schedule matching",
+    description: "Parse vendor quotes into structured estimate tables",
     icon: Receipt,
     href: "/quoteparser",
     available: true,
@@ -67,7 +62,7 @@ const tools: ToolTile[] = [
   {
     id: "scheduleconverter",
     title: "Schedule Converter",
-    description: "Extract line items from schedule screenshots into copy/paste-ready estimate tables",
+    description: "Extract schedule screenshots into estimate tables",
     icon: TableProperties,
     href: "/schedule-converter",
     available: true,
@@ -75,7 +70,7 @@ const tools: ToolTile[] = [
   {
     id: "planparser",
     title: "Plan Parser",
-    description: "OCR and classify construction plan pages by Division 10 scope categories",
+    description: "OCR and classify construction plan pages by scope",
     icon: ScanSearch,
     href: "/planparser",
     available: true,
@@ -85,7 +80,7 @@ const tools: ToolTile[] = [
   {
     id: "comingsoon",
     title: "Coming Soon",
-    description: "New tools and features are on the way. Stay tuned for updates.",
+    description: "New tools and features are on the way.",
     icon: Sparkles,
     href: "#",
     available: false,
@@ -114,50 +109,66 @@ interface UsageDetail {
   }>;
 }
 
-function getStatusCategory(status: string | null): "processing" | "complete" | "error" | "created" {
-  if (!status) return "created";
-  if (status.includes("error")) return "error";
-  if (status === "folder_only" || status === "outputs_ready" || status.includes("complete") || status === "scopes_selected") return "complete";
-  if (status.includes("running")) return "processing";
-  return "created";
+interface ProposalRow {
+  projectName: string;
+  dueDate?: string;
+  estimateStatus?: string;
+  nbsEstimator?: string;
+  filePath?: string;
+  estimateNumber?: string;
+  region?: string;
+  _bizDays?: number;
 }
 
-function getStatusLabel(status: string | null): string {
-  if (!status) return "Created";
-  if (status === "folder_only") return "Folder Only";
-  if (status === "created") return "Created";
-  if (status === "specsift_running") return "Processing Specs";
-  if (status === "specsift_complete") return "Specs Done";
-  if (status === "specsift_error") return "Spec Error";
-  if (status === "planparser_baseline_running") return "Processing Plans";
-  if (status === "planparser_baseline_complete") return "Complete";
-  if (status === "planparser_baseline_error") return "Plan Error";
-  if (status === "planparser_specpass_complete") return "Complete";
-  if (status === "outputs_ready") return "Complete";
-  if (status === "scopes_selected") return "Complete";
-  if (status.includes("error")) return "Error";
-  if (status.includes("complete")) return "Complete";
-  if (status.includes("running")) return "Processing";
-  return status.replace(/_/g, " ");
+function bizDaysUntil(dateStr: string): number {
+  const target = new Date(dateStr + "T00:00:00");
+  const start = new Date();
+  start.setHours(0, 0, 0, 0);
+  if (target < start) return -1;
+  let count = 0;
+  const cur = new Date(start);
+  while (cur < target) {
+    cur.setDate(cur.getDate() + 1);
+    const dow = cur.getDay();
+    if (dow !== 0 && dow !== 6) count++;
+  }
+  return count;
+}
+
+function formatDueLabel(bd: number, dateStr: string): { date: string; bd: string } {
+  if (bd === 1) return { date: "Tomorrow", bd: "1 bd" };
+  const d = new Date(dateStr + "T00:00:00");
+  const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+  const day = days[d.getDay()];
+  const dd = String(d.getDate()).padStart(2, "0");
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  return { date: `${day} ${dd}/${mm}`, bd: `${bd} bd` };
+}
+
+function getDueClass(bd: number, section: string): string {
+  if (section === "new" || section === "pipeline") return "d-dim";
+  if (bd <= 2) return "d-hot";
+  if (bd <= 4) return "d-warm";
+  return "d-dim";
+}
+
+function getUserInitials(user: { displayName?: string | null; email?: string; username?: string | null }): string {
+  if (user.displayName) {
+    const parts = user.displayName.trim().split(/\s+/);
+    if (parts.length >= 2) return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+    return parts[0].substring(0, 2).toUpperCase();
+  }
+  if (user.username) return user.username.substring(0, 2).toUpperCase();
+  if (user.email) return user.email.substring(0, 2).toUpperCase();
+  return "HK";
 }
 
 export default function HomePage() {
   const { isTestMode } = useTestMode();
-  const { isAdmin } = useAuth();
+  const { isAdmin, user } = useAuth();
   const { toast } = useToast();
-  const [showClearDialog, setShowClearDialog] = useState(false);
   const [selectedToolForStats, setSelectedToolForStats] = useState<string | null>(null);
   const effectiveTestMode = isAdmin && isTestMode;
-
-  const { data: projects = [] } = useQuery<Project[]>({
-    queryKey: ["/api/projects", { includeTest: effectiveTestMode }],
-    queryFn: async () => {
-      const url = effectiveTestMode ? "/api/projects?includeTest=true" : "/api/projects";
-      const res = await fetch(url);
-      if (!res.ok) throw new Error("Failed to fetch projects");
-      return res.json();
-    },
-  });
 
   const { data: usageSummary } = useQuery<UsageSummary>({
     queryKey: ["/api/tool-usage/summary"],
@@ -174,181 +185,311 @@ export default function HomePage() {
     enabled: !!selectedToolForStats && isAdmin,
   });
 
-  const clearTestDataMutation = useMutation({
-    mutationFn: async () => {
-      await apiRequest("POST", "/api/projects/clear-test-data");
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/projects"] });
-      setShowClearDialog(false);
-      toast({ title: "Test data cleared", description: "All test projects and associated data have been removed." });
-    },
-    onError: () => {
-      toast({ title: "Error", description: "Failed to clear test data.", variant: "destructive" });
-    },
-  });
+  const [proposals, setProposals] = useState<ProposalRow[]>([]);
+  const [acknowledgedIds, setAcknowledgedIds] = useState<Set<string>>(new Set());
 
-  const testProjectCount = useMemo(() => projects.filter(p => p.isTest).length, [projects]);
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem("nbs_v4");
+      if (raw) {
+        const parsed = JSON.parse(raw) as ProposalRow[];
+        setProposals(parsed);
+      }
+    } catch { /* ignore */ }
+  }, []);
 
-  const recentProjects = useMemo(() =>
-    [...projects]
-      .sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime())
-      .slice(0, 8),
-    [projects]
-  );
+  const userInitials = user ? getUserInitials(user) : "HK";
+  const userEstimatorName = user?.displayName || user?.username || "";
 
-  const selectedToolTitle = tools.find(t => t.id === selectedToolForStats)?.title || "";
+  const activeStatuses = ["Estimating", "Revising", "Submitted"];
+
+  const activeBids = useMemo(() => {
+    const estimatorName = userEstimatorName.toLowerCase();
+    return proposals
+      .filter((p) => {
+        if (!p.dueDate || !activeStatuses.includes(p.estimateStatus || "")) return false;
+        if (estimatorName && p.nbsEstimator) {
+          return p.nbsEstimator.toLowerCase().includes(estimatorName);
+        }
+        return true;
+      })
+      .map((p) => ({ ...p, _bizDays: bizDaysUntil(p.dueDate!) }))
+      .filter((p) => p._bizDays >= 0)
+      .sort((a, b) => a._bizDays - b._bizDays);
+  }, [proposals, userEstimatorName]);
+
+  const newlyAssigned = useMemo(() => {
+    return activeBids
+      .filter((p) => {
+        const key = p.projectName + "|" + p.dueDate;
+        return !acknowledgedIds.has(key) && p.estimateStatus === "Estimating";
+      })
+      .slice(0, 5);
+  }, [activeBids, acknowledgedIds]);
+
+  const newlyAssignedKeys = useMemo(() => {
+    return new Set(newlyAssigned.map((p) => p.projectName + "|" + p.dueDate));
+  }, [newlyAssigned]);
+
+  const dueThisWeek = useMemo(() => {
+    return activeBids.filter((p) => {
+      const key = p.projectName + "|" + p.dueDate;
+      return p._bizDays! >= 0 && p._bizDays! <= 7 && !newlyAssignedKeys.has(key);
+    });
+  }, [activeBids, newlyAssignedKeys]);
+
+  const dueThisWeekKeys = useMemo(() => {
+    return new Set(dueThisWeek.map((p) => p.projectName + "|" + p.dueDate));
+  }, [dueThisWeek]);
+
+  const activePipeline = useMemo(() => {
+    return activeBids.filter((p) => {
+      const key = p.projectName + "|" + p.dueDate;
+      return p._bizDays! > 7 && !newlyAssignedKeys.has(key) && !dueThisWeekKeys.has(key);
+    });
+  }, [activeBids, newlyAssignedKeys, dueThisWeekKeys]);
+
+  const handleAcknowledge = useCallback((p: ProposalRow, rowEl: HTMLElement) => {
+    const btn = rowEl.querySelector(".ack-btn") as HTMLElement;
+    if (btn) {
+      btn.style.background = "rgba(61,170,106,0.2)";
+      btn.style.borderColor = "rgba(61,170,106,0.5)";
+      btn.style.color = "#3DAA6A";
+    }
+    setTimeout(() => {
+      rowEl.style.transition = "opacity .3s, max-height .4s .1s, padding .3s, margin .3s";
+      rowEl.style.opacity = "0";
+      rowEl.style.maxHeight = "0";
+      rowEl.style.paddingTop = "0";
+      rowEl.style.paddingBottom = "0";
+      rowEl.style.marginTop = "0";
+      setTimeout(() => {
+        const key = p.projectName + "|" + p.dueDate;
+        setAcknowledgedIds((prev) => new Set(prev).add(key));
+      }, 450);
+    }, 300);
+  }, []);
+
+  const selectedToolTitle = tools.find((t) => t.id === selectedToolForStats)?.title || "";
 
   return (
-    <div className="min-h-[calc(100vh-3.5rem)] flex flex-col">
-      <div className="flex-1 flex flex-col items-center px-6 py-12">
-        <div className="text-center mb-12 animate-page-enter">
-          <h1 className="text-5xl sm:text-6xl font-bold tracking-tight mb-3 font-heading" style={{ color: "var(--text)" }}>
-            <span style={{ color: "var(--gold)" }}>AiPM</span>{" "}
-            Tool Belt
-          </h1>
-          <div className="mx-auto mb-4" style={{ width: "100%", maxWidth: "28rem", height: "2px", background: "linear-gradient(90deg, transparent, var(--gold), transparent)" }} />
-          <p className="text-2xl sm:text-3xl font-semibold tracking-wide font-heading uppercase mb-4" style={{ color: "var(--text-dim)", letterSpacing: "0.1em" }}>Your AI Assisted Digital PM</p>
-          <p className="text-base font-light max-w-xl mx-auto" style={{ color: "var(--text-dim)" }}>
-            Transform your estimating workflow with intelligent automation. Save time, reduce errors, and win more bids.
-          </p>
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-5 max-w-7xl w-full">
-          {tools.map((tool, i) => (
-            <ToolCard
-              key={tool.id}
-              tool={tool}
-              index={i}
-              isAdmin={isAdmin}
-              stats={usageSummary?.[tool.id]}
-              onStatsClick={() => setSelectedToolForStats(tool.id)}
-            />
-          ))}
-        </div>
-
-        {isAdmin && isTestMode && testProjectCount > 0 && (
-          <div className="max-w-5xl w-full mt-4">
-            <Card className="border-amber-500/30 bg-amber-500/5">
-              <CardContent className="p-4 flex items-center justify-between gap-4 flex-wrap">
-                <div className="flex items-center gap-3">
-                  <FlaskConical className="w-5 h-5 text-amber-500 shrink-0" />
-                  <div>
-                    <p className="text-sm font-medium">{testProjectCount} test project{testProjectCount !== 1 ? "s" : ""}</p>
-                    <p className="text-xs text-muted-foreground">Created while Test Mode was active</p>
-                  </div>
-                </div>
-                <AlertDialog open={showClearDialog} onOpenChange={setShowClearDialog}>
-                  <AlertDialogTrigger asChild>
-                    <Button variant="destructive" size="sm" data-testid="button-clear-test-data">
-                      <Trash2 className="w-4 h-4 mr-2" />
-                      Clear Test Data
-                    </Button>
-                  </AlertDialogTrigger>
-                  <AlertDialogContent>
-                    <AlertDialogHeader>
-                      <AlertDialogTitle>Clear all test data?</AlertDialogTitle>
-                      <AlertDialogDescription>
-                        This will permanently delete {testProjectCount} test project{testProjectCount !== 1 ? "s" : ""} and all their associated data (spec sessions, plan parser jobs, files). Your real projects will not be affected.
-                      </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                      <AlertDialogCancel data-testid="button-cancel-clear">Cancel</AlertDialogCancel>
-                      <AlertDialogAction
-                        onClick={() => clearTestDataMutation.mutate()}
-                        className="bg-destructive text-destructive-foreground"
-                        data-testid="button-confirm-clear"
-                      >
-                        {clearTestDataMutation.isPending ? "Clearing..." : "Clear Test Data"}
-                      </AlertDialogAction>
-                    </AlertDialogFooter>
-                  </AlertDialogContent>
-                </AlertDialog>
-              </CardContent>
-            </Card>
-          </div>
-        )}
-
-        {recentProjects.length > 0 && (
-          <div className="mt-10 max-w-5xl w-full animate-fade-in-up" style={{ animationDelay: "0.4s" }}>
-            <div className="flex items-center justify-between mb-4 gap-4 flex-wrap">
-              <h2 className="text-lg font-semibold font-heading" style={{ color: "var(--text)" }}>Recent Projects</h2>
-              <Link href="/project-log">
-                <Button variant="ghost" size="sm" className="gap-1 text-muted-foreground" data-testid="link-view-all-projects">
-                  <BarChart3 className="w-4 h-4" />
-                  View All
-                </Button>
-              </Link>
-            </div>
-            <div className="space-y-2">
-              {recentProjects.map((project) => {
-                const statusCat = getStatusCategory(project.status);
-                return (
-                  <Link
-                    key={project.id}
-                    href={`/projects/${project.id}`}
-                    className="block"
-                    data-testid={`link-project-${project.id}`}
-                  >
-                    <div className="flex items-center justify-between gap-4 p-3 rounded-lg border bg-card hover-elevate">
-                      <div className="flex items-center gap-3 min-w-0">
-                        <Badge variant="outline" className="font-mono shrink-0">
-                          {project.projectId}
-                        </Badge>
-                        <span className="text-sm font-medium truncate" data-testid={`text-project-name-${project.id}`}>
-                          {project.projectName}
-                        </span>
-                        {project.regionCode && (
-                          <Badge variant="secondary" className="text-xs shrink-0">
-                            {project.regionCode}
-                          </Badge>
-                        )}
-                        {project.isTest && (
-                          <Badge variant="outline" className="text-xs shrink-0 border-amber-500/50 text-amber-500">
-                            <FlaskConical className="w-3 h-3 mr-1" />
-                            Test
-                          </Badge>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-2 shrink-0">
-                        {statusCat === "processing" && (
-                          <Loader2 className="w-3.5 h-3.5 text-yellow-500 animate-spin" />
-                        )}
-                        <Badge
-                          variant={statusCat === "error" ? "destructive" : statusCat === "complete" ? "default" : "outline"}
-                          className="text-xs"
-                          data-testid={`badge-status-${project.id}`}
-                        >
-                          {getStatusLabel(project.status)}
-                        </Badge>
-                        <ChevronRight className="w-4 h-4 text-muted-foreground" />
-                      </div>
-                    </div>
-                  </Link>
-                );
-              })}
-            </div>
-          </div>
-        )}
+    <div className="hp-root" data-testid="homepage">
+      <div className="page-hero">
+        <h1 className="hp-title">
+          <span style={{ color: "var(--gold)" }}>AiPM</span> Tool Belt
+        </h1>
+        <div className="hp-rule" />
+        <p className="hp-eyebrow">YOUR AI ASSISTED DIGITAL PM</p>
       </div>
 
-      <footer className="flex items-center justify-center gap-4 py-6">
-        <span className="text-muted-foreground/60 text-sm">AiPM Tool Belt</span>
-        <Link href="/project-log">
-          <Button variant="ghost" size="sm" className="gap-2 text-muted-foreground" data-testid="link-project-log">
-            <ClipboardList className="w-4 h-4" />
-            Project Log
-          </Button>
-        </Link>
-        {isAdmin && (
-          <Link href="/settings">
-            <Button variant="ghost" size="sm" className="gap-2 text-muted-foreground" data-testid="link-settings">
-              <Settings className="w-4 h-4" />
-              Settings
-            </Button>
-          </Link>
-        )}
-      </footer>
+      <div className="main-layout">
+        <div className="tools-col">
+          {tools.map((tool, i) => {
+            const Icon = tool.icon;
+            const isDisabled = !tool.available;
+            const isComingSoon = tool.comingSoon === true;
+            const isAdminRestricted = tool.adminOnly === true && !isAdmin;
+
+            if (isDisabled || (isComingSoon && isAdminRestricted)) {
+              return (
+                <div
+                  key={tool.id}
+                  className="tool-card disabled"
+                  data-testid={`tile-${tool.id}`}
+                >
+                  <div className="tool-icon">
+                    <Icon style={{ width: 16, height: 16, color: "var(--text-dim)" }} />
+                  </div>
+                  <div className="tool-text">
+                    {(isComingSoon || isDisabled) && <div className="csb">Coming Soon</div>}
+                    <div className="tool-name">{tool.title}</div>
+                    <div className="tool-desc">{tool.description}</div>
+                  </div>
+                </div>
+              );
+            }
+
+            const Wrapper = tool.isExternal ? "a" : Link;
+            const wrapperProps = tool.isExternal
+              ? { href: tool.href }
+              : { href: tool.href };
+
+            return (
+              <Wrapper
+                key={tool.id}
+                {...wrapperProps}
+                className={`tool-card ${isComingSoon ? "tool-card-coming" : ""}`}
+                data-testid={`tile-${tool.id}`}
+              >
+                <div className="tool-icon">
+                  <Icon style={{ width: 16, height: 16, color: "var(--gold)" }} />
+                </div>
+                <div className="tool-text">
+                  {isComingSoon && <div className="csb">Coming Soon</div>}
+                  <div className="tool-name">{tool.title}</div>
+                  <div className="tool-desc">{tool.description}</div>
+                </div>
+              </Wrapper>
+            );
+          })}
+        </div>
+
+        <div className="hud-col">
+          <div
+            className="pl-card"
+            onClick={() => { window.location.href = "/tools/proposal-log"; }}
+            data-testid="card-proposal-log-hud"
+          >
+            <div className="pl-glow" />
+
+            <div className="pl-header">
+              <div className="pl-header-left">
+                <div className="pl-icon">
+                  <FileBarChart style={{ width: 18, height: 18, color: "var(--gold)" }} />
+                </div>
+                <div>
+                  <div className="pl-title">Proposal Log</div>
+                  <div className="pl-sub">Your active bids &middot; personalized view</div>
+                </div>
+              </div>
+              <div className="pl-header-right">
+                <div className="pl-badge" data-testid="badge-user-initials">{userInitials}</div>
+                <div className="pl-open">Open &rarr;</div>
+              </div>
+            </div>
+
+            <div className="pl-hud-wrap">
+              <div className="pl-hud">
+                <HudSection
+                  label="Newly Assigned"
+                  labelClass="lbl-new"
+                  count={newlyAssigned.length}
+                  countId="cnt-new"
+                >
+                  {newlyAssigned.map((p, i) => {
+                    const due = formatDueLabel(p._bizDays!, p.dueDate!);
+                    const rowId = `new-row-${i}`;
+                    return (
+                      <div
+                        key={rowId}
+                        id={rowId}
+                        className="bid-row r-new"
+                        style={{ overflow: "hidden" }}
+                      >
+                        <div className="bid-name" data-testid={`text-bid-name-new-${i}`}>{p.projectName}</div>
+                        <button
+                          className="ack-btn"
+                          title="Acknowledge"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            const row = document.getElementById(rowId);
+                            if (row) handleAcknowledge(p, row);
+                          }}
+                          data-testid={`button-ack-${i}`}
+                        >
+                          <Check style={{ width: 11, height: 11 }} />
+                        </button>
+                        {p.filePath ? (
+                          <a
+                            className="bid-folder"
+                            href={p.filePath}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            title="Open folder"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <FolderOpenDot style={{ width: 11, height: 11 }} />
+                          </a>
+                        ) : (
+                          <span />
+                        )}
+                        <div className={`bid-due ${getDueClass(p._bizDays!, "new")}`}>
+                          <span className="dd">{due.date}</span>
+                          <span className="bd">{due.bd}</span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </HudSection>
+
+                <HudSection
+                  label="Due This Week"
+                  labelClass="lbl-hot"
+                  count={dueThisWeek.length}
+                  countId="cnt-due"
+                >
+                  {dueThisWeek.map((p, i) => {
+                    const due = formatDueLabel(p._bizDays!, p.dueDate!);
+                    return (
+                      <div key={`due-${i}`} className="bid-row">
+                        <div className="bid-name" data-testid={`text-bid-name-due-${i}`}>{p.projectName}</div>
+                        {p.filePath ? (
+                          <a
+                            className="bid-folder"
+                            href={p.filePath}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            title="Open folder"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <FolderOpenDot style={{ width: 11, height: 11 }} />
+                          </a>
+                        ) : (
+                          <span />
+                        )}
+                        <div className={`bid-due ${getDueClass(p._bizDays!, "due")}`}>
+                          <span className="dd">{due.date}</span>
+                          <span className="bd">{due.bd}</span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </HudSection>
+
+                <HudSection
+                  label="Active Pipeline"
+                  labelClass="lbl-pipe"
+                  count={activePipeline.length}
+                  countId="cnt-pipe"
+                >
+                  {activePipeline.map((p, i) => {
+                    const due = formatDueLabel(p._bizDays!, p.dueDate!);
+                    return (
+                      <div key={`pipe-${i}`} className="bid-row">
+                        <div className="bid-name" data-testid={`text-bid-name-pipe-${i}`}>{p.projectName}</div>
+                        {p.filePath ? (
+                          <a
+                            className="bid-folder"
+                            href={p.filePath}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            title="Open folder"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <FolderOpenDot style={{ width: 11, height: 11 }} />
+                          </a>
+                        ) : (
+                          <span />
+                        )}
+                        <div className={`bid-due ${getDueClass(p._bizDays!, "pipeline")}`}>
+                          <span className="dd">{due.date}</span>
+                          <span className="bd">{due.bd}</span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </HudSection>
+              </div>
+            </div>
+
+            <div className="pl-footer">
+              <div className="pl-footer-note">Your bids only &nbsp;&middot;&nbsp; opens folder &nbsp;&middot;&nbsp; to acknowledge</div>
+              <div className="pl-footer-cta">Open Full Log <span>&rarr;</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
 
       <Dialog open={!!selectedToolForStats} onOpenChange={(open) => { if (!open) setSelectedToolForStats(null); }}>
         <DialogContent className="max-w-lg">
@@ -375,7 +516,6 @@ export default function HomePage() {
                   <p className="text-xs" style={{ color: "var(--text-dim)" }}>Unique Users</p>
                 </div>
               </div>
-
               {usageDetail.userBreakdown.length > 0 ? (
                 <div>
                   <h3 className="text-sm font-medium text-foreground mb-3">User Breakdown</h3>
@@ -399,7 +539,6 @@ export default function HomePage() {
               ) : (
                 <p className="text-sm text-muted-foreground text-center py-4">No usage data yet</p>
               )}
-
               {usageDetail.recentEvents.length > 0 && (
                 <div>
                   <h3 className="text-sm font-medium text-foreground mb-3">Recent Activity</h3>
@@ -427,175 +566,32 @@ export default function HomePage() {
   );
 }
 
-interface ToolCardProps {
-  tool: ToolTile;
-  index: number;
-  isAdmin: boolean;
-  stats?: { totalUses: number; uniqueUsers: number };
-  onStatsClick: () => void;
-}
-
-function ToolCard({ tool, index, isAdmin, stats, onStatsClick }: ToolCardProps) {
-  const Icon = tool.icon;
-
-  if (!tool.available) {
-    return (
-      <div
-        className="group relative flex flex-col items-center justify-start text-center p-6 pt-8 rounded-lg border border-dashed opacity-50 h-full"
-        style={{ borderColor: "rgba(42,42,54,0.5)", background: "rgba(20,20,24,0.5)" }}
-        data-testid={`tile-${tool.id}`}
-      >
-        <div className="tool-icon w-14 h-14 rounded-full flex items-center justify-center mb-4 shrink-0" style={{ background: "var(--bg3)" }}>
-          <Icon className="w-7 h-7" style={{ color: "var(--text-dim)", opacity: 0.5 }} />
-        </div>
-        <h2 className="text-base font-semibold font-heading mb-2" style={{ color: "var(--text-dim)", opacity: 0.7 }}>
-          {tool.title}
-        </h2>
-        <p className="text-sm leading-relaxed" style={{ color: "var(--text-dim)", opacity: 0.5 }}>
-          {tool.description}
-        </p>
-      </div>
-    );
-  }
-
-  const isComingSoon = tool.comingSoon === true;
-  const isAdminOnlyRestricted = tool.adminOnly === true && !isAdmin;
-
-  if (isComingSoon && isAdminOnlyRestricted) {
-    return (
-      <div
-        className="group flex flex-col items-center justify-start text-center p-6 pt-3 rounded-lg opacity-40 h-full animate-fade-in-scale"
-        style={{ borderColor: "var(--border-ds)", background: "var(--bg2)", border: "1px solid var(--border-ds)", animationDelay: `${0.1 + index * 0.08}s` }}
-        data-testid={`tile-${tool.id}`}
-      >
-        <div className="self-center mb-2">
-          <Badge variant="outline" className="font-heading text-[10px] uppercase tracking-wider" style={{ borderColor: "var(--gold-dim)", color: "var(--gold-dim)" }}>
-            Coming Soon
-          </Badge>
-        </div>
-        <div className="tool-icon w-14 h-14 rounded-full flex items-center justify-center mb-4 shrink-0" style={{ background: "var(--bg3)" }}>
-          <Icon className="w-7 h-7" style={{ color: "var(--text-dim)", opacity: 0.5 }} />
-        </div>
-        <h2 className="text-base font-semibold font-heading mb-2" style={{ color: "var(--text-dim)", opacity: 0.7 }}>
-          {tool.title}
-        </h2>
-        <p className="text-sm leading-relaxed" style={{ color: "var(--text-dim)", opacity: 0.5 }}>
-          {tool.description}
-        </p>
-      </div>
-    );
-  }
-
-  if (isComingSoon && isAdmin) {
-    return (
-      <div className="flex flex-col h-full animate-fade-in-scale" style={{ animationDelay: `${0.1 + index * 0.08}s` }}>
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={(e) => { e.preventDefault(); onStatsClick(); }}
-          className="rounded-b-none rounded-t-lg border border-b-0 text-xs gap-1.5 w-full justify-center font-heading"
-          style={{ borderColor: "var(--border-ds)", background: "var(--bg3)", color: "var(--text-dim)" }}
-          data-testid={`button-stats-${tool.id}`}
-        >
-          <Activity className="w-3 h-3" />
-          <span>{stats?.totalUses || 0} uses</span>
-          <span style={{ opacity: 0.4 }}>|</span>
-          <Users className="w-3 h-3" />
-          <span>{stats?.uniqueUsers || 0}</span>
-        </Button>
-        <Link
-          href={tool.href}
-          data-testid={`link-tool-${tool.id}`}
-          className="flex flex-col flex-1"
-        >
-          <div
-            className="tool-tile-animated group flex flex-col items-center justify-start text-center p-6 pt-3 cursor-pointer flex-1 hover-elevate active-elevate-2 rounded-b-lg opacity-60"
-            style={{ background: "var(--bg2)", border: "1px solid var(--border-ds)" }}
-            data-testid={`tile-${tool.id}`}
-          >
-            <div className="self-center mb-2">
-              <Badge variant="outline" className="font-heading text-[10px] uppercase tracking-wider" style={{ borderColor: "var(--gold-dim)", color: "var(--gold-dim)" }}>
-                Coming Soon
-              </Badge>
-            </div>
-            <div className="tool-icon w-14 h-14 rounded-full flex items-center justify-center mb-4 shrink-0" style={{ background: "var(--bg3)" }}>
-              <Icon className="w-7 h-7" style={{ color: "var(--text-dim)" }} />
-            </div>
-            <h2 className="text-base font-semibold font-heading mb-2" style={{ color: "var(--text-dim)" }}>
-              {tool.title}
-            </h2>
-            <p className="text-sm leading-relaxed" style={{ color: "var(--text-dim)", opacity: 0.6 }}>
-              {tool.description}
-            </p>
-          </div>
-        </Link>
-      </div>
-    );
-  }
-
+function HudSection({
+  label,
+  labelClass,
+  count,
+  countId,
+  children,
+}: {
+  label: string;
+  labelClass: string;
+  count: number;
+  countId: string;
+  children: React.ReactNode;
+}) {
   return (
-    <div className="flex flex-col h-full animate-fade-in-scale" style={{ animationDelay: `${0.1 + index * 0.08}s` }}>
-      {isAdmin && (
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={(e) => { e.preventDefault(); onStatsClick(); }}
-          className="rounded-b-none rounded-t-lg border border-b-0 text-xs gap-1.5 w-full justify-center font-heading"
-          style={{ borderColor: "var(--border-ds)", background: "var(--bg3)", color: "var(--text-dim)" }}
-          data-testid={`button-stats-${tool.id}`}
-        >
-          <Activity className="w-3 h-3" />
-          <span>{stats?.totalUses || 0} uses</span>
-          <span style={{ opacity: 0.4 }}>|</span>
-          <Users className="w-3 h-3" />
-          <span>{stats?.uniqueUsers || 0}</span>
-        </Button>
-      )}
-      {tool.isExternal ? (
-        <a
-          href={tool.href}
-          data-testid={`link-tool-${tool.id}`}
-          className="flex flex-col flex-1"
-        >
-          <div
-            className={`card-accent-bar tool-tile-animated group relative flex flex-col items-center justify-start text-center p-6 pt-8 cursor-pointer flex-1 hover-elevate active-elevate-2 ${isAdmin ? "rounded-b-lg" : "rounded-lg"}`}
-            style={{ background: "var(--bg2)", border: "1px solid var(--border-ds)" }}
-            data-testid={`tile-${tool.id}`}
-          >
-            <div className="tool-icon w-14 h-14 rounded-full flex items-center justify-center mb-4 shrink-0" style={{ background: "rgba(201,168,76,0.1)" }}>
-              <Icon className="w-7 h-7" style={{ color: "var(--gold)" }} />
-            </div>
-            <h2 className="text-base font-semibold font-heading mb-2" style={{ color: "var(--text)" }}>
-              {tool.title}
-            </h2>
-            <p className="text-sm leading-relaxed" style={{ color: "var(--text-dim)" }}>
-              {tool.description}
-            </p>
-          </div>
-        </a>
-      ) : (
-        <Link
-          href={tool.href}
-          data-testid={`link-tool-${tool.id}`}
-          className="flex flex-col flex-1"
-        >
-          <div
-            className={`card-accent-bar tool-tile-animated group relative flex flex-col items-center justify-start text-center p-6 pt-8 cursor-pointer flex-1 hover-elevate active-elevate-2 ${isAdmin ? "rounded-b-lg" : "rounded-lg"}`}
-            style={{ background: "var(--bg2)", border: "1px solid var(--border-ds)" }}
-            data-testid={`tile-${tool.id}`}
-          >
-            <div className="tool-icon w-14 h-14 rounded-full flex items-center justify-center mb-4 shrink-0" style={{ background: "rgba(201,168,76,0.1)" }}>
-              <Icon className="w-7 h-7" style={{ color: "var(--gold)" }} />
-            </div>
-            <h2 className="text-base font-semibold font-heading mb-2" style={{ color: "var(--text)" }}>
-              {tool.title}
-            </h2>
-            <p className="text-sm leading-relaxed" style={{ color: "var(--text-dim)" }}>
-              {tool.description}
-            </p>
-          </div>
-        </Link>
-      )}
+    <div className="hud-block">
+      <div className="hud-head">
+        <div className={`hud-label ${labelClass}`}>
+          <div className="lbl-dot" />
+          {label}
+        </div>
+        <div className="hud-rule" />
+        <div className="hud-count" id={countId} data-testid={`text-${countId}`}>
+          {count} bid{count !== 1 ? "s" : ""}
+        </div>
+      </div>
+      <div className="hud-rows">{children}</div>
     </div>
   );
 }
