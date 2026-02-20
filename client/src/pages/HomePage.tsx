@@ -68,6 +68,15 @@ const tools: ToolTile[] = [
     available: true,
   },
   {
+    id: "projectlog",
+    title: "Project Log",
+    description: "View and manage all projects with status tracking",
+    icon: ClipboardList,
+    href: "/project-log",
+    available: true,
+    adminOnly: true,
+  },
+  {
     id: "planparser",
     title: "Plan Parser",
     description: "OCR and classify construction plan pages by scope",
@@ -118,6 +127,7 @@ interface ProposalRow {
   estimateNumber?: string;
   region?: string;
   _bizDays?: number;
+  _isTest?: boolean;
 }
 
 function bizDaysUntil(dateStr: string): number {
@@ -188,7 +198,42 @@ export default function HomePage() {
   const [proposals, setProposals] = useState<ProposalRow[]>([]);
   const [acknowledgedIds, setAcknowledgedIds] = useState<Set<string>>(new Set());
 
-  const loadProposals = useCallback(() => {
+  const loadProposals = useCallback(async () => {
+    try {
+      const res = await fetch("/api/proposal-log/entries");
+      if (res.ok) {
+        const entries = await res.json();
+        const mapped: ProposalRow[] = entries.map((e: any) => ({
+          projectName: e.projectName || "",
+          estimateNumber: e.estimateNumber || "",
+          region: e.region || "",
+          primaryMarket: e.primaryMarket || "",
+          inviteDate: e.inviteDate || "",
+          dueDate: e.dueDate || "",
+          nbsEstimator: e.nbsEstimator || "",
+          gcEstimateLead: "",
+          proposalTotal: "",
+          estimateStatus: e.estimateStatus || "Estimating",
+          anticipatedStart: e.anticipatedStart || "",
+          anticipatedFinish: e.anticipatedFinish || "",
+          owner: e.owner || "",
+          filePath: e.filePath || "",
+          _isTest: e.isTest || false,
+        }));
+        const localRaw = localStorage.getItem("nbs_v4");
+        if (localRaw) {
+          const localData = JSON.parse(localRaw) as ProposalRow[];
+          for (const lp of localData) {
+            const exists = mapped.some(
+              (m) => m.estimateNumber === lp.estimateNumber || (m.projectName === lp.projectName && m.dueDate === lp.dueDate)
+            );
+            if (!exists) mapped.push(lp);
+          }
+        }
+        setProposals(mapped);
+        return;
+      }
+    } catch { /* fall through to localStorage */ }
     try {
       const raw = localStorage.getItem("nbs_v4");
       if (raw) {
@@ -200,7 +245,7 @@ export default function HomePage() {
 
   useEffect(() => {
     loadProposals();
-    const interval = setInterval(loadProposals, 15000);
+    const interval = setInterval(loadProposals, 30000);
     return () => clearInterval(interval);
   }, [loadProposals]);
 
@@ -213,6 +258,8 @@ export default function HomePage() {
     const estimatorName = userEstimatorName.toLowerCase();
     return proposals
       .filter((p) => {
+        if (p._isTest && !effectiveTestMode) return false;
+        if (!p._isTest && effectiveTestMode) return false;
         if (!p.dueDate || !activeStatuses.includes(p.estimateStatus || "")) return false;
         if (estimatorName && p.nbsEstimator) {
           return p.nbsEstimator.toLowerCase().includes(estimatorName);
@@ -222,7 +269,7 @@ export default function HomePage() {
       .map((p) => ({ ...p, _bizDays: bizDaysUntil(p.dueDate!) }))
       .filter((p) => p._bizDays >= 0)
       .sort((a, b) => a._bizDays - b._bizDays);
-  }, [proposals, userEstimatorName]);
+  }, [proposals, userEstimatorName, effectiveTestMode]);
 
   const newlyAssigned = useMemo(() => {
     return activeBids
