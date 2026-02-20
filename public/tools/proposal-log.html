@@ -857,6 +857,7 @@ const COL_DEFS = [
   {key:'swinertonProject',  label:'Swinerton',        w:90,  filter:'select', opts:['Y','N']},
   {key:'owner',          label:'Owner',               w:110, filter:'text'},
   {key:'filePath',       label:'File Path',           w:90,  filter:'none'},
+  {key:'_screenshot',    label:'Source',              w:70,  filter:'none'},
   {key:'_actions',       label:'',                    w:70,  filter:'none'},
 ];
 
@@ -872,6 +873,14 @@ function defaultLayout() {
   };
 }
 let layout = JSON.parse(localStorage.getItem('nbs_layout') || 'null') || defaultLayout();
+if (layout && !layout.order.includes('_screenshot')) {
+  const actIdx = layout.order.indexOf('_actions');
+  if (actIdx >= 0) layout.order.splice(actIdx, 0, '_screenshot');
+  else layout.order.push('_screenshot');
+  layout.widths['_screenshot'] = 70;
+  layout.visible['_screenshot'] = true;
+  localStorage.setItem('nbs_layout', JSON.stringify(layout));
+}
 let colFilters = {};
 
 const save = () => localStorage.setItem('nbs_v4', JSON.stringify(data));
@@ -953,7 +962,7 @@ function populateGlobalFilters() {
 
 function getVisibleCols() {
   return layout.order.filter(k => {
-    if(k==='_actions') return true;
+    if(k==='_actions' || k==='_screenshot') return true;
     return layout.visible[k] !== false;
   });
 }
@@ -976,7 +985,7 @@ function buildHeaders() {
     const def = getColDef(key);
     if(!def) return;
     const w = layout.widths[key] || def.w;
-    const isAction = key==='_actions';
+    const isSpecial = key==='_actions' || key==='_screenshot';
 
     const th = document.createElement('th');
     th.dataset.col = key;
@@ -984,7 +993,7 @@ function buildHeaders() {
     th.style.minWidth = w+'px';
     if(key===sk) th.classList.add('sorted');
 
-    if(!isAction) {
+    if(!isSpecial) {
       const grip = document.createElement('div');
       grip.className='col-drag'; grip.title='Drag to reorder'; grip.textContent='\u2807';
       grip.draggable=true;
@@ -1005,13 +1014,15 @@ function buildHeaders() {
       th.addEventListener('dragover', e=>{e.preventDefault(); highlightDrop(th,e);});
       th.addEventListener('dragleave', ()=>clearDropHighlight(th));
       th.addEventListener('drop', e=>onColDrop(e,key));
+    } else if(key==='_screenshot') {
+      th.innerHTML='<div class="th-inner" style="cursor:default;font-size:11px">Source</div>';
     }
 
     hr.appendChild(th);
 
     const ftd = document.createElement('th');
     ftd.style.width=w+'px'; ftd.style.minWidth=w+'px';
-    if(!isAction && def.filter!=='none') {
+    if(!isSpecial && def.filter!=='none') {
       if(def.filter==='select') {
         const sel=document.createElement('select');
         sel.className='col-filter-select';
@@ -1097,6 +1108,7 @@ function buildRows() {
           } else { val=p.nbsEstimator||'\u2014'; }
           break;
         case 'filePath': val=p.filePath?`<span class="link-cell"><a href="${p.filePath}" target="_blank">&#128194; Open</a></span>`:'\u2014'; break;
+        case '_screenshot': val=p._screenshotId?`<button class="btn-row" onclick="viewScreenshot('${p._screenshotId}')" title="View source screenshot" style="font-size:16px">&#128247;</button>`:'\u2014'; break;
         default: val=p[key]||'\u2014';
       }
       const sortedCls = key===sk ? ' col-sorted' : '';
@@ -1186,7 +1198,7 @@ function renderColPanel() {
   const body=document.getElementById('col-panel-body');
   body.innerHTML='';
   layout.order.forEach(key=>{
-    if(key==='_actions') return;
+    if(key==='_actions' || key==='_screenshot') return;
     const def=getColDef(key); if(!def) return;
     const item=document.createElement('div');
     item.className='col-item'; item.dataset.key=key; item.draggable=true;
@@ -1312,7 +1324,7 @@ function autoPromoteStatus(){
 function del(i){if(!confirm('Delete this proposal?'))return;data.splice(i,1);save();render();}
 
 function exportCSV(){
-  const visKeys=getVisibleCols().filter(k=>k!=='_actions');
+  const visKeys=getVisibleCols().filter(k=>k!=='_actions'&&k!=='_screenshot');
   const h=visKeys.map(k=>getColDef(k)?.label||k);
   const rows=data.map(p=>visKeys.map(k=>`"${(p[k]||'').toString().replace(/"/g,'""')}"`).join(','));
   const a=document.createElement('a');
@@ -2100,6 +2112,82 @@ function applyModeRestrictions() {
   }
 }
 
+function viewScreenshot(estNum) {
+  let overlay = document.getElementById('screenshot-overlay');
+  if (!overlay) {
+    overlay = document.createElement('div');
+    overlay.id = 'screenshot-overlay';
+    overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.85);z-index:9999;display:flex;align-items:center;justify-content:center;cursor:pointer;';
+    overlay.onclick = () => overlay.style.display = 'none';
+    const wrap = document.createElement('div');
+    wrap.style.cssText = 'max-width:90vw;max-height:90vh;position:relative;';
+    wrap.innerHTML = '<img id="screenshot-img" style="max-width:90vw;max-height:85vh;border-radius:8px;box-shadow:0 8px 32px rgba(0,0,0,.6)" /><div style="text-align:center;color:var(--text-dim);font-size:12px;margin-top:8px" id="screenshot-label"></div>';
+    overlay.appendChild(wrap);
+    document.body.appendChild(overlay);
+  }
+  const img = document.getElementById('screenshot-img');
+  const label = document.getElementById('screenshot-label');
+  img.src = '/api/proposal-log/screenshot/' + encodeURIComponent(estNum);
+  img.onerror = () => { overlay.style.display='none'; alert('Screenshot not found for this project.'); };
+  label.textContent = 'Source screenshot for ' + estNum + '  (click anywhere to close)';
+  overlay.style.display = 'flex';
+}
+
+async function syncFromServer() {
+  try {
+    const res = await fetch('/api/proposal-log/unsynced');
+    if (!res.ok) return;
+    const entries = await res.json();
+    if (!entries.length) return;
+    const syncedIds = [];
+    for (const e of entries) {
+      const isDupe = data.some(p => p.estimateNumber === e.estimateNumber || (p.projectName === e.projectName && p.dueDate === e.dueDate));
+      if (isDupe) {
+        const existing = data.find(p => p.estimateNumber === e.estimateNumber || (p.projectName === e.projectName && p.dueDate === e.dueDate));
+        if (existing && e.estimateNumber) existing._screenshotId = e.estimateNumber;
+        syncedIds.push(e.id);
+        continue;
+      }
+      const newEntry = {
+        projectName: e.projectName || '',
+        estimateNumber: e.estimateNumber || '',
+        region: e.region || '',
+        primaryMarket: e.primaryMarket || '',
+        inviteDate: e.inviteDate || '',
+        dueDate: e.dueDate || '',
+        nbsEstimator: '',
+        gcEstimateLead: '',
+        proposalTotal: '',
+        estimateStatus: e.estimateStatus || 'Estimating',
+        lossWho: '', lossReason: '', lossDetail: '', lossCompetitor: '', lossNotes: '',
+        finalReviewer: '',
+        anticipatedStart: '', anticipatedFinish: '',
+        swinertonProject: '',
+        owner: e.owner || '',
+        filePath: e.filePath || '',
+        comments: '',
+        _screenshotId: e.estimateNumber || '',
+      };
+      data.push(newEntry);
+      syncedIds.push(e.id);
+    }
+    if (syncedIds.length) {
+      save();
+      await fetch('/api/proposal-log/mark-synced', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids: syncedIds })
+      });
+      render();
+      if (entries.length > syncedIds.filter((_, i) => !data.some(p => p.estimateNumber === entries[i]?.estimateNumber)).length) {
+        showToast(syncedIds.length + ' new project(s) synced from Project Start');
+      }
+    }
+  } catch (err) {
+    console.warn('Proposal log sync failed:', err);
+  }
+}
+
 function initApp() {
   document.getElementById('search').addEventListener('input', () => buildRows());
   ['f-region','f-status','f-market','f-swinerton','f-from','f-to']
@@ -2110,6 +2198,7 @@ function initApp() {
   setMode('estimator');
   render();
   applyModeRestrictions();
+  syncFromServer();
 }
 
 checkAuth();

@@ -42,15 +42,21 @@ import { planParserStorage } from "./planparser/storage";
 import { getActiveFolderTemplate, getActiveEstimateTemplate } from "./templateStorage";
 import ExcelJS from "exceljs";
 import { extractProjectDetailsFromScreenshot } from "./screenshotExtractor";
+import { guessMarket, guessRegion, createProposalLogEntry, getUnsyncedEntries, markEntriesSynced, getAllProposalLogEntries } from "./proposalLogService";
+import { users } from "@shared/schema";
+import { eq } from "drizzle-orm";
+import { db } from "./db";
+
+const SCREENSHOTS_DIR = path.join(process.cwd(), "project_screenshots");
 
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 500 * 1024 * 1024 },
   fileFilter: (req, file, cb) => {
-    if (file.mimetype === "application/pdf") {
+    if (file.mimetype === "application/pdf" || file.mimetype.startsWith("image/")) {
       cb(null, true);
     } else {
-      cb(new Error("Only PDF files are allowed"));
+      cb(new Error("Only PDF and image files are allowed"));
     }
   },
 });
@@ -335,6 +341,7 @@ export function registerProjectRoutes(app: Express) {
     upload.fields([
       { name: "plans", maxCount: 1 },
       { name: "specs", maxCount: 1 },
+      { name: "screenshot", maxCount: 1 },
     ]),
     async (req: Request, res: Response) => {
       try {
@@ -347,6 +354,7 @@ export function registerProjectRoutes(app: Express) {
         const files = req.files as { [fieldname: string]: Express.Multer.File[] };
         const plansFile = files?.plans?.[0] || null;
         const specsFile = files?.specs?.[0] || null;
+        const screenshotFile = files?.screenshot?.[0] || null;
         const hasPlans = !!plansFile;
         const hasSpecs = !!specsFile;
 
@@ -678,6 +686,55 @@ export function registerProjectRoutes(app: Express) {
               }
             }
           })();
+        }
+
+        let screenshotSavePath = "";
+        if (screenshotFile) {
+          try {
+            ensureDir(SCREENSHOTS_DIR);
+            const ext = screenshotFile.mimetype.includes("png") ? ".png" : screenshotFile.mimetype.includes("webp") ? ".webp" : ".jpg";
+            const screenshotFilename = `${projectIdStr}${ext}`;
+            screenshotSavePath = path.join(SCREENSHOTS_DIR, screenshotFilename);
+            fs.writeFileSync(screenshotSavePath, screenshotFile.buffer);
+            console.log(`[ProjectCreate] Screenshot saved: ${screenshotSavePath}`);
+          } catch (err) {
+            console.error("[ProjectCreate] Failed to save screenshot:", err);
+          }
+        }
+
+        try {
+          const userId = (req.session as any)?.userId;
+          let ownerName = "";
+          if (userId) {
+            const [user] = await db.select().from(users).where(eq(users.id, userId));
+            ownerName = user?.displayName || user?.username || user?.email || "";
+          }
+
+          const regions = await getAllRegions();
+          const matchedRegion = regions.find(r => r.code === regionCode.toUpperCase());
+          let regionLabel = matchedRegion?.name ? `${matchedRegion.name} (${regionCode.toUpperCase()})` : regionCode.toUpperCase();
+
+          const rawScreenshotText = req.body.screenshotRawText || "";
+          const bestMarket = guessMarket(safeName, rawScreenshotText);
+          const bestRegion = guessRegion(req.body.screenshotLocation || "", safeName);
+          if (!regionLabel && bestRegion) {
+            regionLabel = bestRegion;
+          }
+
+          await createProposalLogEntry({
+            projectName: safeName,
+            estimateNumber: projectIdStr,
+            region: regionLabel,
+            primaryMarket: bestMarket,
+            dueDate,
+            owner: ownerName,
+            filePath: projectDir,
+            screenshotPath: screenshotSavePath,
+            projectDbId: project.id,
+          });
+          console.log(`[ProjectCreate] Proposal log entry created for ${safeName}`);
+        } catch (err) {
+          console.error("[ProjectCreate] Failed to create proposal log entry:", err);
         }
 
         res.status(201).json({ ...project, hasPlans, hasSpecs });
@@ -1518,6 +1575,63 @@ export function registerProjectRoutes(app: Express) {
     } catch (error) {
       console.error("Project folder download error:", error);
       res.status(500).json({ message: "Failed to download project folder" });
+    }
+  });
+
+  app.get("/api/proposal-log/entries", async (req: Request, res: Response) => {
+    try {
+      const entries = await getAllProposalLogEntries();
+      res.json(entries);
+    } catch (error) {
+      console.error("Failed to get proposal log entries:", error);
+      res.status(500).json({ message: "Failed to get proposal log entries" });
+    }
+  });
+
+  app.get("/api/proposal-log/unsynced", async (req: Request, res: Response) => {
+    try {
+      const entries = await getUnsyncedEntries();
+      res.json(entries);
+    } catch (error) {
+      console.error("Failed to get unsynced entries:", error);
+      res.status(500).json({ message: "Failed to get unsynced entries" });
+    }
+  });
+
+  app.post("/api/proposal-log/mark-synced", async (req: Request, res: Response) => {
+    try {
+      const { ids } = req.body;
+      if (!Array.isArray(ids)) return res.status(400).json({ message: "ids array required" });
+      await markEntriesSynced(ids);
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Failed to mark entries synced:", error);
+      res.status(500).json({ message: "Failed to mark entries synced" });
+    }
+  });
+
+  app.get("/api/proposal-log/screenshot/:projectId", async (req: Request, res: Response) => {
+    try {
+      const projectId = req.params.projectId;
+      const screenshotsDir = path.join(process.cwd(), "project_screenshots");
+      if (!fs.existsSync(screenshotsDir)) {
+        return res.status(404).json({ message: "No screenshots directory" });
+      }
+
+      const files = fs.readdirSync(screenshotsDir);
+      const match = files.find(f => f.startsWith(projectId + "."));
+      if (!match) {
+        return res.status(404).json({ message: "Screenshot not found" });
+      }
+
+      const filePath = path.join(screenshotsDir, match);
+      const ext = path.extname(match).toLowerCase();
+      const mimeMap: Record<string, string> = { ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".webp": "image/webp" };
+      res.setHeader("Content-Type", mimeMap[ext] || "image/png");
+      res.sendFile(filePath);
+    } catch (error) {
+      console.error("Failed to serve screenshot:", error);
+      res.status(500).json({ message: "Failed to serve screenshot" });
     }
   });
 }

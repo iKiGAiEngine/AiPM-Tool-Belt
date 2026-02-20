@@ -862,3 +862,27 @@ export const toolUsageEvents = pgTable("tool_usage_events", {
 export const insertToolUsageEventSchema = createInsertSchema(toolUsageEvents).omit({ id: true, usedAt: true });
 export type InsertToolUsageEvent = z.infer<typeof insertToolUsageEventSchema>;
 export type ToolUsageEvent = typeof toolUsageEvents.$inferSelect;
+
+export const proposalLogEntries = pgTable("proposal_log_entries", {
+  id: serial("id").primaryKey(),
+  projectName: varchar("project_name", { length: 500 }).notNull(),
+  estimateNumber: varchar("estimate_number", { length: 50 }),
+  region: varchar("region", { length: 200 }),
+  primaryMarket: varchar("primary_market", { length: 200 }),
+  inviteDate: varchar("invite_date", { length: 20 }),
+  dueDate: varchar("due_date", { length: 20 }),
+  nbsEstimator: varchar("nbs_estimator", { length: 200 }),
+  gcEstimateLead: varchar("gc_estimate_lead", { length: 200 }),
+  proposalTotal: varchar("proposal_total", { length: 50 }),
+  estimateStatus: varchar("estimate_status", { length: 100 }),
+  owner: varchar("owner", { length: 200 }),
+  filePath: varchar("file_path", { length: 1000 }),
+  screenshotPath: varchar("screenshot_path", { length: 1000 }),
+  projectDbId: integer("project_db_id"),
+  syncedToLocal: boolean("synced_to_local").default(false),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const insertProposalLogEntrySchema = createInsertSchema(proposalLogEntries).omit({ id: true, createdAt: true });
+export type InsertProposalLogEntry = z.infer<typeof insertProposalLogEntrySchema>;
+export type ProposalLogEntry = typeof proposalLogEntries.$inferSelect;

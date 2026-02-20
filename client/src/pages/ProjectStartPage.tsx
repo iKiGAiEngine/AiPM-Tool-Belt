@@ -300,6 +300,22 @@ export default function ProjectStartPage() {
       formData.append("isTest", "true");
     }
 
+    if (screenshotPreview) {
+      try {
+        const parts = screenshotPreview.split(",");
+        const mime = parts[0].match(/:(.*?);/)?.[1] || "image/png";
+        const bstr = atob(parts[1]);
+        const u8arr = new Uint8Array(bstr.length);
+        for (let i = 0; i < bstr.length; i++) u8arr[i] = bstr.charCodeAt(i);
+        const blob = new Blob([u8arr], { type: mime });
+        formData.append("screenshot", blob, "project-screenshot.png");
+      } catch {}
+    }
+
+    if (extractionResult?.location) {
+      formData.append("screenshotLocation", extractionResult.location);
+    }
+
     const isFolderOnly = !plans.file && !specs.file;
 
     setPhase(isFolderOnly ? "creating" : "uploading");
@@ -371,7 +387,7 @@ export default function ProjectStartPage() {
 
     xhr.timeout = 600000;
     xhr.send(formData);
-  }, [projectName, regionCode, dueDate, plans.file, specs.file, isTestMode, startProgressPolling]);
+  }, [projectName, regionCode, dueDate, plans.file, specs.file, isTestMode, startProgressPolling, screenshotPreview, extractionResult]);
 
   const handleGoToProject = () => {
     if (createdProject) {
