@@ -128,6 +128,32 @@ export async function getAllProposalLogEntries() {
   return db.select().from(proposalLogEntries).orderBy(proposalLogEntries.createdAt);
 }
 
+export async function updateProposalLogEntry(estimateNumber: string, updates: Partial<{
+  nbsEstimator: string;
+  estimateStatus: string;
+  proposalTotal: string;
+  gcEstimateLead: string;
+  anticipatedStart: string;
+  anticipatedFinish: string;
+}>) {
+  const cleanUpdates: Record<string, any> = {};
+  if (updates.nbsEstimator !== undefined) cleanUpdates.nbsEstimator = updates.nbsEstimator;
+  if (updates.estimateStatus !== undefined) cleanUpdates.estimateStatus = updates.estimateStatus;
+  if (updates.proposalTotal !== undefined) cleanUpdates.proposalTotal = updates.proposalTotal;
+  if (updates.gcEstimateLead !== undefined) cleanUpdates.gcEstimateLead = updates.gcEstimateLead;
+  if (updates.anticipatedStart !== undefined) cleanUpdates.anticipatedStart = updates.anticipatedStart;
+  if (updates.anticipatedFinish !== undefined) cleanUpdates.anticipatedFinish = updates.anticipatedFinish;
+
+  if (Object.keys(cleanUpdates).length === 0) return null;
+
+  const [updated] = await db.update(proposalLogEntries)
+    .set(cleanUpdates)
+    .where(eq(proposalLogEntries.estimateNumber, estimateNumber))
+    .returning();
+
+  return updated || null;
+}
+
 export async function getScreenshotPathByProjectId(projectDbId: number): Promise<string | null> {
   const [entry] = await db.select({ screenshotPath: proposalLogEntries.screenshotPath })
     .from(proposalLogEntries)

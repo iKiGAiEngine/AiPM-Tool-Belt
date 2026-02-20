@@ -1907,6 +1907,20 @@ function commitInlineEdit(oi,field){
     v=v?v+'-01':'';
   }
   data[oi][field]=v; activeInlineEdit=null; save(); render();
+  syncFieldToServer(data[oi], field, v);
+}
+async function syncFieldToServer(entry, field, value) {
+  const syncableFields = ['nbsEstimator','estimateStatus','proposalTotal','gcEstimateLead','anticipatedStart','anticipatedFinish'];
+  if (!syncableFields.includes(field)) return;
+  if (!entry.estimateNumber) return;
+  try {
+    await fetch('/api/proposal-log/entry/' + encodeURIComponent(entry.estimateNumber), {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ [field]: value })
+    });
+  } catch (e) { console.warn('Failed to sync field to server:', e); }
 }
 function cancelInlineEdit(){
   document.removeEventListener('click',inlineClickAway);
@@ -2150,8 +2164,8 @@ function viewScreenshot(estNum) {
 
 async function syncFromServer() {
   try {
+    const endpoint = '/api/proposal-log/entries';
     const needsFullSync = data.length === 0;
-    const endpoint = needsFullSync ? '/api/proposal-log/entries' : '/api/proposal-log/unsynced';
     const res = await fetch(endpoint);
     if (!res.ok) return;
     const entries = await res.json();
@@ -2162,8 +2176,15 @@ async function syncFromServer() {
       const isDupe = data.some(p => p.estimateNumber === e.estimateNumber || (p.projectName === e.projectName && p.dueDate === e.dueDate));
       if (isDupe) {
         const existing = data.find(p => p.estimateNumber === e.estimateNumber || (p.projectName === e.projectName && p.dueDate === e.dueDate));
-        if (existing && e.estimateNumber) existing._screenshotId = e.estimateNumber;
-        if (existing && e.isTest) existing._isTest = true;
+        if (existing) {
+          if (e.estimateNumber) existing._screenshotId = e.estimateNumber;
+          if (e.isTest) existing._isTest = true;
+          if (e.nbsEstimator && existing.nbsEstimator !== e.nbsEstimator) existing.nbsEstimator = e.nbsEstimator;
+          if (e.estimateStatus && existing.estimateStatus !== e.estimateStatus) existing.estimateStatus = e.estimateStatus;
+          if (e.proposalTotal && existing.proposalTotal !== e.proposalTotal) existing.proposalTotal = e.proposalTotal;
+          if (e.anticipatedStart && existing.anticipatedStart !== e.anticipatedStart) existing.anticipatedStart = e.anticipatedStart;
+          if (e.anticipatedFinish && existing.anticipatedFinish !== e.anticipatedFinish) existing.anticipatedFinish = e.anticipatedFinish;
+        }
         if (!needsFullSync) syncedIds.push(e.id);
         continue;
       }

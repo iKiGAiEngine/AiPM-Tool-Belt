@@ -42,7 +42,7 @@ import { planParserStorage } from "./planparser/storage";
 import { getActiveFolderTemplate, getActiveEstimateTemplate } from "./templateStorage";
 import ExcelJS from "exceljs";
 import { extractProjectDetailsFromScreenshot } from "./screenshotExtractor";
-import { guessMarket, guessRegion, createProposalLogEntry, getUnsyncedEntries, markEntriesSynced, getAllProposalLogEntries } from "./proposalLogService";
+import { guessMarket, guessRegion, createProposalLogEntry, getUnsyncedEntries, markEntriesSynced, getAllProposalLogEntries, updateProposalLogEntry } from "./proposalLogService";
 import { users } from "@shared/schema";
 import { eq } from "drizzle-orm";
 import { db } from "./db";
@@ -1674,6 +1674,36 @@ export function registerProjectRoutes(app: Express) {
     } catch (error) {
       console.error("Failed to mark entries synced:", error);
       res.status(500).json({ message: "Failed to mark entries synced" });
+    }
+  });
+
+  app.patch("/api/proposal-log/entry/:estimateNumber", async (req: Request, res: Response) => {
+    try {
+      const { estimateNumber } = req.params;
+      if (!estimateNumber) return res.status(400).json({ message: "estimateNumber required" });
+
+      const allowedFields = ["nbsEstimator", "estimateStatus", "proposalTotal", "gcEstimateLead", "anticipatedStart", "anticipatedFinish"];
+      const updates: Record<string, string> = {};
+      for (const field of allowedFields) {
+        if (req.body[field] !== undefined) {
+          updates[field] = req.body[field];
+        }
+      }
+
+      if (Object.keys(updates).length === 0) {
+        return res.status(400).json({ message: "No valid fields to update" });
+      }
+
+      const updated = await updateProposalLogEntry(estimateNumber, updates);
+      if (!updated) {
+        return res.status(404).json({ message: "Entry not found" });
+      }
+
+      console.log(`[ProposalLog] Updated ${estimateNumber}:`, updates);
+      res.json({ success: true, entry: updated });
+    } catch (error) {
+      console.error("Failed to update proposal log entry:", error);
+      res.status(500).json({ message: "Failed to update entry" });
     }
   });
 

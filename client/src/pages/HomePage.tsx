@@ -126,8 +126,17 @@ interface ProposalRow {
   filePath?: string;
   estimateNumber?: string;
   region?: string;
+  primaryMarket?: string;
+  inviteDate?: string;
+  gcEstimateLead?: string;
+  proposalTotal?: string;
+  anticipatedStart?: string;
+  anticipatedFinish?: string;
+  owner?: string;
+  comments?: string;
   _bizDays?: number;
   _isTest?: boolean;
+  _screenshotId?: string;
 }
 
 function bizDaysUntil(dateStr: string): number {
@@ -226,9 +235,71 @@ export default function HomePage() {
     }
   }, []);
 
+  const syncFromServer = useCallback(async () => {
+    try {
+      const res = await fetch("/api/proposal-log/entries", { credentials: "include" });
+      if (!res.ok) return;
+      const entries = await res.json();
+      if (!entries.length) return;
+
+      const existing: ProposalRow[] = (() => {
+        try {
+          const raw = localStorage.getItem("nbs_v4");
+          return raw ? JSON.parse(raw) as ProposalRow[] : [];
+        } catch { return []; }
+      })();
+
+      let data = [...existing];
+      let changed = false;
+
+      for (const e of entries) {
+        const match = data.find(p => p.estimateNumber === e.estimateNumber || (p.projectName === e.projectName && p.dueDate === e.dueDate));
+        if (match) {
+          if (e.estimateNumber && !match._screenshotId) { match._screenshotId = e.estimateNumber; changed = true; }
+          if (e.isTest && !match._isTest) { match._isTest = true; changed = true; }
+          if (e.nbsEstimator && match.nbsEstimator !== e.nbsEstimator) { match.nbsEstimator = e.nbsEstimator; changed = true; }
+          if (e.estimateStatus && match.estimateStatus !== e.estimateStatus) { match.estimateStatus = e.estimateStatus; changed = true; }
+          if (e.proposalTotal && match.proposalTotal !== e.proposalTotal) { match.proposalTotal = e.proposalTotal; changed = true; }
+          if (e.anticipatedStart && match.anticipatedStart !== e.anticipatedStart) { match.anticipatedStart = e.anticipatedStart; changed = true; }
+          if (e.anticipatedFinish && match.anticipatedFinish !== e.anticipatedFinish) { match.anticipatedFinish = e.anticipatedFinish; changed = true; }
+          continue;
+        }
+        data.push({
+          projectName: e.projectName || "",
+          estimateNumber: e.estimateNumber || "",
+          region: e.region || "",
+          primaryMarket: e.primaryMarket || "",
+          inviteDate: e.inviteDate || "",
+          dueDate: e.dueDate || "",
+          nbsEstimator: e.nbsEstimator || "",
+          gcEstimateLead: e.gcEstimateLead || "",
+          proposalTotal: e.proposalTotal || "",
+          estimateStatus: e.estimateStatus || "Estimating",
+          anticipatedStart: e.anticipatedStart || "",
+          anticipatedFinish: e.anticipatedFinish || "",
+          owner: e.owner || "",
+          filePath: e.filePath || "",
+          comments: "",
+          _screenshotId: e.estimateNumber || "",
+          _isTest: e.isTest || false,
+        });
+        changed = true;
+      }
+
+      if (changed) {
+        localStorage.setItem("nbs_v4", JSON.stringify(data));
+        setProposals(data);
+      }
+    } catch (err) {
+      console.warn("HUD sync from server failed:", err);
+    }
+  }, []);
+
   useEffect(() => {
     loadProposals();
+    syncFromServer();
     const interval = setInterval(loadProposals, 5000);
+    const syncInterval = setInterval(syncFromServer, 30000);
     const handleStorage = (e: StorageEvent) => {
       if (e.key === "nbs_v4") loadProposals();
       if (e.key === ACK_STORAGE_KEY) {
@@ -241,9 +312,10 @@ export default function HomePage() {
     window.addEventListener("storage", handleStorage);
     return () => {
       clearInterval(interval);
+      clearInterval(syncInterval);
       window.removeEventListener("storage", handleStorage);
     };
-  }, [loadProposals]);
+  }, [loadProposals, syncFromServer]);
 
   const userInitials = user?.initials || (user ? getUserInitials(user) : "HK");
   const userEstimatorCode = (user?.initials || "").toUpperCase();
