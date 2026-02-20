@@ -80,6 +80,7 @@ export async function createProposalLogEntry(data: {
   filePath: string;
   screenshotPath: string;
   projectDbId: number;
+  isTest?: boolean;
 }) {
   const today = new Date();
   const inviteDate = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
@@ -96,6 +97,7 @@ export async function createProposalLogEntry(data: {
     filePath: data.filePath,
     screenshotPath: data.screenshotPath,
     projectDbId: data.projectDbId,
+    isTest: data.isTest || false,
     syncedToLocal: false,
   }).returning();
 

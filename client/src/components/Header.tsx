@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { useTestMode } from "@/lib/testMode";
 import { useAuth } from "@/lib/auth";
 import { cn } from "@/lib/utils";
+import { ThemeToggle } from "@/components/ThemeToggle";
 import type { Project } from "@shared/schema";
 
 interface ToolRoute {
@@ -150,6 +151,7 @@ export function Header() {
                 </Button>
               </Link>
             )}
+            <ThemeToggle />
             <div className="flex items-center gap-2">
               {user && (
                 <span className="text-xs hidden sm:inline" style={{ color: "var(--text-dim)" }} data-testid="text-user-email">

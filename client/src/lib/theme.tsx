@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useState } from "react";
 
-type Theme = "dark";
+type Theme = "dark" | "light";
 
 interface ThemeContextType {
   theme: Theme;
@@ -10,14 +10,23 @@ interface ThemeContextType {
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [theme] = useState<Theme>("dark");
+  const [theme, setTheme] = useState<Theme>(() => {
+    const stored = localStorage.getItem("aipm-theme");
+    return stored === "light" ? "light" : "dark";
+  });
 
   useEffect(() => {
-    document.documentElement.classList.add("dark");
-    localStorage.setItem("aipm-theme", "dark");
-  }, []);
+    if (theme === "dark") {
+      document.documentElement.classList.add("dark");
+    } else {
+      document.documentElement.classList.remove("dark");
+    }
+    localStorage.setItem("aipm-theme", theme);
+  }, [theme]);
 
-  const toggleTheme = () => {};
+  const toggleTheme = () => {
+    setTheme(prev => prev === "dark" ? "light" : "dark");
+  };
 
   return (
     <ThemeContext.Provider value={{ theme, toggleTheme }}>

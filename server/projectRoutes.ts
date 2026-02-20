@@ -731,6 +731,7 @@ export function registerProjectRoutes(app: Express) {
             filePath: projectDir,
             screenshotPath: screenshotSavePath,
             projectDbId: project.id,
+            isTest: isTest === "true",
           });
           console.log(`[ProjectCreate] Proposal log entry created for ${safeName}`);
         } catch (err) {

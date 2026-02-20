@@ -1074,7 +1074,11 @@ function buildRows() {
       const w=layout.widths[key]||getColDef(key)?.w||100;
       let val='\u2014';
       switch(key) {
-        case 'projectName': val=`<div class="proj-name" title="${p.projectName||''}">${p.projectName||'\u2014'}</div>`; break;
+        case 'projectName': {
+          const testBadge = p._isTest ? '<span style="display:inline-block;font-size:9px;font-weight:700;font-family:Rajdhani,sans-serif;letter-spacing:.5px;background:rgba(201,168,76,.18);color:var(--gold);border:1px solid var(--gold-dim);padding:0 4px;border-radius:3px;margin-right:5px;vertical-align:middle;line-height:16px">TEST</span>' : '';
+          val=`<div class="proj-name" title="${p.projectName||''}">${testBadge}${p.projectName||'\u2014'}</div>`;
+          break;
+        }
         case 'proposalTotal': val=`<span class="val-cell">${fmt$(p.proposalTotal)}</span>`; break;
         case 'estimateStatus': {
           if(p.estimateStatus === 'Lost - Note Why in Comments') {
@@ -1118,7 +1122,8 @@ function buildRows() {
     const checkCell = mode==='estimator'
       ? `<td class="row-check-col"><input type="checkbox" class="row-select-cb" data-oi="${oi}" ${isSelected?'checked':''} onchange="onRowCheckChange(${oi},this.checked)"></td>`
       : `<td class="row-check-col"></td>`;
-    return `<tr style="animation-delay:${fi*.02}s${isSelected?';background:rgba(201,168,76,.06)':''}">${checkCell}${cells.join('')}</tr>`;
+    const testStyle = p._isTest ? ';border-left:3px solid var(--gold-dim);opacity:.75' : '';
+    return `<tr style="animation-delay:${fi*.02}s${isSelected?';background:rgba(201,168,76,.06)':''}${testStyle}">${checkCell}${cells.join('')}</tr>`;
   }).join('');
 }
 
@@ -2145,6 +2150,7 @@ async function syncFromServer() {
       if (isDupe) {
         const existing = data.find(p => p.estimateNumber === e.estimateNumber || (p.projectName === e.projectName && p.dueDate === e.dueDate));
         if (existing && e.estimateNumber) existing._screenshotId = e.estimateNumber;
+        if (existing && e.isTest) existing._isTest = true;
         syncedIds.push(e.id);
         continue;
       }
@@ -2167,6 +2173,7 @@ async function syncFromServer() {
         filePath: e.filePath || '',
         comments: '',
         _screenshotId: e.estimateNumber || '',
+        _isTest: e.isTest || false,
       };
       data.push(newEntry);
       syncedIds.push(e.id);
