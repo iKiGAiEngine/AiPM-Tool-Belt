@@ -95,12 +95,54 @@ export function registerProjectRoutes(app: Express) {
 
       console.log(`[ScreenshotExtractor] Processing ${req.file.originalname} (${(req.file.size / 1024).toFixed(0)} KB)`);
       const result = await extractProjectDetailsFromScreenshot(req.file.buffer);
-      console.log(`[ScreenshotExtractor] Extracted: name="${result.projectName}", date="${result.dueDate}", location="${result.location}"`);
+      console.log(`[ScreenshotExtractor] Extracted: name="${result.projectName}", date="${result.dueDate}", location="${result.location}", client="${result.clientName}", clientLoc="${result.clientLocation}", invite="${result.inviteDate}", start="${result.expectedStart}", finish="${result.expectedFinish}"`);
 
       const regions = await getAllRegions();
       let matchedRegionCode: string | null = null;
 
-      if (result.location) {
+      const CITY_TO_REGION_CODE: Record<string, string> = {
+        "ocla": "LAX", "los angeles": "LAX", "la": "LAX", "orange county": "LAX",
+        "portland": "PDX", "oregon": "PDX",
+        "seattle": "SEA", "washington": "SEA", "tacoma": "SEA", "bellevue": "SEA",
+        "charlotte": "CLT", "n carolina": "CLT", "north carolina": "CLT", "s carolina": "CLT", "south carolina": "CLT",
+        "atlanta": "ATL", "georgia": "ATL",
+        "austin": "AUS", "san antonio": "AUS",
+        "denver": "DEN", "colorado": "DEN",
+        "dallas": "DFW", "fort worth": "DFW",
+        "hawaii": "HNL", "honolulu": "HNL",
+        "new york": "LGA", "manhattan": "LGA",
+        "san francisco": "SFO", "nor cal": "SFO", "bay area": "SFO", "oakland": "SFO", "sacramento": "SFO",
+        "san diego": "SAN", "sd": "SAN",
+        "spokane": "GEG", "boise": "GEG",
+        "idaho": "PDX",
+        "special projects": "LAX", "fs": "LAX", "spd": "LAX", "tm": "LAX",
+      };
+
+      const clientLoc = (result.clientLocation || "").trim().toLowerCase();
+      if (clientLoc) {
+        if (CITY_TO_REGION_CODE[clientLoc]) {
+          matchedRegionCode = CITY_TO_REGION_CODE[clientLoc];
+        } else {
+          for (const region of regions) {
+            const regionNameLower = (region.name || "").toLowerCase();
+            const regionCodeLower = region.code.toLowerCase();
+            if (clientLoc === regionNameLower || clientLoc === regionCodeLower) {
+              matchedRegionCode = region.code;
+              break;
+            }
+          }
+          if (!matchedRegionCode) {
+            for (const [alias, code] of Object.entries(CITY_TO_REGION_CODE)) {
+              if (clientLoc.includes(alias) || alias.includes(clientLoc)) {
+                matchedRegionCode = code;
+                break;
+              }
+            }
+          }
+        }
+      }
+
+      if (!matchedRegionCode && result.location) {
         const locLower = result.location.toLowerCase();
         for (const region of regions) {
           const regionNameLower = (region.name || "").toLowerCase();
@@ -116,12 +158,21 @@ export function registerProjectRoutes(app: Express) {
         }
       }
 
+      const primaryMarket = guessMarket(result.projectName || "", result.rawText);
+
       res.json({
         projectName: result.projectName,
         dueDate: result.dueDate,
         location: result.location,
         tradeName: result.tradeName,
         matchedRegionCode,
+        inviteDate: result.inviteDate,
+        expectedStart: result.expectedStart,
+        expectedFinish: result.expectedFinish,
+        clientName: result.clientName,
+        clientLocation: result.clientLocation,
+        primaryMarket,
+        rawText: result.rawText,
       });
     } catch (error) {
       console.error("[ScreenshotExtractor] Error:", error);
@@ -715,11 +766,17 @@ export function registerProjectRoutes(app: Express) {
           let regionLabel = matchedRegion?.name ? `${matchedRegion.name} (${regionCode.toUpperCase()})` : regionCode.toUpperCase();
 
           const rawScreenshotText = req.body.screenshotRawText || "";
-          const bestMarket = guessMarket(safeName, rawScreenshotText);
+          const frontendMarket = req.body.primaryMarket || "";
+          const bestMarket = frontendMarket || guessMarket(safeName, rawScreenshotText);
           const bestRegion = guessRegion(req.body.screenshotLocation || "", safeName);
           if (!regionLabel && bestRegion) {
             regionLabel = bestRegion;
           }
+
+          const frontendInviteDate = req.body.inviteDate || "";
+          const frontendEstimateStatus = req.body.estimateStatus || "";
+          const frontendAnticipatedStart = req.body.anticipatedStart || "";
+          const frontendAnticipatedFinish = req.body.anticipatedFinish || "";
 
           await createProposalLogEntry({
             projectName: safeName,
@@ -732,6 +789,10 @@ export function registerProjectRoutes(app: Express) {
             screenshotPath: screenshotSavePath,
             projectDbId: project.id,
             isTest: isTest === "true",
+            inviteDate: frontendInviteDate || undefined,
+            estimateStatus: frontendEstimateStatus || undefined,
+            anticipatedStart: frontendAnticipatedStart || undefined,
+            anticipatedFinish: frontendAnticipatedFinish || undefined,
           });
           console.log(`[ProjectCreate] Proposal log entry created for ${safeName}`);
         } catch (err) {

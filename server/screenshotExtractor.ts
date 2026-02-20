@@ -14,6 +14,11 @@ export interface ExtractedProjectDetails {
   dueDate: string | null;
   location: string | null;
   tradeName: string | null;
+  inviteDate: string | null;
+  expectedStart: string | null;
+  expectedFinish: string | null;
+  clientName: string | null;
+  clientLocation: string | null;
   rawText: string;
 }
 
@@ -28,12 +33,21 @@ export async function extractProjectDetailsFromScreenshot(
   const dueDate = extractDueDate(text);
   const location = extractLocation(text);
   const tradeName = extractTradeName(text);
+  const inviteDate = extractLabeledDate(text, ["Date\\s*Invite", "Invite\\s*Date", "Invited"]);
+  const expectedStart = extractLabeledDate(text, ["Expected\\s*Start", "Est\\.?\\s*Start", "Anticipated\\s*Start", "Start\\s*Date"]);
+  const expectedFinish = extractLabeledDate(text, ["Expected\\s*Finish", "Expected\\s*End", "Est\\.?\\s*End", "Est\\.?\\s*Finish", "Anticipated\\s*Finish", "End\\s*Date"]);
+  const { clientName, clientLocation } = extractClientInfo(text);
 
   return {
     projectName,
     dueDate,
     location,
     tradeName,
+    inviteDate,
+    expectedStart,
+    expectedFinish,
+    clientName,
+    clientLocation,
     rawText: text,
   };
 }
@@ -165,6 +179,80 @@ function extractTradeName(text: string): string | null {
   }
 
   return null;
+}
+
+function extractLabeledDate(text: string, labelPatterns: string[]): string | null {
+  const lines = text.split("\n");
+  for (const labelPattern of labelPatterns) {
+    const inlinePatterns = [
+      new RegExp(`${labelPattern}\\s*[:\\-]?\\s*(\\w+\\.?\\s+\\d{1,2},?\\s+\\d{4})`, "i"),
+      new RegExp(`${labelPattern}\\s*[:\\-]?\\s*(\\d{1,2}\\/\\d{1,2}\\/\\d{2,4})`, "i"),
+      new RegExp(`${labelPattern}\\s*[:\\-]?\\s*(\\w+\\.?\\s+\\d{1,2}\\s+\\d{4})`, "i"),
+    ];
+    for (const pattern of inlinePatterns) {
+      const match = text.match(pattern);
+      if (match && match[1]) {
+        const parsed = parseDate(match[1].trim());
+        if (parsed) return parsed;
+      }
+    }
+
+    const labelRegex = new RegExp(labelPattern, "i");
+    for (let i = 0; i < lines.length; i++) {
+      if (labelRegex.test(lines[i])) {
+        for (let j = i; j < Math.min(i + 3, lines.length); j++) {
+          const dateMatch = lines[j].match(/(\w{3,9}\.?\s+\d{1,2},?\s+\d{4})/);
+          if (dateMatch) {
+            const parsed = parseDate(dateMatch[1]);
+            if (parsed) return parsed;
+          }
+          const slashMatch = lines[j].match(/(\d{1,2}\/\d{1,2}\/\d{2,4})/);
+          if (slashMatch) {
+            const parsed = parseDate(slashMatch[1]);
+            if (parsed) return parsed;
+          }
+        }
+      }
+    }
+  }
+  return null;
+}
+
+function extractClientInfo(text: string): { clientName: string | null; clientLocation: string | null } {
+  const lines = text.split("\n").map(l => l.trim()).filter(Boolean);
+
+  let clientLineIdx = -1;
+  for (let i = 0; i < lines.length; i++) {
+    if (/^Client$/i.test(lines[i])) {
+      clientLineIdx = i;
+      break;
+    }
+  }
+
+  if (clientLineIdx === -1) {
+    return { clientName: null, clientLocation: null };
+  }
+
+  for (let j = clientLineIdx + 1; j < Math.min(clientLineIdx + 5, lines.length); j++) {
+    const line = lines[j];
+    if (line.length < 5) continue;
+    if (/^(Bidding|Overview|Files|Messages|Vendors|Status)/i.test(line)) break;
+    if (line.includes("@") || line.match(/^\+?\d[\d\s\-().]+$/)) continue;
+
+    const dashMatch = line.match(/^(.+?)\s*[-–—]\s*(.+)$/);
+    if (dashMatch) {
+      const company = dashMatch[1].trim();
+      let locationPart = dashMatch[2].trim();
+      locationPart = locationPart.replace(/\s*[-–—]\s*.*$/, "").trim();
+      return { clientName: company, clientLocation: locationPart };
+    }
+
+    if (line.length > 3 && !line.includes("|")) {
+      return { clientName: line, clientLocation: null };
+    }
+  }
+
+  return { clientName: null, clientLocation: null };
 }
 
 function parseDate(dateStr: string): string | null {

@@ -81,9 +81,23 @@ export default function ProjectStartPage() {
     location: string | null;
     tradeName: string | null;
     matchedRegionCode: string | null;
+    inviteDate: string | null;
+    expectedStart: string | null;
+    expectedFinish: string | null;
+    clientName: string | null;
+    clientLocation: string | null;
+    primaryMarket: string | null;
+    rawText: string | null;
   } | null>(null);
   const [screenshotDragging, setScreenshotDragging] = useState(false);
   const screenshotInputRef = useRef<HTMLInputElement>(null);
+
+  const [primaryMarket, setPrimaryMarket] = useState("");
+  const [inviteDate, setInviteDate] = useState("");
+  const [anticipatedStart, setAnticipatedStart] = useState("");
+  const [anticipatedFinish, setAnticipatedFinish] = useState("");
+  const [estimateStatus, setEstimateStatus] = useState("Estimating");
+  const [regionNotConfident, setRegionNotConfident] = useState(false);
 
   const [phase, setPhase] = useState<CreationPhase>("idle");
   const [uploadPercent, setUploadPercent] = useState(0);
@@ -154,6 +168,22 @@ export default function ProjectStartPage() {
         setRegionCode(data.matchedRegionCode);
         const matched = regions.find((r) => r.code === data.matchedRegionCode);
         if (matched) setSelectedRegionId(String(matched.id));
+        setRegionNotConfident(false);
+      } else if (!data.matchedRegionCode && !regionCode) {
+        setRegionNotConfident(true);
+      }
+
+      if (data.primaryMarket && !primaryMarket) {
+        setPrimaryMarket(data.primaryMarket);
+      }
+      if (data.inviteDate && !inviteDate) {
+        setInviteDate(data.inviteDate);
+      }
+      if (data.expectedStart && !anticipatedStart) {
+        setAnticipatedStart(data.expectedStart);
+      }
+      if (data.expectedFinish && !anticipatedFinish) {
+        setAnticipatedFinish(data.expectedFinish);
       }
 
       toast({
@@ -171,7 +201,7 @@ export default function ProjectStartPage() {
     } finally {
       setIsExtracting(false);
     }
-  }, [projectName, dueDate, regionCode, toast]);
+  }, [projectName, dueDate, regionCode, primaryMarket, inviteDate, anticipatedStart, anticipatedFinish, toast, regions]);
 
   useEffect(() => {
     const handlePaste = (e: ClipboardEvent) => {
@@ -300,6 +330,12 @@ export default function ProjectStartPage() {
       formData.append("isTest", "true");
     }
 
+    if (primaryMarket) formData.append("primaryMarket", primaryMarket);
+    if (inviteDate) formData.append("inviteDate", inviteDate);
+    if (anticipatedStart) formData.append("anticipatedStart", anticipatedStart);
+    if (anticipatedFinish) formData.append("anticipatedFinish", anticipatedFinish);
+    if (estimateStatus) formData.append("estimateStatus", estimateStatus);
+
     if (screenshotPreview) {
       try {
         const parts = screenshotPreview.split(",");
@@ -314,6 +350,9 @@ export default function ProjectStartPage() {
 
     if (extractionResult?.location) {
       formData.append("screenshotLocation", extractionResult.location);
+    }
+    if (extractionResult?.rawText) {
+      formData.append("screenshotRawText", extractionResult.rawText);
     }
 
     const isFolderOnly = !plans.file && !specs.file;
@@ -387,7 +426,7 @@ export default function ProjectStartPage() {
 
     xhr.timeout = 600000;
     xhr.send(formData);
-  }, [projectName, regionCode, dueDate, plans.file, specs.file, isTestMode, startProgressPolling, screenshotPreview, extractionResult]);
+  }, [projectName, regionCode, dueDate, plans.file, specs.file, isTestMode, startProgressPolling, screenshotPreview, extractionResult, primaryMarket, inviteDate, anticipatedStart, anticipatedFinish, estimateStatus]);
 
   const handleGoToProject = () => {
     if (createdProject) {
@@ -803,12 +842,30 @@ export default function ProjectStartPage() {
                         {extractionResult.dueDate || "Not found"}
                       </span>
                     </div>
-                    <div className="flex items-start gap-2 p-2 rounded-md bg-muted/50 sm:col-span-2">
+                    <div className="flex items-start gap-2 p-2 rounded-md bg-muted/50">
+                      <span className="text-muted-foreground whitespace-nowrap">Client:</span>
+                      <span className={cn("font-medium", extractionResult.clientName ? "text-foreground" : "text-muted-foreground")}>
+                        {extractionResult.clientName ? `${extractionResult.clientName}${extractionResult.clientLocation ? ` — ${extractionResult.clientLocation}` : ""}` : "Not found"}
+                      </span>
+                    </div>
+                    <div className="flex items-start gap-2 p-2 rounded-md bg-muted/50">
                       <span className="text-muted-foreground whitespace-nowrap">Location:</span>
                       <span className={cn("font-medium", extractionResult.location ? "text-foreground" : "text-muted-foreground")}>
                         {extractionResult.location || "Not found"}
                       </span>
                     </div>
+                    {extractionResult.inviteDate && (
+                      <div className="flex items-start gap-2 p-2 rounded-md bg-muted/50">
+                        <span className="text-muted-foreground whitespace-nowrap">Invited:</span>
+                        <span className="font-medium text-foreground">{extractionResult.inviteDate}</span>
+                      </div>
+                    )}
+                    {extractionResult.primaryMarket && (
+                      <div className="flex items-start gap-2 p-2 rounded-md bg-muted/50">
+                        <span className="text-muted-foreground whitespace-nowrap">Market:</span>
+                        <span className="font-medium text-foreground">{extractionResult.primaryMarket}</span>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -829,8 +886,9 @@ export default function ProjectStartPage() {
                   const selected = regions.find((r) => String(r.id) === val);
                   setRegionCode(selected ? selected.code : val);
                   setSelectedRegionId(val);
+                  setRegionNotConfident(false);
                 }}>
-                  <SelectTrigger data-testid="select-region">
+                  <SelectTrigger data-testid="select-region" className={cn(regionNotConfident && !regionCode && "border-amber-500 ring-1 ring-amber-500/30")}>
                     <SelectValue placeholder="Select region">
                       {selectedRegionId ? (() => {
                         const sel = regions.find((r) => String(r.id) === selectedRegionId);
@@ -861,6 +919,12 @@ export default function ProjectStartPage() {
                     )}
                   </SelectContent>
                 </Select>
+                {regionNotConfident && !regionCode && (
+                  <p className="text-xs text-amber-500 flex items-center gap-1" data-testid="text-region-warning">
+                    <AlertCircle className="w-3 h-3" />
+                    Could not determine region — please select manually
+                  </p>
+                )}
               </div>
               <div className="space-y-2">
                 <Label>Due Date *</Label>
@@ -904,6 +968,85 @@ export default function ProjectStartPage() {
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <FolderOpen className="w-4 h-4" />
                 Folder: <span className="font-mono">{regionCode} - {projectName}</span>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg font-heading">Proposal Log Details</CardTitle>
+            <CardDescription>
+              These fields will be added to the Proposal Log. Auto-filled from screenshot when available.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="primaryMarket">Primary Market</Label>
+                <Select value={primaryMarket} onValueChange={setPrimaryMarket}>
+                  <SelectTrigger data-testid="select-primary-market">
+                    <SelectValue placeholder="Select market" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {["Education", "Healthcare", "Aviation", "Hospitality", "Residential", "Retail", "Office", "Entertainment", "Parking Structure", "Public Facility", "Special Projects"].map((m) => (
+                      <SelectItem key={m} value={m}>{m}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="estimateStatus">Estimate Status</Label>
+                <Select value={estimateStatus} onValueChange={setEstimateStatus}>
+                  <SelectTrigger data-testid="select-estimate-status">
+                    <SelectValue placeholder="Select status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {["Estimating", "Submitted", "Won", "Lost - Note Why in Comments", "Undecided", "Declined"].map((s) => (
+                      <SelectItem key={s} value={s}>{s}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="inviteDate">Invite Date</Label>
+                <Input
+                  id="inviteDate"
+                  type="date"
+                  value={inviteDate}
+                  onChange={(e) => setInviteDate(e.target.value)}
+                  data-testid="input-invite-date"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="anticipatedStart">Est. Start</Label>
+                <Input
+                  id="anticipatedStart"
+                  type="date"
+                  value={anticipatedStart}
+                  onChange={(e) => setAnticipatedStart(e.target.value)}
+                  data-testid="input-anticipated-start"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="anticipatedFinish">Est. End</Label>
+                <Input
+                  id="anticipatedFinish"
+                  type="date"
+                  value={anticipatedFinish}
+                  onChange={(e) => setAnticipatedFinish(e.target.value)}
+                  data-testid="input-anticipated-finish"
+                />
+              </div>
+            </div>
+            {extractionResult && (
+              <div className="flex items-center gap-2 text-xs text-muted-foreground" data-testid="text-extraction-source">
+                <ImageIcon className="w-3 h-3" />
+                {extractionResult.clientName && (
+                  <span>Client: <span className="font-medium text-foreground">{extractionResult.clientName}{extractionResult.clientLocation ? ` — ${extractionResult.clientLocation}` : ""}</span></span>
+                )}
               </div>
             )}
           </CardContent>

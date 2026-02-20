@@ -81,22 +81,30 @@ export async function createProposalLogEntry(data: {
   screenshotPath: string;
   projectDbId: number;
   isTest?: boolean;
+  inviteDate?: string;
+  estimateStatus?: string;
+  anticipatedStart?: string;
+  anticipatedFinish?: string;
 }) {
-  const today = new Date();
-  const inviteDate = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+  const fallbackInviteDate = (() => {
+    const today = new Date();
+    return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+  })();
 
   const [entry] = await db.insert(proposalLogEntries).values({
     projectName: data.projectName,
     estimateNumber: data.estimateNumber,
     region: data.region,
     primaryMarket: data.primaryMarket,
-    inviteDate,
+    inviteDate: data.inviteDate || fallbackInviteDate,
     dueDate: data.dueDate,
-    estimateStatus: "Estimating",
+    estimateStatus: data.estimateStatus || "Estimating",
     owner: data.owner,
     filePath: data.filePath,
     screenshotPath: data.screenshotPath,
     projectDbId: data.projectDbId,
+    anticipatedStart: data.anticipatedStart || null,
+    anticipatedFinish: data.anticipatedFinish || null,
     isTest: data.isTest || false,
     syncedToLocal: false,
   }).returning();

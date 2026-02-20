@@ -879,6 +879,8 @@ export const proposalLogEntries = pgTable("proposal_log_entries", {
   filePath: varchar("file_path", { length: 1000 }),
   screenshotPath: varchar("screenshot_path", { length: 1000 }),
   projectDbId: integer("project_db_id"),
+  anticipatedStart: varchar("anticipated_start", { length: 20 }),
+  anticipatedFinish: varchar("anticipated_finish", { length: 20 }),
   isTest: boolean("is_test").default(false),
   syncedToLocal: boolean("synced_to_local").default(false),
   createdAt: timestamp("created_at").notNull().defaultNow(),
