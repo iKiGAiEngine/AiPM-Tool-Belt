@@ -870,14 +870,21 @@ function defaultLayout() {
   };
 }
 let layout = JSON.parse(localStorage.getItem('nbs_layout') || 'null') || defaultLayout();
-if (layout && !layout.order.includes('_screenshot')) {
-  const actIdx = layout.order.indexOf('_actions');
-  if (actIdx >= 0) layout.order.splice(actIdx, 0, '_screenshot');
-  else layout.order.push('_screenshot');
-  layout.widths['_screenshot'] = 70;
-  layout.visible['_screenshot'] = true;
-  localStorage.setItem('nbs_layout', JSON.stringify(layout));
-}
+(function migrateLayout() {
+  let changed = false;
+  COL_DEFS.forEach(def => {
+    if (!layout.order.includes(def.key)) {
+      const actIdx = layout.order.indexOf('_actions');
+      if (actIdx >= 0) layout.order.splice(actIdx, 0, def.key);
+      else layout.order.push(def.key);
+      changed = true;
+    }
+    if (!layout.widths[def.key]) { layout.widths[def.key] = def.w; changed = true; }
+    if (layout.visible[def.key] === undefined) { layout.visible[def.key] = true; changed = true; }
+  });
+  layout.order = layout.order.filter(k => COL_DEFS.some(d => d.key === k));
+  if (changed) saveLayout();
+})();
 let colFilters = {};
 
 const save = () => localStorage.setItem('nbs_v4', JSON.stringify(data));
@@ -971,12 +978,12 @@ function buildHeaders() {
 
   hr.innerHTML = '';
   fr.innerHTML = '';
+  const cbTh=document.createElement('th'); cbTh.className='row-check-col'; cbTh.style.cssText='width:36px;min-width:36px;background:var(--bg3)';
   if(mode==='estimator') {
-    const cbTh=document.createElement('th'); cbTh.className='row-check-col'; cbTh.style.cssText='width:36px;min-width:36px;background:var(--bg3)';
     cbTh.innerHTML='<input type="checkbox" id="thead-select-all" onchange="toggleSelectAll(this.checked)" title="Select all">';
-    hr.appendChild(cbTh);
-    const cbFr=document.createElement('th'); cbFr.className='row-check-col'; fr.appendChild(cbFr);
   }
+  hr.appendChild(cbTh);
+  const cbFr=document.createElement('th'); cbFr.className='row-check-col'; fr.appendChild(cbFr);
 
   visKeys.forEach(key => {
     const def = getColDef(key);
@@ -1142,7 +1149,8 @@ function onResizeStart(e, key, th) {
     const delta=e2.clientX-resizing.startX;
     layout.widths[resizing.key]=Math.max(60,resizing.startW+delta);
     const idx=getVisibleCols().indexOf(key);
-    document.querySelectorAll(`#main-table th:nth-child(${idx+1}), #main-table td:nth-child(${idx+1})`).forEach(el=>{
+    const offset = document.querySelectorAll('#main-table thead tr:first-child .row-check-col').length;
+    document.querySelectorAll(`#main-table th:nth-child(${idx+1+offset}), #main-table td:nth-child(${idx+1+offset})`).forEach(el=>{
       el.style.width=layout.widths[key]+'px';
       el.style.minWidth=layout.widths[key]+'px';
     });
