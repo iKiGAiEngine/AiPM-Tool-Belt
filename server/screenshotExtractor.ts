@@ -22,20 +22,40 @@ Extract the following fields. Return ONLY valid JSON, no prose, no markdown fenc
 
 For each field, extract the EXACT value shown. If a field is not visible or cannot be determined, use null. Do NOT guess or infer values that are not clearly shown.
 
+BUILDINGCONNECTED-SPECIFIC LABELS (these are the standard field names used on BuildingConnected):
+- "Date Due" = the bid due date → maps to "dueDate"
+- "Date Invite" = when the bid invitation was sent → maps to "inviteDate"
+- "Expected Start" or "Est. Start" = anticipated construction start → maps to "expectedStart"
+- "Expected Finish" or "Est. End" = anticipated construction end → maps to "expectedFinish"
+- "Date Settled" = when bid was settled (ignore this field)
+
 CRITICAL RULES:
-- "dueDate" is the BID DUE DATE (when the bid/proposal must be submitted). Look for labels like "Due Date", "Bid Due", "Date Due", "Response Due", "Bid Date". This is NOT the project end date or completion date.
-- "inviteDate" is when the invitation was sent. Look for "Date Invite", "Invite Date", "Date Received", "Invited".
-- "expectedStart" is the anticipated project START date. Look for "Expected Start", "Anticipated Start", "Start Date", "Scope Start", "Construction Start".
-- "expectedFinish" is the anticipated project END/FINISH date. Look for "Expected Finish", "Expected End", "Anticipated Finish", "Completion Date", "Scope End". This is NOT the bid due date.
+- "dueDate" is the BID DUE DATE (when the bid/proposal must be submitted). Look for labels: "Due Date", "Bid Due", "Date Due", "Response Due", "Bid Date". This is NOT the project end date or completion date.
+- "inviteDate" is when the invitation was sent. Look for labels: "Date Invite", "Invite Date", "Date Received", "Invited".
+- "expectedStart" is the anticipated project START date. Look for labels: "Expected Start", "Est. Start", "Est Start", "Anticipated Start", "Start Date", "Scope Start", "Construction Start".
+- "expectedFinish" is the anticipated project END/FINISH date. Look for labels: "Expected Finish", "Est. End", "Est End", "Est. Finish", "Expected End", "Anticipated Finish", "Completion Date", "Scope End". This is NOT the bid due date.
+- IMPORTANT: Scan the ENTIRE screenshot for these date fields. They are often in a "Project Details" section on the left side of the page. Each date has its own row with a label and a value. Extract ALL dates you can find, even if a date seems wrong or contradictory (e.g., finish before start). Extract exactly what is shown.
 - Do NOT confuse these dates with each other. Each date has a specific label on the page.
+- Do NOT return null for a date field if the date is visible on the page. Always extract what is shown.
 - For dates, return in YYYY-MM-DD format.
-- "clientName" is the general contractor or client company name. Look for "Client", "Builder", "GC", "General Contractor".
+- "clientName" is the general contractor or client company name. Look for "Client", "Builder", "GC", "General Contractor". On BuildingConnected, this often appears near the top with a company icon.
 - "clientLocation" is the city/office location of the client (NOT the project location). Often shown as "Company - City" (e.g., "Swinerton Builders - Portland"). Extract the city/location part after the dash.
 - "location" is the PROJECT location/address where the work will be done. Look for "Location", "Address", "Project Location", "City".
-- "gcContactName" is the name of the contact person from the GC/client.
+- "gcContactName" is the name of the contact person from the GC/client. On BuildingConnected, look in the "Team Summary" or contact section.
 - "gcContactEmail" is their email address.
 - "tradeName" is the trade/scope being bid. Look for "Trade Name", "Trade", "Scope", "CSI Division".
-- "projectName" is the project name/title. Usually the largest or most prominent text, or labeled "Project Name".
+- "projectName" is the project name/title. Usually the largest or most prominent text at the top of the page.
+
+CHECKLIST - Before returning, verify you checked for EACH of these fields in the Project Details section:
+1. Date Due (dueDate)
+2. Date Invite (inviteDate)
+3. Expected Start (expectedStart)
+4. Expected Finish (expectedFinish)
+5. Project Name
+6. Location
+7. Client/GC name and location
+8. GC Contact name and email
+9. Trade Name
 
 Response schema:
 {
