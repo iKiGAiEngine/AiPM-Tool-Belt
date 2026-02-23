@@ -73,6 +73,19 @@ const imageUpload = multer({
   },
 });
 
+function handleImageUploadError(req: Request, res: Response, next: Function) {
+  imageUpload.single("screenshot")(req, res, (err: any) => {
+    if (err) {
+      console.error("[ScreenshotExtractor] Upload error:", err.message);
+      if (err.code === "LIMIT_FILE_SIZE") {
+        return res.status(400).json({ message: "Image file too large (max 20MB)" });
+      }
+      return res.status(400).json({ message: err.message || "Invalid file upload" });
+    }
+    next();
+  });
+}
+
 const PROJECTS_DIR = path.join(process.cwd(), "projects");
 
 function sanitizeForWindows(name: string): string {
@@ -87,7 +100,7 @@ function ensureDir(dirPath: string): void {
 
 export function registerProjectRoutes(app: Express) {
 
-  app.post("/api/extract-project-details", imageUpload.single("screenshot"), async (req: Request, res: Response) => {
+  app.post("/api/extract-project-details", handleImageUploadError, async (req: Request, res: Response) => {
     try {
       if (!req.file) {
         return res.status(400).json({ message: "No image uploaded" });
@@ -175,6 +188,7 @@ export function registerProjectRoutes(app: Express) {
         gcContactEmail: result.gcContactEmail,
         primaryMarket,
         rawText: result.rawText,
+        extractionFailed: result.extractionFailed || false,
       });
     } catch (error) {
       console.error("[ScreenshotExtractor] Error:", error);

@@ -13,6 +13,7 @@ export interface ExtractedProjectDetails {
   gcContactName: string | null;
   gcContactEmail: string | null;
   rawText: string;
+  extractionFailed?: boolean;
 }
 
 const EXTRACTION_PROMPT = `You are an expert construction project data extractor. Analyze this screenshot of a construction bid/project page (likely from BuildingConnected, Procore, PlanHub, or similar platform).
@@ -68,7 +69,26 @@ export async function extractProjectDetailsFromScreenshot(
     console.warn("[ScreenshotExtractor] No OPENAI_API_KEY set, using OCR fallback");
   }
 
-  return extractWithOCR(imageBuffer);
+  try {
+    return await extractWithOCR(imageBuffer);
+  } catch (ocrErr: any) {
+    console.error("[ScreenshotExtractor] OCR fallback also failed:", ocrErr.message);
+    return {
+      projectName: null,
+      dueDate: null,
+      location: null,
+      tradeName: null,
+      inviteDate: null,
+      expectedStart: null,
+      expectedFinish: null,
+      clientName: null,
+      clientLocation: null,
+      gcContactName: null,
+      gcContactEmail: null,
+      rawText: `[Extraction failed] AI: ${apiKey ? 'failed' : 'no key'}, OCR: ${ocrErr.message}`,
+      extractionFailed: true,
+    };
+  }
 }
 
 async function extractWithAI(imageBuffer: Buffer, apiKey: string): Promise<ExtractedProjectDetails> {

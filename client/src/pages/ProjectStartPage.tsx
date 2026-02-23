@@ -153,7 +153,10 @@ export default function ProjectStartPage() {
       });
 
       if (!res.ok) {
-        throw new Error("Failed to extract details");
+        const errorData = await res.json().catch(() => null);
+        const msg = errorData?.message || "Server error during extraction";
+        console.error("[ProjectStart] Screenshot extraction failed:", res.status, msg);
+        throw new Error(msg);
       }
 
       const data = await res.json();
@@ -188,16 +191,25 @@ export default function ProjectStartPage() {
         setAnticipatedFinish(data.expectedFinish);
       }
 
-      toast({
-        title: "Details extracted from screenshot",
-        description: data.projectName
-          ? `Found: ${data.projectName}`
-          : "Some fields were extracted. Please review and fill in any missing details.",
-      });
-    } catch (err) {
+      if (data.extractionFailed) {
+        toast({
+          title: "Extraction had trouble reading this screenshot",
+          description: "Some fields may be missing. Please review and fill in details manually.",
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Details extracted from screenshot",
+          description: data.projectName
+            ? `Found: ${data.projectName}`
+            : "Some fields were extracted. Please review and fill in any missing details.",
+        });
+      }
+    } catch (err: any) {
+      console.error("[ProjectStart] Screenshot extraction error:", err);
       toast({
         title: "Could not extract details",
-        description: "OCR processing failed. Please fill in the fields manually.",
+        description: err.message || "Processing failed. Please fill in the fields manually.",
         variant: "destructive",
       });
     } finally {
