@@ -77,41 +77,141 @@ export async function extractProjectDetailsFromScreenshot(
 ): Promise<ExtractedProjectDetails> {
   const apiKey = process.env.OPENAI_API_KEY;
 
-  if (apiKey) {
+  let ocrText: string | null = null;
+  try {
+    const { createWorker } = await import("tesseract.js");
+    const worker = await createWorker("eng");
+    const { data } = await worker.recognize(imageBuffer);
+    ocrText = data.text;
+    await worker.terminate();
+    console.log(`[ScreenshotExtractor] OCR captured ${ocrText.length} chars of text`);
+  } catch (ocrErr: any) {
+    console.warn("[ScreenshotExtractor] OCR text capture failed:", ocrErr.message);
+  }
+
+  if (apiKey && ocrText) {
     try {
-      const result = await extractWithAI(imageBuffer, apiKey);
-      console.log("[ScreenshotExtractor] AI extraction succeeded");
+      const result = await extractWithAIFromText(ocrText, apiKey);
+      console.log("[ScreenshotExtractor] Hybrid extraction succeeded (OCR text + AI parsing)");
       return result;
     } catch (err: any) {
-      console.warn("[ScreenshotExtractor] AI extraction failed, falling back to OCR:", err.message);
+      console.warn("[ScreenshotExtractor] AI text parsing failed:", err.message);
     }
-  } else {
-    console.warn("[ScreenshotExtractor] No OPENAI_API_KEY set, using OCR fallback");
   }
 
-  try {
-    return await extractWithOCR(imageBuffer);
-  } catch (ocrErr: any) {
-    console.error("[ScreenshotExtractor] OCR fallback also failed:", ocrErr.message);
-    return {
-      projectName: null,
-      dueDate: null,
-      location: null,
-      tradeName: null,
-      inviteDate: null,
-      expectedStart: null,
-      expectedFinish: null,
-      clientName: null,
-      clientLocation: null,
-      gcContactName: null,
-      gcContactEmail: null,
-      rawText: `[Extraction failed] AI: ${apiKey ? 'failed' : 'no key'}, OCR: ${ocrErr.message}`,
-      extractionFailed: true,
-    };
+  if (apiKey) {
+    try {
+      const result = await extractWithAIFromImage(imageBuffer, apiKey);
+      console.log("[ScreenshotExtractor] Vision extraction succeeded (image-only)");
+      return result;
+    } catch (err: any) {
+      console.warn("[ScreenshotExtractor] AI vision extraction failed:", err.message);
+    }
   }
+
+  if (ocrText) {
+    try {
+      const result = extractFieldsFromOCRText(ocrText);
+      console.log("[ScreenshotExtractor] Regex-only OCR extraction used");
+      return result;
+    } catch (err: any) {
+      console.warn("[ScreenshotExtractor] OCR regex extraction failed:", err.message);
+    }
+  }
+
+  console.error("[ScreenshotExtractor] All extraction methods failed");
+  return {
+    projectName: null,
+    dueDate: null,
+    location: null,
+    tradeName: null,
+    inviteDate: null,
+    expectedStart: null,
+    expectedFinish: null,
+    clientName: null,
+    clientLocation: null,
+    gcContactName: null,
+    gcContactEmail: null,
+    rawText: `[Extraction failed] No methods succeeded`,
+    extractionFailed: true,
+  };
 }
 
-async function extractWithAI(imageBuffer: Buffer, apiKey: string): Promise<ExtractedProjectDetails> {
+const TEXT_PARSE_PROMPT = `You are an expert construction project data extractor. Below is OCR-extracted text from a screenshot of a construction bid/project page (likely BuildingConnected, Procore, or similar platform).
+
+Parse the text and extract the following fields. Return ONLY valid JSON, no prose, no markdown fences.
+
+BUILDINGCONNECTED FIELD LABELS (match these exactly in the OCR text):
+- "Date Due" or "Due Date" → dueDate (the bid submission deadline)
+- "Date Invite" or "Invite Date" → inviteDate (when invitation was sent)
+- "Expected Start" or "Est. Start" or "Est Start" → expectedStart (construction start date)
+- "Expected Finish" or "Est. End" or "Est End" or "Expected End" → expectedFinish (construction end date)
+- Do NOT confuse "Date Settled" with any of the above dates.
+
+RULES:
+- Search the entire text for each labeled field. Dates typically appear on the same line or the line immediately after their label.
+- For dates, convert to YYYY-MM-DD format. Handle formats like "Mar 16, 2026", "Feb 28, 2026 at 2:00 PM PST", "03/16/2026".
+- Strip time/timezone from dates (e.g., "Mar 16, 2026 at 2:00 PM PST" → "2026-03-16").
+- "clientName" is the general contractor (GC). Look for company names like Swinerton, Turner, etc.
+- "clientLocation" is the GC's office city, often shown as "Company - City" (extract just the city part).
+- "location" is the project address/location where work is done.
+- "gcContactName" and "gcContactEmail" are the GC contact person's name and email.
+- "tradeName" is the trade/scope being bid.
+- "projectName" is the project title, usually appearing near the top.
+- Extract EVERY field you can find. Only use null if the field truly does not appear in the text.
+
+Response schema:
+{
+  "projectName": string | null,
+  "dueDate": string | null,
+  "location": string | null,
+  "tradeName": string | null,
+  "inviteDate": string | null,
+  "expectedStart": string | null,
+  "expectedFinish": string | null,
+  "clientName": string | null,
+  "clientLocation": string | null,
+  "gcContactName": string | null,
+  "gcContactEmail": string | null
+}`;
+
+async function extractWithAIFromText(ocrText: string, apiKey: string): Promise<ExtractedProjectDetails> {
+  const openai = new OpenAI({ apiKey });
+
+  const response = await openai.chat.completions.create({
+    model: "gpt-4o-mini",
+    max_tokens: 1500,
+    temperature: 0,
+    messages: [
+      {
+        role: "user",
+        content: `${TEXT_PARSE_PROMPT}\n\n--- OCR TEXT START ---\n${ocrText}\n--- OCR TEXT END ---`,
+      },
+    ],
+  });
+
+  const content = response.choices[0]?.message?.content || "";
+  console.log("[ScreenshotExtractor] AI text-parse response:", content.substring(0, 500));
+
+  const parsed = parseJsonFromResponse(content);
+
+  return {
+    projectName: parsed.projectName || null,
+    dueDate: normalizeDate(parsed.dueDate),
+    location: parsed.location || null,
+    tradeName: parsed.tradeName || null,
+    inviteDate: normalizeDate(parsed.inviteDate),
+    expectedStart: normalizeDate(parsed.expectedStart),
+    expectedFinish: normalizeDate(parsed.expectedFinish),
+    clientName: parsed.clientName || null,
+    clientLocation: parsed.clientLocation || null,
+    gcContactName: parsed.gcContactName || null,
+    gcContactEmail: parsed.gcContactEmail || null,
+    rawText: `[Hybrid: OCR + AI Text Parse]\n${content}`,
+  };
+}
+
+async function extractWithAIFromImage(imageBuffer: Buffer, apiKey: string): Promise<ExtractedProjectDetails> {
   const openai = new OpenAI({ apiKey });
 
   const base64Image = imageBuffer.toString("base64");
@@ -138,7 +238,7 @@ async function extractWithAI(imageBuffer: Buffer, apiKey: string): Promise<Extra
   });
 
   const content = response.choices[0]?.message?.content || "";
-  console.log("[ScreenshotExtractor] AI raw response:", content.substring(0, 500));
+  console.log("[ScreenshotExtractor] AI vision response:", content.substring(0, 500));
 
   const parsed = parseJsonFromResponse(content);
 
@@ -154,7 +254,7 @@ async function extractWithAI(imageBuffer: Buffer, apiKey: string): Promise<Extra
     clientLocation: parsed.clientLocation || null,
     gcContactName: parsed.gcContactName || null,
     gcContactEmail: parsed.gcContactEmail || null,
-    rawText: `[AI Extraction via GPT-4o]\n${content}`,
+    rawText: `[AI Vision Extraction via GPT-4o]\n${content}`,
   };
 }
 
@@ -233,13 +333,7 @@ function normalizeDate(dateStr: string | null | undefined): string | null {
   return null;
 }
 
-async function extractWithOCR(imageBuffer: Buffer): Promise<ExtractedProjectDetails> {
-  const { createWorker } = await import("tesseract.js");
-  const worker = await createWorker("eng");
-  const { data } = await worker.recognize(imageBuffer);
-  const text = data.text;
-  await worker.terminate();
-
+function extractFieldsFromOCRText(text: string): ExtractedProjectDetails {
   const projectName = extractProjectName(text);
   const dueDate = extractDueDate(text);
   const location = extractLocation(text);
