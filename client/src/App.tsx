@@ -22,6 +22,12 @@ import AdminPage from "@/pages/AdminPage";
 import AuditLogPage from "@/pages/AuditLogPage";
 import NotFound from "@/pages/not-found";
 
+function AdminRoute({ component: Component }: { component: React.ComponentType }) {
+  const { isAdmin } = useAuth();
+  if (!isAdmin) return <HomePage />;
+  return <Component />;
+}
+
 function Router() {
   return (
     <Switch>
@@ -29,14 +35,14 @@ function Router() {
       <Route path="/home" component={HomePage} />
       <Route path="/planparser" component={PlanParserPage} />
       <Route path="/quoteparser" component={QuoteParserPage} />
-      <Route path="/settings" component={CentralSettingsPage} />
+      <Route path="/settings">{() => <AdminRoute component={CentralSettingsPage} />}</Route>
       <Route path="/project-start" component={ProjectStartPage} />
       <Route path="/projects/:id" component={ProjectDetailPage} />
-      <Route path="/project-log" component={ProjectLogPage} />
+      <Route path="/project-log">{() => <AdminRoute component={ProjectLogPage} />}</Route>
       <Route path="/schedule-converter" component={ScheduleConverterPage} />
       <Route path="/spec-extractor" component={SpecExtractorPage} />
-      <Route path="/admin" component={AdminPage} />
-      <Route path="/admin/audit" component={AuditLogPage} />
+      <Route path="/admin">{() => <AdminRoute component={AdminPage} />}</Route>
+      <Route path="/admin/audit">{() => <AdminRoute component={AuditLogPage} />}</Route>
       <Route component={NotFound} />
     </Switch>
   );

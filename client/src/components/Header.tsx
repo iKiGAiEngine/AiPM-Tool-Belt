@@ -145,6 +145,13 @@ export function Header() {
               </label>
             )}
             {isAdmin && (
+              <Link href="/settings">
+                <Button variant="ghost" size="icon" title="Settings" data-testid="link-settings">
+                  <Settings className="h-4 w-4" />
+                </Button>
+              </Link>
+            )}
+            {isAdmin && (
               <Link href="/admin">
                 <Button variant="ghost" size="icon" title="Admin" data-testid="link-admin">
                   <Shield className="h-4 w-4" />
