@@ -1,7 +1,7 @@
 import { useState, useRef } from "react";
 import { Link } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { ArrowLeft, Building2, Package, Plus, Pencil, Trash2, Search, X, BookOpen, MapPin, FolderArchive, FileSpreadsheet, Upload, Download, Check, Star, FileSearch, Save, History, RotateCcw, Tag, CheckCircle } from "lucide-react";
+import { ArrowLeft, Building2, Package, Plus, Pencil, Trash2, Search, X, BookOpen, MapPin, FolderArchive, FileSpreadsheet, Upload, Download, Check, Star, FileSearch, Save, History, RotateCcw, Tag, CheckCircle, ClipboardList } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -27,10 +27,16 @@ export default function CentralSettingsPage() {
             <ArrowLeft className="w-5 h-5" />
           </Button>
         </Link>
-        <div>
+        <div className="flex-1">
           <h1 className="text-2xl font-semibold text-foreground font-heading">Settings</h1>
           <p className="text-muted-foreground">Manage vendors, products, scope dictionaries, regions, templates, and spec extraction settings</p>
         </div>
+        <Link href="/project-log">
+          <Button variant="outline" className="gap-2" data-testid="button-project-log">
+            <ClipboardList className="w-4 h-4" />
+            Project Log
+          </Button>
+        </Link>
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">

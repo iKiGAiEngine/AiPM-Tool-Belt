@@ -68,15 +68,6 @@ const tools: ToolTile[] = [
     available: true,
   },
   {
-    id: "projectlog",
-    title: "Project Log",
-    description: "View and manage all projects with status tracking",
-    icon: ClipboardList,
-    href: "/project-log",
-    available: true,
-    adminOnly: true,
-  },
-  {
     id: "planparser",
     title: "Plan Parser",
     description: "OCR and classify construction plan pages by scope",
@@ -137,6 +128,7 @@ interface ProposalRow {
   _bizDays?: number;
   _isTest?: boolean;
   _screenshotId?: string;
+  _serverDbId?: number;
 }
 
 function bizDaysUntil(dateStr: string): number {
@@ -253,8 +245,12 @@ export default function HomePage() {
       let changed = false;
 
       for (const e of entries) {
-        const match = data.find(p => p.estimateNumber === e.estimateNumber || (p.projectName === e.projectName && p.dueDate === e.dueDate));
+        const match = data.find(p =>
+          (p._serverDbId && p._serverDbId === e.id) ||
+          (p.projectName === e.projectName && p.dueDate === e.dueDate && p.estimateNumber === e.estimateNumber)
+        );
         if (match) {
+          if (!match._serverDbId) { match._serverDbId = e.id; changed = true; }
           if (e.estimateNumber && !match._screenshotId) { match._screenshotId = e.estimateNumber; changed = true; }
           if (e.isTest && !match._isTest) { match._isTest = true; changed = true; }
           if (e.nbsEstimator && match.nbsEstimator !== e.nbsEstimator) { match.nbsEstimator = e.nbsEstimator; changed = true; }
@@ -282,6 +278,7 @@ export default function HomePage() {
           comments: "",
           _screenshotId: e.estimateNumber || "",
           _isTest: e.isTest || false,
+          _serverDbId: e.id,
         });
         changed = true;
       }

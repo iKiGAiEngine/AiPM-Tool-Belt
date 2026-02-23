@@ -2173,10 +2173,17 @@ async function syncFromServer() {
     const syncedIds = [];
     let addedCount = 0;
     for (const e of entries) {
-      const isDupe = data.some(p => p.estimateNumber === e.estimateNumber || (p.projectName === e.projectName && p.dueDate === e.dueDate));
+      const isDupe = data.some(p =>
+        (p._serverDbId && p._serverDbId === e.id) ||
+        (p.projectName === e.projectName && p.dueDate === e.dueDate && p.estimateNumber === e.estimateNumber)
+      );
       if (isDupe) {
-        const existing = data.find(p => p.estimateNumber === e.estimateNumber || (p.projectName === e.projectName && p.dueDate === e.dueDate));
+        const existing = data.find(p =>
+          (p._serverDbId && p._serverDbId === e.id) ||
+          (p.projectName === e.projectName && p.dueDate === e.dueDate && p.estimateNumber === e.estimateNumber)
+        );
         if (existing) {
+          if (!existing._serverDbId) existing._serverDbId = e.id;
           if (e.estimateNumber) existing._screenshotId = e.estimateNumber;
           if (e.isTest) existing._isTest = true;
           if (e.nbsEstimator && existing.nbsEstimator !== e.nbsEstimator) existing.nbsEstimator = e.nbsEstimator;
@@ -2208,6 +2215,7 @@ async function syncFromServer() {
         comments: '',
         _screenshotId: e.estimateNumber || '',
         _isTest: e.isTest || false,
+        _serverDbId: e.id,
       };
       data.push(newEntry);
       addedCount++;
