@@ -682,7 +682,7 @@ td.inline-editing{padding:2px 4px !important;background:rgba(201,168,76,.06) !im
       <div class="modal-section">Project Info</div>
       <div class="form-row">
         <div class="form-group"><label class="fl">Project Name *</label><input type="text" class="fi" id="f-projectName" placeholder="Project name"></div>
-        <div class="form-group"><label class="fl">Estimate Number</label><input type="text" class="fi" id="f-estimateNumber" placeholder="EST-2024-001"></div>
+        <input type="hidden" id="f-estimateNumber">
       </div>
       <div class="form-row">
         <div class="form-group"><label class="fl">Region</label>
@@ -866,7 +866,7 @@ function defaultLayout() {
   return {
     order: COL_DEFS.map(c=>c.key),
     widths: Object.fromEntries(COL_DEFS.map(c=>[c.key, c.w])),
-    visible: Object.fromEntries(COL_DEFS.map(c=>[c.key, true]))
+    visible: Object.fromEntries(COL_DEFS.map(c=>[c.key, c.key !== 'estimateNumber']))
   };
 }
 let layout = JSON.parse(localStorage.getItem('nbs_layout') || 'null') || defaultLayout();
@@ -883,6 +883,7 @@ let layout = JSON.parse(localStorage.getItem('nbs_layout') || 'null') || default
     if (layout.visible[def.key] === undefined) { layout.visible[def.key] = true; changed = true; }
   });
   layout.order = layout.order.filter(k => COL_DEFS.some(d => d.key === k));
+  if (layout.visible['estimateNumber'] !== false) { layout.visible['estimateNumber'] = false; changed = true; }
   if (changed) saveLayout();
 })();
 let colFilters = {};

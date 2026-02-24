@@ -117,9 +117,8 @@ export default function ProjectLogPage() {
   const deletedCount = entries.filter(e => !!e.deletedAt && (!e.isTest || isTestMode)).length;
 
   const exportToCSV = () => {
-    const headers = ["Est #", "Project Name", "Region", "Due Date", "Status", "Estimator", "GC Lead", "Market", "Created", "Deleted"];
+    const headers = ["Project Name", "Region", "Due Date", "Status", "Estimator", "GC Lead", "Market", "Created", "Deleted"];
     const rows = filteredEntries.map(e => [
-      e.estimateNumber || "",
       e.projectName,
       e.region || "",
       e.dueDate || "",
@@ -140,9 +139,8 @@ export default function ProjectLogPage() {
   };
 
   const exportToXLSX = () => {
-    const headers = ["Est #", "Project Name", "Region", "Due Date", "Status", "Estimator", "GC Lead", "Market", "Created", "Deleted"];
+    const headers = ["Project Name", "Region", "Due Date", "Status", "Estimator", "GC Lead", "Market", "Created", "Deleted"];
     const rows = filteredEntries.map(e => [
-      e.estimateNumber || "",
       e.projectName,
       e.region || "",
       e.dueDate || "",
@@ -238,13 +236,6 @@ export default function ProjectLogPage() {
                   <tr className="border-b">
                     <th
                       className="text-left py-3 px-3 font-medium text-muted-foreground cursor-pointer select-none"
-                      onClick={() => toggleSort("estimateNumber")}
-                      data-testid="th-estimate-number"
-                    >
-                      <span className="flex items-center gap-1">Est # <SortIcon field="estimateNumber" /></span>
-                    </th>
-                    <th
-                      className="text-left py-3 px-3 font-medium text-muted-foreground cursor-pointer select-none"
                       onClick={() => toggleSort("projectName")}
                       data-testid="th-project-name"
                     >
@@ -297,11 +288,6 @@ export default function ProjectLogPage() {
                         className={`border-b last:border-0 ${isDeleted ? "opacity-50" : "hover-elevate"}`}
                         data-testid={`row-entry-${entry.id}`}
                       >
-                        <td className="py-3 px-3">
-                          <Badge variant="outline" className="font-mono text-xs" data-testid={`text-est-${entry.id}`}>
-                            {entry.estimateNumber || "\u2014"}
-                          </Badge>
-                        </td>
                         <td className="py-3 px-3">
                           <div className="flex items-center gap-2">
                             <span className={isDeleted ? "line-through text-muted-foreground" : ""} data-testid={`text-name-${entry.id}`}>
