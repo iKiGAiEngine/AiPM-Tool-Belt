@@ -1316,12 +1316,26 @@ function outsideClose(e){if(e.target===document.getElementById('modal'))closeMod
 function saveProposal(){
   const name=document.getElementById('f-projectName').value.trim();
   if(!name){alert('Project name is required.');return;}
-  const p={};
-  FIELDS.forEach(k=>{const el=document.getElementById('f-'+k);if(el)p[k]=el.value.trim();});
-  if(Number(p.proposalTotal)>0 && p.estimateStatus==='Estimating'){
-    p.estimateStatus='Submitted';
+  const formVals={};
+  FIELDS.forEach(k=>{const el=document.getElementById('f-'+k);if(el)formVals[k]=el.value.trim();});
+  if(Number(formVals.proposalTotal)>0 && formVals.estimateStatus==='Estimating'){
+    formVals.estimateStatus='Submitted';
   }
-  editIdx!==null?data[editIdx]=p:data.push(p);
+  if(editIdx!==null){
+    const existing=data[editIdx];
+    Object.assign(existing, formVals);
+    if(existing._serverDbId){
+      const serverUpdates={};
+      ['nbsEstimator','estimateStatus','proposalTotal','gcEstimateLead','anticipatedStart','anticipatedFinish'].forEach(f=>{
+        if(formVals[f]!==undefined) serverUpdates[f]=formVals[f];
+      });
+      if(Object.keys(serverUpdates).length){
+        fetch('/api/proposal-log/entry/'+existing._serverDbId,{method:'PATCH',headers:{'Content-Type':'application/json'},credentials:'include',body:JSON.stringify(serverUpdates)}).catch(e=>console.warn('Failed to sync edit to server:',e));
+      }
+    }
+  } else {
+    data.push(formVals);
+  }
   save();closeModal();render();
 }
 function autoPromoteStatus(){
