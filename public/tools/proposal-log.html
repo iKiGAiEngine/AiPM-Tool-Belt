@@ -1331,7 +1331,16 @@ function autoPromoteStatus(){
     s.style.borderColor='var(--win)'; setTimeout(()=>s.style.borderColor='',1200);
   }
 }
-function del(i){if(!confirm('Delete this proposal?'))return;data.splice(i,1);save();render();}
+async function del(i){
+  if(!confirm('Delete this proposal?'))return;
+  const entry=data[i];
+  if(entry&&entry._serverDbId){
+    try{
+      await fetch('/api/proposal-log/entry/'+entry._serverDbId,{method:'DELETE',credentials:'include'});
+    }catch(e){console.warn('Failed to delete from server:',e);}
+  }
+  data.splice(i,1);save();render();
+}
 
 function exportCSV(){
   const visKeys=getVisibleCols().filter(k=>k!=='_actions'&&k!=='_screenshot');
@@ -1920,9 +1929,9 @@ function commitInlineEdit(oi,field){
 async function syncFieldToServer(entry, field, value) {
   const syncableFields = ['nbsEstimator','estimateStatus','proposalTotal','gcEstimateLead','anticipatedStart','anticipatedFinish'];
   if (!syncableFields.includes(field)) return;
-  if (!entry.estimateNumber) return;
+  if (!entry._serverDbId) { console.warn('Cannot sync field: entry has no _serverDbId'); return; }
   try {
-    await fetch('/api/proposal-log/entry/' + encodeURIComponent(entry.estimateNumber), {
+    await fetch('/api/proposal-log/entry/' + entry._serverDbId, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       credentials: 'include',

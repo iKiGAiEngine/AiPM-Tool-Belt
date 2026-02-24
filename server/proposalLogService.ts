@@ -128,7 +128,7 @@ export async function getAllProposalLogEntries() {
   return db.select().from(proposalLogEntries).orderBy(proposalLogEntries.createdAt);
 }
 
-export async function updateProposalLogEntry(estimateNumber: string, updates: Partial<{
+export async function updateProposalLogEntryById(id: number, updates: Partial<{
   nbsEstimator: string;
   estimateStatus: string;
   proposalTotal: string;
@@ -148,10 +148,17 @@ export async function updateProposalLogEntry(estimateNumber: string, updates: Pa
 
   const [updated] = await db.update(proposalLogEntries)
     .set(cleanUpdates)
-    .where(eq(proposalLogEntries.estimateNumber, estimateNumber))
+    .where(eq(proposalLogEntries.id, id))
     .returning();
 
   return updated || null;
+}
+
+export async function deleteProposalLogEntry(id: number) {
+  const [deleted] = await db.delete(proposalLogEntries)
+    .where(eq(proposalLogEntries.id, id))
+    .returning();
+  return deleted || null;
 }
 
 export async function getScreenshotPathByProjectId(projectDbId: number): Promise<string | null> {

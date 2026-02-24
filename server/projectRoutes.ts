@@ -42,7 +42,7 @@ import { planParserStorage } from "./planparser/storage";
 import { getActiveFolderTemplate, getActiveEstimateTemplate } from "./templateStorage";
 import ExcelJS from "exceljs";
 import { extractProjectDetailsFromScreenshot } from "./screenshotExtractor";
-import { guessMarket, guessRegion, createProposalLogEntry, getUnsyncedEntries, markEntriesSynced, getAllProposalLogEntries, updateProposalLogEntry } from "./proposalLogService";
+import { guessMarket, guessRegion, createProposalLogEntry, getUnsyncedEntries, markEntriesSynced, getAllProposalLogEntries, updateProposalLogEntryById, deleteProposalLogEntry } from "./proposalLogService";
 import { users } from "@shared/schema";
 import { eq } from "drizzle-orm";
 import { db } from "./db";
@@ -811,7 +811,7 @@ export function registerProjectRoutes(app: Express) {
             estimateStatus: frontendEstimateStatus || undefined,
             anticipatedStart: frontendAnticipatedStart || undefined,
             anticipatedFinish: frontendAnticipatedFinish || undefined,
-            nbsEstimator: ownerInitials || undefined,
+            nbsEstimator: undefined,
           });
           console.log(`[ProjectCreate] Proposal log entry created for ${safeName}`);
         } catch (err) {
@@ -1691,10 +1691,10 @@ export function registerProjectRoutes(app: Express) {
     }
   });
 
-  app.patch("/api/proposal-log/entry/:estimateNumber", async (req: Request, res: Response) => {
+  app.patch("/api/proposal-log/entry/:id", async (req: Request, res: Response) => {
     try {
-      const { estimateNumber } = req.params;
-      if (!estimateNumber) return res.status(400).json({ message: "estimateNumber required" });
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) return res.status(400).json({ message: "Valid numeric id required" });
 
       const allowedFields = ["nbsEstimator", "estimateStatus", "proposalTotal", "gcEstimateLead", "anticipatedStart", "anticipatedFinish"];
       const updates: Record<string, string> = {};
@@ -1708,16 +1708,34 @@ export function registerProjectRoutes(app: Express) {
         return res.status(400).json({ message: "No valid fields to update" });
       }
 
-      const updated = await updateProposalLogEntry(estimateNumber, updates);
+      const updated = await updateProposalLogEntryById(id, updates);
       if (!updated) {
         return res.status(404).json({ message: "Entry not found" });
       }
 
-      console.log(`[ProposalLog] Updated ${estimateNumber}:`, updates);
+      console.log(`[ProposalLog] Updated entry id=${id}:`, updates);
       res.json({ success: true, entry: updated });
     } catch (error) {
       console.error("Failed to update proposal log entry:", error);
       res.status(500).json({ message: "Failed to update entry" });
+    }
+  });
+
+  app.delete("/api/proposal-log/entry/:id", async (req: Request, res: Response) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) return res.status(400).json({ message: "Valid numeric id required" });
+
+      const deleted = await deleteProposalLogEntry(id);
+      if (!deleted) {
+        return res.status(404).json({ message: "Entry not found" });
+      }
+
+      console.log(`[ProposalLog] Deleted entry id=${id}, project: ${deleted.projectName}`);
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Failed to delete proposal log entry:", error);
+      res.status(500).json({ message: "Failed to delete entry" });
     }
   });
 
