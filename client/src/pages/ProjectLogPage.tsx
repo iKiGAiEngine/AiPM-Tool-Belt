@@ -1,118 +1,80 @@
 import { useState, useMemo } from "react";
 import { Link } from "wouter";
-import { useQuery, useMutation } from "@tanstack/react-query";
-import { ArrowLeft, Download, Search, ChevronUp, ChevronDown, FileSpreadsheet, FileText, Trash2, FlaskConical, Loader2 } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { ArrowLeft, Download, Search, ChevronUp, ChevronDown, FileSpreadsheet, FileText, FlaskConical, Archive } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { useToast } from "@/hooks/use-toast";
-import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useTestMode } from "@/lib/testMode";
-import type { Project } from "@shared/schema";
 import { saveAs } from "file-saver";
 import * as XLSX from "xlsx";
 
-type SortField = "projectId" | "projectName" | "regionCode" | "dueDate" | "status" | "createdAt";
+interface ProposalLogEntry {
+  id: number;
+  projectName: string;
+  estimateNumber: string | null;
+  region: string | null;
+  primaryMarket: string | null;
+  inviteDate: string | null;
+  dueDate: string | null;
+  nbsEstimator: string | null;
+  gcEstimateLead: string | null;
+  proposalTotal: string | null;
+  estimateStatus: string | null;
+  owner: string | null;
+  filePath: string | null;
+  projectDbId: number | null;
+  anticipatedStart: string | null;
+  anticipatedFinish: string | null;
+  isTest: boolean | null;
+  deletedAt: string | null;
+  createdAt: string;
+}
+
+type SortField = "estimateNumber" | "projectName" | "region" | "dueDate" | "estimateStatus" | "nbsEstimator" | "createdAt";
 type SortDir = "asc" | "desc";
-
-function getStatusLabel(status: string | null): string {
-  if (!status) return "Created";
-  if (status === "folder_only") return "Folder Only";
-  if (status === "created") return "Created";
-  if (status === "specsift_running") return "Processing Specs";
-  if (status === "specsift_complete") return "Specs Done";
-  if (status === "specsift_error") return "Spec Error";
-  if (status === "planparser_baseline_running") return "Processing Plans";
-  if (status === "planparser_baseline_complete") return "Complete";
-  if (status === "planparser_baseline_error") return "Plan Error";
-  if (status === "planparser_specpass_complete") return "Complete";
-  if (status === "outputs_ready") return "Complete";
-  if (status === "scopes_selected") return "Complete";
-  if (status.includes("error")) return "Error";
-  if (status.includes("complete")) return "Complete";
-  if (status.includes("running")) return "Processing";
-  return status.replace(/_/g, " ");
-}
-
-function getStatusCategory(status: string | null): "processing" | "complete" | "error" | "created" {
-  if (!status) return "created";
-  if (status.includes("error")) return "error";
-  if (status === "folder_only" || status === "outputs_ready" || status.includes("complete") || status === "scopes_selected") return "complete";
-  if (status.includes("running")) return "processing";
-  return "created";
-}
+type StatusFilter = "all" | "active" | "deleted";
 
 export default function ProjectLogPage() {
   const [searchQuery, setSearchQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [sortField, setSortField] = useState<SortField>("createdAt");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
-  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
-  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
-  const [showClearTestDialog, setShowClearTestDialog] = useState(false);
-  const { toast } = useToast();
   const { isTestMode } = useTestMode();
 
-  const { data: projects = [], isLoading } = useQuery<Project[]>({
-    queryKey: ["/api/projects", { includeTest: isTestMode }],
+  const { data: entries = [], isLoading } = useQuery<ProposalLogEntry[]>({
+    queryKey: ["/api/proposal-log/all-entries"],
     queryFn: async () => {
-      const url = isTestMode ? "/api/projects?includeTest=true" : "/api/projects";
-      const res = await fetch(url);
-      if (!res.ok) throw new Error("Failed to fetch projects");
+      const res = await fetch("/api/proposal-log/all-entries", { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to fetch project log entries");
       return res.json();
     },
   });
 
-  const clearTestDataMutation = useMutation({
-    mutationFn: async () => {
-      await apiRequest("POST", "/api/projects/clear-test-data");
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/projects"] });
-      setShowClearTestDialog(false);
-      setSelectedIds(new Set());
-      toast({ title: "Test data cleared", description: "All test projects have been removed." });
-    },
-    onError: () => {
-      toast({ title: "Error", description: "Failed to clear test data.", variant: "destructive" });
-    },
-  });
+  const filteredEntries = useMemo(() => {
+    let filtered = [...entries];
 
-  const testProjectCount = useMemo(() => projects.filter(p => p.isTest).length, [projects]);
-
-  const bulkDeleteMutation = useMutation({
-    mutationFn: async (ids: number[]) => {
-      await apiRequest("POST", "/api/projects/bulk-delete", { ids });
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/projects"] });
-      setSelectedIds(new Set());
-      setShowDeleteDialog(false);
-      toast({ title: "Projects deleted", description: `${selectedIds.size} project(s) removed successfully.` });
-    },
-    onError: () => {
-      toast({ title: "Error", description: "Failed to delete selected projects.", variant: "destructive" });
-    },
-  });
-
-  const filteredProjects = useMemo(() => {
-    let filtered = [...projects];
+    if (!isTestMode) {
+      filtered = filtered.filter(e => !e.isTest);
+    }
 
     if (searchQuery) {
       const q = searchQuery.toLowerCase();
-      filtered = filtered.filter(p =>
-        p.projectId.toLowerCase().includes(q) ||
-        p.projectName.toLowerCase().includes(q) ||
-        p.regionCode.toLowerCase().includes(q)
+      filtered = filtered.filter(e =>
+        (e.projectName || "").toLowerCase().includes(q) ||
+        (e.estimateNumber || "").toLowerCase().includes(q) ||
+        (e.region || "").toLowerCase().includes(q) ||
+        (e.nbsEstimator || "").toLowerCase().includes(q) ||
+        (e.gcEstimateLead || "").toLowerCase().includes(q)
       );
     }
 
-    if (statusFilter !== "all") {
-      filtered = filtered.filter(p => getStatusCategory(p.status) === statusFilter);
+    if (statusFilter === "active") {
+      filtered = filtered.filter(e => !e.deletedAt);
+    } else if (statusFilter === "deleted") {
+      filtered = filtered.filter(e => !!e.deletedAt);
     }
 
     filtered.sort((a, b) => {
@@ -120,11 +82,12 @@ export default function ProjectLogPage() {
       let bVal: string | number = "";
 
       switch (sortField) {
-        case "projectId": aVal = a.projectId; bVal = b.projectId; break;
-        case "projectName": aVal = a.projectName.toLowerCase(); bVal = b.projectName.toLowerCase(); break;
-        case "regionCode": aVal = a.regionCode; bVal = b.regionCode; break;
-        case "dueDate": aVal = a.dueDate; bVal = b.dueDate; break;
-        case "status": aVal = a.status || ""; bVal = b.status || ""; break;
+        case "estimateNumber": aVal = a.estimateNumber || ""; bVal = b.estimateNumber || ""; break;
+        case "projectName": aVal = (a.projectName || "").toLowerCase(); bVal = (b.projectName || "").toLowerCase(); break;
+        case "region": aVal = a.region || ""; bVal = b.region || ""; break;
+        case "dueDate": aVal = a.dueDate || ""; bVal = b.dueDate || ""; break;
+        case "estimateStatus": aVal = a.deletedAt ? "Deleted" : (a.estimateStatus || ""); bVal = b.deletedAt ? "Deleted" : (b.estimateStatus || ""); break;
+        case "nbsEstimator": aVal = a.nbsEstimator || ""; bVal = b.nbsEstimator || ""; break;
         case "createdAt": aVal = new Date(a.createdAt || 0).getTime(); bVal = new Date(b.createdAt || 0).getTime(); break;
       }
 
@@ -134,7 +97,7 @@ export default function ProjectLogPage() {
     });
 
     return filtered;
-  }, [projects, searchQuery, statusFilter, sortField, sortDir]);
+  }, [entries, searchQuery, statusFilter, sortField, sortDir, isTestMode]);
 
   const toggleSort = (field: SortField) => {
     if (sortField === field) {
@@ -150,34 +113,22 @@ export default function ProjectLogPage() {
     return sortDir === "asc" ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />;
   };
 
-  const toggleSelect = (id: number) => {
-    setSelectedIds(prev => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  };
-
-  const toggleSelectAll = () => {
-    if (selectedIds.size === filteredProjects.length) {
-      setSelectedIds(new Set());
-    } else {
-      setSelectedIds(new Set(filteredProjects.map(p => p.id)));
-    }
-  };
+  const activeCount = entries.filter(e => !e.deletedAt && (!e.isTest || isTestMode)).length;
+  const deletedCount = entries.filter(e => !!e.deletedAt && (!e.isTest || isTestMode)).length;
 
   const exportToCSV = () => {
-    const headers = ["Bid ID", "Project Name", "Region", "Due Date", "Status", "Created At", "Created By", "Notes"];
-    const rows = filteredProjects.map(p => [
-      p.projectId,
-      p.projectName,
-      p.regionCode,
-      p.dueDate,
-      getStatusLabel(p.status),
-      p.createdAt ? new Date(p.createdAt).toLocaleString() : "",
-      p.createdBy || "admin",
-      p.notes || "",
+    const headers = ["Est #", "Project Name", "Region", "Due Date", "Status", "Estimator", "GC Lead", "Market", "Created", "Deleted"];
+    const rows = filteredEntries.map(e => [
+      e.estimateNumber || "",
+      e.projectName,
+      e.region || "",
+      e.dueDate || "",
+      e.deletedAt ? "DELETED" : (e.estimateStatus || ""),
+      e.nbsEstimator || "",
+      e.gcEstimateLead || "",
+      e.primaryMarket || "",
+      e.createdAt ? new Date(e.createdAt).toLocaleString() : "",
+      e.deletedAt ? new Date(e.deletedAt).toLocaleString() : "",
     ]);
 
     const csvContent = [headers, ...rows]
@@ -189,16 +140,18 @@ export default function ProjectLogPage() {
   };
 
   const exportToXLSX = () => {
-    const headers = ["Bid ID", "Project Name", "Region", "Due Date", "Status", "Created At", "Created By", "Notes"];
-    const rows = filteredProjects.map(p => [
-      p.projectId,
-      p.projectName,
-      p.regionCode,
-      p.dueDate,
-      getStatusLabel(p.status),
-      p.createdAt ? new Date(p.createdAt).toLocaleString() : "",
-      p.createdBy || "admin",
-      p.notes || "",
+    const headers = ["Est #", "Project Name", "Region", "Due Date", "Status", "Estimator", "GC Lead", "Market", "Created", "Deleted"];
+    const rows = filteredEntries.map(e => [
+      e.estimateNumber || "",
+      e.projectName,
+      e.region || "",
+      e.dueDate || "",
+      e.deletedAt ? "DELETED" : (e.estimateStatus || ""),
+      e.nbsEstimator || "",
+      e.gcEstimateLead || "",
+      e.primaryMarket || "",
+      e.createdAt ? new Date(e.createdAt).toLocaleString() : "",
+      e.deletedAt ? new Date(e.deletedAt).toLocaleString() : "",
     ]);
 
     const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
@@ -214,6 +167,13 @@ export default function ProjectLogPage() {
     saveAs(blob, `project_log_${new Date().toISOString().split("T")[0]}.xlsx`);
   };
 
+  const fmtDate = (d: string | null) => {
+    if (!d) return "\u2014";
+    const [y, m, dy] = d.split("-");
+    if (!y || !m || !dy) return d;
+    return `${m}/${dy}/${y}`;
+  };
+
   return (
     <div className="container max-w-7xl mx-auto py-8 px-4">
       <div className="flex items-center gap-4 mb-8">
@@ -224,64 +184,9 @@ export default function ProjectLogPage() {
         </Link>
         <div className="flex-1">
           <h1 className="text-2xl font-heading font-semibold text-foreground">Project Log</h1>
-          <p className="text-muted-foreground">Complete log of all projects with export capabilities</p>
+          <p className="text-muted-foreground text-sm">Immutable audit trail of all proposal log entries</p>
         </div>
         <div className="flex items-center gap-2">
-          {isTestMode && testProjectCount > 0 && (
-            <AlertDialog open={showClearTestDialog} onOpenChange={setShowClearTestDialog}>
-              <AlertDialogTrigger asChild>
-                <Button variant="outline" size="sm" className="border-amber-500/50 text-amber-500" data-testid="button-clear-test-data-log">
-                  <FlaskConical className="w-4 h-4 mr-2" />
-                  Clear Test ({testProjectCount})
-                </Button>
-              </AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>Clear all test data?</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    This will permanently delete {testProjectCount} test project{testProjectCount !== 1 ? "s" : ""} and all associated data. Real projects will not be affected.
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>Cancel</AlertDialogCancel>
-                  <AlertDialogAction
-                    onClick={() => clearTestDataMutation.mutate()}
-                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                  >
-                    {clearTestDataMutation.isPending ? "Clearing..." : "Clear Test Data"}
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
-          )}
-          {selectedIds.size > 0 && (
-            <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
-              <AlertDialogTrigger asChild>
-                <Button variant="destructive" size="sm" data-testid="button-bulk-delete">
-                  <Trash2 className="w-4 h-4 mr-2" />
-                  Delete ({selectedIds.size})
-                </Button>
-              </AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>Delete {selectedIds.size} project{selectedIds.size !== 1 ? "s" : ""}?</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    This will permanently delete the selected projects and all associated data including spec sessions, plan parser jobs, and project files. This action cannot be undone.
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel data-testid="button-cancel-delete">Cancel</AlertDialogCancel>
-                  <AlertDialogAction
-                    onClick={() => bulkDeleteMutation.mutate(Array.from(selectedIds))}
-                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                    data-testid="button-confirm-delete"
-                  >
-                    {bulkDeleteMutation.isPending ? "Deleting..." : "Delete"}
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
-          )}
           <Button variant="outline" size="sm" onClick={exportToCSV} data-testid="button-export-csv">
             <FileText className="w-4 h-4 mr-2" />
             CSV
@@ -299,53 +204,44 @@ export default function ProjectLogPage() {
             <div className="relative flex-1 min-w-[200px]">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
               <Input
-                placeholder="Search by Bid ID, name, or region..."
+                placeholder="Search by name, estimate #, region, estimator..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="pl-10"
                 data-testid="input-search-projects"
               />
             </div>
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as StatusFilter)}>
               <SelectTrigger className="w-[180px]" data-testid="select-status-filter">
-                <SelectValue placeholder="All Statuses" />
+                <SelectValue placeholder="All Entries" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All Statuses</SelectItem>
-                <SelectItem value="created">Created</SelectItem>
-                <SelectItem value="processing">Processing</SelectItem>
-                <SelectItem value="complete">Complete</SelectItem>
-                <SelectItem value="error">Error</SelectItem>
+                <SelectItem value="all">All Entries ({activeCount + deletedCount})</SelectItem>
+                <SelectItem value="active">Active ({activeCount})</SelectItem>
+                <SelectItem value="deleted">Deleted ({deletedCount})</SelectItem>
               </SelectContent>
             </Select>
             <Badge variant="secondary" className="text-xs">
-              {filteredProjects.length} project{filteredProjects.length !== 1 ? "s" : ""}
+              {filteredEntries.length} entr{filteredEntries.length !== 1 ? "ies" : "y"}
             </Badge>
           </div>
         </CardHeader>
         <CardContent>
           {isLoading ? (
-            <p className="text-sm text-muted-foreground py-8 text-center">Loading projects...</p>
-          ) : filteredProjects.length === 0 ? (
-            <p className="text-sm text-muted-foreground py-8 text-center">No projects found.</p>
+            <p className="text-sm text-muted-foreground py-8 text-center">Loading project log...</p>
+          ) : filteredEntries.length === 0 ? (
+            <p className="text-sm text-muted-foreground py-8 text-center">No entries found.</p>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b">
-                    <th className="py-3 px-3 w-10">
-                      <Checkbox
-                        checked={selectedIds.size === filteredProjects.length && filteredProjects.length > 0}
-                        onCheckedChange={toggleSelectAll}
-                        data-testid="checkbox-select-all"
-                      />
-                    </th>
                     <th
                       className="text-left py-3 px-3 font-medium text-muted-foreground cursor-pointer select-none"
-                      onClick={() => toggleSort("projectId")}
-                      data-testid="th-bid-id"
+                      onClick={() => toggleSort("estimateNumber")}
+                      data-testid="th-estimate-number"
                     >
-                      <span className="flex items-center gap-1">Bid ID <SortIcon field="projectId" /></span>
+                      <span className="flex items-center gap-1">Est # <SortIcon field="estimateNumber" /></span>
                     </th>
                     <th
                       className="text-left py-3 px-3 font-medium text-muted-foreground cursor-pointer select-none"
@@ -356,10 +252,10 @@ export default function ProjectLogPage() {
                     </th>
                     <th
                       className="text-left py-3 px-3 font-medium text-muted-foreground cursor-pointer select-none"
-                      onClick={() => toggleSort("regionCode")}
+                      onClick={() => toggleSort("region")}
                       data-testid="th-region"
                     >
-                      <span className="flex items-center gap-1">Region <SortIcon field="regionCode" /></span>
+                      <span className="flex items-center gap-1">Region <SortIcon field="region" /></span>
                     </th>
                     <th
                       className="text-left py-3 px-3 font-medium text-muted-foreground cursor-pointer select-none"
@@ -370,11 +266,19 @@ export default function ProjectLogPage() {
                     </th>
                     <th
                       className="text-left py-3 px-3 font-medium text-muted-foreground cursor-pointer select-none"
-                      onClick={() => toggleSort("status")}
+                      onClick={() => toggleSort("estimateStatus")}
                       data-testid="th-status"
                     >
-                      <span className="flex items-center gap-1">Status <SortIcon field="status" /></span>
+                      <span className="flex items-center gap-1">Status <SortIcon field="estimateStatus" /></span>
                     </th>
+                    <th
+                      className="text-left py-3 px-3 font-medium text-muted-foreground cursor-pointer select-none"
+                      onClick={() => toggleSort("nbsEstimator")}
+                      data-testid="th-estimator"
+                    >
+                      <span className="flex items-center gap-1">Estimator <SortIcon field="nbsEstimator" /></span>
+                    </th>
+                    <th className="text-left py-3 px-3 font-medium text-muted-foreground">GC Lead</th>
                     <th
                       className="text-left py-3 px-3 font-medium text-muted-foreground cursor-pointer select-none"
                       onClick={() => toggleSort("createdAt")}
@@ -382,71 +286,82 @@ export default function ProjectLogPage() {
                     >
                       <span className="flex items-center gap-1">Created <SortIcon field="createdAt" /></span>
                     </th>
-                    <th className="text-left py-3 px-3 font-medium text-muted-foreground">Notes</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredProjects.map((project) => {
-                    const statusCat = getStatusCategory(project.status);
-                    const isSelected = selectedIds.has(project.id);
+                  {filteredEntries.map((entry) => {
+                    const isDeleted = !!entry.deletedAt;
                     return (
-                      <tr key={project.id} className={`border-b last:border-0 hover-elevate ${isSelected ? "bg-muted/50" : ""}`}>
+                      <tr
+                        key={entry.id}
+                        className={`border-b last:border-0 ${isDeleted ? "opacity-50" : "hover-elevate"}`}
+                        data-testid={`row-entry-${entry.id}`}
+                      >
                         <td className="py-3 px-3">
-                          <Checkbox
-                            checked={isSelected}
-                            onCheckedChange={() => toggleSelect(project.id)}
-                            data-testid={`checkbox-project-${project.id}`}
-                          />
-                        </td>
-                        <td className="py-3 px-3">
-                          <Link href={`/projects/${project.id}`}>
-                            <Badge variant="outline" className="font-mono cursor-pointer" data-testid={`text-bid-id-${project.id}`}>
-                              {project.projectId}
-                            </Badge>
-                          </Link>
+                          <Badge variant="outline" className="font-mono text-xs" data-testid={`text-est-${entry.id}`}>
+                            {entry.estimateNumber || "\u2014"}
+                          </Badge>
                         </td>
                         <td className="py-3 px-3">
                           <div className="flex items-center gap-2">
-                            <Link href={`/projects/${project.id}`}>
-                              <span className="cursor-pointer hover:underline" data-testid={`text-name-${project.id}`}>
-                                {project.projectName}
-                              </span>
-                            </Link>
-                            {project.isTest && (
+                            <span className={isDeleted ? "line-through text-muted-foreground" : ""} data-testid={`text-name-${entry.id}`}>
+                              {entry.projectName}
+                            </span>
+                            {entry.isTest && (
                               <Badge variant="outline" className="text-xs border-amber-500/50 text-amber-500">
                                 <FlaskConical className="w-3 h-3 mr-1" />
-                                Test
+                                TEST
+                              </Badge>
+                            )}
+                            {isDeleted && (
+                              <Badge variant="destructive" className="text-xs">
+                                <Archive className="w-3 h-3 mr-1" />
+                                DELETED
                               </Badge>
                             )}
                           </div>
                         </td>
                         <td className="py-3 px-3">
-                          <Badge variant="secondary" className="text-xs" data-testid={`text-region-${project.id}`}>
-                            {project.regionCode}
+                          <Badge variant="secondary" className="text-xs" data-testid={`text-region-${entry.id}`}>
+                            {entry.region || "\u2014"}
                           </Badge>
                         </td>
-                        <td className="py-3 px-3 text-muted-foreground" data-testid={`text-due-date-${project.id}`}>
-                          {project.dueDate}
+                        <td className="py-3 px-3 text-muted-foreground" data-testid={`text-due-date-${entry.id}`}>
+                          {fmtDate(entry.dueDate)}
                         </td>
                         <td className="py-3 px-3">
-                          <div className="flex items-center gap-1.5">
-                            {statusCat === "processing" && (
-                              <Loader2 className="w-3.5 h-3.5 text-yellow-500 animate-spin shrink-0" />
-                            )}
-                            <Badge
-                              variant={statusCat === "error" ? "destructive" : statusCat === "complete" ? "default" : "outline"}
-                              className="text-xs"
-                              data-testid={`text-status-${project.id}`}
-                            >
-                              {getStatusLabel(project.status)}
+                          {isDeleted ? (
+                            <Badge variant="destructive" className="text-xs" data-testid={`text-status-${entry.id}`}>
+                              Deleted
                             </Badge>
+                          ) : (
+                            <Badge
+                              variant={
+                                entry.estimateStatus === "Awarded" ? "default" :
+                                entry.estimateStatus?.includes("Lost") ? "destructive" : "outline"
+                              }
+                              className="text-xs"
+                              data-testid={`text-status-${entry.id}`}
+                            >
+                              {entry.estimateStatus || "Estimating"}
+                            </Badge>
+                          )}
+                        </td>
+                        <td className="py-3 px-3 text-sm" data-testid={`text-estimator-${entry.id}`}>
+                          {entry.nbsEstimator || "\u2014"}
+                        </td>
+                        <td className="py-3 px-3 text-muted-foreground text-xs">
+                          {entry.gcEstimateLead || "\u2014"}
+                        </td>
+                        <td className="py-3 px-3 text-muted-foreground text-xs" data-testid={`text-created-${entry.id}`}>
+                          <div>
+                            {entry.createdAt ? new Date(entry.createdAt).toLocaleDateString() : ""}
                           </div>
-                        </td>
-                        <td className="py-3 px-3 text-muted-foreground text-xs" data-testid={`text-created-${project.id}`}>
-                          {project.createdAt ? new Date(project.createdAt).toLocaleDateString() : ""}
-                        </td>
-                        <td className="py-3 px-3 text-muted-foreground text-xs max-w-[200px] truncate" data-testid={`text-notes-${project.id}`}>
-                          {project.notes || "-"}
+                          {isDeleted && entry.deletedAt && (
+                            <div className="text-destructive text-[10px]">
+                              Del: {new Date(entry.deletedAt).toLocaleDateString()}
+                            </div>
+                          )}
                         </td>
                       </tr>
                     );

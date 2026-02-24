@@ -882,6 +882,7 @@ export const proposalLogEntries = pgTable("proposal_log_entries", {
   anticipatedFinish: varchar("anticipated_finish", { length: 20 }),
   isTest: boolean("is_test").default(false),
   syncedToLocal: boolean("synced_to_local").default(false),
+  deletedAt: timestamp("deleted_at"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 

@@ -1,6 +1,6 @@
 import { db } from "./db";
 import { proposalLogEntries } from "@shared/schema";
-import { eq, inArray } from "drizzle-orm";
+import { eq, inArray, isNull } from "drizzle-orm";
 
 const MARKET_KEYWORDS: Record<string, string[]> = {
   "Education": ["school", "elementary", "middle", "high school", "university", "college", "campus", "academy", "institute", "classroom", "gymnasium", "library", "k-12", "k12", "education", "student", "learning"],
@@ -124,6 +124,12 @@ export async function markEntriesSynced(ids: number[]) {
   }
 }
 
+export async function getActiveProposalLogEntries() {
+  return db.select().from(proposalLogEntries)
+    .where(isNull(proposalLogEntries.deletedAt))
+    .orderBy(proposalLogEntries.createdAt);
+}
+
 export async function getAllProposalLogEntries() {
   return db.select().from(proposalLogEntries).orderBy(proposalLogEntries.createdAt);
 }
@@ -155,7 +161,8 @@ export async function updateProposalLogEntryById(id: number, updates: Partial<{
 }
 
 export async function deleteProposalLogEntry(id: number) {
-  const [deleted] = await db.delete(proposalLogEntries)
+  const [deleted] = await db.update(proposalLogEntries)
+    .set({ deletedAt: new Date() })
     .where(eq(proposalLogEntries.id, id))
     .returning();
   return deleted || null;
@@ -163,7 +170,8 @@ export async function deleteProposalLogEntry(id: number) {
 
 export async function deleteProposalLogEntries(ids: number[]) {
   if (!ids.length) return 0;
-  const deleted = await db.delete(proposalLogEntries)
+  const deleted = await db.update(proposalLogEntries)
+    .set({ deletedAt: new Date() })
     .where(inArray(proposalLogEntries.id, ids))
     .returning();
   return deleted.length;

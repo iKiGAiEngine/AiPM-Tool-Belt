@@ -42,7 +42,7 @@ import { planParserStorage } from "./planparser/storage";
 import { getActiveFolderTemplate, getActiveEstimateTemplate } from "./templateStorage";
 import ExcelJS from "exceljs";
 import { extractProjectDetailsFromScreenshot } from "./screenshotExtractor";
-import { guessMarket, guessRegion, createProposalLogEntry, getUnsyncedEntries, markEntriesSynced, getAllProposalLogEntries, updateProposalLogEntryById, deleteProposalLogEntry, deleteProposalLogEntries } from "./proposalLogService";
+import { guessMarket, guessRegion, createProposalLogEntry, getUnsyncedEntries, markEntriesSynced, getActiveProposalLogEntries, getAllProposalLogEntries, updateProposalLogEntryById, deleteProposalLogEntry, deleteProposalLogEntries } from "./proposalLogService";
 import { users } from "@shared/schema";
 import { eq } from "drizzle-orm";
 import { db } from "./db";
@@ -1659,9 +1659,19 @@ export function registerProjectRoutes(app: Express) {
     }
   });
 
-  app.get("/api/proposal-log/entries", async (req: Request, res: Response) => {
+  app.get("/api/proposal-log/all-entries", async (req: Request, res: Response) => {
     try {
       const entries = await getAllProposalLogEntries();
+      res.json(entries);
+    } catch (error) {
+      console.error("Failed to get all proposal log entries:", error);
+      res.status(500).json({ message: "Failed to get entries" });
+    }
+  });
+
+  app.get("/api/proposal-log/entries", async (req: Request, res: Response) => {
+    try {
+      const entries = await getActiveProposalLogEntries();
       res.json(entries);
     } catch (error) {
       console.error("Failed to get proposal log entries:", error);
