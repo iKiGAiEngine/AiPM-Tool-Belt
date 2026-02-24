@@ -42,7 +42,7 @@ import { planParserStorage } from "./planparser/storage";
 import { getActiveFolderTemplate, getActiveEstimateTemplate } from "./templateStorage";
 import ExcelJS from "exceljs";
 import { extractProjectDetailsFromScreenshot } from "./screenshotExtractor";
-import { guessMarket, guessRegion, createProposalLogEntry, getUnsyncedEntries, markEntriesSynced, getAllProposalLogEntries, updateProposalLogEntryById, deleteProposalLogEntry } from "./proposalLogService";
+import { guessMarket, guessRegion, createProposalLogEntry, getUnsyncedEntries, markEntriesSynced, getAllProposalLogEntries, updateProposalLogEntryById, deleteProposalLogEntry, deleteProposalLogEntries } from "./proposalLogService";
 import { users } from "@shared/schema";
 import { eq } from "drizzle-orm";
 import { db } from "./db";
@@ -1736,6 +1736,22 @@ export function registerProjectRoutes(app: Express) {
     } catch (error) {
       console.error("Failed to delete proposal log entry:", error);
       res.status(500).json({ message: "Failed to delete entry" });
+    }
+  });
+
+  app.post("/api/proposal-log/delete-bulk", async (req: Request, res: Response) => {
+    try {
+      const { ids } = req.body;
+      if (!Array.isArray(ids) || !ids.length) {
+        return res.status(400).json({ message: "ids array required" });
+      }
+      const numericIds = ids.map((id: any) => parseInt(id)).filter((id: number) => !isNaN(id));
+      const count = await deleteProposalLogEntries(numericIds);
+      console.log(`[ProposalLog] Bulk deleted ${count} entries`);
+      res.json({ success: true, deleted: count });
+    } catch (error) {
+      console.error("Failed to bulk delete proposal log entries:", error);
+      res.status(500).json({ message: "Failed to bulk delete entries" });
     }
   });
 

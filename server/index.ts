@@ -96,7 +96,13 @@ app.use((req, res, next) => {
     throw err;
   });
 
-  app.use("/tools", express.static(path.join(process.cwd(), "public", "tools")));
+  app.use("/tools", express.static(path.join(process.cwd(), "public", "tools"), {
+    setHeaders: (res) => {
+      res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+      res.setHeader("Pragma", "no-cache");
+      res.setHeader("Expires", "0");
+    }
+  }));
 
   // importantly only setup vite in development and after
   // setting up all the other routes so the catch-all route

@@ -1824,16 +1824,24 @@ function updateSelectBar(){
     const h=document.getElementById('thead-select-all'); if(h){h.checked=all;h.indeterminate=!all&&n>0;}
   } else { bar.style.display='none'; }
 }
-function deleteSelected(){
+async function deleteSelected(){
   const n=selectedIndices.size; if(!n)return;
   if(!confirm(`Delete ${n} selected proposal${n!==1?'s':''}? This cannot be undone.`))return;
+  const serverIds=[...selectedIndices].map(i=>data[i]?._serverDbId).filter(Boolean);
+  if(serverIds.length){
+    try{await fetch('/api/proposal-log/delete-bulk',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'include',body:JSON.stringify({ids:serverIds})});}catch(e){console.warn('Failed to bulk delete from server:',e);}
+  }
   [...selectedIndices].sort((a,b)=>b-a).forEach(i=>data.splice(i,1));
   selectedIndices.clear(); save(); render();
   showToast(`\ud83d\uddd1 ${n} proposal${n!==1?'s':''} deleted`);
 }
-function clearAllData(){
+async function clearAllData(){
   if(!data.length){alert('Log is already empty.');return;}
   if(!confirm(`Delete ALL ${data.length} proposals? This cannot be undone.`))return;
+  const serverIds=data.map(d=>d._serverDbId).filter(Boolean);
+  if(serverIds.length){
+    try{await fetch('/api/proposal-log/delete-bulk',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'include',body:JSON.stringify({ids:serverIds})});}catch(e){console.warn('Failed to bulk delete from server:',e);}
+  }
   data=[];selectedIndices.clear();save();render();showToast('\ud83d\uddd1 All proposals cleared');
 }
 

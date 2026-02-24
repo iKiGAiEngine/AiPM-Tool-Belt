@@ -1,6 +1,6 @@
 import { db } from "./db";
 import { proposalLogEntries } from "@shared/schema";
-import { eq } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 
 const MARKET_KEYWORDS: Record<string, string[]> = {
   "Education": ["school", "elementary", "middle", "high school", "university", "college", "campus", "academy", "institute", "classroom", "gymnasium", "library", "k-12", "k12", "education", "student", "learning"],
@@ -159,6 +159,14 @@ export async function deleteProposalLogEntry(id: number) {
     .where(eq(proposalLogEntries.id, id))
     .returning();
   return deleted || null;
+}
+
+export async function deleteProposalLogEntries(ids: number[]) {
+  if (!ids.length) return 0;
+  const deleted = await db.delete(proposalLogEntries)
+    .where(inArray(proposalLogEntries.id, ids))
+    .returning();
+  return deleted.length;
 }
 
 export async function getScreenshotPathByProjectId(projectDbId: number): Promise<string | null> {
