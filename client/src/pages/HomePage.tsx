@@ -146,14 +146,14 @@ function bizDaysUntil(dateStr: string): number {
   return count;
 }
 
-function formatDueLabel(bd: number, dateStr: string): { date: string; bd: string } {
-  if (bd === 1) return { date: "Tomorrow", bd: "1 bd" };
+function formatDueLabel(bd: number, dateStr: string): string {
+  if (bd === 1) return "Tomorrow - 1BD";
   const d = new Date(dateStr + "T00:00:00");
-  const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+  const days = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
   const day = days[d.getDay()];
-  const dd = String(d.getDate()).padStart(2, "0");
   const mm = String(d.getMonth() + 1).padStart(2, "0");
-  return { date: `${day} ${dd}/${mm}`, bd: `${bd} bd` };
+  const dd = String(d.getDate()).padStart(2, "0");
+  return `${day}, ${mm}/${dd} - ${bd}BD`;
 }
 
 function getDueClass(bd: number, section: string): string {
@@ -301,7 +301,33 @@ export default function HomePage() {
 
   useEffect(() => {
     loadProposals();
-    syncFromServer();
+    syncFromServer().then(() => {
+      if (localStorage.getItem("nbs_hud_ack_migrated")) return;
+      try {
+        const ackRaw = localStorage.getItem(ACK_STORAGE_KEY);
+        const propRaw = localStorage.getItem("nbs_v4");
+        if (ackRaw && propRaw) {
+          const oldKeys = new Set(JSON.parse(ackRaw) as string[]);
+          const props = JSON.parse(propRaw) as ProposalRow[];
+          const migrated = new Set(oldKeys);
+          let changed = false;
+          for (const p of props) {
+            if (!p._serverDbId) continue;
+            const oldKey = p.projectName + "|" + p.dueDate;
+            if (oldKeys.has(oldKey)) {
+              migrated.add("sid:" + p._serverDbId);
+              migrated.delete(oldKey);
+              changed = true;
+            }
+          }
+          if (changed) {
+            localStorage.setItem(ACK_STORAGE_KEY, JSON.stringify(Array.from(migrated)));
+            setAcknowledgedIds(migrated);
+          }
+        }
+      } catch { /* ignore */ }
+      localStorage.setItem("nbs_hud_ack_migrated", "1");
+    });
     const interval = setInterval(loadProposals, 5000);
     const syncInterval = setInterval(syncFromServer, 30000);
     const handleStorage = (e: StorageEvent) => {
@@ -539,10 +565,7 @@ export default function HomePage() {
                         ) : (
                           <span />
                         )}
-                        <div className={`bid-due ${getDueClass(p._bizDays!, "new")}`}>
-                          <span className="dd">{due.date}</span>
-                          <span className="bd">{due.bd}</span>
-                        </div>
+                        <div className={`bid-due ${getDueClass(p._bizDays!, "new")}`}>{due}</div>
                       </div>
                     );
                   })}
@@ -573,10 +596,7 @@ export default function HomePage() {
                         ) : (
                           <span />
                         )}
-                        <div className={`bid-due ${getDueClass(p._bizDays!, "due")}`}>
-                          <span className="dd">{due.date}</span>
-                          <span className="bd">{due.bd}</span>
-                        </div>
+                        <div className={`bid-due ${getDueClass(p._bizDays!, "due")}`}>{due}</div>
                       </div>
                     );
                   })}
@@ -607,10 +627,7 @@ export default function HomePage() {
                         ) : (
                           <span />
                         )}
-                        <div className={`bid-due ${getDueClass(p._bizDays!, "pipeline")}`}>
-                          <span className="dd">{due.date}</span>
-                          <span className="bd">{due.bd}</span>
-                        </div>
+                        <div className={`bid-due ${getDueClass(p._bizDays!, "pipeline")}`}>{due}</div>
                       </div>
                     );
                   })}

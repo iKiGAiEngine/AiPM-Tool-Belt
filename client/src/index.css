@@ -866,7 +866,7 @@
 }
 .bid-row {
   display: grid;
-  grid-template-columns: 1fr 24px 72px;
+  grid-template-columns: 1fr 24px auto;
   align-items: center;
   gap: 8px;
   padding: 6px 20px;
@@ -875,7 +875,7 @@
 }
 .bid-row:hover { background: rgba(255,255,255,0.03); }
 .pl-card:hover .bid-row { transform: translateX(2px); }
-.r-new { grid-template-columns: 1fr 26px 24px 72px; }
+.r-new { grid-template-columns: 1fr 26px 24px auto; }
 
 .bid-name {
   font-family: 'DM Sans', sans-serif;
@@ -911,20 +911,16 @@
 }
 
 .bid-due {
-  width: 72px;
   font-family: 'Rajdhani', sans-serif;
   font-weight: 700;
-  padding: 3px 5px;
+  font-size: 13px;
+  padding: 3px 8px;
   border-radius: 3px;
   text-align: center;
   line-height: 1.25;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-self: center;
+  white-space: nowrap;
+  justify-self: end;
 }
-.bid-due .dd { font-size: 14px; }
-.bid-due .bd { font-size: 12px; opacity: .6; }
 .d-hot  { color: #E05050; border: 1px solid rgba(192,57,43,0.4); }
 .d-warm { color: #E09050; border: 1px solid rgba(224,123,0,0.35); }
 .d-dim  { color: var(--text-dim); border: 1px solid rgba(255,255,255,0.07); }
