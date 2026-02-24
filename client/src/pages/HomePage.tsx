@@ -232,7 +232,6 @@ export default function HomePage() {
       const res = await fetch("/api/proposal-log/entries", { credentials: "include" });
       if (!res.ok) return;
       const entries = await res.json();
-      if (!entries.length) return;
 
       const existing: ProposalRow[] = (() => {
         try {
@@ -241,8 +240,10 @@ export default function HomePage() {
         } catch { return []; }
       })();
 
-      let data = [...existing];
-      let changed = false;
+      const serverIds = new Set(entries.map((e: any) => e.id));
+
+      let data = existing.filter(p => !p._serverDbId || serverIds.has(p._serverDbId));
+      let changed = data.length !== existing.length;
 
       for (const e of entries) {
         const match = data.find(p =>
@@ -252,12 +253,18 @@ export default function HomePage() {
         if (match) {
           if (!match._serverDbId) { match._serverDbId = e.id; changed = true; }
           if (e.estimateNumber && !match._screenshotId) { match._screenshotId = e.estimateNumber; changed = true; }
-          if (e.isTest && !match._isTest) { match._isTest = true; changed = true; }
-          if (e.nbsEstimator && match.nbsEstimator !== e.nbsEstimator) { match.nbsEstimator = e.nbsEstimator; changed = true; }
-          if (e.estimateStatus && match.estimateStatus !== e.estimateStatus) { match.estimateStatus = e.estimateStatus; changed = true; }
-          if (e.proposalTotal && match.proposalTotal !== e.proposalTotal) { match.proposalTotal = e.proposalTotal; changed = true; }
-          if (e.anticipatedStart && match.anticipatedStart !== e.anticipatedStart) { match.anticipatedStart = e.anticipatedStart; changed = true; }
-          if (e.anticipatedFinish && match.anticipatedFinish !== e.anticipatedFinish) { match.anticipatedFinish = e.anticipatedFinish; changed = true; }
+          const syncField = (field: keyof ProposalRow, serverVal: any) => {
+            const sv = serverVal ?? "";
+            if (match[field] !== sv) { (match as any)[field] = sv; changed = true; }
+          };
+          syncField("_isTest", e.isTest || false);
+          syncField("nbsEstimator", e.nbsEstimator || "");
+          syncField("estimateStatus", e.estimateStatus || "Estimating");
+          syncField("proposalTotal", e.proposalTotal || "");
+          syncField("anticipatedStart", e.anticipatedStart || "");
+          syncField("anticipatedFinish", e.anticipatedFinish || "");
+          syncField("gcEstimateLead", e.gcEstimateLead || "");
+          syncField("region", e.region || "");
           continue;
         }
         data.push({
@@ -322,11 +329,15 @@ export default function HomePage() {
   const activeBids = useMemo(() => {
     return proposals
       .filter((p) => {
-        if (p._isTest && !effectiveTestMode) return false;
-        if (!p._isTest && effectiveTestMode) return false;
         if (!p.dueDate || !activeStatuses.includes(p.estimateStatus || "")) return false;
+        const isMyBid = userEstimatorCode && p.nbsEstimator && p.nbsEstimator.toUpperCase() === userEstimatorCode;
+        if (p._isTest) {
+          if (!effectiveTestMode && !isMyBid) return false;
+        } else {
+          if (effectiveTestMode) return false;
+        }
         if (userEstimatorCode && p.nbsEstimator) {
-          return p.nbsEstimator.toUpperCase() === userEstimatorCode;
+          return isMyBid;
         }
         return true;
       })
