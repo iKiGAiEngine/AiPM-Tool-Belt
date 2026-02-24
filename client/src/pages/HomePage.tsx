@@ -346,36 +346,38 @@ export default function HomePage() {
       .sort((a, b) => a._bizDays - b._bizDays);
   }, [proposals, userEstimatorCode, effectiveTestMode]);
 
+  const ackKey = useCallback((p: ProposalRow) => {
+    if (p._serverDbId) return "sid:" + p._serverDbId;
+    return p.projectName + "|" + p.dueDate;
+  }, []);
+
   const newlyAssigned = useMemo(() => {
     return activeBids
       .filter((p) => {
-        const key = p.projectName + "|" + p.dueDate;
-        return !acknowledgedIds.has(key) && p.estimateStatus === "Estimating";
+        return !acknowledgedIds.has(ackKey(p)) && p.estimateStatus === "Estimating";
       })
       .slice(0, 5);
-  }, [activeBids, acknowledgedIds]);
+  }, [activeBids, acknowledgedIds, ackKey]);
 
   const newlyAssignedKeys = useMemo(() => {
-    return new Set(newlyAssigned.map((p) => p.projectName + "|" + p.dueDate));
-  }, [newlyAssigned]);
+    return new Set(newlyAssigned.map((p) => ackKey(p)));
+  }, [newlyAssigned, ackKey]);
 
   const dueThisWeek = useMemo(() => {
     return activeBids.filter((p) => {
-      const key = p.projectName + "|" + p.dueDate;
-      return p._bizDays! >= 0 && p._bizDays! <= 7 && !newlyAssignedKeys.has(key);
+      return p._bizDays! >= 0 && p._bizDays! <= 7 && !newlyAssignedKeys.has(ackKey(p));
     });
-  }, [activeBids, newlyAssignedKeys]);
+  }, [activeBids, newlyAssignedKeys, ackKey]);
 
   const dueThisWeekKeys = useMemo(() => {
-    return new Set(dueThisWeek.map((p) => p.projectName + "|" + p.dueDate));
-  }, [dueThisWeek]);
+    return new Set(dueThisWeek.map((p) => ackKey(p)));
+  }, [dueThisWeek, ackKey]);
 
   const activePipeline = useMemo(() => {
     return activeBids.filter((p) => {
-      const key = p.projectName + "|" + p.dueDate;
-      return p._bizDays! > 7 && !newlyAssignedKeys.has(key) && !dueThisWeekKeys.has(key);
+      return p._bizDays! > 7 && !newlyAssignedKeys.has(ackKey(p)) && !dueThisWeekKeys.has(ackKey(p));
     });
-  }, [activeBids, newlyAssignedKeys, dueThisWeekKeys]);
+  }, [activeBids, newlyAssignedKeys, dueThisWeekKeys, ackKey]);
 
   const handleAcknowledge = useCallback((p: ProposalRow, rowEl: HTMLElement) => {
     const btn = rowEl.querySelector(".ack-btn") as HTMLElement;
@@ -392,7 +394,7 @@ export default function HomePage() {
       rowEl.style.paddingBottom = "0";
       rowEl.style.marginTop = "0";
       setTimeout(() => {
-        const key = p.projectName + "|" + p.dueDate;
+        const key = ackKey(p);
         setAcknowledgedIds((prev) => {
           const next = new Set(prev);
           next.add(key);
@@ -401,7 +403,7 @@ export default function HomePage() {
         });
       }, 450);
     }, 300);
-  }, [persistAcknowledged]);
+  }, [persistAcknowledged, ackKey]);
 
   const selectedToolTitle = tools.find((t) => t.id === selectedToolForStats)?.title || "";
 
