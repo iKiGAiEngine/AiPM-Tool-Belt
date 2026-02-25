@@ -377,33 +377,39 @@ export default function HomePage() {
     return p.projectName + "|" + p.dueDate;
   }, []);
 
-  const newlyAssigned = useMemo(() => {
-    return activeBids
-      .filter((p) => {
-        return !acknowledgedIds.has(ackKey(p)) && p.estimateStatus === "Estimating";
-      })
-      .slice(0, 5);
+  const { newlyAssigned, dueThisWeek, activePipeline } = useMemo(() => {
+    const na: typeof activeBids = [];
+    const dtw: typeof activeBids = [];
+    const ap: typeof activeBids = [];
+    const placed = new Set<string>();
+
+    for (const p of activeBids) {
+      const key = ackKey(p);
+      if (!acknowledgedIds.has(key) && p.estimateStatus === "Estimating" && na.length < 5) {
+        na.push(p);
+        placed.add(key);
+      }
+    }
+
+    for (const p of activeBids) {
+      const key = ackKey(p);
+      if (placed.has(key)) continue;
+      if (p._bizDays! >= 0 && p._bizDays! <= 7) {
+        dtw.push(p);
+        placed.add(key);
+      }
+    }
+
+    for (const p of activeBids) {
+      const key = ackKey(p);
+      if (placed.has(key)) continue;
+      if (p._bizDays! > 7) {
+        ap.push(p);
+      }
+    }
+
+    return { newlyAssigned: na, dueThisWeek: dtw, activePipeline: ap };
   }, [activeBids, acknowledgedIds, ackKey]);
-
-  const newlyAssignedKeys = useMemo(() => {
-    return new Set(newlyAssigned.map((p) => ackKey(p)));
-  }, [newlyAssigned, ackKey]);
-
-  const dueThisWeek = useMemo(() => {
-    return activeBids.filter((p) => {
-      return p._bizDays! >= 0 && p._bizDays! <= 7 && !newlyAssignedKeys.has(ackKey(p));
-    });
-  }, [activeBids, newlyAssignedKeys, ackKey]);
-
-  const dueThisWeekKeys = useMemo(() => {
-    return new Set(dueThisWeek.map((p) => ackKey(p)));
-  }, [dueThisWeek, ackKey]);
-
-  const activePipeline = useMemo(() => {
-    return activeBids.filter((p) => {
-      return p._bizDays! > 7 && !newlyAssignedKeys.has(ackKey(p)) && !dueThisWeekKeys.has(ackKey(p));
-    });
-  }, [activeBids, newlyAssignedKeys, dueThisWeekKeys, ackKey]);
 
   const handleAcknowledge = useCallback((p: ProposalRow, rowEl: HTMLElement) => {
     const key = ackKey(p);
