@@ -356,15 +356,8 @@ export default function HomePage() {
     return proposals
       .filter((p) => {
         if (!p.dueDate || !activeStatuses.includes(p.estimateStatus || "")) return false;
-        const isMyBid = userEstimatorCode && p.nbsEstimator && p.nbsEstimator.toUpperCase() === userEstimatorCode;
-        if (p._isTest) {
-          if (!effectiveTestMode && !isMyBid) return false;
-        } else {
-          if (effectiveTestMode) return false;
-        }
-        if (userEstimatorCode && p.nbsEstimator) {
-          return isMyBid;
-        }
+        if (p._isTest && !effectiveTestMode) return false;
+        if (!p._isTest && effectiveTestMode) return false;
         return true;
       })
       .map((p) => ({ ...p, _bizDays: bizDaysUntil(p.dueDate!) }))
