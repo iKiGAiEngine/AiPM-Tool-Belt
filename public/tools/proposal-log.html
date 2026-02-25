@@ -899,6 +899,10 @@ function defaultLayout() {
   };
 }
 let layout = JSON.parse(localStorage.getItem('nbs_layout') || 'null') || defaultLayout();
+
+const save = () => localStorage.setItem('nbs_v4', JSON.stringify(data));
+const saveLayout = () => localStorage.setItem('nbs_layout', JSON.stringify(layout));
+
 (function migrateLayout() {
   let changed = false;
   COL_DEFS.forEach(def => {
@@ -916,9 +920,6 @@ let layout = JSON.parse(localStorage.getItem('nbs_layout') || 'null') || default
   if (changed) saveLayout();
 })();
 let colFilters = {};
-
-const save = () => localStorage.setItem('nbs_v4', JSON.stringify(data));
-const saveLayout = () => localStorage.setItem('nbs_layout', JSON.stringify(layout));
 
 const fmt$ = n => (!n&&n!==0)?'\u2014':'$'+Number(n).toLocaleString();
 const fmtD = d => { if(!d) return '\u2014'; const [y,m,dy]=d.split('-'); return `${m}/${dy}/${y}`; };
