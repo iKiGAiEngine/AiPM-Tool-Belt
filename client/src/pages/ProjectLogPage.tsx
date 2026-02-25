@@ -33,7 +33,7 @@ interface ProposalLogEntry {
   createdAt: string;
 }
 
-type SortField = "estimateNumber" | "projectName" | "region" | "dueDate" | "estimateStatus" | "nbsEstimator" | "createdAt";
+type SortField = "projectName" | "region" | "dueDate" | "estimateStatus" | "nbsEstimator" | "createdAt";
 type SortDir = "asc" | "desc";
 type StatusFilter = "all" | "active" | "deleted";
 
@@ -82,7 +82,6 @@ export default function ProjectLogPage() {
       let bVal: string | number = "";
 
       switch (sortField) {
-        case "estimateNumber": aVal = a.estimateNumber || ""; bVal = b.estimateNumber || ""; break;
         case "projectName": aVal = (a.projectName || "").toLowerCase(); bVal = (b.projectName || "").toLowerCase(); break;
         case "region": aVal = a.region || ""; bVal = b.region || ""; break;
         case "dueDate": aVal = a.dueDate || ""; bVal = b.dueDate || ""; break;

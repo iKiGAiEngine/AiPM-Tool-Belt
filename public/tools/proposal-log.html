@@ -2270,11 +2270,11 @@ async function syncFromServer() {
           body: JSON.stringify({ ids: syncedIds })
         });
       }
-      render();
       if (addedCount > 0) {
         showToast(addedCount + ' project(s) synced from server');
       }
     }
+    render();
   } catch (err) {
     console.warn('Proposal log sync failed:', err);
   }
