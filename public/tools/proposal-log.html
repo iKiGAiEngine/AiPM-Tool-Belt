@@ -421,6 +421,19 @@ td.inline-editing{padding:2px 4px !important;background:rgba(201,168,76,.06) !im
 .login-btn{width:100%;background:linear-gradient(135deg,var(--gold),var(--gold-dim));color:#0D0D0F;border:none;padding:11px;border-radius:6px;font-size:12px;font-weight:700;font-family:'Rajdhani',sans-serif;letter-spacing:1.5px;text-transform:uppercase;cursor:pointer;margin-top:4px;transition:opacity .2s;}
 .login-btn:hover{opacity:.88;}
 .login-error{font-size:11px;color:var(--loss);text-align:center;margin-top:10px;min-height:16px;}
+.quick-login-grid{display:flex;gap:8px;margin-top:8px;}
+.quick-login-btn{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:12px 8px;cursor:pointer;transition:border-color .2s, background .2s;}
+.quick-login-btn:hover{border-color:var(--gold-dim);background:var(--bg4);}
+.quick-login-btn .ql-initials{font-family:'Rajdhani',sans-serif;font-size:16px;font-weight:700;color:var(--gold);width:32px;height:32px;display:flex;align-items:center;justify-content:center;border-radius:50%;background:rgba(201,168,76,.12);border:1px solid rgba(201,168,76,.25);}
+.quick-login-btn .ql-name{font-size:10px;color:var(--text-dim);white-space:nowrap;}
+.quick-login-btn .ql-role{font-size:8px;text-transform:uppercase;letter-spacing:.8px;font-weight:700;font-family:'Rajdhani',sans-serif;}
+.quick-login-btn .ql-role.admin{color:var(--gold);}
+.quick-login-btn .ql-role.user{color:var(--win);}
+#server-banner{display:none;position:fixed;top:48px;left:0;right:0;z-index:8000;padding:10px 40px 10px 16px;font-size:12px;font-family:'DM Sans',sans-serif;line-height:1.4;animation:fadeUp .3s ease both;}
+#server-banner.warning{background:rgba(201,168,76,.15);color:var(--gold-light);border-bottom:1px solid rgba(201,168,76,.25);}
+#server-banner.error{background:rgba(192,57,43,.15);color:#e74c3c;border-bottom:1px solid rgba(192,57,43,.25);}
+#server-banner .banner-close{position:absolute;right:12px;top:50%;transform:translateY(-50%);background:none;border:none;color:inherit;cursor:pointer;font-size:16px;opacity:.7;padding:4px;}
+#server-banner .banner-close:hover{opacity:1;}
 .login-role-badge{display:inline-flex;align-items:center;gap:5px;font-family:'Rajdhani',sans-serif;font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;padding:3px 9px;border-radius:4px;margin-bottom:8px;}
 .role-admin{background:rgba(201,168,76,.15);color:var(--gold);border:1px solid rgba(201,168,76,.3);}
 .role-leadership{background:rgba(100,149,237,.12);color:#6495ED;border:1px solid rgba(100,149,237,.3);}
@@ -439,14 +452,30 @@ td.inline-editing{padding:2px 4px !important;background:rgba(201,168,76,.06) !im
     </p>
     <button class="login-btn" onclick="goToAiPM()">Sign In via AiPM &rarr;</button>
     <div style="margin-top:28px;padding-top:20px;border-top:1px solid var(--border)">
-      <div style="font-size:9px;color:var(--text-dim);text-align:center;letter-spacing:1px;text-transform:uppercase;margin-bottom:12px">Temporary Admin Access</div>
-      <input class="login-input" id="temp-pass" type="password" placeholder="Enter admin password"
-        onkeydown="if(event.key==='Enter')tempLogin()">
-      <button class="login-btn" style="margin-top:4px;background:var(--bg3);color:var(--gold);border:1px solid var(--gold-dim)" onclick="tempLogin()">Continue as Admin</button>
+      <div style="font-size:9px;color:var(--text-dim);text-align:center;letter-spacing:1px;text-transform:uppercase;margin-bottom:12px">Quick Login</div>
+      <div class="quick-login-grid">
+        <button class="quick-login-btn" onclick="quickLogin('hk')" data-testid="btn-quick-login-hk">
+          <div class="ql-initials">HK</div>
+          <div class="ql-name">Haley</div>
+          <div class="ql-role admin">Admin</div>
+        </button>
+        <button class="quick-login-btn" onclick="quickLogin('gm')" data-testid="btn-quick-login-gm">
+          <div class="ql-initials">GM</div>
+          <div class="ql-name">Gonzalo</div>
+          <div class="ql-role user">User</div>
+        </button>
+        <button class="quick-login-btn" onclick="quickLogin('gt')" data-testid="btn-quick-login-gt">
+          <div class="ql-initials">GT</div>
+          <div class="ql-name">Gene</div>
+          <div class="ql-role user">User</div>
+        </button>
+      </div>
     </div>
     <div class="login-error" id="login-error"></div>
   </div>
 </div>
+
+<div id="server-banner"><button class="banner-close" onclick="hideBanner()">&times;</button><span id="banner-msg"></span></div>
 
 <header>
   <div class="header-left">
@@ -2129,17 +2158,42 @@ function goToAiPM() {
   window.location.href = '/login?redirect=' + encodeURIComponent(window.location.pathname);
 }
 
-const TEMP_ADMIN_PASS = 'NBS2025!';
-function tempLogin() {
-  const val = document.getElementById('temp-pass').value;
-  if (val !== TEMP_ADMIN_PASS) {
-    document.getElementById('login-error').textContent = 'Incorrect password.';
-    return;
+async function quickLogin(username) {
+  const errEl = document.getElementById('login-error');
+  errEl.textContent = '';
+  try {
+    const res = await fetch('/api/auth/quick-login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ username })
+    });
+    if (!res.ok) {
+      const msg = await res.json().catch(() => ({}));
+      errEl.textContent = msg.message || 'Login failed. Try again.';
+      return;
+    }
+    const meRes = await fetch('/api/auth/me', { credentials: 'include' });
+    if (!meRes.ok) { errEl.textContent = 'Session error. Try again.'; return; }
+    const meJson = await meRes.json();
+    currentUser = meJson.user;
+    if (!['admin','user'].includes(currentUser.role)) currentUser.role = 'user';
+    hideAuthGate();
+    applyRoleUI();
+    initApp();
+  } catch(e) {
+    errEl.textContent = 'Could not reach server. Check your connection.';
   }
-  currentUser = { role: 'admin', displayName: 'Admin (Temp)', username: 'temp', email: '' };
-  hideAuthGate();
-  applyRoleUI();
-  initApp();
+}
+
+function showBanner(msg, type) {
+  const el = document.getElementById('server-banner');
+  el.className = type || 'warning';
+  document.getElementById('banner-msg').textContent = msg;
+  el.style.display = 'block';
+}
+function hideBanner() {
+  document.getElementById('server-banner').style.display = 'none';
 }
 
 function doLogout() {
@@ -2282,7 +2336,12 @@ async function initApp() {
 
   setMode('estimator');
   applyModeRestrictions();
-  await loadFromServer();
+  const serverLoaded = await loadFromServer();
+  if (!serverLoaded && data.length === 0) {
+    showBanner('Could not load proposals from server. Please check your connection or sign in again.', 'error');
+  } else if (!serverLoaded && data.length > 0) {
+    showBanner('Server sync unavailable — showing locally cached data.', 'warning');
+  }
   render();
   setInterval(async () => { await loadFromServer(); render(); }, 30000);
 }
