@@ -2206,10 +2206,10 @@ async function syncFromServer() {
   try {
     const endpoint = '/api/proposal-log/entries';
     const needsFullSync = data.length === 0;
-    const res = await fetch(endpoint);
-    if (!res.ok) return;
+    const res = await fetch(endpoint, { credentials: 'include' });
+    if (!res.ok) { render(); return; }
     const entries = await res.json();
-    if (!entries.length) return;
+    if (!entries.length) { render(); return; }
     const syncedIds = [];
     let addedCount = 0;
     for (const e of entries) {
@@ -2229,6 +2229,7 @@ async function syncFromServer() {
           if (e.nbsEstimator && existing.nbsEstimator !== e.nbsEstimator) existing.nbsEstimator = e.nbsEstimator;
           if (e.estimateStatus && existing.estimateStatus !== e.estimateStatus) existing.estimateStatus = e.estimateStatus;
           if (e.proposalTotal && existing.proposalTotal !== e.proposalTotal) existing.proposalTotal = e.proposalTotal;
+          if (e.gcEstimateLead && existing.gcEstimateLead !== e.gcEstimateLead) existing.gcEstimateLead = e.gcEstimateLead;
           if (e.anticipatedStart && existing.anticipatedStart !== e.anticipatedStart) existing.anticipatedStart = e.anticipatedStart;
           if (e.anticipatedFinish && existing.anticipatedFinish !== e.anticipatedFinish) existing.anticipatedFinish = e.anticipatedFinish;
         }
@@ -2243,8 +2244,8 @@ async function syncFromServer() {
         inviteDate: e.inviteDate || '',
         dueDate: e.dueDate || '',
         nbsEstimator: e.nbsEstimator || '',
-        gcEstimateLead: '',
-        proposalTotal: '',
+        gcEstimateLead: e.gcEstimateLead || '',
+        proposalTotal: e.proposalTotal || '',
         estimateStatus: e.estimateStatus || 'Estimating',
         lossWho: '', lossReason: '', lossDetail: '', lossCompetitor: '', lossNotes: '',
         finalReviewer: '',
@@ -2267,7 +2268,8 @@ async function syncFromServer() {
         await fetch('/api/proposal-log/mark-synced', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ ids: syncedIds })
+          body: JSON.stringify({ ids: syncedIds }),
+          credentials: 'include'
         });
       }
       if (addedCount > 0) {
@@ -2277,6 +2279,7 @@ async function syncFromServer() {
     render();
   } catch (err) {
     console.warn('Proposal log sync failed:', err);
+    render();
   }
 }
 
