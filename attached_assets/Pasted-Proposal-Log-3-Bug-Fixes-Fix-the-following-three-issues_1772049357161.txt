@@ -1,0 +1,67 @@
+Proposal Log — 3 Bug Fixes
+Fix the following three issues. Two are in public/tools/proposal-log.html, one is in client/src/pages/HomePage.tsx.
+
+BUG 1 — Horizontal scrolling with frozen header row (proposal-log.html)
+The proposal log table has many columns and currently requires horizontal scrolling but the column headers scroll away with the content. Fix this so:
+
+The entire table scrolls both horizontally AND vertically within its container
+The header row (thead) is frozen/sticky — it stays visible at the top at all times while scrolling vertically
+The column headers stay aligned with their columns at all times while scrolling horizontally
+The scroll container sits fixed within the page — the bottom of the table container should never go below the bottom of the viewport. The user should never need to scroll the PAGE itself to reach the scrollbar — the scrollbar must always be visible at the bottom of the screen.
+
+Implementation:
+
+Wrap the table in a container div with overflow-x: auto; overflow-y: auto; max-height: calc(100vh - [height of toolbar/header above table]px);
+Set position: sticky; top: 0; z-index: 10; background: [table header background color] on all <th> elements in the thead
+Make sure the sticky headers have the same background color as the non-scrolled state so rows don't bleed through behind them
+The horizontal scrollbar must appear at the bottom of the viewport, not at the bottom of the full table content
+
+
+BUG 2 — Bids disappearing after acknowledge in HUD (client/src/pages/HomePage.tsx)
+When a bid is acknowledged in the Newly Assigned section of the HUD, other bids occasionally disappear from the Due This Week or Active Pipeline sections and only reappear after navigating away and back.
+Root cause: The handleAcknowledge function animates the row out using direct DOM style manipulation and then calls setAcknowledgedIds after a 750ms delay (300ms + 450ms timeouts). During that delay window, the syncFromServer function (which runs on a 30-second interval) or the loadProposals function (which runs on a 5-second interval) can fire and call setProposals with a fresh array. This triggers a full re-render of all three useMemo sections — newlyAssigned, dueThisWeek, activePipeline — BEFORE acknowledgedIds has been updated in state. The acknowledged bid briefly reappears in newlyAssigned, which shifts the newlyAssignedKeys set, which cascades into dueThisWeek and activePipeline recalculating with wrong exclusions, causing bids to temporarily vanish.
+Fix:
+In handleAcknowledge, update acknowledgedIds state IMMEDIATELY when the button is clicked (before the animation), not after the 750ms delay. The animation can still play out visually, but the state update must happen synchronously on click so all three useMemo sections recalculate immediately with the correct acknowledged set.
+Replace the current handleAcknowledge implementation with this:
+typescriptconst handleAcknowledge = useCallback((p: ProposalRow, rowEl: HTMLElement) => {
+  // Update state IMMEDIATELY so useMemo recalculates right away
+  const key = ackKey(p);
+  setAcknowledgedIds((prev) => {
+    const next = new Set(prev);
+    next.add(key);
+    persistAcknowledged(next);
+    return next;
+  });
+
+  // Visual animation plays after state is already updated
+  const btn = rowEl.querySelector(".ack-btn") as HTMLElement;
+  if (btn) {
+    btn.style.background = "rgba(61,170,106,0.2)";
+    btn.style.borderColor = "rgba(61,170,106,0.5)";
+    btn.style.color = "#3DAA6A";
+  }
+  setTimeout(() => {
+    rowEl.style.transition = "opacity .3s, max-height .4s .1s, padding .3s, margin .3s";
+    rowEl.style.opacity = "0";
+    rowEl.style.maxHeight = "0";
+    rowEl.style.paddingTop = "0";
+    rowEl.style.paddingBottom = "0";
+    rowEl.style.marginTop = "0";
+  }, 300);
+}, [persistAcknowledged, ackKey]);
+
+BUG 3 — Bids disappearing after editing an entry (proposal-log.html)
+When a bid is edited and saved in the proposal log, most other bids disappear and only 2-3 remain visible. Navigating away and back restores them. This is a state/render bug in the save or render flow.
+Root cause: When save() is called after an edit, it writes the updated data array to localStorage and then calls render(). If render() re-reads data from a closure or stale reference instead of re-reading fresh from localStorage, it may only render the subset of entries that were in memory at edit time rather than the full array.
+Fix:
+
+In the save() function, after writing to localStorage, ensure render() is called with the full current data array — not a filtered or sliced version
+In the render() function, make sure it always reads the full data array and applies filters on top of it for display — it should never mutate or reassign data itself during rendering
+After any edit save, call a full loadFromServer() or at minimum re-read localStorage fresh before rendering to guarantee the displayed rows match the stored data
+Add a guard: if render() is about to display fewer rows than data.length after applying the current filter (which should show all active entries), log a warning — this will help catch future regressions
+
+Test for each fix:
+
+BUG 1: Open the proposal log, confirm the header row stays visible while scrolling down, confirm you can scroll right to see all columns, confirm the horizontal scrollbar is always visible at the bottom of the screen without scrolling the page
+BUG 2: Click acknowledge on a Newly Assigned bid, confirm all Due This Week and Active Pipeline bids remain visible immediately — no flicker or disappearance
+BUG 3: Edit any field on any bid and save, confirm all other bids remain visible in the table immediately after saving

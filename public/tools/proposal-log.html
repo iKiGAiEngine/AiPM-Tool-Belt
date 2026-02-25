@@ -241,11 +241,11 @@ input[type="date"].fd::-webkit-calendar-picker-indicator{filter:invert(.5);curso
 .readonly-banner.show{display:flex;}
 
 /* TABLE WRAPPER */
-.table-outer{overflow-x:auto;border:1px solid var(--border);border-radius:8px;position:relative;}
+.table-outer{overflow-x:auto;overflow-y:auto;border:1px solid var(--border);border-radius:8px;position:relative;max-height:calc(100vh - 160px);}
 
 /* COLUMN FILTER ROW */
 table{width:100%;border-collapse:collapse;table-layout:fixed;}
-thead{background:var(--bg3);border-bottom:1px solid var(--border);}
+thead{background:var(--bg3);position:sticky;top:0;z-index:10;}
 
 /* HEADER CELL */
 th{
@@ -1278,6 +1278,8 @@ function resetColLayout() {
 }
 
 const FIELDS=['projectName','estimateNumber','region','primaryMarket','inviteDate','dueDate','nbsEstimator','gcEstimateLead','proposalTotal','estimateStatus','lossWho','lossReason','lossDetail','lossCompetitor','lossNotes','finalReviewer','anticipatedStart','anticipatedFinish','swinertonProject','owner','filePath','comments'];
+const FIELD_ID_MAP = { region: 'f-region-input' };
+function fieldElId(k) { return FIELD_ID_MAP[k] || ('f-' + k); }
 
 function onStatusChange(val) {
   const isLost = val === 'Lost - Note Why in Comments';
@@ -1330,7 +1332,7 @@ function openModal(idx=null) {
   const p=idx!==null?data[idx]:{};
   resetLossPanel();
   FIELDS.filter(k=>!['lossWho','lossReason','lossDetail','lossCompetitor','lossNotes'].includes(k))
-    .forEach(k=>{ const el=document.getElementById('f-'+k); if(el) el.value=p[k]||''; });
+    .forEach(k=>{ const el=document.getElementById(fieldElId(k)); if(el) el.value=p[k]||''; });
   onStatusChange(p.estimateStatus||'');
   if(p.estimateStatus==='Lost - Note Why in Comments' && p.lossWho) {
     selectLossWho(p.lossWho);
@@ -1348,7 +1350,7 @@ function saveProposal(){
   const name=document.getElementById('f-projectName').value.trim();
   if(!name){alert('Project name is required.');return;}
   const formVals={};
-  FIELDS.forEach(k=>{const el=document.getElementById('f-'+k);if(el)formVals[k]=el.value.trim();});
+  FIELDS.forEach(k=>{const el=document.getElementById(fieldElId(k));if(el)formVals[k]=el.value.trim();});
   if(Number(formVals.proposalTotal)>0 && formVals.estimateStatus==='Estimating'){
     formVals.estimateStatus='Submitted';
   }

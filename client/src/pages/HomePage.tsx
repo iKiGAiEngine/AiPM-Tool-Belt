@@ -406,6 +406,14 @@ export default function HomePage() {
   }, [activeBids, newlyAssignedKeys, dueThisWeekKeys, ackKey]);
 
   const handleAcknowledge = useCallback((p: ProposalRow, rowEl: HTMLElement) => {
+    const key = ackKey(p);
+    setAcknowledgedIds((prev) => {
+      const next = new Set(prev);
+      next.add(key);
+      persistAcknowledged(next);
+      return next;
+    });
+
     const btn = rowEl.querySelector(".ack-btn") as HTMLElement;
     if (btn) {
       btn.style.background = "rgba(61,170,106,0.2)";
@@ -419,15 +427,6 @@ export default function HomePage() {
       rowEl.style.paddingTop = "0";
       rowEl.style.paddingBottom = "0";
       rowEl.style.marginTop = "0";
-      setTimeout(() => {
-        const key = ackKey(p);
-        setAcknowledgedIds((prev) => {
-          const next = new Set(prev);
-          next.add(key);
-          persistAcknowledged(next);
-          return next;
-        });
-      }, 450);
     }, 300);
   }, [persistAcknowledged, ackKey]);
 
