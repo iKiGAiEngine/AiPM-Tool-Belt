@@ -2202,74 +2202,61 @@ function viewScreenshot(estNum) {
   overlay.style.display = 'flex';
 }
 
-function serverEntryToLocal(e) {
-  return {
+function serverEntryToLocal(e, existingLocal) {
+  const base = existingLocal || {
+    lossWho: '', lossReason: '', lossDetail: '', lossCompetitor: '', lossNotes: '',
+    finalReviewer: '', swinertonProject: '', comments: '',
+  };
+  return Object.assign({}, base, {
     projectName: e.projectName || '',
     estimateNumber: e.estimateNumber || '',
     region: e.region || '',
     primaryMarket: e.primaryMarket || '',
     inviteDate: e.inviteDate || '',
     dueDate: e.dueDate || '',
-    nbsEstimator: e.nbsEstimator || '',
-    gcEstimateLead: e.gcEstimateLead || '',
-    proposalTotal: e.proposalTotal || '',
+    nbsEstimator: e.nbsEstimator || base.nbsEstimator || '',
+    gcEstimateLead: e.gcEstimateLead || base.gcEstimateLead || '',
+    proposalTotal: e.proposalTotal || base.proposalTotal || '',
     estimateStatus: e.estimateStatus || 'Estimating',
-    lossWho: '', lossReason: '', lossDetail: '', lossCompetitor: '', lossNotes: '',
-    finalReviewer: '',
-    anticipatedStart: e.anticipatedStart || '',
-    anticipatedFinish: e.anticipatedFinish || '',
-    swinertonProject: '',
+    anticipatedStart: e.anticipatedStart || base.anticipatedStart || '',
+    anticipatedFinish: e.anticipatedFinish || base.anticipatedFinish || '',
     owner: e.owner || '',
     filePath: e.filePath || '',
-    comments: '',
     _screenshotId: e.estimateNumber || '',
     _isTest: e.isTest || false,
     _serverDbId: e.id,
-  };
+  });
 }
 
-async function syncFromServer() {
+async function loadFromServer() {
   try {
     const res = await fetch('/api/proposal-log/entries', { credentials: 'include' });
-    if (!res.ok) { render(); return; }
+    if (!res.ok) return false;
     const entries = await res.json();
-    if (!entries.length) { render(); return; }
 
+    const localData = data.slice();
+    const merged = [];
     const syncedIds = [];
-    let addedCount = 0;
 
     for (const e of entries) {
-      const existing = data.find(p =>
+      const localMatch = localData.find(p =>
         (p._serverDbId && p._serverDbId === e.id) ||
         (p.projectName === e.projectName && p.dueDate === e.dueDate && p.estimateNumber === e.estimateNumber)
       );
-
-      if (existing) {
-        if (!existing._serverDbId) existing._serverDbId = e.id;
-        if (e.estimateNumber) existing._screenshotId = e.estimateNumber;
-        if (e.isTest) existing._isTest = true;
-        if (e.nbsEstimator) existing.nbsEstimator = e.nbsEstimator;
-        if (e.estimateStatus) existing.estimateStatus = e.estimateStatus;
-        if (e.proposalTotal) existing.proposalTotal = e.proposalTotal;
-        if (e.gcEstimateLead) existing.gcEstimateLead = e.gcEstimateLead;
-        if (e.anticipatedStart) existing.anticipatedStart = e.anticipatedStart;
-        if (e.anticipatedFinish) existing.anticipatedFinish = e.anticipatedFinish;
-        if (e.region) existing.region = e.region;
-        if (e.primaryMarket) existing.primaryMarket = e.primaryMarket;
-        if (e.inviteDate) existing.inviteDate = e.inviteDate;
-        if (e.dueDate) existing.dueDate = e.dueDate;
-        if (e.owner) existing.owner = e.owner;
-        if (e.filePath) existing.filePath = e.filePath;
-        syncedIds.push(e.id);
-      } else {
-        data.push(serverEntryToLocal(e));
-        addedCount++;
-        syncedIds.push(e.id);
-      }
+      merged.push(serverEntryToLocal(e, localMatch));
+      syncedIds.push(e.id);
     }
 
-    if (addedCount > 0 || syncedIds.length > 0) {
-      save();
+    const localOnly = localData.filter(p => {
+      if (!p._serverDbId) return true;
+      return !entries.some(e => e.id === p._serverDbId);
+    }).filter(p => !p._serverDbId);
+    merged.push(...localOnly);
+
+    data = merged;
+    save();
+
+    if (syncedIds.length) {
       try {
         await fetch('/api/proposal-log/mark-synced', {
           method: 'POST',
@@ -2278,14 +2265,11 @@ async function syncFromServer() {
           credentials: 'include'
         });
       } catch(e) {}
-      if (addedCount > 0) {
-        showToast(addedCount + ' project(s) synced from server');
-      }
     }
-    render();
+    return true;
   } catch (err) {
-    console.warn('Proposal log sync failed:', err);
-    render();
+    console.warn('Server load failed:', err);
+    return false;
   }
 }
 
@@ -2298,8 +2282,9 @@ async function initApp() {
 
   setMode('estimator');
   applyModeRestrictions();
-  await syncFromServer();
-  setInterval(() => syncFromServer(), 30000);
+  await loadFromServer();
+  render();
+  setInterval(async () => { await loadFromServer(); render(); }, 30000);
 }
 
 checkAuth();

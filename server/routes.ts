@@ -67,6 +67,9 @@ export async function registerRoutes(
   registerAuthRoutes(app);
 
   app.get("/tools/proposal-log", (req, res) => {
+    res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+    res.setHeader("Pragma", "no-cache");
+    res.setHeader("Expires", "0");
     res.sendFile(path.resolve(process.cwd(), "public", "tools", "proposal-log.html"));
   });
 
