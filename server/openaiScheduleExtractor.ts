@@ -3,11 +3,11 @@ import { z } from "zod";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
-const DEFAULT_MODEL = "gpt-4o-mini";
-const FALLBACK_MODEL = "gpt-4o";
-const LOW_CONFIDENCE_THRESHOLD = 80;
-const MAX_TOKENS = 16384;
+const DEFAULT_MODEL = "gpt-4o";
+const FALLBACK_MODEL = "gpt-4o-mini";
+const MAX_TOKENS = 32768;
 const MAX_CONTINUATION_ATTEMPTS = 3;
+const VERIFICATION_MIN_ITEMS = 3;
 
 const RawItemSchema = z.object({
   planCallout: z.coerce.string().default(""),
@@ -21,6 +21,7 @@ const RawItemSchema = z.object({
 });
 
 const ResponseSchema = z.object({
+  totalRowCount: z.coerce.number().optional().default(0),
   items: z.array(RawItemSchema),
 });
 
@@ -45,22 +46,36 @@ export interface ExtractionResult {
   retried: boolean;
   continuationUsed: boolean;
   possibleTruncation: boolean;
+  totalRowCount: number;
+  verified: boolean;
 }
 
-const SYSTEM_PROMPT = `You are a construction document data extractor. You will receive an image of a construction schedule (accessory schedule, fixture schedule, equipment schedule, etc).
+const SYSTEM_PROMPT = `You are a construction document data extractor specializing in accurate table reading. You will receive an image of a construction schedule (accessory schedule, fixture schedule, equipment schedule, etc).
 
 Extract every line item from the schedule table into structured JSON. Return ONLY valid JSON, no prose, no markdown fences, no explanation.
 
-CRITICAL: You MUST extract EVERY SINGLE ROW from the schedule. Do not skip any rows. Count the rows in the image carefully and ensure your output has the same number of items. If the schedule has section headers (like "096400 CUSTOM CASEWORK", "093000 TILING", "099000 PAINTING"), extract the items under ALL sections, not just the first few.
+PROCESSING METHOD — ROW-BY-ROW ANCHORING:
+1. First, identify all column headers in the schedule table.
+2. Count the total number of data rows (excluding headers and section titles). Store this as totalRowCount.
+3. Process each row one at a time, from top to bottom. For each row, read across ALL columns left to right before moving to the next row.
+4. Do NOT jump between rows or process columns independently. Stay on one row until every cell is captured.
 
-For each row in the schedule, extract:
-- planCallout: The plan callout/tag/mark (e.g. "TA-01", "PF-03", "EQ-1")
-- description: The item description PLUS all additional details from the row. Start with the main item name, then append every other detail from the schedule row that is not captured in the other fields (planCallout, manufacturer, model, quantity). This includes but is not limited to: finish, color, size, dimensions, mounting type, material, ADA compliance notes, door swing, hinge type, rating, installation notes, remarks, location, room numbers, specifications, series, options, accessories, voltage, capacity, weight, and any other column data. Separate additional details with semicolons. Example: "Paper Towel Dispenser; Surface Mounted; Satin Finish; ADA Compliant; 18 ga. stainless steel"
+CRITICAL RULES:
+- You MUST extract EVERY SINGLE ROW. Do not skip any rows for any reason.
+- Rows with empty/blank callouts: still extract them — use "" for planCallout.
+- Rows with no manufacturer or model: still extract them — use "" and add appropriate flags.
+- Multi-line cells: if a single row spans multiple lines visually, treat it as ONE item. Combine the multi-line text.
+- Sub-items or continuation lines that are clearly part of a parent row: merge them into the parent item's description.
+- Section headers (like "ACCESSORY SCHEDULE", "096400 CUSTOM CASEWORK"): these are NOT data rows. Use them as the sourceSection value for items beneath them. Do NOT count them in totalRowCount.
+
+For each row, extract:
+- planCallout: The plan callout/tag/mark (e.g. "TA-01", "PF-03", "EQ-1"). If the row has no callout, use "".
+- description: The item description PLUS ALL additional details from every other column in this row that is not planCallout, manufacturer, model, or quantity. You MUST capture every single piece of data visible in the row. This includes but is not limited to: finish, color, size, dimensions, mounting type, material, ADA compliance notes, door swing, hinge type, fire rating, installation notes, remarks, location, room numbers, specifications, series, options, accessories, voltage, capacity, weight, type, style, coating, UL listing, gauge, and ANY other column data. Separate each detail with a semicolon. Example: "Paper Towel Dispenser; Surface Mounted; Satin Finish; ADA Compliant; 18 ga. stainless steel; Type 304; UL Listed"
 - manufacturer: The manufacturer name (e.g. "Bobrick", "Kohler", "ASI")
-- model: The model number, product name, or product line exactly as shown. If there is an explicit model number (e.g. "B-2621", "K-14367-CP"), use that. If there is no model number but there IS a product name or item title shown alongside the manufacturer (e.g. "RIGID SHEET PANEL", "PALLADIUM RIGID SHEET"), use the product name/title as the model. The goal is that manufacturer + model together form a complete product identifier (e.g. manufacturer="Koroseal", model="Rigid Sheet Panel")
-- quantity: The numeric quantity as an integer. If not visible, use 0
-- sourceSection: The schedule section name from the header (e.g. "ACCESSORY SCHEDULE", "FIXTURE SCHEDULE", "FINISH SCHEDULE - 096400 CUSTOM CASEWORK")
-- confidence: Your confidence 0-100 that this row was extracted accurately
+- model: The model number, product name, or product line exactly as shown. If there is an explicit model number (e.g. "B-2621", "K-14367-CP"), use that. If there is no model number but there IS a product name or item title shown alongside the manufacturer (e.g. "RIGID SHEET PANEL", "PALLADIUM RIGID SHEET"), use the product name/title as the model. The goal is that manufacturer + model together form a complete product identifier.
+- quantity: The numeric quantity as an integer. If not visible, use 0.
+- sourceSection: The schedule section name from the nearest header above this row (e.g. "ACCESSORY SCHEDULE", "FIXTURE SCHEDULE")
+- confidence: Your confidence 0-100 that this row was extracted accurately. Lower this if any data is unclear.
 - flags: Array of issue strings. Use these exact flag values when applicable:
   "Callout uncertain" - callout text is unclear/partial
   "Model uncertain" - model number is unclear/partial
@@ -68,18 +83,52 @@ For each row in the schedule, extract:
   "Manufacturer missing" - no manufacturer identified
   "Model missing" - no model number identified
 
-IMPORTANT: Do NOT discard any information from the schedule. Every detail visible in each row must be captured. If a column exists in the schedule that is not planCallout, manufacturer, model, or quantity, its value MUST be appended to the description field.
+DESCRIPTION FIELD — ZERO DATA LOSS RULE:
+Do NOT leave any visible data from any column out of your output. Every cell in every column of the schedule row must appear somewhere in your extracted fields. If you cannot determine which field a piece of data belongs to, append it to the description field with a semicolon. It is better to have extra details in the description than to lose data.
+
+FINAL VERIFICATION:
+Before returning your response, verify:
+1. Your items array length equals totalRowCount.
+2. Every row from the image is represented.
+3. No data from one row has been accidentally placed in another row's fields.
 
 Response schema:
-{ "items": [{ "planCallout": string, "description": string, "manufacturer": string, "model": string, "quantity": number, "sourceSection": string, "confidence": number, "flags": string[] }] }`;
+{ "totalRowCount": number, "items": [{ "planCallout": string, "description": string, "manufacturer": string, "model": string, "quantity": number, "sourceSection": string, "confidence": number, "flags": string[] }] }`;
 
 const STRICT_RETRY_PROMPT = `You MUST return ONLY a valid JSON object matching this exact schema. No markdown, no code fences, no text before or after the JSON. Do not include any explanation.
 
-{ "items": [{ "planCallout": string, "description": string, "manufacturer": string, "model": string, "quantity": number, "sourceSection": string, "confidence": number, "flags": string[] }] }
+{ "totalRowCount": number, "items": [{ "planCallout": string, "description": string, "manufacturer": string, "model": string, "quantity": number, "sourceSection": string, "confidence": number, "flags": string[] }] }
 
-Extract ALL line items from the schedule image. Each field must be present in every item. The description field must include the item name PLUS all additional details from the row (finish, size, mounting, material, notes, etc.) separated by semicolons. Do not discard any information. For the model field: use the model number if one exists, otherwise use the product name or item title so that manufacturer + model together form a complete product identifier.
+PROCESSING METHOD: Process the schedule image ONE ROW AT A TIME, top to bottom. For each row, read ALL columns left to right before moving to the next row. Count all data rows first and store as totalRowCount.
 
-CRITICAL: Extract EVERY row from EVERY section. Do not stop early. If the schedule has multiple sections, you must include items from ALL sections.`;
+Extract ALL line items from the schedule image. Each field must be present in every item. The description field must include the item name PLUS ALL additional details from every column in the row (finish, size, mounting, material, notes, color, dimensions, ADA, fire rating, location, room numbers, type, style, gauge, coating, etc.) separated by semicolons. Do NOT discard any information — every cell visible in every row must appear in your output.
+
+CRITICAL: Extract EVERY row from EVERY section. Do not stop early. Do not skip rows with empty callouts or missing manufacturers. If the schedule has multiple sections, include items from ALL sections. Verify your items count matches totalRowCount.`;
+
+const VERIFICATION_PROMPT = `You are a quality assurance reviewer for construction schedule data extraction. You will receive:
+1. An image of a construction schedule
+2. The extracted data in JSON format
+
+Your job is to carefully compare each extracted item against the original image and fix any errors.
+
+CHECK FOR THESE SPECIFIC ISSUES:
+- Data from one row placed in the wrong item (row misalignment)
+- Missing rows that were not extracted
+- Incorrect quantities, model numbers, or manufacturer names
+- Description details that belong to a different row
+- Merged or split rows that should be combined or separated
+- Any column data that was dropped and not included in the description
+
+PROCESS:
+1. Go through the image row by row, top to bottom.
+2. For each row in the image, find the corresponding item in the extracted data.
+3. Verify every field matches what is shown in the image for that specific row.
+4. If you find errors, correct them.
+5. If rows are missing, add them.
+6. Update totalRowCount if it changed.
+
+Return the CORRECTED JSON in the exact same schema. Return ONLY valid JSON, no prose, no markdown fences.
+{ "totalRowCount": number, "items": [{ "planCallout": string, "description": string, "manufacturer": string, "model": string, "quantity": number, "sourceSection": string, "confidence": number, "flags": string[] }] }`;
 
 function formatModelNumber(manufacturer: string, rawModel: string, flags: string[]): string {
   const mfr = manufacturer.trim();
@@ -229,6 +278,7 @@ function tryRepairTruncatedJson(content: string): z.infer<typeof RawItemSchema>[
 
 interface CallResult {
   items: z.infer<typeof RawItemSchema>[];
+  totalRowCount: number;
   wasTruncated: boolean;
 }
 
@@ -245,7 +295,7 @@ async function callOpenAI(imageBase64: string, mimeType: string, model: string, 
     },
     {
       type: "text",
-      text: continuationPrompt || "Extract all line items from this construction schedule image. Return ONLY the JSON object, nothing else.",
+      text: continuationPrompt || "Extract all line items from this construction schedule image. Process each row one at a time, top to bottom, reading all columns left to right. Return ONLY the JSON object, nothing else.",
     },
   ];
 
@@ -272,23 +322,69 @@ async function callOpenAI(imageBase64: string, mimeType: string, model: string, 
     const repairedItems = tryRepairTruncatedJson(content);
     if (repairedItems && repairedItems.length > 0) {
       console.log(`Repaired ${repairedItems.length} items from truncated response`);
-      return { items: repairedItems, wasTruncated: true };
+      return { items: repairedItems, totalRowCount: 0, wasTruncated: true };
     }
     throw new Error("Response was truncated and could not be repaired");
   }
 
   const parsed = parseJsonFromResponse(content);
   const validated = ResponseSchema.parse(parsed);
-  return { items: validated.items, wasTruncated: false };
+  return { items: validated.items, totalRowCount: validated.totalRowCount || 0, wasTruncated: false };
 }
 
-async function extractWithContinuation(imageBase64: string, mimeType: string, model: string): Promise<{ items: z.infer<typeof RawItemSchema>[]; continuationUsed: boolean; possibleTruncation: boolean }> {
+async function verifyExtraction(imageBase64: string, mimeType: string, model: string, extractedItems: z.infer<typeof RawItemSchema>[], totalRowCount: number): Promise<{ items: z.infer<typeof RawItemSchema>[]; totalRowCount: number }> {
+  const extractedJson = JSON.stringify({ totalRowCount, items: extractedItems }, null, 2);
+
+  const userContent: any[] = [
+    {
+      type: "image_url",
+      image_url: {
+        url: `data:${mimeType};base64,${imageBase64}`,
+        detail: "high",
+      },
+    },
+    {
+      type: "text",
+      text: `Here is the extracted data from this schedule image. Please verify each row against the image and correct any errors. Pay special attention to row alignment — make sure data from each row is matched to the correct item.\n\nExtracted data:\n${extractedJson}`,
+    },
+  ];
+
+  const response = await openai.chat.completions.create({
+    model,
+    max_tokens: MAX_TOKENS,
+    temperature: 0,
+    messages: [
+      { role: "system", content: VERIFICATION_PROMPT },
+      { role: "user", content: userContent },
+    ],
+  });
+
+  const content = response.choices?.[0]?.message?.content;
+  if (!content) {
+    console.warn("Verification pass returned empty response, using original extraction");
+    return { items: extractedItems, totalRowCount };
+  }
+
+  try {
+    const parsed = parseJsonFromResponse(content);
+    const validated = ResponseSchema.parse(parsed);
+    console.log(`Verification pass completed: ${validated.items.length} items (was ${extractedItems.length})`);
+    return { items: validated.items, totalRowCount: validated.totalRowCount || totalRowCount };
+  } catch (err: any) {
+    console.warn(`Verification pass failed to parse: ${err.message}. Using original extraction.`);
+    return { items: extractedItems, totalRowCount };
+  }
+}
+
+async function extractWithContinuation(imageBase64: string, mimeType: string, model: string): Promise<{ items: z.infer<typeof RawItemSchema>[]; totalRowCount: number; continuationUsed: boolean; possibleTruncation: boolean }> {
   let allItems: z.infer<typeof RawItemSchema>[] = [];
   let continuationUsed = false;
   let possibleTruncation = false;
+  let totalRowCount = 0;
 
   const firstResult = await callOpenAI(imageBase64, mimeType, model, false);
   allItems = [...firstResult.items];
+  totalRowCount = firstResult.totalRowCount;
 
   if (firstResult.wasTruncated && allItems.length > 0) {
     continuationUsed = true;
@@ -301,13 +397,21 @@ async function extractWithContinuation(imageBase64: string, mimeType: string, mo
 
       const continuationPrompt = `Your previous response was cut off. You already extracted these items: ${allItems.map(i => i.planCallout).filter(Boolean).join(", ")}.
 
-Continue extracting the REMAINING items from the schedule image that come AFTER "${lastCallout}". Do NOT re-extract items you already provided. Return ONLY a JSON object with the remaining items in the same schema:
-{ "items": [{ "planCallout": string, "description": string, "manufacturer": string, "model": string, "quantity": number, "sourceSection": string, "confidence": number, "flags": string[] }] }`;
+Continue extracting the REMAINING items from the schedule image that come AFTER "${lastCallout}". Do NOT re-extract items you already provided. Process each remaining row one at a time, top to bottom, reading all columns left to right. Include ALL column data in the description field.
+
+Return ONLY a JSON object with the remaining items:
+{ "totalRowCount": number, "items": [{ "planCallout": string, "description": string, "manufacturer": string, "model": string, "quantity": number, "sourceSection": string, "confidence": number, "flags": string[] }] }
+
+Set totalRowCount to the TOTAL number of data rows in the entire schedule (not just the remaining ones).`;
 
       console.log(`Continuation attempt ${attempts}: requesting items after "${lastCallout}" (${allItems.length} items so far)`);
 
       try {
         const contResult = await callOpenAI(imageBase64, mimeType, model, false, continuationPrompt);
+
+        if (contResult.totalRowCount > totalRowCount) {
+          totalRowCount = contResult.totalRowCount;
+        }
 
         if (contResult.items.length === 0) {
           console.log(`Continuation returned 0 new items, stopping`);
@@ -345,7 +449,7 @@ Continue extracting the REMAINING items from the schedule image that come AFTER 
     possibleTruncation = true;
   }
 
-  return { items: allItems, continuationUsed, possibleTruncation };
+  return { items: allItems, totalRowCount, continuationUsed, possibleTruncation };
 }
 
 export async function extractScheduleWithAI(imageBuffer: Buffer, mimeType: string = "image/png"): Promise<ExtractionResult> {
@@ -356,11 +460,14 @@ export async function extractScheduleWithAI(imageBuffer: Buffer, mimeType: strin
   let retried = false;
   let continuationUsed = false;
   let possibleTruncation = false;
+  let totalRowCount = 0;
+  let verified = false;
   let allRawItems: z.infer<typeof RawItemSchema>[];
 
   try {
     const result = await extractWithContinuation(imageBase64, mimeType, DEFAULT_MODEL);
     allRawItems = result.items;
+    totalRowCount = result.totalRowCount;
     continuationUsed = result.continuationUsed;
     possibleTruncation = result.possibleTruncation;
   } catch (firstError: any) {
@@ -369,38 +476,40 @@ export async function extractScheduleWithAI(imageBuffer: Buffer, mimeType: strin
     try {
       const retryResult = await callOpenAI(imageBase64, mimeType, DEFAULT_MODEL, true);
       allRawItems = retryResult.items;
+      totalRowCount = retryResult.totalRowCount;
       if (retryResult.wasTruncated) {
         possibleTruncation = true;
       }
     } catch (retryError: any) {
-      console.error(`Retry with ${DEFAULT_MODEL} also failed: ${retryError.message}`);
-      throw new Error(`Schedule extraction failed after retry: ${retryError.message}`);
+      console.error(`Retry with ${DEFAULT_MODEL} also failed: ${retryError.message}. Trying ${FALLBACK_MODEL}...`);
+      try {
+        const fallbackResult = await extractWithContinuation(imageBase64, mimeType, FALLBACK_MODEL);
+        allRawItems = fallbackResult.items;
+        totalRowCount = fallbackResult.totalRowCount;
+        modelUsed = FALLBACK_MODEL;
+        continuationUsed = fallbackResult.continuationUsed;
+        possibleTruncation = fallbackResult.possibleTruncation;
+      } catch (fallbackError: any) {
+        throw new Error(`Schedule extraction failed with all models: ${fallbackError.message}`);
+      }
     }
   }
 
-  if (allRawItems.length > 0) {
-    const avgConfidence = allRawItems.reduce((sum, i) => sum + i.confidence, 0) / allRawItems.length;
-    if (avgConfidence < LOW_CONFIDENCE_THRESHOLD && modelUsed === DEFAULT_MODEL) {
-      console.log(`Average confidence ${avgConfidence.toFixed(1)} is below ${LOW_CONFIDENCE_THRESHOLD}. Upgrading to ${FALLBACK_MODEL}...`);
-      modelUsed = FALLBACK_MODEL;
-      try {
-        const upgraded = await extractWithContinuation(imageBase64, mimeType, FALLBACK_MODEL);
-        const upgradedAvg = upgraded.items.length > 0
-          ? upgraded.items.reduce((sum, i) => sum + i.confidence, 0) / upgraded.items.length
-          : 0;
-        if (upgradedAvg > avgConfidence) {
-          allRawItems = upgraded.items;
-          retried = true;
-          continuationUsed = continuationUsed || upgraded.continuationUsed;
-          possibleTruncation = upgraded.possibleTruncation;
-        } else {
-          modelUsed = DEFAULT_MODEL;
-        }
-      } catch (upgradeError: any) {
-        console.warn(`Upgrade to ${FALLBACK_MODEL} failed: ${upgradeError.message}. Using original results.`);
-        modelUsed = DEFAULT_MODEL;
-      }
+  if (allRawItems.length >= VERIFICATION_MIN_ITEMS) {
+    console.log(`Running verification pass on ${allRawItems.length} items...`);
+    try {
+      const verifyResult = await verifyExtraction(imageBase64, mimeType, modelUsed, allRawItems, totalRowCount);
+      allRawItems = verifyResult.items;
+      totalRowCount = verifyResult.totalRowCount;
+      verified = true;
+      console.log(`Verification complete: ${allRawItems.length} items, totalRowCount=${totalRowCount}`);
+    } catch (verifyError: any) {
+      console.warn(`Verification pass failed: ${verifyError.message}. Using original extraction.`);
     }
+  }
+
+  if (totalRowCount === 0) {
+    totalRowCount = allRawItems.length;
   }
 
   const items = applyFormattingRules(allRawItems);
@@ -414,5 +523,7 @@ export async function extractScheduleWithAI(imageBuffer: Buffer, mimeType: strin
     retried,
     continuationUsed,
     possibleTruncation,
+    totalRowCount,
+    verified,
   };
 }

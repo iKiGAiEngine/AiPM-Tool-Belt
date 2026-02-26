@@ -24,9 +24,12 @@ import {
   ArrowLeft,
   Check,
   RotateCcw,
+  Download,
+  ShieldCheck,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Link } from "wouter";
+import * as XLSX from "xlsx";
 
 interface ScheduleItem {
   planCallout: string;
@@ -49,6 +52,8 @@ interface ExtractionResult {
   retried?: boolean;
   continuationUsed?: boolean;
   possibleTruncation?: boolean;
+  totalRowCount?: number;
+  verified?: boolean;
 }
 
 export default function ScheduleConverterPage() {
@@ -88,13 +93,14 @@ export default function ScheduleConverterPage() {
     },
     onSuccess: (data) => {
       setResult(data);
-      setEditedItems(data.items.map(item => ({ ...item, needsReview: false })));
+      setEditedItems(data.items.map(item => ({ ...item })));
       const modelInfo = data.modelUsed ? ` via ${data.modelUsed}` : "";
       const retriedInfo = data.retried ? " (auto-upgraded)" : "";
       const contInfo = data.continuationUsed ? " (multi-pass)" : "";
+      const verifiedInfo = data.verified ? " (verified)" : "";
       toast({
         title: data.possibleTruncation ? "Schedule Partially Extracted" : "Schedule Extracted",
-        description: `Found ${data.items.length} line item${data.items.length !== 1 ? "s" : ""} in ${(data.processingTimeMs / 1000).toFixed(1)}s${modelInfo}${retriedInfo}${contInfo}`,
+        description: `Found ${data.items.length} line item${data.items.length !== 1 ? "s" : ""} in ${(data.processingTimeMs / 1000).toFixed(1)}s${modelInfo}${retriedInfo}${contInfo}${verifiedInfo}`,
         variant: data.possibleTruncation ? "destructive" : "default",
       });
       if (data.possibleTruncation) {
@@ -216,7 +222,7 @@ export default function ScheduleConverterPage() {
     );
     const tsv = [headers.join("\t"), ...rows].join("\n");
     navigator.clipboard.writeText(tsv);
-    toast({ title: "Copied!", description: "Table copied to clipboard as TSV" });
+    toast({ title: "Copied!", description: "Table copied to clipboard as TSV (NBS format)" });
   }, [editedItems, toast]);
 
   const copyApproved = useCallback(() => {
@@ -233,13 +239,47 @@ export default function ScheduleConverterPage() {
     navigator.clipboard.writeText(tsv);
     toast({
       title: "Approved rows copied!",
-      description: `${approved.length} row${approved.length !== 1 ? "s" : ""} copied to clipboard`,
+      description: `${approved.length} row${approved.length !== 1 ? "s" : ""} copied to clipboard (NBS format)`,
+    });
+  }, [editedItems, toast]);
+
+  const downloadExcel = useCallback(() => {
+    const headers = ["Plan Callout", "Description", "Manufacturer", "Model", "Quantity", "Source Section"];
+    const rows = editedItems.map(item => [
+      item.planCallout || "",
+      item.description || "",
+      item.manufacturer || "",
+      item.rawModel || "",
+      item.quantity != null ? item.quantity : 0,
+      item.sourceSection || "",
+    ]);
+
+    const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+
+    ws["!cols"] = [
+      { wch: 14 },
+      { wch: 55 },
+      { wch: 18 },
+      { wch: 22 },
+      { wch: 10 },
+      { wch: 28 },
+    ];
+
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Schedule");
+
+    const today = new Date().toISOString().split("T")[0];
+    XLSX.writeFile(wb, `Schedule_Extract_${today}.xlsx`);
+
+    toast({
+      title: "Excel downloaded!",
+      description: `${editedItems.length} row${editedItems.length !== 1 ? "s" : ""} exported with all columns`,
     });
   }, [editedItems, toast]);
 
   const resetToOriginal = () => {
     if (result) {
-      setEditedItems(result.items.map(item => ({ ...item, needsReview: false })));
+      setEditedItems(result.items.map(item => ({ ...item })));
       setEditingCell(null);
       toast({ title: "Reset", description: "All edits reverted to original extraction" });
     }
@@ -247,6 +287,8 @@ export default function ScheduleConverterPage() {
 
   const reviewCount = editedItems.filter(i => i.needsReview).length;
   const totalCount = editedItems.length;
+  const expectedCount = result?.totalRowCount || 0;
+  const countMismatch = expectedCount > 0 && totalCount !== expectedCount;
 
   const getConfidenceBadge = (confidence: number) => {
     if (confidence >= 90) return <Badge variant="outline" className="text-green-600 border-green-600/30 bg-green-500/10 text-xs" data-testid="badge-confidence-high">{confidence}%</Badge>;
@@ -405,20 +447,50 @@ export default function ScheduleConverterPage() {
                 </div>
               </Card>
             )}
+            {countMismatch && (
+              <Card className="mb-4 border-amber-500/50 bg-amber-500/5" data-testid="warning-count-mismatch">
+                <div className="p-4 flex items-start gap-3">
+                  <AlertTriangle className="w-5 h-5 text-amber-500 mt-0.5 shrink-0" />
+                  <div>
+                    <p className="font-medium text-sm">Row count mismatch</p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      AI detected {expectedCount} row{expectedCount !== 1 ? "s" : ""} in the image but extracted {totalCount}. Please verify against your original image.
+                    </p>
+                  </div>
+                </div>
+              </Card>
+            )}
             <Card className="mb-6">
               <div className="p-4 border-b flex items-center justify-between gap-4 flex-wrap">
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-3 flex-wrap">
                   <h2 className="font-medium font-heading">Extracted Items</h2>
-                  <Badge variant="secondary" className="text-xs" data-testid="badge-total-count">
-                    {totalCount} item{totalCount !== 1 ? "s" : ""}
-                  </Badge>
+                  {expectedCount > 0 && !countMismatch ? (
+                    <Badge variant="secondary" className="text-xs" data-testid="badge-row-count">
+                      {totalCount} of {expectedCount} rows
+                    </Badge>
+                  ) : (
+                    <Badge variant="secondary" className="text-xs" data-testid="badge-total-count">
+                      {totalCount} item{totalCount !== 1 ? "s" : ""}
+                    </Badge>
+                  )}
+                  {countMismatch && (
+                    <Badge variant="outline" className="text-amber-500 border-amber-500/30 bg-amber-500/10 text-xs" data-testid="badge-count-warning">
+                      Expected {expectedCount}
+                    </Badge>
+                  )}
+                  {result?.verified && (
+                    <Badge variant="outline" className="text-green-600 border-green-600/30 bg-green-500/10 text-xs" data-testid="badge-verified">
+                      <ShieldCheck className="w-3 h-3 mr-1" />
+                      Verified
+                    </Badge>
+                  )}
                   {reviewCount > 0 && (
                     <Badge variant="outline" className="text-yellow-600 border-yellow-600/30 bg-yellow-500/10 text-xs" data-testid="badge-review-count">
                       {reviewCount} need{reviewCount !== 1 ? "" : "s"} review
                     </Badge>
                   )}
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
                   <Button
                     variant="ghost"
                     size="sm"
@@ -428,22 +500,34 @@ export default function ScheduleConverterPage() {
                     <RotateCcw className="w-3.5 h-3.5 mr-1.5" />
                     Reset
                   </Button>
+                  <div className="flex items-center gap-1.5">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={copyTSV}
+                      data-testid="button-copy-all"
+                    >
+                      <Copy className="w-3.5 h-3.5 mr-1.5" />
+                      Copy All (TSV)
+                    </Button>
+                    <Button
+                      size="sm"
+                      onClick={copyApproved}
+                      data-testid="button-approve-copy"
+                    >
+                      <Check className="w-3.5 h-3.5 mr-1.5" />
+                      Approve & Copy
+                    </Button>
+                  </div>
+                  <div className="w-px h-6 bg-border mx-1" />
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={copyTSV}
-                    data-testid="button-copy-all"
+                    onClick={downloadExcel}
+                    data-testid="button-download-excel"
                   >
-                    <Copy className="w-3.5 h-3.5 mr-1.5" />
-                    Copy All (TSV)
-                  </Button>
-                  <Button
-                    size="sm"
-                    onClick={copyApproved}
-                    data-testid="button-approve-copy"
-                  >
-                    <Check className="w-3.5 h-3.5 mr-1.5" />
-                    Approve & Copy
+                    <Download className="w-3.5 h-3.5 mr-1.5" />
+                    Download Excel
                   </Button>
                 </div>
               </div>
@@ -573,8 +657,11 @@ export default function ScheduleConverterPage() {
                   <div className="mt-3 p-3 bg-muted/50 rounded-md text-xs font-mono space-y-1">
                     <p>Model: {result.modelUsed || "unknown"}</p>
                     <p>Items extracted: {result.items.length}</p>
+                    {expectedCount > 0 && <p>Rows detected in image: {expectedCount}</p>}
                     <p>Processing time: {(result.processingTimeMs / 1000).toFixed(1)}s</p>
+                    {result.verified && <p className="text-green-400">Verification pass completed</p>}
                     {result.retried && <p className="text-amber-400">Auto-upgraded model for better accuracy</p>}
+                    {result.continuationUsed && <p className="text-blue-400">Multi-pass extraction used</p>}
                   </div>
                 </details>
               </Card>
@@ -589,7 +676,7 @@ export default function ScheduleConverterPage() {
               Analyzing schedule with AI vision...
             </p>
             <p className="text-xs text-muted-foreground mt-1">
-              This may take 5-15 seconds
+              This may take 10-30 seconds (includes verification pass)
             </p>
           </Card>
         )}
