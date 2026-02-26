@@ -5,7 +5,7 @@ const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 const DEFAULT_MODEL = "gpt-4o";
 const FALLBACK_MODEL = "gpt-4o-mini";
-const MAX_TOKENS = 32768;
+const MAX_TOKENS = 16384;
 const MAX_CONTINUATION_ATTEMPTS = 3;
 const VERIFICATION_MIN_ITEMS = 3;
 

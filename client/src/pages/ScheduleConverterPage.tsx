@@ -66,6 +66,7 @@ export default function ScheduleConverterPage() {
   const [editingCell, setEditingCell] = useState<{ row: number; col: string } | null>(null);
   const [editDraft, setEditDraft] = useState<string>("");
   const [isFocused, setIsFocused] = useState(false);
+  const [outputMode, setOutputMode] = useState<"nbs" | "excel">("nbs");
 
   const handleImageFile = useCallback((file: File) => {
     setImageFile(file);
@@ -500,35 +501,62 @@ export default function ScheduleConverterPage() {
                     <RotateCcw className="w-3.5 h-3.5 mr-1.5" />
                     Reset
                   </Button>
-                  <div className="flex items-center gap-1.5">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={copyTSV}
-                      data-testid="button-copy-all"
+                  <div className="flex items-center rounded-md border border-border overflow-hidden" data-testid="toggle-output-mode">
+                    <button
+                      type="button"
+                      onClick={() => setOutputMode("nbs")}
+                      className="px-3 py-1.5 text-xs font-heading font-semibold uppercase tracking-wide transition-colors"
+                      style={{
+                        background: outputMode === "nbs" ? "var(--gold)" : "transparent",
+                        color: outputMode === "nbs" ? "#0D0D0F" : "var(--text-dim)",
+                      }}
+                      data-testid="toggle-nbs"
                     >
-                      <Copy className="w-3.5 h-3.5 mr-1.5" />
-                      Copy All (TSV)
-                    </Button>
-                    <Button
-                      size="sm"
-                      onClick={copyApproved}
-                      data-testid="button-approve-copy"
+                      NBS Template
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setOutputMode("excel")}
+                      className="px-3 py-1.5 text-xs font-heading font-semibold uppercase tracking-wide transition-colors border-l border-border"
+                      style={{
+                        background: outputMode === "excel" ? "var(--gold)" : "transparent",
+                        color: outputMode === "excel" ? "#0D0D0F" : "var(--text-dim)",
+                      }}
+                      data-testid="toggle-excel"
                     >
-                      <Check className="w-3.5 h-3.5 mr-1.5" />
-                      Approve & Copy
-                    </Button>
+                      Standard Excel
+                    </button>
                   </div>
-                  <div className="w-px h-6 bg-border mx-1" />
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={downloadExcel}
-                    data-testid="button-download-excel"
-                  >
-                    <Download className="w-3.5 h-3.5 mr-1.5" />
-                    Download Excel
-                  </Button>
+                  {outputMode === "nbs" ? (
+                    <div className="flex items-center gap-1.5">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={copyTSV}
+                        data-testid="button-copy-all"
+                      >
+                        <Copy className="w-3.5 h-3.5 mr-1.5" />
+                        Copy All (TSV)
+                      </Button>
+                      <Button
+                        size="sm"
+                        onClick={copyApproved}
+                        data-testid="button-approve-copy"
+                      >
+                        <Check className="w-3.5 h-3.5 mr-1.5" />
+                        Approve & Copy
+                      </Button>
+                    </div>
+                  ) : (
+                    <Button
+                      size="sm"
+                      onClick={downloadExcel}
+                      data-testid="button-download-excel"
+                    >
+                      <Download className="w-3.5 h-3.5 mr-1.5" />
+                      Download Excel
+                    </Button>
+                  )}
                 </div>
               </div>
 
