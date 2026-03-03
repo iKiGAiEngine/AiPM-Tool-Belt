@@ -61,6 +61,33 @@ function sanitizeFilename(name: string): string {
   return name.replace(/[\r\n\t]+/g, " ").replace(/\s{2,}/g, " ").replace(/[^a-zA-Z0-9 \-_().]/g, "").trim() || "Untitled";
 }
 
+const MAX_TITLE_LENGTH = 40;
+const MAX_PROJECT_NAME_LENGTH = 30;
+const MAX_FOLDER_NAME_LENGTH = 50;
+
+function truncateAtWord(str: string, maxLen: number): string {
+  if (str.length <= maxLen) return str;
+  const truncated = str.slice(0, maxLen);
+  const lastSpace = truncated.lastIndexOf(" ");
+  if (lastSpace > maxLen * 0.5) {
+    return truncated.slice(0, lastSpace).replace(/[\s\-]+$/, "");
+  }
+  return truncated.replace(/[\s\-]+$/, "");
+}
+
+function buildPdfFilename(sectionNumber: string, title: string, projectName: string): string {
+  const safeTitle = truncateAtWord(sanitizeFilename(title), MAX_TITLE_LENGTH);
+  const safeProject = truncateAtWord(sanitizeFilename(projectName), MAX_PROJECT_NAME_LENGTH);
+  return `${sectionNumber} - ${safeTitle} - ${safeProject}.pdf`;
+}
+
+function buildFolderName(sectionNumber: string, title: string): string {
+  const prefix = `${sectionNumber} - `;
+  const maxTitleLen = MAX_FOLDER_NAME_LENGTH - prefix.length;
+  const safeTitle = truncateAtWord(sanitizeFilename(title), maxTitleLen);
+  return `${prefix}${safeTitle}`;
+}
+
 export function registerSpecExtractorRoutes(app: Express) {
   app.post("/api/spec-extractor/upload", upload.single("file"), async (req: Request, res: Response) => {
     try {
@@ -197,8 +224,8 @@ export function registerSpecExtractorRoutes(app: Express) {
             errors.push(`${section.sectionNumber}: Generated PDF was empty`);
             continue;
           }
-          const safeFolderName = sanitizeFilename(section.folderName);
-          const pdfFileName = `${section.sectionNumber} - ${sanitizeFilename(section.title)} - ${projectName}.pdf`;
+          const safeFolderName = truncateAtWord(sanitizeFilename(section.folderName), MAX_FOLDER_NAME_LENGTH);
+          const pdfFileName = buildPdfFilename(section.sectionNumber, section.title, projectName);
 
           const folder = zip.folder(safeFolderName);
           if (folder) {
@@ -493,7 +520,7 @@ async function applyAiReviews(reviews: { id: string; status: string; suggestedTi
 
     if (review.status === "suggested_change" && review.suggestedTitle && review.suggestedTitle !== section.title) {
       updates.title = review.suggestedTitle.trim();
-      updates.folderName = `${section.sectionNumber} - ${review.suggestedTitle.trim()}`;
+      updates.folderName = buildFolderName(section.sectionNumber, review.suggestedTitle.trim());
     }
 
     await db.update(specExtractorSections)

@@ -732,12 +732,14 @@ export default function SpecExtractorPage() {
                     {accessoryScopes.map((scope) => {
                       const isActive = selectedAccessories.has(scope.name);
                       return (
-                        <button
+                        <div
                           key={scope.name}
-                          type="button"
+                          role="button"
+                          tabIndex={0}
                           onClick={() => toggleAccessory(scope.name)}
+                          onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggleAccessory(scope.name); } }}
                           className={cn(
-                            "flex items-center gap-2 rounded-md border px-3 py-2 text-left text-sm transition-colors",
+                            "flex items-center gap-2 rounded-md border px-3 py-2 text-left text-sm transition-colors cursor-pointer",
                             isActive
                               ? "border-[var(--gold)] text-foreground"
                               : "border-border text-muted-foreground hover-elevate"
@@ -752,7 +754,7 @@ export default function SpecExtractorPage() {
                             data-testid={`checkbox-accessory-${scope.name.replace(/[\s\/]/g, "-").toLowerCase()}`}
                           />
                           <span className="block truncate font-medium text-xs">{scope.name}</span>
-                        </button>
+                        </div>
                       );
                     })}
                   </div>
