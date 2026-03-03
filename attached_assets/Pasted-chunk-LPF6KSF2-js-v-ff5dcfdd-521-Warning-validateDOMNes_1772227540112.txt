@@ -1,0 +1,28 @@
+chunk-LPF6KSF2.js?v=ff5dcfdd:521 Warning: validateDOMNesting(...): <button> cannot appear as a descendant of <button>.
+    at button
+    at https://f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/@radix-ui_react-checkbox.js?v=ff5dcfdd:362:13
+    at https://f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/@radix-ui_react-checkbox.js?v=ff5dcfdd:433:6
+    at Provider (https://f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/chunk-6BRII5CC.js?v=ff5dcfdd:37:15)
+    at CheckboxProvider (https://f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/@radix-ui_react-checkbox.js?v=ff5dcfdd:380:5)
+    at https://f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/@radix-ui_react-checkbox.js?v=ff5dcfdd:487:7
+    at _c (https://f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.dev/src/components/ui/checkbox.tsx:22:11)
+    at button
+    at div
+    at div
+    at div
+    at div
+    at div
+    at div
+    at SpecExtractorPage (https://f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.dev/src/pages/SpecExtractorPage.tsx:56:3)
+    at Route (https://f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/wouter.js?v=ff5dcfdd:322:16)
+    at Switch (https://f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/wouter.js?v=ff5dcfdd:378:17)
+    at Router
+    at div
+    at TestModeProvider (https://f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.dev/src/lib/testMode.tsx:25:36)
+    at AuthGate (https://f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.dev/src/App.tsx:151:51)
+    at AuthProvider (https://f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.dev/src/lib/auth.tsx:29:32)
+    at Provider (https://f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/chunk-6BRII5CC.js?v=ff5dcfdd:37:15)
+    at TooltipProvider (https://f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/@radix-ui_react-tooltip.js?v=ff5dcfdd:159:5)
+    at ThemeProvider (https://f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.dev/src/lib/theme.tsx:20:33)
+    at QueryClientProvider (https://f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/@tanstack_react-query.js?v=ff5dcfdd:2747:3)
+    at App
