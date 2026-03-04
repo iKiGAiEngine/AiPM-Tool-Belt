@@ -508,7 +508,7 @@ export default function ScheduleConverterPage() {
                       className="px-3 py-1.5 text-xs font-heading font-semibold uppercase tracking-wide transition-colors"
                       style={{
                         background: outputMode === "nbs" ? "var(--gold)" : "transparent",
-                        color: outputMode === "nbs" ? "#0D0D0F" : "var(--text-dim)",
+                        color: outputMode === "nbs" ? "var(--bg)" : "var(--text-dim)",
                       }}
                       data-testid="toggle-nbs"
                     >
@@ -520,7 +520,7 @@ export default function ScheduleConverterPage() {
                       className="px-3 py-1.5 text-xs font-heading font-semibold uppercase tracking-wide transition-colors border-l border-border"
                       style={{
                         background: outputMode === "excel" ? "var(--gold)" : "transparent",
-                        color: outputMode === "excel" ? "#0D0D0F" : "var(--text-dim)",
+                        color: outputMode === "excel" ? "var(--bg)" : "var(--text-dim)",
                       }}
                       data-testid="toggle-excel"
                     >
