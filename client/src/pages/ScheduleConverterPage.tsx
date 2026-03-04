@@ -59,8 +59,10 @@ interface ExtractionResult {
 export default function ScheduleConverterPage() {
   useToolUsage("scheduleconverter");
   const { toast } = useToast();
+  const [inputMode, setInputMode] = useState<"image" | "text">("image");
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [scheduleText, setScheduleText] = useState<string>("");
   const [result, setResult] = useState<ExtractionResult | null>(null);
   const [editedItems, setEditedItems] = useState<ScheduleItem[]>([]);
   const [editingCell, setEditingCell] = useState<{ row: number; col: string } | null>(null);

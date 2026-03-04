@@ -1,7 +1,7 @@
 import type { Express, Request, Response } from "express";
 import multer from "multer";
 import { extractScheduleFromImage } from "./scheduleConverter";
-import { extractScheduleWithAI } from "./openaiScheduleExtractor";
+import { extractScheduleWithAI, extractScheduleFromText } from "./openaiScheduleExtractor";
 
 const imageUpload = multer({
   storage: multer.memoryStorage(),
@@ -57,6 +57,25 @@ export function registerScheduleConverterRoutes(app: Express) {
     } catch (error: any) {
       console.error("AI schedule extraction error:", error);
       res.status(500).json({ message: error.message || "Failed to extract schedule with AI" });
+    }
+  });
+
+  app.post("/api/toolbelt/schedule-text-to-estimate", async (req: Request, res: Response) => {
+    try {
+      const { text } = req.body;
+      if (!text || typeof text !== "string" || text.trim().length === 0) {
+        return res.status(400).json({ message: "No schedule text provided" });
+      }
+
+      if (!process.env.OPENAI_API_KEY) {
+        return res.status(500).json({ message: "OpenAI API key not configured" });
+      }
+
+      const result = await extractScheduleFromText(text.trim());
+      res.json(result);
+    } catch (error: any) {
+      console.error("Text schedule extraction error:", error);
+      res.status(500).json({ message: error.message || "Failed to extract schedule from text" });
     }
   });
 }

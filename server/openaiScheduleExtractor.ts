@@ -452,6 +452,93 @@ Set totalRowCount to the TOTAL number of data rows in the entire schedule (not j
   return { items: allItems, totalRowCount, continuationUsed, possibleTruncation };
 }
 
+const TEXT_SYSTEM_PROMPT = `You are a construction document data extractor. You will receive raw text from a construction schedule (accessory schedule, fixture schedule, equipment schedule, etc) that was copied/pasted from a document, email, or spreadsheet.
+
+Parse every line item from the text into structured JSON. Return ONLY valid JSON, no prose, no markdown fences, no explanation.
+
+PROCESSING METHOD:
+1. Identify columns or data patterns in the text (tabs, pipes, consistent spacing, CSV, or free-form lists).
+2. Count the total number of data rows (excluding headers and section titles). Store this as totalRowCount.
+3. Process each row one at a time, from top to bottom.
+
+CRITICAL RULES:
+- Extract EVERY SINGLE data row. Do not skip any rows.
+- Rows with empty/blank callouts: still extract them — use "" for planCallout.
+- Rows with no manufacturer or model: still extract them — use "" and add appropriate flags.
+- If the text has tab-separated or pipe-separated columns, use those delimiters to identify fields.
+- If the text is free-form (paragraph-style), identify each distinct item/product and extract it as a separate row.
+
+For each row, extract:
+- planCallout: The plan callout/tag/mark (e.g. "TA-01", "PF-03"). If none, use "".
+- description: The item description PLUS ALL additional details that don't map to other fields. Include finish, color, size, dimensions, mounting type, material, notes, remarks, location, room numbers, etc. Separate each detail with a semicolon.
+- manufacturer: The manufacturer name (e.g. "Bobrick", "Kohler", "ASI")
+- model: The model number or product name exactly as shown.
+- quantity: The numeric quantity as an integer. If not visible, use 0.
+- sourceSection: The schedule section name from the nearest header above this row (e.g. "ACCESSORY SCHEDULE"). If none, use "".
+- confidence: Your confidence 0-100 that this row was extracted accurately.
+- flags: Array of issue strings: "Callout uncertain", "Model uncertain", "Quantity uncertain", "Manufacturer missing", "Model missing"
+
+DESCRIPTION FIELD — ZERO DATA LOSS RULE:
+Do NOT leave any data out. Every piece of text in the row must appear somewhere in your extracted fields. If unsure where it belongs, append it to description with a semicolon.
+
+Response schema:
+{ "totalRowCount": number, "items": [{ "planCallout": string, "description": string, "manufacturer": string, "model": string, "quantity": number, "sourceSection": string, "confidence": number, "flags": string[] }] }`;
+
+export async function extractScheduleFromText(text: string): Promise<ExtractionResult> {
+  const startTime = Date.now();
+  const modelUsed = DEFAULT_MODEL;
+
+  const response = await openai.chat.completions.create({
+    model: modelUsed,
+    max_tokens: MAX_TOKENS,
+    messages: [
+      { role: "system", content: TEXT_SYSTEM_PROMPT },
+      { role: "user", content: `Here is the schedule text to parse:\n\n${text}` },
+    ],
+  });
+
+  const content = response.choices?.[0]?.message?.content;
+  if (!content) {
+    throw new Error("No response from AI model");
+  }
+
+  let parsed: unknown;
+  try {
+    parsed = parseJsonFromResponse(content);
+  } catch {
+    const retryResponse = await openai.chat.completions.create({
+      model: modelUsed,
+      max_tokens: MAX_TOKENS,
+      messages: [
+        { role: "system", content: STRICT_RETRY_PROMPT.replace(/schedule image/g, "schedule text") },
+        { role: "user", content: `Here is the schedule text to parse:\n\n${text}` },
+      ],
+    });
+    const retryContent = retryResponse.choices?.[0]?.message?.content;
+    if (!retryContent) throw new Error("No response on retry");
+    parsed = parseJsonFromResponse(retryContent);
+  }
+
+  const validated = ResponseSchema.parse(parsed);
+  const allRawItems = validated.items;
+  let totalRowCount = validated.totalRowCount || allRawItems.length;
+
+  const items = applyFormattingRules(allRawItems);
+  const processingTimeMs = Date.now() - startTime;
+
+  return {
+    items,
+    rawText: text.slice(0, 500),
+    processingTimeMs,
+    modelUsed,
+    retried: false,
+    continuationUsed: false,
+    possibleTruncation: false,
+    totalRowCount,
+    verified: false,
+  };
+}
+
 export async function extractScheduleWithAI(imageBuffer: Buffer, mimeType: string = "image/png"): Promise<ExtractionResult> {
   const startTime = Date.now();
   const imageBase64 = imageBuffer.toString("base64");
