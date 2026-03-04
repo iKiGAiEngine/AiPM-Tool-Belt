@@ -26,6 +26,7 @@ import {
   RotateCcw,
   Download,
   ShieldCheck,
+  Type,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Link } from "wouter";
@@ -113,6 +114,37 @@ export default function ScheduleConverterPage() {
           variant: "destructive",
         });
       }
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Extraction Failed",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const textExtractMutation = useMutation({
+    mutationFn: async (text: string) => {
+      const response = await fetch("/api/toolbelt/schedule-text-to-estimate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text }),
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.message || "Failed to extract schedule from text");
+      }
+      return data as ExtractionResult;
+    },
+    onSuccess: (data) => {
+      setResult(data);
+      setEditedItems(data.items.map(item => ({ ...item })));
+      const modelInfo = data.modelUsed ? ` via ${data.modelUsed}` : "";
+      toast({
+        title: "Schedule Extracted",
+        description: `Found ${data.items.length} line item${data.items.length !== 1 ? "s" : ""} in ${(data.processingTimeMs / 1000).toFixed(1)}s${modelInfo}`,
+      });
     },
     onError: (error: Error) => {
       toast({
@@ -316,111 +348,192 @@ export default function ScheduleConverterPage() {
             </div>
           </div>
           <p className="text-muted-foreground ml-12">
-            Upload a schedule screenshot to extract line items into a copy/paste-ready estimate table.
+            Upload a schedule screenshot or paste schedule text to extract line items into a copy/paste-ready estimate table.
           </p>
         </div>
 
-        <Card className="p-6 mb-8 card-accent-bar">
-          <div className="flex items-center gap-2 mb-4">
-            <ImageIcon className="w-5 h-5" style={{ color: "var(--gold)" }} />
-            <h2 className="font-medium font-heading">Schedule Screenshot</h2>
-          </div>
-          <div
-            tabIndex={0}
-            onPaste={handlePaste}
-            onFocus={() => setIsFocused(true)}
-            onBlur={() => setIsFocused(false)}
-            onDragOver={(e) => { e.preventDefault(); setIsFocused(true); }}
-            onDragLeave={() => setIsFocused(false)}
-            onDrop={handleDrop}
-            onClick={imageFile ? undefined : handleClickPaste}
-            className={`border-2 border-dashed rounded-md p-8 text-center cursor-pointer transition-all duration-200 outline-none ${
-              isFocused
-                ? "border-[var(--gold)] ring-2 ring-[rgba(200,164,78,0.3)]"
-                : imageFile
-                ? "border-green-500 bg-green-950/30"
-                : "border-border hover:border-[rgba(200,164,78,0.5)]"
-            }`}
-            style={isFocused ? { background: "rgba(200,164,78,0.1)" } : undefined}
-            data-testid="dropzone-schedule"
-          >
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/*"
-              className="hidden"
-              onChange={(e) => {
-                const file = e.target.files?.[0];
-                if (file) handleImageFile(file);
+        <div className="flex items-center gap-2 mb-4">
+          <div className="flex items-center rounded-md border border-border overflow-hidden" data-testid="toggle-input-mode">
+            <button
+              type="button"
+              onClick={() => setInputMode("image")}
+              className="flex items-center gap-1.5 px-4 py-2 text-xs font-heading font-semibold uppercase tracking-wide transition-colors"
+              style={{
+                background: inputMode === "image" ? "var(--gold)" : "transparent",
+                color: inputMode === "image" ? "var(--bg)" : "var(--text-dim)",
               }}
-              data-testid="input-schedule-file"
+              data-testid="toggle-input-image"
+            >
+              <ImageIcon className="w-3.5 h-3.5" />
+              Image
+            </button>
+            <button
+              type="button"
+              onClick={() => setInputMode("text")}
+              className="flex items-center gap-1.5 px-4 py-2 text-xs font-heading font-semibold uppercase tracking-wide transition-colors border-l border-border"
+              style={{
+                background: inputMode === "text" ? "var(--gold)" : "transparent",
+                color: inputMode === "text" ? "var(--bg)" : "var(--text-dim)",
+              }}
+              data-testid="toggle-input-text"
+            >
+              <Type className="w-3.5 h-3.5" />
+              Text
+            </button>
+          </div>
+        </div>
+
+        {inputMode === "image" ? (
+          <Card className="p-6 mb-8 card-accent-bar">
+            <div className="flex items-center gap-2 mb-4">
+              <ImageIcon className="w-5 h-5" style={{ color: "var(--gold)" }} />
+              <h2 className="font-medium font-heading">Schedule Screenshot</h2>
+            </div>
+            <div
+              tabIndex={0}
+              onPaste={handlePaste}
+              onFocus={() => setIsFocused(true)}
+              onBlur={() => setIsFocused(false)}
+              onDragOver={(e) => { e.preventDefault(); setIsFocused(true); }}
+              onDragLeave={() => setIsFocused(false)}
+              onDrop={handleDrop}
+              onClick={imageFile ? undefined : handleClickPaste}
+              className={`border-2 border-dashed rounded-md p-8 text-center cursor-pointer transition-all duration-200 outline-none ${
+                isFocused
+                  ? "border-[var(--gold)] ring-2 ring-[rgba(200,164,78,0.3)]"
+                  : imageFile
+                  ? "border-green-500 bg-green-950/30"
+                  : "border-border hover:border-[rgba(200,164,78,0.5)]"
+              }`}
+              style={isFocused ? { background: "rgba(200,164,78,0.1)" } : undefined}
+              data-testid="dropzone-schedule"
+            >
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) handleImageFile(file);
+                }}
+                data-testid="input-schedule-file"
+              />
+              {imageFile ? (
+                <div className="flex flex-col items-center gap-3">
+                  <CheckCircle2 className="w-8 h-8 text-green-600" />
+                  <p className="font-medium text-foreground">{imageFile.name}</p>
+                  {imagePreview && (
+                    <img
+                      src={imagePreview}
+                      alt="Schedule preview"
+                      className="max-h-48 max-w-full rounded-md border border-border mt-2"
+                      data-testid="img-preview"
+                    />
+                  )}
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setImageFile(null);
+                      setImagePreview(null);
+                      setResult(null);
+                      setEditedItems([]);
+                    }}
+                    data-testid="button-remove-image"
+                  >
+                    Remove
+                  </Button>
+                </div>
+              ) : (
+                <div className="flex flex-col items-center gap-3">
+                  <Camera className="w-10 h-10" style={{ color: "rgba(200,164,78,0.7)" }} />
+                  <p className="font-medium text-foreground">
+                    Click to paste from clipboard
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    or drag and drop, or press <kbd className="px-1.5 py-0.5 rounded bg-muted text-xs font-mono">Ctrl+V</kbd>
+                  </p>
+                  <button
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); fileInputRef.current?.click(); }}
+                    className="text-xs hover:underline mt-1"
+                    style={{ color: "var(--gold)" }}
+                    data-testid="button-browse-files"
+                  >
+                    Browse files instead
+                  </button>
+                </div>
+              )}
+            </div>
+          </Card>
+        ) : (
+          <Card className="p-6 mb-8 card-accent-bar">
+            <div className="flex items-center gap-2 mb-4">
+              <Type className="w-5 h-5" style={{ color: "var(--gold)" }} />
+              <h2 className="font-medium font-heading">Schedule Text</h2>
+            </div>
+            <textarea
+              value={scheduleText}
+              onChange={(e) => setScheduleText(e.target.value)}
+              placeholder={"Paste your schedule text here...\n\nSupports tab-separated, comma-separated, pipe-separated, or free-form text.\n\nExample:\nTA-01\tPaper Towel Dispenser\tBobrick\tB-2621\t12\nTA-02\tSoap Dispenser\tASI\t0361\t8"}
+              className="w-full min-h-[200px] rounded-md border border-border p-4 text-sm font-mono resize-y transition-colors focus:border-[var(--gold)] focus:outline-none focus:ring-2 focus:ring-[rgba(200,164,78,0.3)]"
+              style={{ background: "var(--bg-input)", color: "var(--text)" }}
+              data-testid="textarea-schedule-text"
             />
-            {imageFile ? (
-              <div className="flex flex-col items-center gap-3">
-                <CheckCircle2 className="w-8 h-8 text-green-600" />
-                <p className="font-medium text-foreground">{imageFile.name}</p>
-                {imagePreview && (
-                  <img
-                    src={imagePreview}
-                    alt="Schedule preview"
-                    className="max-h-48 max-w-full rounded-md border border-border mt-2"
-                    data-testid="img-preview"
-                  />
-                )}
+            <div className="flex items-center justify-between mt-3">
+              <p className="text-xs text-muted-foreground">
+                {scheduleText.trim() ? `${scheduleText.trim().split('\n').length} line${scheduleText.trim().split('\n').length !== 1 ? 's' : ''}` : 'No text entered'}
+              </p>
+              {scheduleText.trim() && (
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setImageFile(null);
-                    setImagePreview(null);
-                    setResult(null);
-                    setEditedItems([]);
-                  }}
-                  data-testid="button-remove-image"
+                  onClick={() => { setScheduleText(""); setResult(null); setEditedItems([]); }}
+                  data-testid="button-clear-text"
                 >
-                  Remove
+                  Clear
                 </Button>
-              </div>
-            ) : (
-              <div className="flex flex-col items-center gap-3">
-                <Camera className="w-10 h-10" style={{ color: "rgba(200,164,78,0.7)" }} />
-                <p className="font-medium text-foreground">
-                  Click to paste from clipboard
-                </p>
-                <p className="text-sm text-muted-foreground">
-                  or drag and drop, or press <kbd className="px-1.5 py-0.5 rounded bg-muted text-xs font-mono">Ctrl+V</kbd>
-                </p>
-                <button
-                  type="button"
-                  onClick={(e) => { e.stopPropagation(); fileInputRef.current?.click(); }}
-                  className="text-xs hover:underline mt-1"
-                  style={{ color: "var(--gold)" }}
-                  data-testid="button-browse-files"
-                >
-                  Browse files instead
-                </button>
-              </div>
-            )}
-          </div>
-        </Card>
+              )}
+            </div>
+          </Card>
+        )}
 
         <div className="flex justify-center mb-8">
-          <Button
-            size="lg"
-            onClick={() => imageFile && extractMutation.mutate(imageFile)}
-            disabled={!imageFile || extractMutation.isPending}
-            data-testid="button-extract"
-          >
-            {extractMutation.isPending ? (
-              <>
-                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                Extracting...
-              </>
-            ) : (
-              "Extract Schedule"
-            )}
-          </Button>
+          {inputMode === "image" ? (
+            <Button
+              size="lg"
+              onClick={() => imageFile && extractMutation.mutate(imageFile)}
+              disabled={!imageFile || extractMutation.isPending}
+              data-testid="button-extract"
+            >
+              {extractMutation.isPending ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Extracting...
+                </>
+              ) : (
+                "Extract Schedule"
+              )}
+            </Button>
+          ) : (
+            <Button
+              size="lg"
+              onClick={() => scheduleText.trim() && textExtractMutation.mutate(scheduleText)}
+              disabled={!scheduleText.trim() || textExtractMutation.isPending}
+              data-testid="button-extract-text"
+            >
+              {textExtractMutation.isPending ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Extracting...
+                </>
+              ) : (
+                "Extract Schedule"
+              )}
+            </Button>
+          )}
         </div>
 
         {editedItems.length > 0 && (
