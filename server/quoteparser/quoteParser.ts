@@ -87,11 +87,16 @@ async function performOcrOnPdf(buffer: Buffer): Promise<string> {
   const outputPrefix = path.join(tmpDir, `quote_${sessionId}_page`);
   
   try {
+    let hasPdftoppm = false;
     try {
       execSync('which pdftoppm', { timeout: 5000 });
+      hasPdftoppm = true;
     } catch {
-      console.warn("pdftoppm not available, PDF OCR will fail");
-      return "";
+      console.warn("pdftoppm not found, will attempt pdf-lib + sharp fallback for OCR");
+    }
+
+    if (!hasPdftoppm) {
+      return await performOcrOnPdfFallback(buffer);
     }
     
     fs.writeFileSync(pdfPath, buffer);
@@ -141,6 +146,44 @@ async function performOcrOnPdf(buffer: Buffer): Promise<string> {
     } catch (e) {
       // Cleanup errors are non-fatal
     }
+  }
+}
+
+async function performOcrOnPdfFallback(buffer: Buffer): Promise<string> {
+  try {
+    const { PDFDocument } = await import("pdf-lib");
+    const pdfDoc = await PDFDocument.load(buffer, { ignoreEncryption: true });
+    const pageCount = Math.min(pdfDoc.getPageCount(), 10);
+    
+    if (pageCount === 0) return "";
+
+    const worker = await getOcrWorker();
+    const allText: string[] = [];
+
+    for (let i = 0; i < pageCount; i++) {
+      try {
+        const singlePdfDoc = await PDFDocument.create();
+        const [copiedPage] = await singlePdfDoc.copyPages(pdfDoc, [i]);
+        singlePdfDoc.addPage(copiedPage);
+        const singlePdfBytes = await singlePdfDoc.save();
+
+        const pngBuffer = await sharp(Buffer.from(singlePdfBytes), { density: 200 })
+          .png()
+          .toBuffer();
+
+        const result = await worker.recognize(pngBuffer);
+        if (result.data.text.trim()) {
+          allText.push(result.data.text);
+        }
+      } catch (pageErr) {
+        console.warn(`Fallback OCR failed on page ${i + 1}:`, pageErr);
+      }
+    }
+
+    return allText.join("\n");
+  } catch (error) {
+    console.error("PDF fallback OCR failed:", error);
+    return "";
   }
 }
 
