@@ -51,3 +51,6 @@ SPEC_EXTRACTOR_URL = "https://5d40cd1d-8149-45b2-bcbd-1f1606bffdab-00-3ftzms78i7
 [postMerge]
 path = "scripts/post-merge.sh"
 timeoutMs = 20000
+
+[agent]
+integrations = ["google-sheet:1.0.0"]

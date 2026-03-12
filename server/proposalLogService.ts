@@ -1,6 +1,7 @@
 import { db } from "./db";
 import { proposalLogEntries } from "@shared/schema";
 import { eq, inArray, isNull } from "drizzle-orm";
+import { triggerSheetSync, isGoogleSheetConfigured } from "./googleSheetSync";
 
 const MARKET_KEYWORDS: Record<string, string[]> = {
   "Education": ["school", "elementary", "middle", "high school", "university", "college", "campus", "academy", "institute", "classroom", "gymnasium", "library", "k-12", "k12", "education", "student", "learning"],
@@ -111,6 +112,7 @@ export async function createProposalLogEntry(data: {
     syncedToLocal: false,
   }).returning();
 
+  if (isGoogleSheetConfigured()) triggerSheetSync();
   return entry;
 }
 
@@ -157,6 +159,7 @@ export async function updateProposalLogEntryById(id: number, updates: Partial<{
     .where(eq(proposalLogEntries.id, id))
     .returning();
 
+  if (updated && isGoogleSheetConfigured()) triggerSheetSync();
   return updated || null;
 }
 
@@ -165,6 +168,7 @@ export async function deleteProposalLogEntry(id: number) {
     .set({ deletedAt: new Date() })
     .where(eq(proposalLogEntries.id, id))
     .returning();
+  if (deleted && isGoogleSheetConfigured()) triggerSheetSync();
   return deleted || null;
 }
 
@@ -174,6 +178,7 @@ export async function deleteProposalLogEntries(ids: number[]) {
     .set({ deletedAt: new Date() })
     .where(inArray(proposalLogEntries.id, ids))
     .returning();
+  if (deleted.length > 0 && isGoogleSheetConfigured()) triggerSheetSync();
   return deleted.length;
 }
 

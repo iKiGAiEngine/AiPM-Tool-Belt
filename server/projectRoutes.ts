@@ -43,6 +43,7 @@ import { getActiveFolderTemplate, getActiveEstimateTemplate } from "./templateSt
 import ExcelJS from "exceljs";
 import { extractProjectDetailsFromScreenshot } from "./screenshotExtractor";
 import { guessMarket, guessRegion, createProposalLogEntry, getUnsyncedEntries, markEntriesSynced, getActiveProposalLogEntries, getAllProposalLogEntries, updateProposalLogEntryById, deleteProposalLogEntry, deleteProposalLogEntries } from "./proposalLogService";
+import { getSheetUrl, syncProposalLogToSheet, isGoogleSheetConfigured } from "./googleSheetSync";
 import { users } from "@shared/schema";
 import { eq } from "drizzle-orm";
 import { db } from "./db";
@@ -1787,6 +1788,30 @@ export function registerProjectRoutes(app: Express) {
     } catch (error) {
       console.error("Failed to serve screenshot:", error);
       res.status(500).json({ message: "Failed to serve screenshot" });
+    }
+  });
+
+  app.get("/api/proposal-log/sheet-url", async (req: Request, res: Response) => {
+    try {
+      const url = getSheetUrl();
+      const configured = isGoogleSheetConfigured();
+      res.json({ url, configured });
+    } catch (error) {
+      console.error("Failed to get sheet URL:", error);
+      res.status(500).json({ message: "Failed to get sheet URL" });
+    }
+  });
+
+  app.post("/api/proposal-log/force-sync", async (req: Request, res: Response) => {
+    try {
+      if (!isGoogleSheetConfigured()) {
+        return res.status(400).json({ message: "Google Sheets integration not configured" });
+      }
+      const result = await syncProposalLogToSheet();
+      res.json(result);
+    } catch (error: any) {
+      console.error("Failed to force sync:", error);
+      res.status(500).json({ message: "Failed to sync", error: error.message });
     }
   });
 }
