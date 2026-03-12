@@ -1495,7 +1495,7 @@ async function checkGoogleSheet(){
       btn.href=d.url;
       btn.style.display='';
     }
-    if(d.configured && syncBtn){
+    if(d.configured && syncBtn && currentUser && currentUser.role==='admin'){
       syncBtn.style.display='';
     }
   }catch(e){console.warn('Sheet URL check failed:',e);}
