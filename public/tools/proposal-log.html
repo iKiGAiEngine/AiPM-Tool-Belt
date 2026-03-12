@@ -2364,7 +2364,7 @@ function applyModeRestrictions() {
   }
 
   const syncBtn = document.getElementById('btn-force-sync');
-  if (syncBtn) syncBtn.style.display = isAdmin ? '' : 'none';
+  if (syncBtn && !isAdmin) syncBtn.style.display = 'none';
 }
 
 function viewScreenshot(estNum) {
