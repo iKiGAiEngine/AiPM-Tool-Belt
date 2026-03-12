@@ -1,9 +1,8 @@
 import { useState, useMemo } from "react";
 import { Link } from "wouter";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft, Download, Search, ChevronUp, ChevronDown, FileSpreadsheet, FileText, FlaskConical, Archive } from "lucide-react";
+import { ArrowLeft, Search, ChevronUp, ChevronDown, FileSpreadsheet, FileText, FlaskConical, Archive } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -172,191 +171,201 @@ export default function ProjectLogPage() {
   };
 
   return (
-    <div className="container max-w-7xl mx-auto py-8 px-4">
-      <div className="flex items-center gap-4 mb-8">
-        <Link href="/">
-          <Button variant="ghost" size="icon" data-testid="button-back">
-            <ArrowLeft className="w-5 h-5" />
-          </Button>
-        </Link>
-        <div className="flex-1">
-          <h1 className="text-2xl font-heading font-semibold text-foreground">Project Log</h1>
-          <p className="text-muted-foreground text-sm">Immutable audit trail of all proposal log entries</p>
+    <div className="min-h-screen" style={{ background: "var(--bg)" }}>
+      <div className="container max-w-7xl mx-auto py-8 px-4">
+        <div className="flex items-center gap-4 mb-8">
+          <Link href="/">
+            <Button variant="ghost" size="icon" data-testid="button-back">
+              <ArrowLeft className="w-5 h-5" />
+            </Button>
+          </Link>
+          <div className="flex-1">
+            <h1 className="text-2xl font-heading font-semibold" style={{ color: "var(--text)" }}>Project Log</h1>
+            <p className="text-sm" style={{ color: "var(--text-dim)" }}>Immutable audit trail of all proposal log entries</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" onClick={exportToCSV} data-testid="button-export-csv">
+              <FileText className="w-4 h-4 mr-2" />
+              CSV
+            </Button>
+            <Button variant="outline" size="sm" onClick={exportToXLSX} data-testid="button-export-xlsx">
+              <FileSpreadsheet className="w-4 h-4 mr-2" />
+              XLSX
+            </Button>
+          </div>
         </div>
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={exportToCSV} data-testid="button-export-csv">
-            <FileText className="w-4 h-4 mr-2" />
-            CSV
-          </Button>
-          <Button variant="outline" size="sm" onClick={exportToXLSX} data-testid="button-export-xlsx">
-            <FileSpreadsheet className="w-4 h-4 mr-2" />
-            XLSX
-          </Button>
+
+        <div className="rounded-xl card-accent-bar" style={{ background: "var(--bg-card)", border: "1px solid var(--border-ds)" }}>
+          <div className="pb-4 p-6">
+            <div className="flex items-center gap-4 flex-wrap">
+              <div className="relative flex-1 min-w-[200px]">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: "var(--text-dim)" }} />
+                <Input
+                  placeholder="Search by name, estimate #, region, estimator..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-10"
+                  style={{ background: "var(--bg-input)", borderColor: "var(--border-ds)", color: "var(--text)" }}
+                  data-testid="input-search-projects"
+                />
+              </div>
+              <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as StatusFilter)}>
+                <SelectTrigger className="w-[180px]" data-testid="select-status-filter">
+                  <SelectValue placeholder="All Entries" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Entries ({activeCount + deletedCount})</SelectItem>
+                  <SelectItem value="active">Active ({activeCount})</SelectItem>
+                  <SelectItem value="deleted">Deleted ({deletedCount})</SelectItem>
+                </SelectContent>
+              </Select>
+              <Badge variant="secondary" className="text-xs">
+                {filteredEntries.length} entr{filteredEntries.length !== 1 ? "ies" : "y"}
+              </Badge>
+            </div>
+          </div>
+          <div className="px-6 pb-6">
+            {isLoading ? (
+              <p className="text-sm py-8 text-center" style={{ color: "var(--text-dim)" }}>Loading project log...</p>
+            ) : filteredEntries.length === 0 ? (
+              <p className="text-sm py-8 text-center" style={{ color: "var(--text-dim)" }}>No entries found.</p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm" style={{ color: "var(--text)" }}>
+                  <thead>
+                    <tr style={{ borderBottom: "1px solid var(--border-ds)" }}>
+                      <th
+                        className="text-left py-3 px-3 font-medium cursor-pointer select-none"
+                        style={{ color: "var(--text-dim)" }}
+                        onClick={() => toggleSort("projectName")}
+                        data-testid="th-project-name"
+                      >
+                        <span className="flex items-center gap-1">Project Name <SortIcon field="projectName" /></span>
+                      </th>
+                      <th
+                        className="text-left py-3 px-3 font-medium cursor-pointer select-none"
+                        style={{ color: "var(--text-dim)" }}
+                        onClick={() => toggleSort("region")}
+                        data-testid="th-region"
+                      >
+                        <span className="flex items-center gap-1">Region <SortIcon field="region" /></span>
+                      </th>
+                      <th
+                        className="text-left py-3 px-3 font-medium cursor-pointer select-none"
+                        style={{ color: "var(--text-dim)" }}
+                        onClick={() => toggleSort("dueDate")}
+                        data-testid="th-due-date"
+                      >
+                        <span className="flex items-center gap-1">Due Date <SortIcon field="dueDate" /></span>
+                      </th>
+                      <th
+                        className="text-left py-3 px-3 font-medium cursor-pointer select-none"
+                        style={{ color: "var(--text-dim)" }}
+                        onClick={() => toggleSort("estimateStatus")}
+                        data-testid="th-status"
+                      >
+                        <span className="flex items-center gap-1">Status <SortIcon field="estimateStatus" /></span>
+                      </th>
+                      <th
+                        className="text-left py-3 px-3 font-medium cursor-pointer select-none"
+                        style={{ color: "var(--text-dim)" }}
+                        onClick={() => toggleSort("nbsEstimator")}
+                        data-testid="th-estimator"
+                      >
+                        <span className="flex items-center gap-1">Estimator <SortIcon field="nbsEstimator" /></span>
+                      </th>
+                      <th className="text-left py-3 px-3 font-medium" style={{ color: "var(--text-dim)" }}>GC Lead</th>
+                      <th
+                        className="text-left py-3 px-3 font-medium cursor-pointer select-none"
+                        style={{ color: "var(--text-dim)" }}
+                        onClick={() => toggleSort("createdAt")}
+                        data-testid="th-created-at"
+                      >
+                        <span className="flex items-center gap-1">Created <SortIcon field="createdAt" /></span>
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredEntries.map((entry) => {
+                      const isDeleted = !!entry.deletedAt;
+                      return (
+                        <tr
+                          key={entry.id}
+                          className={`${isDeleted ? "opacity-50" : "hover-elevate"}`}
+                          style={{ borderBottom: "1px solid var(--border-ds)" }}
+                          data-testid={`row-entry-${entry.id}`}
+                        >
+                          <td className="py-3 px-3">
+                            <div className="flex items-center gap-2">
+                              <span className={isDeleted ? "line-through" : ""} style={{ color: isDeleted ? "var(--text-dim)" : "var(--text)" }} data-testid={`text-name-${entry.id}`}>
+                                {entry.projectName}
+                              </span>
+                              {entry.isTest && (
+                                <Badge variant="outline" className="text-xs border-amber-500/50 text-amber-500">
+                                  <FlaskConical className="w-3 h-3 mr-1" />
+                                  TEST
+                                </Badge>
+                              )}
+                              {isDeleted && (
+                                <Badge variant="destructive" className="text-xs">
+                                  <Archive className="w-3 h-3 mr-1" />
+                                  DELETED
+                                </Badge>
+                              )}
+                            </div>
+                          </td>
+                          <td className="py-3 px-3">
+                            <Badge variant="secondary" className="text-xs" data-testid={`text-region-${entry.id}`}>
+                              {entry.region || "\u2014"}
+                            </Badge>
+                          </td>
+                          <td className="py-3 px-3" style={{ color: "var(--text-dim)" }} data-testid={`text-due-date-${entry.id}`}>
+                            {fmtDate(entry.dueDate)}
+                          </td>
+                          <td className="py-3 px-3">
+                            {isDeleted ? (
+                              <Badge variant="destructive" className="text-xs" data-testid={`text-status-${entry.id}`}>
+                                Deleted
+                              </Badge>
+                            ) : (
+                              <Badge
+                                variant={
+                                  entry.estimateStatus === "Awarded" ? "default" :
+                                  entry.estimateStatus?.includes("Lost") ? "destructive" : "outline"
+                                }
+                                className="text-xs"
+                                data-testid={`text-status-${entry.id}`}
+                              >
+                                {entry.estimateStatus || "Estimating"}
+                              </Badge>
+                            )}
+                          </td>
+                          <td className="py-3 px-3 text-sm" style={{ color: "var(--text)" }} data-testid={`text-estimator-${entry.id}`}>
+                            {entry.nbsEstimator || "\u2014"}
+                          </td>
+                          <td className="py-3 px-3 text-xs" style={{ color: "var(--text-dim)" }}>
+                            {entry.gcEstimateLead || "\u2014"}
+                          </td>
+                          <td className="py-3 px-3 text-xs" style={{ color: "var(--text-dim)" }} data-testid={`text-created-${entry.id}`}>
+                            <div>
+                              {entry.createdAt ? new Date(entry.createdAt).toLocaleDateString() : ""}
+                            </div>
+                            {isDeleted && entry.deletedAt && (
+                              <div className="text-[10px]" style={{ color: "var(--error)" }}>
+                                Del: {new Date(entry.deletedAt).toLocaleDateString()}
+                              </div>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
         </div>
       </div>
-
-      <Card className="card-accent-bar">
-        <CardHeader className="pb-4">
-          <div className="flex items-center gap-4 flex-wrap">
-            <div className="relative flex-1 min-w-[200px]">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <Input
-                placeholder="Search by name, estimate #, region, estimator..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-10"
-                data-testid="input-search-projects"
-              />
-            </div>
-            <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as StatusFilter)}>
-              <SelectTrigger className="w-[180px]" data-testid="select-status-filter">
-                <SelectValue placeholder="All Entries" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Entries ({activeCount + deletedCount})</SelectItem>
-                <SelectItem value="active">Active ({activeCount})</SelectItem>
-                <SelectItem value="deleted">Deleted ({deletedCount})</SelectItem>
-              </SelectContent>
-            </Select>
-            <Badge variant="secondary" className="text-xs">
-              {filteredEntries.length} entr{filteredEntries.length !== 1 ? "ies" : "y"}
-            </Badge>
-          </div>
-        </CardHeader>
-        <CardContent>
-          {isLoading ? (
-            <p className="text-sm text-muted-foreground py-8 text-center">Loading project log...</p>
-          ) : filteredEntries.length === 0 ? (
-            <p className="text-sm text-muted-foreground py-8 text-center">No entries found.</p>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b">
-                    <th
-                      className="text-left py-3 px-3 font-medium text-muted-foreground cursor-pointer select-none"
-                      onClick={() => toggleSort("projectName")}
-                      data-testid="th-project-name"
-                    >
-                      <span className="flex items-center gap-1">Project Name <SortIcon field="projectName" /></span>
-                    </th>
-                    <th
-                      className="text-left py-3 px-3 font-medium text-muted-foreground cursor-pointer select-none"
-                      onClick={() => toggleSort("region")}
-                      data-testid="th-region"
-                    >
-                      <span className="flex items-center gap-1">Region <SortIcon field="region" /></span>
-                    </th>
-                    <th
-                      className="text-left py-3 px-3 font-medium text-muted-foreground cursor-pointer select-none"
-                      onClick={() => toggleSort("dueDate")}
-                      data-testid="th-due-date"
-                    >
-                      <span className="flex items-center gap-1">Due Date <SortIcon field="dueDate" /></span>
-                    </th>
-                    <th
-                      className="text-left py-3 px-3 font-medium text-muted-foreground cursor-pointer select-none"
-                      onClick={() => toggleSort("estimateStatus")}
-                      data-testid="th-status"
-                    >
-                      <span className="flex items-center gap-1">Status <SortIcon field="estimateStatus" /></span>
-                    </th>
-                    <th
-                      className="text-left py-3 px-3 font-medium text-muted-foreground cursor-pointer select-none"
-                      onClick={() => toggleSort("nbsEstimator")}
-                      data-testid="th-estimator"
-                    >
-                      <span className="flex items-center gap-1">Estimator <SortIcon field="nbsEstimator" /></span>
-                    </th>
-                    <th className="text-left py-3 px-3 font-medium text-muted-foreground">GC Lead</th>
-                    <th
-                      className="text-left py-3 px-3 font-medium text-muted-foreground cursor-pointer select-none"
-                      onClick={() => toggleSort("createdAt")}
-                      data-testid="th-created-at"
-                    >
-                      <span className="flex items-center gap-1">Created <SortIcon field="createdAt" /></span>
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredEntries.map((entry) => {
-                    const isDeleted = !!entry.deletedAt;
-                    return (
-                      <tr
-                        key={entry.id}
-                        className={`border-b last:border-0 ${isDeleted ? "opacity-50" : "hover-elevate"}`}
-                        data-testid={`row-entry-${entry.id}`}
-                      >
-                        <td className="py-3 px-3">
-                          <div className="flex items-center gap-2">
-                            <span className={isDeleted ? "line-through text-muted-foreground" : ""} data-testid={`text-name-${entry.id}`}>
-                              {entry.projectName}
-                            </span>
-                            {entry.isTest && (
-                              <Badge variant="outline" className="text-xs border-amber-500/50 text-amber-500">
-                                <FlaskConical className="w-3 h-3 mr-1" />
-                                TEST
-                              </Badge>
-                            )}
-                            {isDeleted && (
-                              <Badge variant="destructive" className="text-xs">
-                                <Archive className="w-3 h-3 mr-1" />
-                                DELETED
-                              </Badge>
-                            )}
-                          </div>
-                        </td>
-                        <td className="py-3 px-3">
-                          <Badge variant="secondary" className="text-xs" data-testid={`text-region-${entry.id}`}>
-                            {entry.region || "\u2014"}
-                          </Badge>
-                        </td>
-                        <td className="py-3 px-3 text-muted-foreground" data-testid={`text-due-date-${entry.id}`}>
-                          {fmtDate(entry.dueDate)}
-                        </td>
-                        <td className="py-3 px-3">
-                          {isDeleted ? (
-                            <Badge variant="destructive" className="text-xs" data-testid={`text-status-${entry.id}`}>
-                              Deleted
-                            </Badge>
-                          ) : (
-                            <Badge
-                              variant={
-                                entry.estimateStatus === "Awarded" ? "default" :
-                                entry.estimateStatus?.includes("Lost") ? "destructive" : "outline"
-                              }
-                              className="text-xs"
-                              data-testid={`text-status-${entry.id}`}
-                            >
-                              {entry.estimateStatus || "Estimating"}
-                            </Badge>
-                          )}
-                        </td>
-                        <td className="py-3 px-3 text-sm" data-testid={`text-estimator-${entry.id}`}>
-                          {entry.nbsEstimator || "\u2014"}
-                        </td>
-                        <td className="py-3 px-3 text-muted-foreground text-xs">
-                          {entry.gcEstimateLead || "\u2014"}
-                        </td>
-                        <td className="py-3 px-3 text-muted-foreground text-xs" data-testid={`text-created-${entry.id}`}>
-                          <div>
-                            {entry.createdAt ? new Date(entry.createdAt).toLocaleDateString() : ""}
-                          </div>
-                          {isDeleted && entry.deletedAt && (
-                            <div className="text-destructive text-[10px]">
-                              Del: {new Date(entry.deletedAt).toLocaleDateString()}
-                            </div>
-                          )}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </CardContent>
-      </Card>
     </div>
   );
 }
