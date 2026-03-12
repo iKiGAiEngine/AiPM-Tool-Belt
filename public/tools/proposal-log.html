@@ -1831,9 +1831,15 @@ function renderDash() {
     return count;
   }
 
-  const bidsDue = all
+  const allWithDays = all
     .filter(p => p.dueDate && ['Estimating','Revising','Submitted'].includes(p.estimateStatus))
-    .map(p => ({...p, _bizDays: bizDaysUntil(p.dueDate)}))
+    .map(p => ({...p, _bizDays: bizDaysUntil(p.dueDate)}));
+
+  const pastDue = allWithDays
+    .filter(p => p._bizDays < 0 && !p.proposalTotal)
+    .sort((a,b) => a._bizDays - b._bizDays);
+
+  const bidsDue = allWithDays
     .filter(p => p._bizDays >= 0)
     .sort((a,b) => a._bizDays - b._bizDays);
 
@@ -1855,7 +1861,7 @@ function renderDash() {
       ${shown.length
         ? shown.map(p=>`<div class="due-item">
             <span class="due-item-name" title="${p.projectName||''}">${p.projectName||'\u2014'}</span>
-            <span class="due-item-date">${p._bizDays===0?'Today':p._bizDays===1?'Tomorrow':p._bizDays+'bd'}</span>
+            <span class="due-item-date">${p._bizDays<0?Math.abs(p._bizDays)+'bd overdue':p._bizDays===0?'Today':p._bizDays===1?'Tomorrow':p._bizDays+'bd'}</span>
           </div>`).join('')
           + (items.length > maxShow ? `<div class="due-empty">+${items.length-maxShow} more</div>` : '')
         : '<div class="due-empty">None</div>'}
@@ -1863,6 +1869,7 @@ function renderDash() {
   }
 
   document.getElementById('dash-due').innerHTML =
+    (pastDue.length ? dueBucket(pastDue, 'Past Due', 'Overdue \u2014 no proposal total', 'hot') : '') +
     dueBucket(biz1_3,  '1\u20133 Business Days',  'Due very soon \u2014 act now',     'hot')  +
     dueBucket(biz4_7,  '4\u20137 Business Days',  'Due this week',               'warm') +
     dueBucket(biz8_14, '8\u201314 Business Days', 'Due next 2 weeks',            'cool') +

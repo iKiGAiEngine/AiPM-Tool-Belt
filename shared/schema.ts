@@ -468,7 +468,7 @@ export type InsertRegionInput = z.infer<typeof insertRegionSchema>;
 
 export const projectIdSequence = pgTable("project_id_sequence", {
   id: serial("id").primaryKey(),
-  year: integer("year").notNull(),
+  year: integer("year").notNull().unique(),
   lastSequence: integer("last_sequence").notNull().default(0),
 });
 
