@@ -86,6 +86,10 @@ app.use((req, res, next) => {
 
 (async () => {
   await seedDefaultData();
+
+  const { runDataRepairs } = await import("./dataRepair");
+  await runDataRepairs();
+
   await registerRoutes(httpServer, app);
 
   const { startNightlyBackup } = await import("./nightlyBackup");
