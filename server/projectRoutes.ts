@@ -1804,6 +1804,14 @@ export function registerProjectRoutes(app: Express) {
 
   app.post("/api/proposal-log/force-sync", async (req: Request, res: Response) => {
     try {
+      const userId = (req.session as any)?.userId;
+      if (userId) {
+        const [u] = await db.select().from(users).where(eq(users.id, userId));
+        if (!u || u.role !== "admin") {
+          return res.status(403).json({ message: "Admin access required" });
+        }
+      }
+
       if (!isGoogleSheetConfigured()) {
         return res.status(400).json({ message: "Google Sheets integration not configured" });
       }

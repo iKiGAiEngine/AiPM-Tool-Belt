@@ -2352,6 +2352,7 @@ function applyRoleUI() {
 function applyModeRestrictions() {
   if (!currentUser) return;
   const caps = CAPS[currentUser.role] || CAPS.user;
+  const isAdmin = currentUser.role === 'admin';
 
   const selBar = document.getElementById('select-bar');
   if (selBar && !caps.deleteRow) selBar.style.display = 'none';
@@ -2361,6 +2362,9 @@ function applyModeRestrictions() {
     const clearBtn = exportBar.querySelector('button[onclick="clearAllData()"]');
     if (clearBtn) clearBtn.style.display = caps.clearAll ? '' : 'none';
   }
+
+  const syncBtn = document.getElementById('btn-force-sync');
+  if (syncBtn) syncBtn.style.display = isAdmin ? '' : 'none';
 }
 
 function viewScreenshot(estNum) {
