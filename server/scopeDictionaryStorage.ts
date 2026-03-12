@@ -132,27 +132,15 @@ export async function deleteRegion(id: number): Promise<boolean> {
 export async function generateProjectId(): Promise<string> {
   const currentYear = new Date().getFullYear() % 100;
 
-  const result = await db.execute(sql`
+  const seqResult = await db.execute(sql`
     INSERT INTO project_id_sequence (year, last_sequence)
     VALUES (${currentYear}, 1)
-    ON CONFLICT (id) DO NOTHING;
-  `);
-
-  const seqResult = await db.execute(sql`
-    UPDATE project_id_sequence
-    SET last_sequence = last_sequence + 1
-    WHERE year = ${currentYear}
+    ON CONFLICT (year) DO UPDATE
+      SET last_sequence = project_id_sequence.last_sequence + 1
     RETURNING last_sequence;
   `);
 
-  let seq: number;
-  if (seqResult.rows && seqResult.rows.length > 0) {
-    seq = (seqResult.rows[0] as any).last_sequence;
-  } else {
-    await db.insert(projectIdSequence).values({ year: currentYear, lastSequence: 1 });
-    seq = 1;
-  }
-
+  const seq = (seqResult.rows[0] as any).last_sequence as number;
   const yearStr = currentYear.toString().padStart(2, "0");
   const seqStr = seq.toString().padStart(4, "0");
   return `${yearStr}-${seqStr}`;

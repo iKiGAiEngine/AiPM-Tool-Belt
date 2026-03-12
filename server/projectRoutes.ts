@@ -1715,6 +1715,18 @@ export function registerProjectRoutes(app: Express) {
         }
       }
 
+      if (req.body.estimateNumber !== undefined) {
+        const userId = (req.session as any)?.userId;
+        if (!userId) {
+          return res.status(401).json({ message: "Not authenticated" });
+        }
+        const [u] = await db.select().from(users).where(eq(users.id, userId));
+        if (!u || u.role !== "admin") {
+          return res.status(403).json({ message: "Only admins can change estimate numbers" });
+        }
+        updates.estimateNumber = req.body.estimateNumber;
+      }
+
       if (Object.keys(updates).length === 0) {
         return res.status(400).json({ message: "No valid fields to update" });
       }

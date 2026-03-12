@@ -1057,6 +1057,7 @@ function getFiltered() {
     if(ft && p.dueDate && p.dueDate>ft) return false;
     for(const [key,val] of Object.entries(colFilters)) {
       if(!val) continue;
+      if(key==='nbsEstimator' && (!p[key] || p[key]==='')) continue;
       const pv = (p[key]||'').toLowerCase();
       if(!pv.includes(val.toLowerCase())) return false;
     }
@@ -1200,7 +1201,13 @@ function buildRows() {
           val=`<div class="proj-name" title="${p.projectName||''}">${testBadge}${p.projectName||'\u2014'}</div>`;
           break;
         }
-        case 'proposalTotal': val=`<span class="val-cell">${fmt$(p.proposalTotal)}</span>`; break;
+        case 'proposalTotal':
+          if(mode==='estimator' && can('editRow')) {
+            val=`<div class="inline-edit-wrap" onclick="startInlineEdit(event,${oi},'proposalTotal')">
+              <span class="val-cell">${fmt$(p.proposalTotal)}</span>
+              <span class="inline-edit-hint">\u270f</span></div>`;
+          } else { val=`<span class="val-cell">${fmt$(p.proposalTotal)}</span>`; }
+          break;
         case 'estimateStatus': {
           if(p.estimateStatus === 'Lost - Note Why in Comments') {
             const who = p.lossWho || '';
@@ -1233,6 +1240,13 @@ function buildRows() {
           } else { val=p.nbsEstimator||'\u2014'; }
           break;
         case 'filePath': val=p.filePath?`<span class="link-cell"><a href="${p.filePath}" target="_blank">&#128194; Open</a></span>`:'\u2014'; break;
+        case 'estimateNumber':
+          if(mode==='estimator' && currentUser && currentUser.role==='admin') {
+            val=`<div class="inline-edit-wrap" onclick="startEstNumEdit(event,${oi})">
+              <span>${p.estimateNumber||'\u2014'}</span>
+              <span class="inline-edit-hint" style="font-size:8px">\u270f</span></div>`;
+          } else { val=p.estimateNumber||'\u2014'; }
+          break;
         case '_screenshot': val=p._screenshotId?`<button class="btn-row" onclick="viewScreenshot('${p._screenshotId}')" title="View source screenshot" style="font-size:16px">&#128247;</button>`:'\u2014'; break;
         default: val=p[key]||'\u2014';
       }
@@ -2107,7 +2121,7 @@ function commitInlineEdit(oi,field){
   syncFieldToServer(data[oi], field, v);
 }
 async function syncFieldToServer(entry, field, value) {
-  const syncableFields = ['nbsEstimator','estimateStatus','proposalTotal','gcEstimateLead','anticipatedStart','anticipatedFinish'];
+  const syncableFields = ['nbsEstimator','estimateStatus','proposalTotal','gcEstimateLead','anticipatedStart','anticipatedFinish','estimateNumber'];
   if (!syncableFields.includes(field)) return;
   if (!entry._serverDbId) { console.warn('Cannot sync field: entry has no _serverDbId'); return; }
   try {
@@ -2118,6 +2132,28 @@ async function syncFieldToServer(entry, field, value) {
       body: JSON.stringify({ [field]: value })
     });
   } catch (e) { console.warn('Failed to sync field to server:', e); }
+}
+function startEstNumEdit(e, oi) {
+  e.stopPropagation();
+  const p = data[oi]; if(!p) return;
+  const confirmed = confirm(
+    'WARNING: Estimate numbers are permanent identifiers.\n\n' +
+    'Current: ' + (p.estimateNumber || '(none)') + '\n' +
+    'Project: ' + (p.projectName || '') + '\n\n' +
+    'Are you sure you want to change this estimate number?'
+  );
+  if (!confirmed) return;
+  const newVal = prompt('Enter new estimate number:', p.estimateNumber || '');
+  if (newVal === null || newVal.trim() === '' || newVal.trim() === p.estimateNumber) return;
+  const trimmed = newVal.trim();
+  if (data.some((d, i) => i !== oi && d.estimateNumber === trimmed)) {
+    alert('That estimate number is already in use by another project. Each estimate number must be unique.');
+    return;
+  }
+  data[oi].estimateNumber = trimmed;
+  save(); render();
+  syncFieldToServer(data[oi], 'estimateNumber', trimmed);
+  showToast('Estimate number updated to ' + trimmed);
 }
 function cancelInlineEdit(){
   document.removeEventListener('click',inlineClickAway);
@@ -2468,6 +2504,9 @@ async function initApp() {
 
   setMode('estimator');
   applyModeRestrictions();
+  if (currentUser && currentUser.role !== 'admin' && currentUser.initials) {
+    colFilters['nbsEstimator'] = currentUser.initials;
+  }
   const serverLoaded = await loadFromServer();
   if (!serverLoaded && data.length === 0) {
     showBanner('Could not load proposals from server. Please check your connection or sign in again.', 'error');
