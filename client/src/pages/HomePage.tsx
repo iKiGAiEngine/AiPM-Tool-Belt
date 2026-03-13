@@ -135,7 +135,16 @@ function bizDaysUntil(dateStr: string): number {
   const target = new Date(dateStr + "T00:00:00");
   const start = new Date();
   start.setHours(0, 0, 0, 0);
-  if (target < start) return -1;
+  if (target < start) {
+    let count = 0;
+    const cur = new Date(target);
+    while (cur < start) {
+      cur.setDate(cur.getDate() + 1);
+      const dow = cur.getDay();
+      if (dow !== 0 && dow !== 6) count++;
+    }
+    return -count;
+  }
   let count = 0;
   const cur = new Date(start);
   while (cur < target) {
@@ -147,6 +156,8 @@ function bizDaysUntil(dateStr: string): number {
 }
 
 function formatDueLabel(bd: number, dateStr: string): string {
+  if (bd < 0) return `${Math.abs(bd)}BD overdue`;
+  if (bd === 0) return "Due today";
   if (bd === 1) return "Tomorrow - 1BD";
   const d = new Date(dateStr + "T00:00:00");
   const days = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
@@ -157,6 +168,7 @@ function formatDueLabel(bd: number, dateStr: string): string {
 }
 
 function getDueClass(bd: number, section: string): string {
+  if (bd < 0) return "d-hot";
   if (section === "new" || section === "pipeline") return "d-dim";
   if (bd <= 2) return "d-hot";
   if (bd <= 4) return "d-warm";
@@ -197,155 +209,69 @@ export default function HomePage() {
   });
 
   const [proposals, setProposals] = useState<ProposalRow[]>([]);
+  const [acknowledgedIds, setAcknowledgedIds] = useState<Set<number>>(new Set());
 
-  const ACK_STORAGE_KEY = "nbs_hud_acknowledged";
-  const [acknowledgedIds, setAcknowledgedIds] = useState<Set<string>>(() => {
-    try {
-      const raw = localStorage.getItem(ACK_STORAGE_KEY);
-      if (raw) return new Set(JSON.parse(raw) as string[]);
-    } catch { /* ignore */ }
-    return new Set();
-  });
-
-  const persistAcknowledged = useCallback((ids: Set<string>) => {
-    try {
-      localStorage.setItem(ACK_STORAGE_KEY, JSON.stringify(Array.from(ids)));
-    } catch { /* ignore */ }
-  }, []);
-
-  const loadProposals = useCallback(() => {
-    try {
-      const raw = localStorage.getItem("nbs_v4");
-      if (raw) {
-        const parsed = JSON.parse(raw) as ProposalRow[];
-        setProposals(parsed);
-      } else {
-        setProposals([]);
-      }
-    } catch {
-      setProposals([]);
-    }
-  }, []);
-
-  const syncFromServer = useCallback(async () => {
+  const fetchProposals = useCallback(async () => {
     try {
       const res = await fetch("/api/proposal-log/entries", { credentials: "include" });
       if (!res.ok) return;
       const entries = await res.json();
-
-      const existing: ProposalRow[] = (() => {
-        try {
-          const raw = localStorage.getItem("nbs_v4");
-          return raw ? JSON.parse(raw) as ProposalRow[] : [];
-        } catch { return []; }
-      })();
-
-      const serverIds = new Set(entries.map((e: any) => e.id));
-
-      let data = existing.filter(p => !p._serverDbId || serverIds.has(p._serverDbId));
-      let changed = data.length !== existing.length;
-
-      for (const e of entries) {
-        const match = data.find(p =>
-          (p._serverDbId && p._serverDbId === e.id) ||
-          (p.projectName === e.projectName && p.dueDate === e.dueDate && p.estimateNumber === e.estimateNumber)
-        );
-        if (match) {
-          if (!match._serverDbId) { match._serverDbId = e.id; changed = true; }
-          if (e.estimateNumber && !match._screenshotId) { match._screenshotId = e.estimateNumber; changed = true; }
-          const syncField = (field: keyof ProposalRow, serverVal: any) => {
-            const sv = serverVal ?? "";
-            if (match[field] !== sv) { (match as any)[field] = sv; changed = true; }
-          };
-          syncField("_isTest", e.isTest || false);
-          syncField("nbsEstimator", e.nbsEstimator || "");
-          syncField("estimateStatus", e.estimateStatus || "Estimating");
-          syncField("proposalTotal", e.proposalTotal || "");
-          syncField("anticipatedStart", e.anticipatedStart || "");
-          syncField("anticipatedFinish", e.anticipatedFinish || "");
-          syncField("gcEstimateLead", e.gcEstimateLead || "");
-          syncField("region", e.region || "");
-          continue;
-        }
-        data.push({
-          projectName: e.projectName || "",
-          estimateNumber: e.estimateNumber || "",
-          region: e.region || "",
-          primaryMarket: e.primaryMarket || "",
-          inviteDate: e.inviteDate || "",
-          dueDate: e.dueDate || "",
-          nbsEstimator: e.nbsEstimator || "",
-          gcEstimateLead: e.gcEstimateLead || "",
-          proposalTotal: e.proposalTotal || "",
-          estimateStatus: e.estimateStatus || "Estimating",
-          anticipatedStart: e.anticipatedStart || "",
-          anticipatedFinish: e.anticipatedFinish || "",
-          owner: e.owner || "",
-          filePath: e.filePath || "",
-          comments: "",
-          _screenshotId: e.estimateNumber || "",
-          _isTest: e.isTest || false,
-          _serverDbId: e.id,
-        });
-        changed = true;
-      }
-
-      if (changed) {
-        localStorage.setItem("nbs_v4", JSON.stringify(data));
-        setProposals(data);
-      }
+      const mapped: ProposalRow[] = entries.map((e: any) => ({
+        projectName: e.projectName || "",
+        estimateNumber: e.estimateNumber || "",
+        region: e.region || "",
+        primaryMarket: e.primaryMarket || "",
+        inviteDate: e.inviteDate || "",
+        dueDate: e.dueDate || "",
+        nbsEstimator: e.nbsEstimator || "",
+        gcEstimateLead: e.gcEstimateLead || "",
+        proposalTotal: e.proposalTotal || "",
+        estimateStatus: e.estimateStatus || "Estimating",
+        anticipatedStart: e.anticipatedStart || "",
+        anticipatedFinish: e.anticipatedFinish || "",
+        owner: e.owner || "",
+        filePath: e.filePath || "",
+        comments: "",
+        _screenshotId: e.estimateNumber || "",
+        _isTest: e.isTest || false,
+        _serverDbId: e.id,
+      }));
+      setProposals(mapped);
     } catch (err) {
       console.warn("HUD sync from server failed:", err);
     }
   }, []);
 
-  useEffect(() => {
-    loadProposals();
-    syncFromServer().then(() => {
-      if (localStorage.getItem("nbs_hud_ack_migrated")) return;
-      try {
-        const ackRaw = localStorage.getItem(ACK_STORAGE_KEY);
-        const propRaw = localStorage.getItem("nbs_v4");
-        if (ackRaw && propRaw) {
-          const oldKeys = new Set(JSON.parse(ackRaw) as string[]);
-          const props = JSON.parse(propRaw) as ProposalRow[];
-          const migrated = new Set(oldKeys);
-          let changed = false;
-          for (const p of props) {
-            if (!p._serverDbId) continue;
-            const oldKey = p.projectName + "|" + p.dueDate;
-            if (oldKeys.has(oldKey)) {
-              migrated.add("sid:" + p._serverDbId);
-              migrated.delete(oldKey);
-              changed = true;
-            }
-          }
-          if (changed) {
-            localStorage.setItem(ACK_STORAGE_KEY, JSON.stringify(Array.from(migrated)));
-            setAcknowledgedIds(migrated);
-          }
-        }
-      } catch { /* ignore */ }
-      localStorage.setItem("nbs_hud_ack_migrated", "1");
-    });
-    const interval = setInterval(loadProposals, 5000);
-    const syncInterval = setInterval(syncFromServer, 30000);
-    const handleStorage = (e: StorageEvent) => {
-      if (e.key === "nbs_v4") loadProposals();
-      if (e.key === ACK_STORAGE_KEY) {
-        try {
-          const raw = localStorage.getItem(ACK_STORAGE_KEY);
-          if (raw) setAcknowledgedIds(new Set(JSON.parse(raw) as string[]));
-        } catch { /* ignore */ }
+  const fetchAcknowledgements = useCallback(async () => {
+    try {
+      const res = await fetch("/api/proposal-log/acknowledgements", { credentials: "include" });
+      if (!res.ok) return;
+      const data = await res.json();
+      if (data.entryIds) {
+        setAcknowledgedIds(new Set(data.entryIds as number[]));
       }
+    } catch (err) {
+      console.warn("Failed to fetch acknowledgements:", err);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchProposals();
+    fetchAcknowledgements();
+    const syncInterval = setInterval(() => {
+      fetchProposals();
+      fetchAcknowledgements();
+    }, 10000);
+    const handleFocus = () => {
+      fetchProposals();
+      fetchAcknowledgements();
     };
-    window.addEventListener("storage", handleStorage);
+    window.addEventListener("focus", handleFocus);
     return () => {
-      clearInterval(interval);
       clearInterval(syncInterval);
-      window.removeEventListener("storage", handleStorage);
+      window.removeEventListener("focus", handleFocus);
     };
-  }, [loadProposals, syncFromServer]);
+  }, [fetchProposals, fetchAcknowledgements]);
 
   const userInitials = user?.initials || (user ? getUserInitials(user) : "HK");
   const userEstimatorCode = (user?.initials || "").toUpperCase();
@@ -358,60 +284,63 @@ export default function HomePage() {
         if (!p.dueDate || !activeStatuses.includes(p.estimateStatus || "")) return false;
         if (p._isTest && !effectiveTestMode) return false;
         if (!p._isTest && effectiveTestMode) return false;
+        if (!p.nbsEstimator || p.nbsEstimator !== userEstimatorCode) return false;
         return true;
       })
       .map((p) => ({ ...p, _bizDays: bizDaysUntil(p.dueDate!) }))
-      .filter((p) => p._bizDays >= 0)
       .sort((a, b) => a._bizDays - b._bizDays);
   }, [proposals, userEstimatorCode, effectiveTestMode]);
-
-  const ackKey = useCallback((p: ProposalRow) => {
-    if (p._serverDbId) return "sid:" + p._serverDbId;
-    return p.projectName + "|" + p.dueDate;
-  }, []);
 
   const { newlyAssigned, dueThisWeek, activePipeline } = useMemo(() => {
     const na: typeof activeBids = [];
     const dtw: typeof activeBids = [];
     const ap: typeof activeBids = [];
-    const placed = new Set<string>();
+    const placed = new Set<number>();
 
     for (const p of activeBids) {
-      const key = ackKey(p);
-      if (!acknowledgedIds.has(key) && p.estimateStatus === "Estimating" && na.length < 5) {
+      if (!p._serverDbId) continue;
+      if (!acknowledgedIds.has(p._serverDbId) && p.estimateStatus === "Estimating" && na.length < 5) {
         na.push(p);
-        placed.add(key);
+        placed.add(p._serverDbId);
       }
     }
 
     for (const p of activeBids) {
-      const key = ackKey(p);
-      if (placed.has(key)) continue;
-      if (p._bizDays! >= 0 && p._bizDays! <= 7) {
+      if (!p._serverDbId || placed.has(p._serverDbId)) continue;
+      if (p._bizDays! <= 7) {
         dtw.push(p);
-        placed.add(key);
+        placed.add(p._serverDbId);
       }
     }
 
     for (const p of activeBids) {
-      const key = ackKey(p);
-      if (placed.has(key)) continue;
+      if (!p._serverDbId || placed.has(p._serverDbId)) continue;
       if (p._bizDays! > 7) {
         ap.push(p);
       }
     }
 
     return { newlyAssigned: na, dueThisWeek: dtw, activePipeline: ap };
-  }, [activeBids, acknowledgedIds, ackKey]);
+  }, [activeBids, acknowledgedIds]);
 
-  const handleAcknowledge = useCallback((p: ProposalRow, rowEl: HTMLElement) => {
-    const key = ackKey(p);
+  const handleAcknowledge = useCallback(async (p: ProposalRow, rowEl: HTMLElement) => {
+    if (!p._serverDbId) return;
+    const entryId = p._serverDbId;
+
     setAcknowledgedIds((prev) => {
       const next = new Set(prev);
-      next.add(key);
-      persistAcknowledged(next);
+      next.add(entryId);
       return next;
     });
+
+    try {
+      await fetch(`/api/proposal-log/acknowledge/${entryId}`, {
+        method: "POST",
+        credentials: "include",
+      });
+    } catch (err) {
+      console.warn("Failed to acknowledge entry:", err);
+    }
 
     const btn = rowEl.querySelector(".ack-btn") as HTMLElement;
     if (btn) {
@@ -427,7 +356,7 @@ export default function HomePage() {
       rowEl.style.paddingBottom = "0";
       rowEl.style.marginTop = "0";
     }, 300);
-  }, [persistAcknowledged, ackKey]);
+  }, []);
 
   const selectedToolTitle = tools.find((t) => t.id === selectedToolForStats)?.title || "";
 
