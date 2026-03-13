@@ -1735,6 +1735,15 @@ export function registerProjectRoutes(app: Express) {
         await clearAcknowledgementsForEntry(id);
       }
 
+      if (updates.proposalTotal !== undefined && updates.estimateStatus === undefined) {
+        const hasTotal = updates.proposalTotal.replace(/[^0-9.]/g, '');
+        if (hasTotal && Number(hasTotal) > 0) {
+          updates.estimateStatus = "Submitted";
+        } else {
+          updates.estimateStatus = "Estimating";
+        }
+      }
+
       const updated = await updateProposalLogEntryById(id, updates);
       if (!updated) {
         return res.status(404).json({ message: "Entry not found" });

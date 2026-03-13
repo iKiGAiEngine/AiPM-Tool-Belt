@@ -2207,14 +2207,17 @@ function commitInlineEdit(oi,field){
   let v=inp.value.trim();
   if(field==='proposalTotal'){
     v=v.replace(/[^0-9.]/g,'');
-    if(Number(v)>0&&data[oi].estimateStatus==='Estimating'){
+    if(Number(v)>0){
       data[oi].estimateStatus='Submitted'; showToast('\ud83d\udca1 Status auto-updated to Submitted');
+    } else {
+      data[oi].estimateStatus='Estimating'; showToast('\ud83d\udca1 Status reverted to Estimating');
     }
   } else if(field==='anticipatedStart'||field==='anticipatedFinish'){
     v=v?v+'-01':'';
   }
   data[oi][field]=v; activeInlineEdit=null; save(); render();
   syncFieldToServer(data[oi], field, v);
+  if(field==='proposalTotal') syncFieldToServer(data[oi], 'estimateStatus', data[oi].estimateStatus);
 }
 async function syncFieldToServer(entry, field, value) {
   const syncableFields = ['nbsEstimator','estimateStatus','proposalTotal','gcEstimateLead','anticipatedStart','anticipatedFinish','estimateNumber'];

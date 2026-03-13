@@ -276,7 +276,7 @@ export default function HomePage() {
   const userInitials = user?.initials || (user ? getUserInitials(user) : "HK");
   const userEstimatorCode = (user?.initials || "").toUpperCase();
 
-  const activeStatuses = ["Estimating", "Revising", "Submitted"];
+  const activeStatuses = ["Estimating"];
 
   const activeBids = useMemo(() => {
     return proposals
