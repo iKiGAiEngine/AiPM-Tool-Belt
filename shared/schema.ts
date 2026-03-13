@@ -889,3 +889,10 @@ export const proposalLogEntries = pgTable("proposal_log_entries", {
 export const insertProposalLogEntrySchema = createInsertSchema(proposalLogEntries).omit({ id: true, createdAt: true });
 export type InsertProposalLogEntry = z.infer<typeof insertProposalLogEntrySchema>;
 export type ProposalLogEntry = typeof proposalLogEntries.$inferSelect;
+
+export const proposalAcknowledgements = pgTable("proposal_acknowledgements", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull(),
+  entryId: integer("entry_id").notNull(),
+  acknowledgedAt: timestamp("acknowledged_at").notNull().defaultNow(),
+});

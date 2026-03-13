@@ -1,6 +1,6 @@
 import { db } from "./db";
-import { proposalLogEntries } from "@shared/schema";
-import { eq, inArray, isNull } from "drizzle-orm";
+import { proposalLogEntries, proposalAcknowledgements } from "@shared/schema";
+import { eq, inArray, isNull, and, sql } from "drizzle-orm";
 import { triggerSheetSync, isGoogleSheetConfigured } from "./googleSheetSync";
 
 const MARKET_KEYWORDS: Record<string, string[]> = {
@@ -189,4 +189,32 @@ export async function getScreenshotPathByProjectId(projectDbId: number): Promise
     .from(proposalLogEntries)
     .where(eq(proposalLogEntries.projectDbId, projectDbId));
   return entry?.screenshotPath || null;
+}
+
+export async function getAcknowledgedEntryIds(userId: number): Promise<number[]> {
+  const rows = await db.select({ entryId: proposalAcknowledgements.entryId })
+    .from(proposalAcknowledgements)
+    .where(eq(proposalAcknowledgements.userId, userId));
+  return rows.map(r => r.entryId);
+}
+
+export async function acknowledgeEntry(userId: number, entryId: number): Promise<void> {
+  await db.execute(sql`
+    INSERT INTO proposal_acknowledgements (user_id, entry_id)
+    VALUES (${userId}, ${entryId})
+    ON CONFLICT (user_id, entry_id) DO NOTHING
+  `);
+}
+
+export async function unacknowledgeEntry(userId: number, entryId: number): Promise<void> {
+  await db.delete(proposalAcknowledgements)
+    .where(and(
+      eq(proposalAcknowledgements.userId, userId),
+      eq(proposalAcknowledgements.entryId, entryId)
+    ));
+}
+
+export async function clearAcknowledgementsForEntry(entryId: number): Promise<void> {
+  await db.delete(proposalAcknowledgements)
+    .where(eq(proposalAcknowledgements.entryId, entryId));
 }

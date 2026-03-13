@@ -42,7 +42,7 @@ import { planParserStorage } from "./planparser/storage";
 import { getActiveFolderTemplate, getActiveEstimateTemplate } from "./templateStorage";
 import ExcelJS from "exceljs";
 import { extractProjectDetailsFromScreenshot } from "./screenshotExtractor";
-import { guessMarket, guessRegion, createProposalLogEntry, getUnsyncedEntries, markEntriesSynced, getActiveProposalLogEntries, getAllProposalLogEntries, updateProposalLogEntryById, deleteProposalLogEntry, deleteProposalLogEntries } from "./proposalLogService";
+import { guessMarket, guessRegion, createProposalLogEntry, getUnsyncedEntries, markEntriesSynced, getActiveProposalLogEntries, getAllProposalLogEntries, updateProposalLogEntryById, deleteProposalLogEntry, deleteProposalLogEntries, getAcknowledgedEntryIds, acknowledgeEntry, unacknowledgeEntry, clearAcknowledgementsForEntry } from "./proposalLogService";
 import { getSheetUrl, syncProposalLogToSheet, isGoogleSheetConfigured } from "./googleSheetSync";
 import { users } from "@shared/schema";
 import { eq } from "drizzle-orm";
@@ -1731,6 +1731,10 @@ export function registerProjectRoutes(app: Express) {
         return res.status(400).json({ message: "No valid fields to update" });
       }
 
+      if (updates.nbsEstimator !== undefined) {
+        await clearAcknowledgementsForEntry(id);
+      }
+
       const updated = await updateProposalLogEntryById(id, updates);
       if (!updated) {
         return res.status(404).json({ message: "Entry not found" });
@@ -1832,6 +1836,46 @@ export function registerProjectRoutes(app: Express) {
     } catch (error: any) {
       console.error("Failed to force sync:", error);
       res.status(500).json({ message: "Failed to sync", error: error.message });
+    }
+  });
+
+  app.get("/api/proposal-log/acknowledgements", async (req: Request, res: Response) => {
+    try {
+      const userId = (req.session as any)?.userId;
+      if (!userId) return res.status(401).json({ message: "Not authenticated" });
+      const entryIds = await getAcknowledgedEntryIds(userId);
+      res.json({ entryIds });
+    } catch (error) {
+      console.error("Failed to get acknowledgements:", error);
+      res.status(500).json({ message: "Failed to get acknowledgements" });
+    }
+  });
+
+  app.post("/api/proposal-log/acknowledge/:entryId", async (req: Request, res: Response) => {
+    try {
+      const userId = (req.session as any)?.userId;
+      if (!userId) return res.status(401).json({ message: "Not authenticated" });
+      const entryId = parseInt(req.params.entryId);
+      if (isNaN(entryId)) return res.status(400).json({ message: "Valid entry ID required" });
+      await acknowledgeEntry(userId, entryId);
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Failed to acknowledge entry:", error);
+      res.status(500).json({ message: "Failed to acknowledge" });
+    }
+  });
+
+  app.delete("/api/proposal-log/acknowledge/:entryId", async (req: Request, res: Response) => {
+    try {
+      const userId = (req.session as any)?.userId;
+      if (!userId) return res.status(401).json({ message: "Not authenticated" });
+      const entryId = parseInt(req.params.entryId);
+      if (isNaN(entryId)) return res.status(400).json({ message: "Valid entry ID required" });
+      await unacknowledgeEntry(userId, entryId);
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Failed to unacknowledge entry:", error);
+      res.status(500).json({ message: "Failed to unacknowledge" });
     }
   });
 }

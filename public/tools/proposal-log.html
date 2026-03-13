@@ -168,6 +168,17 @@ input[type="date"].df::-webkit-calendar-picker-indicator{filter:var(--date-picke
 .wl-bar-fill{height:100%;border-radius:4px;background:linear-gradient(90deg,var(--gold-dim),var(--gold));transition:width .5s ease;}
 .wl-meta{font-size:10px;font-family:'Rajdhani',sans-serif;font-weight:600;color:var(--text-dim);white-space:nowrap;min-width:60px;text-align:right;}
 
+/* Newly Assigned */
+.newly-assigned-section{margin-bottom:12px;animation:fadeUp .35s ease both;}
+.newly-assigned-section .dp-title{color:var(--gold);}
+.newly-assigned-list{display:flex;flex-direction:column;gap:6px;margin-top:6px;}
+.newly-assigned-item{display:flex;align-items:center;justify-content:space-between;gap:8px;background:var(--bg3);border:1px solid var(--gold-dim);border-left:3px solid var(--gold);border-radius:6px;padding:8px 12px;}
+.newly-assigned-info{flex:1;min-width:0;}
+.newly-assigned-name{font-size:12px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.newly-assigned-meta{font-size:10px;color:var(--text-dim);margin-top:2px;}
+.newly-assigned-ack{font-family:'Rajdhani',sans-serif;font-size:10px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;background:linear-gradient(135deg,var(--gold-dim),var(--gold));color:var(--btn-primary-text);border:none;border-radius:4px;padding:4px 12px;cursor:pointer;white-space:nowrap;transition:opacity .2s;}
+.newly-assigned-ack:hover{opacity:.85;}
+
 /* Due date buckets */
 .due-buckets{display:flex;flex-direction:column;gap:10px;margin-top:4px;}
 .due-bucket{background:var(--bg3);border-radius:6px;padding:10px 12px;border-left:3px solid var(--border);}
@@ -621,6 +632,13 @@ td.inline-editing{padding:2px 4px !important;background:rgba(201,168,76,.06) !im
         <div class="dp-title">Top GC / Clients</div>
         <div class="dp-sub">By total proposal value</div>
         <div id="dash-gcs"></div>
+      </div>
+    </div>
+    <div id="newly-assigned-wrap" class="newly-assigned-section" style="display:none">
+      <div class="dp">
+        <div class="dp-title">&#9733; Newly Assigned to You</div>
+        <div class="dp-sub">Bids assigned to you that need acknowledgement</div>
+        <div class="newly-assigned-list" id="dash-newly-assigned"></div>
       </div>
     </div>
     <div class="dash-row4">
@@ -1582,7 +1600,40 @@ const FUNNEL_STAGES=[
   {key:'Lost - Note Why in Comments', color:'#C0392B', label:'Lost'},
 ];
 
+function renderNewlyAssigned() {
+  const wrap = document.getElementById('newly-assigned-wrap');
+  const container = document.getElementById('dash-newly-assigned');
+  if (!wrap || !container) return;
+
+  const myInitials = currentUser?.initials || '';
+  if (!myInitials) { wrap.style.display = 'none'; return; }
+
+  const newlyAssigned = data.filter(p =>
+    p.nbsEstimator === myInitials &&
+    p._serverDbId &&
+    !acknowledgedEntryIds.has(p._serverDbId)
+  );
+
+  if (newlyAssigned.length === 0) {
+    wrap.style.display = 'none';
+    return;
+  }
+
+  wrap.style.display = 'block';
+  container.innerHTML = newlyAssigned.map(p => {
+    const dueDateStr = p.dueDate ? new Date(p.dueDate + 'T00:00:00').toLocaleDateString('en-US', {month:'short',day:'numeric'}) : '';
+    return `<div class="newly-assigned-item" data-testid="newly-assigned-item-${p._serverDbId}">
+      <div class="newly-assigned-info">
+        <div class="newly-assigned-name">${p.projectName || '\u2014'}</div>
+        <div class="newly-assigned-meta">${p.estimateNumber || ''} ${dueDateStr ? '\u00b7 Due ' + dueDateStr : ''} ${p.region ? '\u00b7 ' + p.region : ''}</div>
+      </div>
+      <button class="newly-assigned-ack" data-testid="ack-btn-${p._serverDbId}" onclick="acknowledgeEntryById(${p._serverDbId})">Acknowledge</button>
+    </div>`;
+  }).join('');
+}
+
 function renderDash() {
+  renderNewlyAssigned();
   const popDf=(id,items)=>{const el=document.getElementById(id);if(!el)return;const cur=el.value;el.innerHTML='<option value="">'+el.options[0].text+'</option>'+items.map(v=>`<option${v===cur?' selected':''}>${v}</option>`).join('');};
   popDf('df-region',REGIONS); popDf('df-market',MARKETS);
 
@@ -2131,7 +2182,32 @@ async function syncFieldToServer(entry, field, value) {
       credentials: 'include',
       body: JSON.stringify({ [field]: value })
     });
+    if (field === 'nbsEstimator') {
+      await fetchAcknowledgements();
+    }
+    renderDash();
   } catch (e) { console.warn('Failed to sync field to server:', e); }
+}
+
+async function fetchAcknowledgements() {
+  try {
+    const resp = await fetch('/api/proposal-log/acknowledgements', { credentials: 'include' });
+    if (resp.ok) {
+      const result = await resp.json();
+      acknowledgedEntryIds = new Set(result.entryIds);
+    }
+  } catch (e) { console.warn('Failed to fetch acknowledgements:', e); }
+}
+
+async function acknowledgeEntryById(entryId) {
+  try {
+    await fetch('/api/proposal-log/acknowledge/' + entryId, {
+      method: 'POST',
+      credentials: 'include'
+    });
+    acknowledgedEntryIds.add(entryId);
+    renderDash();
+  } catch (e) { console.warn('Failed to acknowledge:', e); }
 }
 function startEstNumEdit(e, oi) {
   e.stopPropagation();
@@ -2287,6 +2363,7 @@ function showToast(msg){
 }
 
 let currentUser = null;
+let acknowledgedEntryIds = new Set();
 
 const CAPS = {
   admin: { dashboard:true,  addRow:true,  editRow:true,  deleteRow:true,  importExcel:true,  clearAll:true,  modeToggle:true  },
