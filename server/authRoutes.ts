@@ -45,10 +45,10 @@ function getClientIP(req: Request): string {
   return (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() || req.socket.remoteAddress || "unknown";
 }
 
-const QUICK_LOGIN_USERS: Record<string, { email: string; role: "admin" | "user" }> = {
-  hk: { email: "hkkruse@nationalbuildingspecialties.com", role: "admin" },
-  gm: { email: "gm@nationalbuildingspecialties.com", role: "user" },
-  gt: { email: "gt@nationalbuildingspecialties.com", role: "user" },
+const QUICK_LOGIN_USERS: Record<string, { email: string; role: "admin" | "user"; initials: string; displayName: string }> = {
+  hk: { email: "hkkruse@nationalbuildingspecialties.com", role: "admin", initials: "HK", displayName: "Haley Kruse" },
+  gm: { email: "gm@nationalbuildingspecialties.com", role: "user", initials: "GM", displayName: "GM" },
+  gt: { email: "gt@nationalbuildingspecialties.com", role: "user", initials: "GT", displayName: "GT" },
 };
 
 export function registerAuthRoutes(app: Express) {
@@ -65,7 +65,7 @@ export function registerAuthRoutes(app: Express) {
         return res.status(401).json({ message: "Invalid credentials" });
       }
 
-      const { email: mappedEmail, role: targetRole } = shortcut;
+      const { email: mappedEmail, role: targetRole, initials: targetInitials, displayName: targetDisplayName } = shortcut;
 
       let [user] = await db.select().from(users).where(eq(users.email, mappedEmail));
       if (!user) {
@@ -73,11 +73,19 @@ export function registerAuthRoutes(app: Express) {
           email: mappedEmail,
           username: key,
           role: targetRole,
+          initials: targetInitials,
+          displayName: targetDisplayName,
           isActive: true,
         }).returning();
-      } else if (user.role !== targetRole) {
-        await db.update(users).set({ role: targetRole }).where(eq(users.id, user.id));
-        user = { ...user, role: targetRole };
+      } else {
+        const updates: Record<string, any> = {};
+        if (user.role !== targetRole) updates.role = targetRole;
+        if (user.initials !== targetInitials) updates.initials = targetInitials;
+        if (user.displayName !== targetDisplayName) updates.displayName = targetDisplayName;
+        if (Object.keys(updates).length > 0) {
+          await db.update(users).set(updates).where(eq(users.id, user.id));
+          user = { ...user, ...updates };
+        }
       }
 
       if (!user.isActive) {
@@ -100,7 +108,7 @@ export function registerAuthRoutes(app: Express) {
       });
 
       res.json({
-        user: { id: user.id, email: user.email, role: user.role },
+        user: { id: user.id, email: user.email, role: user.role, initials: user.initials, displayName: user.displayName, username: user.username },
       });
     } catch (error: any) {
       console.error("[Auth] Quick login error:", error);
@@ -217,7 +225,7 @@ export function registerAuthRoutes(app: Express) {
       });
 
       res.json({
-        user: { id: user.id, email: user.email, role: user.role },
+        user: { id: user.id, email: user.email, role: user.role, initials: user.initials, displayName: user.displayName, username: user.username },
       });
     } catch (error: any) {
       console.error("[Auth] Verify error:", error);

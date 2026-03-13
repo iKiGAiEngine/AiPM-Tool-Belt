@@ -43,7 +43,7 @@ import { getActiveFolderTemplate, getActiveEstimateTemplate } from "./templateSt
 import ExcelJS from "exceljs";
 import { extractProjectDetailsFromScreenshot } from "./screenshotExtractor";
 import { guessMarket, guessRegion, createProposalLogEntry, getUnsyncedEntries, markEntriesSynced, getActiveProposalLogEntries, getAllProposalLogEntries, updateProposalLogEntryById, deleteProposalLogEntry, deleteProposalLogEntries, getAcknowledgedEntryIds, acknowledgeEntry, unacknowledgeEntry, clearAcknowledgementsForEntry } from "./proposalLogService";
-import { getSheetUrl, syncProposalLogToSheet, isGoogleSheetConfigured } from "./googleSheetSync";
+import { getSheetUrl, syncProposalLogToSheet, syncSheetToProposalLog, isGoogleSheetConfigured } from "./googleSheetSync";
 import { users } from "@shared/schema";
 import { eq } from "drizzle-orm";
 import { db } from "./db";
@@ -1836,6 +1836,19 @@ export function registerProjectRoutes(app: Express) {
     } catch (error: any) {
       console.error("Failed to force sync:", error);
       res.status(500).json({ message: "Failed to sync", error: error.message });
+    }
+  });
+
+  app.post("/api/proposal-log/google-sheet/import", async (req: Request, res: Response) => {
+    try {
+      if (!isGoogleSheetConfigured()) {
+        return res.status(400).json({ message: "Google Sheets integration not configured" });
+      }
+      const result = await syncSheetToProposalLog();
+      res.json(result);
+    } catch (error: any) {
+      console.error("Failed to import from sheet:", error);
+      res.status(500).json({ message: "Failed to import from sheet", error: error.message });
     }
   });
 

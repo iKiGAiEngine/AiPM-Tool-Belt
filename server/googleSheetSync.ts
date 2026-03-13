@@ -2,6 +2,9 @@ import { google } from 'googleapis';
 import fs from 'fs';
 import path from 'path';
 import { getActiveProposalLogEntries } from './proposalLogService';
+import { db } from './db';
+import { proposalLogEntries } from '@shared/schema';
+import { eq } from 'drizzle-orm';
 
 let connectionSettings: any;
 
@@ -289,6 +292,101 @@ export async function syncProposalLogToSheet(): Promise<{ success: boolean; rowC
         });
       }, 500);
     }
+  }
+}
+
+export async function syncSheetToProposalLog(): Promise<{ success: boolean; updated: number; error?: string }> {
+  try {
+    const sid = loadSpreadsheetId();
+    if (!sid) {
+      return { success: false, updated: 0, error: 'No Google Sheet configured' };
+    }
+
+    const sheets = await getUncachableGoogleSheetClient();
+    const accessible = await verifySheetAccess(sheets, sid);
+    if (!accessible) {
+      return { success: false, updated: 0, error: 'Google Sheet is inaccessible' };
+    }
+
+    let result;
+    try {
+      result = await sheets.spreadsheets.values.get({
+        spreadsheetId: sid,
+        range: 'Proposal Log!A:L',
+      });
+    } catch (e: any) {
+      if (e.code === 400 || e.status === 400) {
+        result = await sheets.spreadsheets.values.get({
+          spreadsheetId: sid,
+          range: 'Sheet1!A:L',
+        });
+      } else {
+        throw e;
+      }
+    }
+
+    const rows: string[][] = result.data.values || [];
+    if (rows.length < 2) {
+      return { success: true, updated: 0 };
+    }
+
+    const headerRow = rows[0];
+    const colMap: Record<string, number> = {};
+    SHEET_COLUMNS.forEach((col, i) => {
+      const idx = headerRow.findIndex((h: string) => h.trim().toLowerCase() === col.toLowerCase());
+      if (idx !== -1) colMap[col] = idx;
+    });
+
+    if (colMap['Estimate Number'] === undefined) {
+      return { success: false, updated: 0, error: 'Could not find Estimate Number column in sheet' };
+    }
+
+    const dbEntries = await getActiveProposalLogEntries();
+    const entryMap = new Map<string, any>();
+    for (const entry of dbEntries) {
+      if (entry.estimateNumber) {
+        entryMap.set(entry.estimateNumber, entry);
+      }
+    }
+
+    let updatedCount = 0;
+
+    for (let r = 1; r < rows.length; r++) {
+      const row = rows[r];
+      const estNum = (row[colMap['Estimate Number']] || '').trim();
+      if (!estNum) continue;
+
+      const dbEntry = entryMap.get(estNum);
+      if (!dbEntry) continue;
+
+      const sheetVals: Record<string, string> = {};
+      if (colMap['NBS Estimator'] !== undefined) sheetVals.nbsEstimator = (row[colMap['NBS Estimator']] || '').trim();
+      if (colMap['GC Estimate Lead'] !== undefined) sheetVals.gcEstimateLead = (row[colMap['GC Estimate Lead']] || '').trim();
+      if (colMap['Proposal Total'] !== undefined) sheetVals.proposalTotal = (row[colMap['Proposal Total']] || '').trim();
+      if (colMap['Estimate Status'] !== undefined) sheetVals.estimateStatus = (row[colMap['Estimate Status']] || '').trim();
+      if (colMap['Anticipated Start'] !== undefined) sheetVals.anticipatedStart = (row[colMap['Anticipated Start']] || '').trim();
+      if (colMap['Anticipated Finish'] !== undefined) sheetVals.anticipatedFinish = (row[colMap['Anticipated Finish']] || '').trim();
+
+      const changes: Record<string, string> = {};
+      if (sheetVals.nbsEstimator !== undefined && sheetVals.nbsEstimator !== (dbEntry.nbsEstimator || '')) changes.nbsEstimator = sheetVals.nbsEstimator;
+      if (sheetVals.gcEstimateLead !== undefined && sheetVals.gcEstimateLead !== (dbEntry.gcEstimateLead || '')) changes.gcEstimateLead = sheetVals.gcEstimateLead;
+      if (sheetVals.proposalTotal !== undefined && sheetVals.proposalTotal !== (dbEntry.proposalTotal || '')) changes.proposalTotal = sheetVals.proposalTotal;
+      if (sheetVals.estimateStatus !== undefined && sheetVals.estimateStatus !== (dbEntry.estimateStatus || '')) changes.estimateStatus = sheetVals.estimateStatus;
+      if (sheetVals.anticipatedStart !== undefined && sheetVals.anticipatedStart !== (dbEntry.anticipatedStart || '')) changes.anticipatedStart = sheetVals.anticipatedStart;
+      if (sheetVals.anticipatedFinish !== undefined && sheetVals.anticipatedFinish !== (dbEntry.anticipatedFinish || '')) changes.anticipatedFinish = sheetVals.anticipatedFinish;
+
+      if (Object.keys(changes).length > 0) {
+        await db.update(proposalLogEntries).set(changes).where(eq(proposalLogEntries.id, dbEntry.id));
+        updatedCount++;
+        console.log(`[GoogleSheetSync] Updated entry ${estNum} from sheet:`, Object.keys(changes).join(', '));
+      }
+    }
+
+    console.log(`[GoogleSheetSync] Sheet-to-app sync complete: ${updatedCount} entries updated`);
+    return { success: true, updated: updatedCount };
+  } catch (error: any) {
+    console.error('[GoogleSheetSync] Sheet-to-app sync failed:', error.message);
+    return { success: false, updated: 0, error: error.message };
   }
 }
 

@@ -29,7 +29,7 @@ All data is persistently stored in PostgreSQL, managed by Drizzle ORM. Key table
 - **Central Settings Hub**: Provides an administrative interface for managing scope dictionaries, regional identifiers, vendor profiles, Division 10 product dictionaries, and Spec Extractor configurations.
 - **Template Management**: Facilitates uploading and versioning of folder structures and Excel templates, supporting Excel stamping with project data.
 - **Project Log**: An immutable audit trail of all `proposal_log_entries`, supporting filtering, sorting, searching, and export, with soft-deletion marking deleted entries.
-- **Google Sheet Sync**: Provides a read-only mirror of the Proposal Log database to a Google Sheet, with auto-sync on data changes and manual sync options.
+- **Google Sheet Sync**: Bidirectional sync between the Proposal Log database and a Google Sheet. "Push to Sheet" exports app data to the sheet; "Pull from Sheet" imports changes made in the sheet back into the app. Push is auto-triggered on data changes; pull is manual via button.
 - **Nightly Backup**: Automatically generates and stores formatted .xlsx backups of the Proposal Log daily, retaining the last 30 backups.
 - **Schedule Converter**: Transforms schedule screenshots or pasted text into structured data using AI vision models (GPT-4o). It features a verification pass, row-by-row anchored processing, confidence scores, inline editing, and export to NBS Template (TSV) or standard Excel.
 - **Test Mode**: Allows for creating isolated test projects for development and data cleanup.
@@ -37,7 +37,7 @@ All data is persistently stored in PostgreSQL, managed by Drizzle ORM. Key table
 
 ### Authentication & Access Control
 - **OTP Email Login**: Users log in via a 6-digit email code (SendGrid or console logging). Codes are hashed, single-use, and expire in 10 minutes.
-- **Quick Login**: Pre-configured quick login buttons for test users with role-based access.
+- **Quick Login**: Pre-configured quick login buttons for test users with role-based access. Each quick login user has mapped initials (HK, GM, GT) and display names for HUD scoping.
 - **Domain Restriction**: Login and user creation are restricted to allowed email domains.
 - **Role-Based Access**: Features are gated by `isAdmin` checks for admin-only functionalities.
 - **Session Management**: PostgreSQL-backed sessions with 7-day secure cookies.
