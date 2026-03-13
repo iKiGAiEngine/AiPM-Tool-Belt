@@ -284,7 +284,7 @@ export default function HomePage() {
         if (!p.dueDate || !activeStatuses.includes(p.estimateStatus || "")) return false;
         if (p._isTest && !effectiveTestMode) return false;
         if (!p._isTest && effectiveTestMode) return false;
-        if (!p.nbsEstimator || p.nbsEstimator !== userEstimatorCode) return false;
+        if (!p.nbsEstimator || p.nbsEstimator.trim().toUpperCase() !== userEstimatorCode) return false;
         return true;
       })
       .map((p) => ({ ...p, _bizDays: bizDaysUntil(p.dueDate!) }))
@@ -334,12 +334,25 @@ export default function HomePage() {
     });
 
     try {
-      await fetch(`/api/proposal-log/acknowledge/${entryId}`, {
+      const res = await fetch(`/api/proposal-log/acknowledge/${entryId}`, {
         method: "POST",
         credentials: "include",
       });
+      if (!res.ok) {
+        console.warn("Acknowledge request failed:", res.status);
+        setAcknowledgedIds((prev) => {
+          const next = new Set(prev);
+          next.delete(entryId);
+          return next;
+        });
+      }
     } catch (err) {
       console.warn("Failed to acknowledge entry:", err);
+      setAcknowledgedIds((prev) => {
+        const next = new Set(prev);
+        next.delete(entryId);
+        return next;
+      });
     }
 
     const btn = rowEl.querySelector(".ack-btn") as HTMLElement;
