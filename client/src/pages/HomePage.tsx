@@ -440,7 +440,6 @@ export default function HomePage() {
         <div className="hp-rule" />
         <p className="hp-eyebrow">YOUR AI ASSISTED DIGITAL PM</p>
       </div>
-
       <div className="main-layout">
         <div className="tools-col">
           {tools.map((tool, i) => {
@@ -507,7 +506,7 @@ export default function HomePage() {
                   <FileBarChart style={{ width: 18, height: 18, color: "var(--gold)" }} />
                 </div>
                 <div>
-                  <div className="pl-title">Proposal Log</div>
+                  <div className="pl-title">Proposal Log HUD</div>
                   <div className="pl-sub">Your active bids &middot; personalized view</div>
                 </div>
               </div>
@@ -640,7 +639,6 @@ export default function HomePage() {
           </div>
         </div>
       </div>
-
       <Dialog open={!!selectedToolForStats} onOpenChange={(open) => { if (!open) setSelectedToolForStats(null); }}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
