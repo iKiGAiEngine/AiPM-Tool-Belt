@@ -327,40 +327,13 @@ export default function HomePage() {
     if (!p._serverDbId) return;
     const entryId = p._serverDbId;
 
-    setAcknowledgedIds((prev) => {
-      const next = new Set(prev);
-      next.add(entryId);
-      return next;
-    });
-
-    try {
-      const res = await fetch(`/api/proposal-log/acknowledge/${entryId}`, {
-        method: "POST",
-        credentials: "include",
-      });
-      if (!res.ok) {
-        console.warn("Acknowledge request failed:", res.status);
-        setAcknowledgedIds((prev) => {
-          const next = new Set(prev);
-          next.delete(entryId);
-          return next;
-        });
-      }
-    } catch (err) {
-      console.warn("Failed to acknowledge entry:", err);
-      setAcknowledgedIds((prev) => {
-        const next = new Set(prev);
-        next.delete(entryId);
-        return next;
-      });
-    }
-
     const btn = rowEl.querySelector(".ack-btn") as HTMLElement;
     if (btn) {
       btn.style.background = "rgba(61,170,106,0.2)";
       btn.style.borderColor = "rgba(61,170,106,0.5)";
       btn.style.color = "#3DAA6A";
     }
+
     setTimeout(() => {
       rowEl.style.transition = "opacity .3s, max-height .4s .1s, padding .3s, margin .3s";
       rowEl.style.opacity = "0";
@@ -369,6 +342,36 @@ export default function HomePage() {
       rowEl.style.paddingBottom = "0";
       rowEl.style.marginTop = "0";
     }, 300);
+
+    setTimeout(async () => {
+      setAcknowledgedIds((prev) => {
+        const next = new Set(prev);
+        next.add(entryId);
+        return next;
+      });
+
+      try {
+        const res = await fetch(`/api/proposal-log/acknowledge/${entryId}`, {
+          method: "POST",
+          credentials: "include",
+        });
+        if (!res.ok) {
+          console.warn("Acknowledge request failed:", res.status);
+          setAcknowledgedIds((prev) => {
+            const next = new Set(prev);
+            next.delete(entryId);
+            return next;
+          });
+        }
+      } catch (err) {
+        console.warn("Failed to acknowledge entry:", err);
+        setAcknowledgedIds((prev) => {
+          const next = new Set(prev);
+          next.delete(entryId);
+          return next;
+        });
+      }
+    }, 800);
   }, []);
 
   const selectedToolTitle = tools.find((t) => t.id === selectedToolForStats)?.title || "";
@@ -468,12 +471,13 @@ export default function HomePage() {
                 >
                   {newlyAssigned.map((p, i) => {
                     const due = formatDueLabel(p._bizDays!, p.dueDate!);
-                    const rowId = `new-row-${i}`;
+                    const stableId = p._serverDbId || p.estimateNumber || `new-${i}`;
+                    const rowId = `new-row-${stableId}`;
                     return (
                       <div
-                        key={rowId}
+                        key={stableId}
                         id={rowId}
-                        className="bid-row r-new"
+                        className="bid-row"
                         style={{ overflow: "hidden" }}
                       >
                         <div className="bid-name" data-testid={`text-bid-name-new-${i}`}>{p.projectName}</div>
@@ -486,7 +490,7 @@ export default function HomePage() {
                             const row = document.getElementById(rowId);
                             if (row) handleAcknowledge(p, row);
                           }}
-                          data-testid={`button-ack-${i}`}
+                          data-testid={`button-ack-${stableId}`}
                         >
                           <Check style={{ width: 11, height: 11 }} />
                         </button>
@@ -518,9 +522,11 @@ export default function HomePage() {
                 >
                   {dueThisWeek.map((p, i) => {
                     const due = formatDueLabel(p._bizDays!, p.dueDate!);
+                    const stableId = p._serverDbId || p.estimateNumber || `due-${i}`;
                     return (
-                      <div key={`due-${i}`} className="bid-row">
+                      <div key={stableId} className="bid-row">
                         <div className="bid-name" data-testid={`text-bid-name-due-${i}`}>{p.projectName}</div>
+                        <span className="ack-btn-spacer" />
                         {p.filePath ? (
                           <a
                             className="bid-folder"
@@ -549,9 +555,11 @@ export default function HomePage() {
                 >
                   {activePipeline.map((p, i) => {
                     const due = formatDueLabel(p._bizDays!, p.dueDate!);
+                    const stableId = p._serverDbId || p.estimateNumber || `pipe-${i}`;
                     return (
-                      <div key={`pipe-${i}`} className="bid-row">
+                      <div key={stableId} className="bid-row">
                         <div className="bid-name" data-testid={`text-bid-name-pipe-${i}`}>{p.projectName}</div>
+                        <span className="ack-btn-spacer" />
                         {p.filePath ? (
                           <a
                             className="bid-folder"
