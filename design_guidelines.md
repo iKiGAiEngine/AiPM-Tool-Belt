@@ -1,4 +1,4 @@
-# SpecSift Design Guidelines
+# AiPM Tool Belt Design Guidelines
 
 ## Design Approach
 **System-Based Approach** - Drawing from modern productivity tools (Linear, Notion, Asana) with emphasis on clarity, efficiency, and data organization. This is a professional construction document processing tool requiring clean information hierarchy and streamlined workflows.
