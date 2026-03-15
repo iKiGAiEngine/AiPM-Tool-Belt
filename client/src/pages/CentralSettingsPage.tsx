@@ -1,7 +1,8 @@
 import { useState, useRef } from "react";
 import { Link } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { ArrowLeft, Building2, Package, Plus, Pencil, Trash2, Search, X, BookOpen, MapPin, FolderArchive, FileSpreadsheet, Upload, Download, Check, Star, FileSearch, Save, History, RotateCcw, Tag, CheckCircle, ClipboardList } from "lucide-react";
+import { ArrowLeft, Building2, Package, Plus, Pencil, Trash2, Search, X, BookOpen, MapPin, FolderArchive, FileSpreadsheet, Upload, Download, Check, Star, FileSearch, Save, History, RotateCcw, Tag, CheckCircle, ClipboardList, FileUp, AlertTriangle } from "lucide-react";
+import * as XLSX from "xlsx";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -108,6 +109,7 @@ function VendorSection() {
   const [searchQuery, setSearchQuery] = useState("");
   const [editingVendor, setEditingVendor] = useState<Vendor | null>(null);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+  const [isImportOpen, setIsImportOpen] = useState(false);
 
   const { data: vendors = [], isLoading } = useQuery<Vendor[]>({
     queryKey: ["/api/settings/vendors"],
@@ -142,10 +144,16 @@ function VendorSection() {
               Manage vendor information and quote parsing patterns
             </CardDescription>
           </div>
-          <Button onClick={() => setIsAddDialogOpen(true)} data-testid="button-add-vendor">
-            <Plus className="w-4 h-4 mr-2" />
-            Add Vendor
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" onClick={() => setIsImportOpen(true)} data-testid="button-import-vendors">
+              <FileUp className="w-4 h-4 mr-2" />
+              Import
+            </Button>
+            <Button onClick={() => setIsAddDialogOpen(true)} data-testid="button-add-vendor">
+              <Plus className="w-4 h-4 mr-2" />
+              Add Vendor
+            </Button>
+          </div>
         </div>
       </CardHeader>
       <CardContent>
@@ -241,6 +249,23 @@ function VendorSection() {
           mode="edit"
         />
       )}
+
+      <BulkImportDialog
+        open={isImportOpen}
+        onOpenChange={setIsImportOpen}
+        title="Vendors"
+        importEndpoint="/api/settings/vendors/bulk-import"
+        invalidateKey="/api/settings/vendors"
+        columns={[
+          { key: "name", label: "Name", required: true },
+          { key: "shortName", label: "Short Name" },
+          { key: "modelPrefixes", label: "Model Prefixes" },
+          { key: "contactEmail", label: "Email" },
+          { key: "contactPhone", label: "Phone" },
+          { key: "website", label: "Website" },
+          { key: "notes", label: "Notes" },
+        ]}
+      />
     </Card>
   );
 }
@@ -446,6 +471,7 @@ function ProductSection() {
   const [scopeFilter, setScopeFilter] = useState<string>("all");
   const [editingProduct, setEditingProduct] = useState<Div10Product | null>(null);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+  const [isImportOpen, setIsImportOpen] = useState(false);
 
   const { data: products = [], isLoading } = useQuery<Div10Product[]>({
     queryKey: ["/api/settings/products"],
@@ -494,10 +520,16 @@ function ProductSection() {
               Manage known products and model numbers for better quote parsing
             </CardDescription>
           </div>
-          <Button onClick={() => setIsAddDialogOpen(true)} data-testid="button-add-product">
-            <Plus className="w-4 h-4 mr-2" />
-            Add Product
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" onClick={() => setIsImportOpen(true)} data-testid="button-import-products">
+              <FileUp className="w-4 h-4 mr-2" />
+              Import
+            </Button>
+            <Button onClick={() => setIsAddDialogOpen(true)} data-testid="button-add-product">
+              <Plus className="w-4 h-4 mr-2" />
+              Add Product
+            </Button>
+          </div>
         </div>
       </CardHeader>
       <CardContent>
@@ -607,6 +639,23 @@ function ProductSection() {
           mode="edit"
         />
       )}
+
+      <BulkImportDialog
+        open={isImportOpen}
+        onOpenChange={setIsImportOpen}
+        title="Products"
+        importEndpoint="/api/settings/products/bulk-import"
+        invalidateKey="/api/settings/products"
+        columns={[
+          { key: "modelNumber", label: "Model Number", required: true },
+          { key: "description", label: "Description", required: true },
+          { key: "manufacturer", label: "Manufacturer" },
+          { key: "scopeCategory", label: "Scope Category" },
+          { key: "aliases", label: "Aliases" },
+          { key: "typicalPrice", label: "Typical Price" },
+          { key: "notes", label: "Notes" },
+        ]}
+      />
     </Card>
   );
 }
@@ -819,6 +868,7 @@ function ScopeDictionarySection() {
   const { toast } = useToast();
   const [editingScope, setEditingScope] = useState<ScopeDictionary | null>(null);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+  const [isImportOpen, setIsImportOpen] = useState(false);
 
   const { data: dictionaries = [], isLoading } = useQuery<ScopeDictionary[]>({
     queryKey: ["/api/scope-dictionaries"],
@@ -871,6 +921,10 @@ function ScopeDictionarySection() {
                 Load Defaults
               </Button>
             )}
+            <Button variant="outline" onClick={() => setIsImportOpen(true)} data-testid="button-import-scopes">
+              <FileUp className="w-4 h-4 mr-2" />
+              Import
+            </Button>
             <Button onClick={() => setIsAddDialogOpen(true)} data-testid="button-add-scope">
               <Plus className="w-4 h-4 mr-2" />
               Add Scope
@@ -963,6 +1017,22 @@ function ScopeDictionarySection() {
           mode="edit"
         />
       )}
+
+      <BulkImportDialog
+        open={isImportOpen}
+        onOpenChange={setIsImportOpen}
+        title="Scope Dictionaries"
+        importEndpoint="/api/scope-dictionaries/bulk-import"
+        invalidateKey="/api/scope-dictionaries"
+        columns={[
+          { key: "scopeName", label: "Scope Name", required: true },
+          { key: "includeKeywords", label: "Include Keywords" },
+          { key: "boostPhrases", label: "Boost Phrases" },
+          { key: "excludeKeywords", label: "Exclude Keywords" },
+          { key: "weight", label: "Weight" },
+          { key: "specSectionNumbers", label: "Spec Section Numbers" },
+        ]}
+      />
     </Card>
   );
 }
@@ -1174,6 +1244,7 @@ function RegionSection() {
   const [editingRegion, setEditingRegion] = useState<Region | null>(null);
   const [newCode, setNewCode] = useState("");
   const [newName, setNewName] = useState("");
+  const [isImportOpen, setIsImportOpen] = useState(false);
 
   const { data: allRegions = [], isLoading } = useQuery<Region[]>({
     queryKey: ["/api/regions"],
@@ -1232,10 +1303,16 @@ function RegionSection() {
               Manage region codes used in project naming (e.g., LAX, DFW, ORD)
             </CardDescription>
           </div>
-          <Button onClick={() => setIsAddDialogOpen(true)} data-testid="button-add-region">
-            <Plus className="w-4 h-4 mr-2" />
-            Add Region
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" onClick={() => setIsImportOpen(true)} data-testid="button-import-regions">
+              <FileUp className="w-4 h-4 mr-2" />
+              Import
+            </Button>
+            <Button onClick={() => setIsAddDialogOpen(true)} data-testid="button-add-region">
+              <Plus className="w-4 h-4 mr-2" />
+              Add Region
+            </Button>
+          </div>
         </div>
       </CardHeader>
       <CardContent>
@@ -1338,6 +1415,18 @@ function RegionSection() {
           isPending={updateMutation.isPending}
         />
       )}
+
+      <BulkImportDialog
+        open={isImportOpen}
+        onOpenChange={setIsImportOpen}
+        title="Regions"
+        importEndpoint="/api/regions/bulk-import"
+        invalidateKey="/api/regions"
+        columns={[
+          { key: "code", label: "Code", required: true },
+          { key: "name", label: "Name" },
+        ]}
+      />
     </Card>
   );
 }
@@ -2389,5 +2478,251 @@ function SpecExtractorSettingsSection() {
         </DialogContent>
       </Dialog>
     </div>
+  );
+}
+
+interface BulkImportColumn {
+  key: string;
+  label: string;
+  required?: boolean;
+}
+
+interface BulkImportDialogProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  title: string;
+  columns: BulkImportColumn[];
+  importEndpoint: string;
+  invalidateKey: string;
+}
+
+function BulkImportDialog({ open, onOpenChange, title, columns, importEndpoint, invalidateKey }: BulkImportDialogProps) {
+  const { toast } = useToast();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [parsedRows, setParsedRows] = useState<Record<string, string>[]>([]);
+  const [columnMapping, setColumnMapping] = useState<Record<string, string>>({});
+  const [fileName, setFileName] = useState("");
+  const [step, setStep] = useState<"upload" | "preview">("upload");
+
+  const importMutation = useMutation({
+    mutationFn: async (rows: Record<string, string>[]) => {
+      const res = await apiRequest("POST", importEndpoint, { rows });
+      return res.json();
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: [invalidateKey] });
+      toast({
+        title: `Import complete`,
+        description: `${data.imported} imported, ${data.skipped} skipped${data.errors?.length ? `, ${data.errors.length} errors` : ""}`,
+      });
+      handleClose();
+    },
+    onError: () => {
+      toast({ title: "Import failed", variant: "destructive" });
+    },
+  });
+
+  const handleClose = () => {
+    setParsedRows([]);
+    setColumnMapping({});
+    setFileName("");
+    setStep("upload");
+    onOpenChange(false);
+  };
+
+  const handleFile = (file: File) => {
+    setFileName(file.name);
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const data = e.target?.result;
+        const wb = XLSX.read(data, { type: "binary" });
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        const raw: string[][] = XLSX.utils.sheet_to_json(ws, { header: 1, defval: "" });
+        if (raw.length < 2) {
+          toast({ title: "File appears empty or has no data rows", variant: "destructive" });
+          return;
+        }
+        const headers = raw[0].map(h => h.toString().trim());
+        const autoMapping: Record<string, string> = {};
+        for (const col of columns) {
+          const match = headers.findIndex(h =>
+            h.toLowerCase() === col.key.toLowerCase() ||
+            h.toLowerCase() === col.label.toLowerCase() ||
+            h.toLowerCase().replace(/[\s_-]/g, "") === col.key.toLowerCase().replace(/[\s_-]/g, "")
+          );
+          if (match !== -1) autoMapping[col.key] = headers[match];
+        }
+        setColumnMapping(autoMapping);
+        const rows = raw.slice(1).filter(r => r.some(c => c !== "")).map(r => {
+          const obj: Record<string, string> = {};
+          headers.forEach((h, i) => { obj[h] = (r[i] || "").toString(); });
+          return obj;
+        });
+        setParsedRows(rows);
+        setStep("preview");
+      } catch (err) {
+        toast({ title: "Failed to parse file", variant: "destructive" });
+      }
+    };
+    reader.readAsBinaryString(file);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    const file = e.dataTransfer.files[0];
+    if (file) handleFile(file);
+  };
+
+  const handleImport = () => {
+    const mappedRows = parsedRows.map(row => {
+      const mapped: Record<string, string> = {};
+      for (const col of columns) {
+        const sourceCol = columnMapping[col.key];
+        if (sourceCol) mapped[col.key] = row[sourceCol] || "";
+      }
+      return mapped;
+    });
+    const validRows = mappedRows.filter(r =>
+      columns.filter(c => c.required).every(c => (r[c.key] || "").trim())
+    );
+    if (validRows.length === 0) {
+      toast({ title: "No valid rows to import", description: "Required columns are missing data", variant: "destructive" });
+      return;
+    }
+    importMutation.mutate(validRows);
+  };
+
+  const fileHeaders = parsedRows.length > 0 ? Object.keys(parsedRows[0]) : [];
+  const requiredMapped = columns.filter(c => c.required).every(c => columnMapping[c.key]);
+
+  return (
+    <Dialog open={open} onOpenChange={handleClose}>
+      <DialogContent className="max-w-3xl max-h-[85vh] flex flex-col">
+        <DialogHeader>
+          <DialogTitle className="font-heading">Bulk Import {title}</DialogTitle>
+          <DialogDescription>
+            Upload an Excel (.xlsx) or CSV file to import multiple {title.toLowerCase()} at once. Duplicates will be automatically skipped.
+          </DialogDescription>
+        </DialogHeader>
+
+        {step === "upload" && (
+          <div
+            className="border-2 border-dashed rounded-lg p-12 text-center cursor-pointer hover:border-primary/50 transition-colors"
+            onClick={() => fileInputRef.current?.click()}
+            onDragOver={(e) => e.preventDefault()}
+            onDrop={handleDrop}
+            data-testid="bulk-import-dropzone"
+          >
+            <FileUp className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
+            <p className="text-lg font-medium mb-1">Drop your file here or click to browse</p>
+            <p className="text-sm text-muted-foreground">Supports .xlsx, .xls, and .csv files</p>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".xlsx,.xls,.csv"
+              className="hidden"
+              onChange={(e) => e.target.files?.[0] && handleFile(e.target.files[0])}
+              data-testid="bulk-import-file-input"
+            />
+          </div>
+        )}
+
+        {step === "preview" && (
+          <div className="flex-1 overflow-hidden flex flex-col gap-4">
+            <div className="flex items-center justify-between">
+              <p className="text-sm text-muted-foreground">
+                <span className="font-medium text-foreground">{fileName}</span> — {parsedRows.length} rows found
+              </p>
+              <Button variant="ghost" size="sm" onClick={() => { setStep("upload"); setParsedRows([]); setFileName(""); }}>
+                Choose different file
+              </Button>
+            </div>
+
+            <div className="border rounded-lg p-4 space-y-3">
+              <p className="text-sm font-medium">Column Mapping</p>
+              <div className="grid grid-cols-2 gap-3">
+                {columns.map(col => (
+                  <div key={col.key} className="flex items-center gap-2">
+                    <Label className="text-sm min-w-[120px]">
+                      {col.label} {col.required && <span className="text-destructive">*</span>}
+                    </Label>
+                    <Select
+                      value={columnMapping[col.key] || "__unmapped__"}
+                      onValueChange={(v) => setColumnMapping(prev => ({ ...prev, [col.key]: v === "__unmapped__" ? "" : v }))}
+                    >
+                      <SelectTrigger className="h-8 text-sm" data-testid={`mapping-${col.key}`}>
+                        <SelectValue placeholder="Select column..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="__unmapped__">-- Not mapped --</SelectItem>
+                        {fileHeaders.map(h => (
+                          <SelectItem key={h} value={h}>{h}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {columnMapping[col.key] && columnMapping[col.key] !== "__unmapped__" && (
+                      <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex-1 overflow-auto border rounded-lg">
+              <table className="w-full text-sm">
+                <thead className="bg-muted/50 sticky top-0">
+                  <tr>
+                    <th className="text-left px-3 py-2 text-xs font-medium text-muted-foreground">#</th>
+                    {columns.filter(c => columnMapping[c.key]).map(col => (
+                      <th key={col.key} className="text-left px-3 py-2 text-xs font-medium text-muted-foreground">
+                        {col.label}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {parsedRows.slice(0, 50).map((row, i) => (
+                    <tr key={i} className="border-t">
+                      <td className="px-3 py-1.5 text-muted-foreground">{i + 1}</td>
+                      {columns.filter(c => columnMapping[c.key]).map(col => (
+                        <td key={col.key} className="px-3 py-1.5 max-w-[200px] truncate">
+                          {row[columnMapping[col.key]] || ""}
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {parsedRows.length > 50 && (
+                <div className="text-center py-2 text-sm text-muted-foreground border-t">
+                  Showing first 50 of {parsedRows.length} rows
+                </div>
+              )}
+            </div>
+
+            {!requiredMapped && (
+              <div className="flex items-center gap-2 text-sm text-amber-500">
+                <AlertTriangle className="w-4 h-4" />
+                Map all required columns (marked with *) to proceed
+              </div>
+            )}
+          </div>
+        )}
+
+        <DialogFooter>
+          <Button variant="outline" onClick={handleClose}>Cancel</Button>
+          {step === "preview" && (
+            <Button
+              onClick={handleImport}
+              disabled={!requiredMapped || importMutation.isPending}
+              data-testid="button-confirm-import"
+            >
+              {importMutation.isPending ? "Importing..." : `Import ${parsedRows.length} Rows`}
+            </Button>
+          )}
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

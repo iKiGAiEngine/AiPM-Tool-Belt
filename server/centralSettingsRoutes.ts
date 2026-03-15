@@ -17,6 +17,7 @@ import {
   deleteProduct,
   searchProducts,
 } from "./centralSettingsStorage";
+import { getAllScopeDictionaries, createScopeDictionary, getAllRegions, createRegion } from "./scopeDictionaryStorage";
 
 export function registerCentralSettingsRoutes(app: Express) {
   // =====================================================
@@ -224,5 +225,162 @@ export function registerCentralSettingsRoutes(app: Express) {
 
   app.get("/api/settings/scope-categories", (req: Request, res: Response) => {
     res.json(DIV10_SCOPE_CATEGORIES);
+  });
+
+  // =====================================================
+  // Bulk Import Routes
+  // =====================================================
+
+  app.post("/api/settings/vendors/bulk-import", async (req: Request, res: Response) => {
+    try {
+      const rows = req.body.rows;
+      if (!Array.isArray(rows) || rows.length === 0) {
+        return res.status(400).json({ message: "No rows provided" });
+      }
+      const existing = await getAllVendors();
+      const existingNames = new Set(existing.map(v => v.name.toLowerCase().trim()));
+      let imported = 0, skipped = 0;
+      const errors: string[] = [];
+      for (const row of rows) {
+        const name = (row.name || "").toString().trim();
+        if (!name) { skipped++; continue; }
+        if (existingNames.has(name.toLowerCase())) { skipped++; continue; }
+        try {
+          await createVendor({
+            name,
+            shortName: (row.shortName || "").toString().trim() || null,
+            modelPrefixes: row.modelPrefixes ? (Array.isArray(row.modelPrefixes) ? row.modelPrefixes : row.modelPrefixes.toString().split(",").map((s: string) => s.trim()).filter(Boolean)) : null,
+            contactEmail: (row.contactEmail || "").toString().trim() || null,
+            contactPhone: (row.contactPhone || "").toString().trim() || null,
+            website: (row.website || "").toString().trim() || null,
+            notes: (row.notes || "").toString().trim() || null,
+            isActive: true,
+          });
+          existingNames.add(name.toLowerCase());
+          imported++;
+        } catch (e: any) {
+          errors.push(`Row "${name}": ${e.message}`);
+        }
+      }
+      res.json({ imported, skipped, errors, total: rows.length });
+    } catch (error) {
+      console.error("Bulk import vendors error:", error);
+      res.status(500).json({ message: "Failed to import vendors" });
+    }
+  });
+
+  app.post("/api/settings/products/bulk-import", async (req: Request, res: Response) => {
+    try {
+      const rows = req.body.rows;
+      if (!Array.isArray(rows) || rows.length === 0) {
+        return res.status(400).json({ message: "No rows provided" });
+      }
+      const existing = await getAllProducts();
+      const existingModels = new Set(existing.map(p => p.modelNumber.toLowerCase().trim()));
+      let imported = 0, skipped = 0;
+      const errors: string[] = [];
+      for (const row of rows) {
+        const modelNumber = (row.modelNumber || "").toString().trim();
+        if (!modelNumber) { skipped++; continue; }
+        if (existingModels.has(modelNumber.toLowerCase())) { skipped++; continue; }
+        const description = (row.description || "").toString().trim();
+        if (!description) { skipped++; continue; }
+        try {
+          await createProduct({
+            modelNumber,
+            description,
+            manufacturer: (row.manufacturer || "").toString().trim() || null,
+            scopeCategory: (row.scopeCategory || "").toString().trim() || null,
+            aliases: row.aliases ? (Array.isArray(row.aliases) ? row.aliases : row.aliases.toString().split(",").map((s: string) => s.trim()).filter(Boolean)) : null,
+            typicalPrice: (row.typicalPrice || "").toString().trim() || null,
+            notes: (row.notes || "").toString().trim() || null,
+            isActive: true,
+          });
+          existingModels.add(modelNumber.toLowerCase());
+          imported++;
+        } catch (e: any) {
+          errors.push(`Row "${modelNumber}": ${e.message}`);
+        }
+      }
+      res.json({ imported, skipped, errors, total: rows.length });
+    } catch (error) {
+      console.error("Bulk import products error:", error);
+      res.status(500).json({ message: "Failed to import products" });
+    }
+  });
+
+  app.post("/api/scope-dictionaries/bulk-import", async (req: Request, res: Response) => {
+    try {
+      const rows = req.body.rows;
+      if (!Array.isArray(rows) || rows.length === 0) {
+        return res.status(400).json({ message: "No rows provided" });
+      }
+      const existing = await getAllScopeDictionaries();
+      const existingNames = new Set(existing.map(s => s.scopeName.toLowerCase().trim()));
+      let imported = 0, skipped = 0;
+      const errors: string[] = [];
+      for (const row of rows) {
+        const scopeName = (row.scopeName || "").toString().trim();
+        if (!scopeName) { skipped++; continue; }
+        if (existingNames.has(scopeName.toLowerCase())) { skipped++; continue; }
+        try {
+          const parseList = (val: any): string[] => {
+            if (Array.isArray(val)) return val.map(s => s.toString().trim()).filter(Boolean);
+            if (typeof val === "string" && val.trim()) return val.split(",").map(s => s.trim()).filter(Boolean);
+            return [];
+          };
+          await createScopeDictionary({
+            scopeName,
+            includeKeywords: parseList(row.includeKeywords),
+            boostPhrases: parseList(row.boostPhrases),
+            excludeKeywords: parseList(row.excludeKeywords),
+            weight: row.weight ? parseInt(row.weight.toString()) || 100 : 100,
+            specSectionNumbers: parseList(row.specSectionNumbers),
+            isActive: true,
+          });
+          existingNames.add(scopeName.toLowerCase());
+          imported++;
+        } catch (e: any) {
+          errors.push(`Row "${scopeName}": ${e.message}`);
+        }
+      }
+      res.json({ imported, skipped, errors, total: rows.length });
+    } catch (error) {
+      console.error("Bulk import scopes error:", error);
+      res.status(500).json({ message: "Failed to import scope dictionaries" });
+    }
+  });
+
+  app.post("/api/regions/bulk-import", async (req: Request, res: Response) => {
+    try {
+      const rows = req.body.rows;
+      if (!Array.isArray(rows) || rows.length === 0) {
+        return res.status(400).json({ message: "No rows provided" });
+      }
+      const existing = await getAllRegions();
+      const existingCodes = new Set(existing.map(r => r.code.toUpperCase().trim()));
+      let imported = 0, skipped = 0;
+      const errors: string[] = [];
+      for (const row of rows) {
+        const code = (row.code || "").toString().trim().toUpperCase();
+        if (!code) { skipped++; continue; }
+        if (existingCodes.has(code)) { skipped++; continue; }
+        try {
+          await createRegion({
+            code,
+            name: (row.name || "").toString().trim() || null,
+            isActive: true,
+          });
+          existingCodes.add(code);
+          imported++;
+        } catch (e: any) {
+          errors.push(`Row "${code}": ${e.message}`);
+        }
+      }
+      res.json({ imported, skipped, errors, total: rows.length });
+    } catch (error) {
+      console.error("Bulk import regions error:", error);
+      res.status(500).json({ message: "Failed to import regions" });
+    }
   });
 }
