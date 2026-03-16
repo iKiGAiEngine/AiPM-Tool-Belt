@@ -116,6 +116,15 @@ app.use((req, res, next) => {
     }
   }));
 
+  app.use("/templates", express.static(path.join(process.cwd(), "public", "templates"), {
+    setHeaders: (res, filePath) => {
+      if (filePath.endsWith(".xlsx")) {
+        res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+        res.setHeader("Content-Disposition", `attachment; filename="${path.basename(filePath)}"`);
+      }
+    }
+  }));
+
   // importantly only setup vite in development and after
   // setting up all the other routes so the catch-all route
   // doesn't interfere with the other routes
