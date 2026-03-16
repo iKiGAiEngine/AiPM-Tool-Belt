@@ -256,6 +256,7 @@ function VendorSection() {
         title="Vendors"
         importEndpoint="/api/settings/vendors/bulk-import"
         invalidateKey="/api/settings/vendors"
+        templateUrl="/templates/vendors-import-template.xlsx"
         columns={[
           { key: "name", label: "Name", required: true },
           { key: "shortName", label: "Short Name" },
@@ -646,6 +647,7 @@ function ProductSection() {
         title="Products"
         importEndpoint="/api/settings/products/bulk-import"
         invalidateKey="/api/settings/products"
+        templateUrl="/templates/products-import-template.xlsx"
         columns={[
           { key: "modelNumber", label: "Model Number", required: true },
           { key: "description", label: "Description", required: true },
@@ -1024,6 +1026,7 @@ function ScopeDictionarySection() {
         title="Scope Dictionaries"
         importEndpoint="/api/scope-dictionaries/bulk-import"
         invalidateKey="/api/scope-dictionaries"
+        templateUrl="/templates/scopes-import-template.xlsx"
         columns={[
           { key: "scopeName", label: "Scope Name", required: true },
           { key: "includeKeywords", label: "Include Keywords" },
@@ -1422,6 +1425,7 @@ function RegionSection() {
         title="Regions"
         importEndpoint="/api/regions/bulk-import"
         invalidateKey="/api/regions"
+        templateUrl="/templates/regions-import-template.xlsx"
         columns={[
           { key: "code", label: "Code", required: true },
           { key: "name", label: "Name" },
@@ -2494,9 +2498,10 @@ interface BulkImportDialogProps {
   columns: BulkImportColumn[];
   importEndpoint: string;
   invalidateKey: string;
+  templateUrl?: string;
 }
 
-function BulkImportDialog({ open, onOpenChange, title, columns, importEndpoint, invalidateKey }: BulkImportDialogProps) {
+function BulkImportDialog({ open, onOpenChange, title, columns, importEndpoint, invalidateKey, templateUrl }: BulkImportDialogProps) {
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [parsedRows, setParsedRows] = useState<Record<string, string>[]>([]);
@@ -2607,24 +2612,40 @@ function BulkImportDialog({ open, onOpenChange, title, columns, importEndpoint, 
         </DialogHeader>
 
         {step === "upload" && (
-          <div
-            className="border-2 border-dashed rounded-lg p-12 text-center cursor-pointer hover:border-primary/50 transition-colors"
-            onClick={() => fileInputRef.current?.click()}
-            onDragOver={(e) => e.preventDefault()}
-            onDrop={handleDrop}
-            data-testid="bulk-import-dropzone"
-          >
-            <FileUp className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
-            <p className="text-lg font-medium mb-1">Drop your file here or click to browse</p>
-            <p className="text-sm text-muted-foreground">Supports .xlsx, .xls, and .csv files</p>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept=".xlsx,.xls,.csv"
-              className="hidden"
-              onChange={(e) => e.target.files?.[0] && handleFile(e.target.files[0])}
-              data-testid="bulk-import-file-input"
-            />
+          <div className="space-y-4">
+            {templateUrl && (
+              <div className="flex items-center justify-center gap-2 p-3 rounded-lg bg-muted/50 border">
+                <Download className="w-4 h-4 text-muted-foreground" />
+                <span className="text-sm text-muted-foreground">Not sure what format to use?</span>
+                <a
+                  href={templateUrl}
+                  download
+                  className="text-sm font-medium text-primary hover:underline"
+                  data-testid="link-download-template"
+                >
+                  Download Template
+                </a>
+              </div>
+            )}
+            <div
+              className="border-2 border-dashed rounded-lg p-12 text-center cursor-pointer hover:border-primary/50 transition-colors"
+              onClick={() => fileInputRef.current?.click()}
+              onDragOver={(e) => e.preventDefault()}
+              onDrop={handleDrop}
+              data-testid="bulk-import-dropzone"
+            >
+              <FileUp className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
+              <p className="text-lg font-medium mb-1">Drop your file here or click to browse</p>
+              <p className="text-sm text-muted-foreground">Supports .xlsx, .xls, and .csv files</p>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".xlsx,.xls,.csv"
+                className="hidden"
+                onChange={(e) => e.target.files?.[0] && handleFile(e.target.files[0])}
+                data-testid="bulk-import-file-input"
+              />
+            </div>
           </div>
         )}
 
