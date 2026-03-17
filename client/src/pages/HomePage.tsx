@@ -261,7 +261,7 @@ export default function HomePage() {
     const syncInterval = setInterval(() => {
       fetchProposals();
       fetchAcknowledgements();
-    }, 10000);
+    }, 60000);
     const handleFocus = () => {
       fetchProposals();
       fetchAcknowledgements();

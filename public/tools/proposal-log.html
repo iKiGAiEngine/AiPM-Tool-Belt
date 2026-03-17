@@ -2638,7 +2638,22 @@ async function initApp() {
   await fetchAcknowledgements();
   render();
   checkGoogleSheet();
-  setInterval(async () => { await loadFromServer(); render(); }, 30000);
+  let _lastDataHash = '';
+  function dataHash() { return JSON.stringify(data); }
+  _lastDataHash = dataHash();
+
+  setInterval(async () => {
+    if (activeInlineEdit) return;
+    const loaded = await loadFromServer();
+    if (!loaded) return;
+    const h = dataHash();
+    if (h === _lastDataHash) return;
+    _lastDataHash = h;
+    const scrollEl = document.querySelector('.table-wrapper') || document.documentElement;
+    const scrollTop = scrollEl.scrollTop;
+    render();
+    requestAnimationFrame(() => { scrollEl.scrollTop = scrollTop; });
+  }, 60000);
 }
 
 checkAuth();
