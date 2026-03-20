@@ -1595,7 +1595,7 @@ function getDashFiltered() {
     (!dsw || p.swinertonProject===dsw) &&
     (!df || (p.dueDate && p.dueDate>=df)) &&
     (!dt || (p.dueDate && p.dueDate<=dt)) &&
-    (isAdmin || !myInitials || p.nbsEstimator === myInitials)
+    (isAdmin || (myInitials && p.nbsEstimator === myInitials))
   );
 }
 
