@@ -42,7 +42,7 @@ import { planParserStorage } from "./planparser/storage";
 import { getActiveFolderTemplate, getActiveEstimateTemplate } from "./templateStorage";
 import ExcelJS from "exceljs";
 import { extractProjectDetailsFromScreenshot } from "./screenshotExtractor";
-import { guessMarket, guessRegion, createProposalLogEntry, getUnsyncedEntries, markEntriesSynced, getActiveProposalLogEntries, getAllProposalLogEntries, updateProposalLogEntryById, deleteProposalLogEntry, deleteProposalLogEntries, getAcknowledgedEntryIds, acknowledgeEntry, unacknowledgeEntry, clearAcknowledgementsForEntry } from "./proposalLogService";
+import { guessMarket, guessRegion, createProposalLogEntry, bulkCreateProposalLogEntries, getUnsyncedEntries, markEntriesSynced, getActiveProposalLogEntries, getAllProposalLogEntries, updateProposalLogEntryById, deleteProposalLogEntry, deleteProposalLogEntries, getAcknowledgedEntryIds, acknowledgeEntry, unacknowledgeEntry, clearAcknowledgementsForEntry } from "./proposalLogService";
 import { getSheetUrl, syncProposalLogToSheet, syncSheetToProposalLog, isGoogleSheetConfigured } from "./googleSheetSync";
 import { users } from "@shared/schema";
 import { eq } from "drizzle-orm";
@@ -1677,6 +1677,20 @@ export function registerProjectRoutes(app: Express) {
     } catch (error) {
       console.error("Failed to get proposal log entries:", error);
       res.status(500).json({ message: "Failed to get proposal log entries" });
+    }
+  });
+
+  app.post("/api/proposal-log/entries/bulk", async (req: Request, res: Response) => {
+    try {
+      const { entries } = req.body;
+      if (!Array.isArray(entries) || entries.length === 0) {
+        return res.status(400).json({ message: "entries array required" });
+      }
+      const created = await bulkCreateProposalLogEntries(entries);
+      res.json(created);
+    } catch (error) {
+      console.error("Failed to bulk create proposal log entries:", error);
+      res.status(500).json({ message: "Failed to bulk create entries" });
     }
   });
 

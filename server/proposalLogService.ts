@@ -116,6 +116,59 @@ export async function createProposalLogEntry(data: {
   return entry;
 }
 
+export async function bulkCreateProposalLogEntries(entries: Array<{
+  projectName: string;
+  estimateNumber: string;
+  region?: string;
+  primaryMarket?: string;
+  dueDate?: string;
+  owner?: string;
+  filePath?: string;
+  screenshotPath?: string;
+  isTest?: boolean;
+  inviteDate?: string;
+  estimateStatus?: string;
+  anticipatedStart?: string;
+  anticipatedFinish?: string;
+  nbsEstimator?: string;
+  gcEstimateLead?: string;
+  proposalTotal?: string;
+}>) {
+  if (!entries.length) return [];
+
+  const fallbackInviteDate = (() => {
+    const today = new Date();
+    return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+  })();
+
+  const values = entries.map(data => ({
+    projectName: data.projectName,
+    estimateNumber: data.estimateNumber,
+    region: data.region || "",
+    primaryMarket: data.primaryMarket || guessMarket(data.projectName),
+    inviteDate: data.inviteDate || fallbackInviteDate,
+    dueDate: data.dueDate || "",
+    estimateStatus: data.estimateStatus || "Estimating",
+    owner: data.owner || "",
+    filePath: data.filePath || "",
+    screenshotPath: data.screenshotPath || "",
+    projectDbId: 0,
+    anticipatedStart: data.anticipatedStart || null,
+    anticipatedFinish: data.anticipatedFinish || null,
+    nbsEstimator: data.nbsEstimator || null,
+    gcEstimateLead: data.gcEstimateLead || null,
+    proposalTotal: data.proposalTotal || null,
+    isTest: data.isTest || false,
+    syncedToLocal: true,
+  }));
+
+  const created = await db.insert(proposalLogEntries).values(values).returning();
+
+  console.log(`[ProposalLogService] Bulk created ${created.length} entries`);
+  if (isGoogleSheetConfigured()) triggerSheetSync();
+  return created;
+}
+
 export async function getUnsyncedEntries() {
   return db.select().from(proposalLogEntries).where(eq(proposalLogEntries.syncedToLocal, false));
 }

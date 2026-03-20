@@ -2392,16 +2392,52 @@ function updateImportFooter(){
   const n=document.querySelectorAll('.import-row-check:checked').length;
   document.getElementById('import-footer-count').textContent=`${n} of ${importRows.length} rows selected`;
 }
-function commitImport(){
+async function commitImport(){
   let added=0;
+  const newEntries=[];
   document.querySelectorAll('.import-row-check').forEach((cb,idx)=>{
     if(!cb.checked)return;
     const r={...importRows[idx]};
     delete r._rowNum;delete r._isDuplicate;delete r._regionWarning;delete r._rawLocation;
-    data.push(r);added++;
+    data.push(r);
+    newEntries.push(r);
+    added++;
   });
   save();closeImportModal();render();
   showToast(`\u2713 ${added} proposal${added!==1?'s':''} imported`);
+  if(newEntries.length>0) pushLocalEntriesToServer(newEntries);
+}
+
+async function pushLocalEntriesToServer(entries){
+  try{
+    const res=await fetch('/api/proposal-log/entries/bulk',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({entries:entries.map(e=>({
+        projectName:e.projectName||'',
+        estimateNumber:e.estimateNumber||'',
+        region:e.region||'',
+        dueDate:e.dueDate||'',
+        nbsEstimator:e.nbsEstimator||'',
+        gcEstimateLead:e.gcEstimateLead||'',
+        proposalTotal:e.proposalTotal||'',
+        estimateStatus:e.estimateStatus||'Estimating',
+        anticipatedStart:e.anticipatedStart||'',
+        anticipatedFinish:e.anticipatedFinish||'',
+        isTest:e._isTest||false,
+      }))}),
+      credentials:'include'
+    });
+    if(!res.ok){console.warn('Bulk push failed:',res.status);return;}
+    const created=await res.json();
+    let matched=0;
+    for(const serverEntry of created){
+      const local=data.find(d=>!d._serverDbId&&d.estimateNumber===serverEntry.estimateNumber&&d.projectName===serverEntry.projectName);
+      if(local){local._serverDbId=serverEntry.id;matched++;}
+    }
+    if(matched>0)save();
+    console.log(`[Import] Pushed ${created.length} entries to server, matched ${matched} locally`);
+  }catch(err){console.warn('Failed to push imported entries to server:',err);}
 }
 
 function showToast(msg){
@@ -2602,6 +2638,10 @@ async function loadFromServer() {
 
     data = merged;
     save();
+
+    if(localOnly.length>0){
+      pushLocalEntriesToServer(localOnly);
+    }
 
     if (syncedIds.length) {
       try {

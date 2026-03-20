@@ -243,8 +243,13 @@ async function writeSheet(sheets: any, sid: string, allRows: string[][]) {
   }
 }
 
-export async function syncProposalLogToSheet(): Promise<{ success: boolean; rowCount: number; error?: string }> {
-  if (syncInProgress) {
+function isAuthTimeoutError(error: any): boolean {
+  const msg = (error?.message || '').toLowerCase();
+  return msg.includes('authentication timed out') || msg.includes('invalid_grant') || msg.includes('token has been expired') || error?.code === 401;
+}
+
+export async function syncProposalLogToSheet(retryCount = 0): Promise<{ success: boolean; rowCount: number; error?: string }> {
+  if (syncInProgress && retryCount === 0) {
     syncPending = true;
     return { success: true, rowCount: 0, error: 'Sync queued — will run after current sync completes' };
   }
@@ -252,9 +257,9 @@ export async function syncProposalLogToSheet(): Promise<{ success: boolean; rowC
   syncInProgress = true;
   try {
     let sid = loadSpreadsheetId();
+    const sheets = await getUncachableGoogleSheetClient();
 
     if (sid) {
-      const sheets = await getUncachableGoogleSheetClient();
       const accessible = await verifySheetAccess(sheets, sid);
       if (!accessible) {
         console.warn(`[GoogleSheetSync] Stored sheet ${sid} is inaccessible, creating new one`);
@@ -267,8 +272,8 @@ export async function syncProposalLogToSheet(): Promise<{ success: boolean; rowC
       sid = await createSpreadsheet();
     }
 
-    const sheets = await getUncachableGoogleSheetClient();
     const entries = await getActiveProposalLogEntries();
+    console.log(`[GoogleSheetSync] Found ${entries.length} active entries to sync`);
 
     const headerRow = SHEET_COLUMNS;
     const dataRows = entries.map(entryToRow);
@@ -280,22 +285,29 @@ export async function syncProposalLogToSheet(): Promise<{ success: boolean; rowC
     console.log(`[GoogleSheetSync] Synced ${entries.length} entries to Google Sheet`);
     return { success: true, rowCount: entries.length };
   } catch (error: any) {
+    if (isAuthTimeoutError(error) && retryCount < 2) {
+      console.warn(`[GoogleSheetSync] Auth error on attempt ${retryCount + 1}, refreshing token and retrying...`);
+      connectionSettings = null;
+      return await syncProposalLogToSheet(retryCount + 1);
+    }
     console.error('[GoogleSheetSync] Sync failed:', error.message);
     return { success: false, rowCount: 0, error: error.message };
   } finally {
-    syncInProgress = false;
-    if (syncPending) {
-      syncPending = false;
-      setTimeout(() => {
-        syncProposalLogToSheet().catch(err => {
-          console.error('[GoogleSheetSync] Queued sync failed:', err.message);
-        });
-      }, 500);
+    if (retryCount === 0) {
+      syncInProgress = false;
+      if (syncPending) {
+        syncPending = false;
+        setTimeout(() => {
+          syncProposalLogToSheet().catch(err => {
+            console.error('[GoogleSheetSync] Queued sync failed:', err.message);
+          });
+        }, 500);
+      }
     }
   }
 }
 
-export async function syncSheetToProposalLog(): Promise<{ success: boolean; updated: number; error?: string }> {
+export async function syncSheetToProposalLog(retryCount = 0): Promise<{ success: boolean; updated: number; error?: string }> {
   try {
     const sid = loadSpreadsheetId();
     if (!sid) {
@@ -385,6 +397,11 @@ export async function syncSheetToProposalLog(): Promise<{ success: boolean; upda
     console.log(`[GoogleSheetSync] Sheet-to-app sync complete: ${updatedCount} entries updated`);
     return { success: true, updated: updatedCount };
   } catch (error: any) {
+    if (isAuthTimeoutError(error) && retryCount < 2) {
+      console.warn(`[GoogleSheetSync] Auth error on sheet-to-app attempt ${retryCount + 1}, refreshing token and retrying...`);
+      connectionSettings = null;
+      return syncSheetToProposalLog(retryCount + 1);
+    }
     console.error('[GoogleSheetSync] Sheet-to-app sync failed:', error.message);
     return { success: false, updated: 0, error: error.message };
   }

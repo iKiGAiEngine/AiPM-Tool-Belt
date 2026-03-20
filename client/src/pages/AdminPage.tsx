@@ -185,6 +185,7 @@ export default function AdminPage() {
 
   const { data: usersList = [], isLoading } = useQuery<User[]>({
     queryKey: ["/api/admin/users"],
+    placeholderData: (prev) => prev,
   });
 
   const toggleActiveMutation = useMutation({
@@ -270,7 +271,7 @@ export default function AdminPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {isLoading ? (
+                {isLoading && usersList.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={6} className="text-center py-8">
                       <Loader2 className="w-5 h-5 animate-spin mx-auto text-muted-foreground" />

@@ -51,6 +51,7 @@ export default function AuditLogPage() {
       if (!res.ok) throw new Error("Failed to fetch audit logs");
       return res.json();
     },
+    placeholderData: (prev) => prev,
   });
 
   const { data: actionTypes = [] } = useQuery<string[]>({
@@ -188,7 +189,7 @@ export default function AuditLogPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {isLoading ? (
+                {isLoading && logs.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={6} className="text-center py-8">
                       <Loader2 className="w-5 h-5 animate-spin mx-auto text-muted-foreground" />

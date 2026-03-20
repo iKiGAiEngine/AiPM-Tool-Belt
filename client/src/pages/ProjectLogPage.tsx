@@ -50,6 +50,7 @@ export default function ProjectLogPage() {
       if (!res.ok) throw new Error("Failed to fetch project log entries");
       return res.json();
     },
+    placeholderData: (prev) => prev,
   });
 
   const filteredEntries = useMemo(() => {
@@ -225,7 +226,7 @@ export default function ProjectLogPage() {
             </div>
           </div>
           <div className="px-6 pb-6">
-            {isLoading ? (
+            {isLoading && entries.length === 0 ? (
               <p className="text-sm py-8 text-center" style={{ color: "var(--text-dim)" }}>Loading project log...</p>
             ) : filteredEntries.length === 0 ? (
               <p className="text-sm py-8 text-center" style={{ color: "var(--text-dim)" }}>No entries found.</p>
