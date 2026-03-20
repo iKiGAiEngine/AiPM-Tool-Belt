@@ -1595,7 +1595,7 @@ function getDashFiltered() {
     (!dsw || p.swinertonProject===dsw) &&
     (!df || (p.dueDate && p.dueDate>=df)) &&
     (!dt || (p.dueDate && p.dueDate<=dt)) &&
-    (isAdmin || !myInitials || p.nbsEstimator === myInitials || !p.nbsEstimator)
+    (isAdmin || !myInitials || p.nbsEstimator === myInitials)
   );
 }
 
@@ -1933,7 +1933,8 @@ function renderDash() {
     .filter(p => p.dueDate && ['Estimating','Revising','Submitted'].includes(p.estimateStatus))
     .map(p => ({...p, _bizDays: bizDaysUntil(p.dueDate)}));
 
-  const biz1_3  = allWithDays.filter(p => p._bizDays <= 3).sort((a,b) => a._bizDays - b._bizDays);
+  const pastDue = allWithDays.filter(p => p._bizDays < 0).sort((a,b) => a._bizDays - b._bizDays);
+  const biz0_3  = allWithDays.filter(p => p._bizDays >= 0 && p._bizDays <= 3).sort((a,b) => a._bizDays - b._bizDays);
   const biz4_7  = allWithDays.filter(p => p._bizDays >= 4 && p._bizDays <= 7);
   const biz8_14 = allWithDays.filter(p => p._bizDays >= 8 && p._bizDays <= 14);
   const biz15p  = allWithDays.filter(p => p._bizDays >= 15);
@@ -1959,7 +1960,8 @@ function renderDash() {
   }
 
   document.getElementById('dash-due').innerHTML =
-    dueBucket(biz1_3,  'Due ASAP',  'Past due & due within 3 days',     'hot')  +
+    dueBucket(pastDue, 'Past Due',  'Overdue \u2014 action needed',      'hot')  +
+    dueBucket(biz0_3,  'Due ASAP',  'Due within 3 business days',        'hot')  +
     dueBucket(biz4_7,  '4\u20137 Business Days',  'Due this week',               'warm') +
     dueBucket(biz8_14, '8\u201314 Business Days', 'Due next 2 weeks',            'cool') +
     dueBucket(biz15p,  '15+ Business Days',  'Further out',                 'future', 2);
