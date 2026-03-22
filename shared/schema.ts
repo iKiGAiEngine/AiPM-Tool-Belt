@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { pgTable, serial, text, timestamp, jsonb, boolean, integer, varchar } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, timestamp, jsonb, boolean, integer, varchar, unique } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { sql } from "drizzle-orm";
 
@@ -892,7 +892,9 @@ export type ProposalLogEntry = typeof proposalLogEntries.$inferSelect;
 
 export const proposalAcknowledgements = pgTable("proposal_acknowledgements", {
   id: serial("id").primaryKey(),
-  userId: integer("user_id").notNull(),
-  entryId: integer("entry_id").notNull(),
+  userId: integer("user_id").notNull().references(() => users.id),
+  entryId: integer("entry_id").notNull().references(() => proposalLogEntries.id),
   acknowledgedAt: timestamp("acknowledged_at").notNull().defaultNow(),
-});
+}, (table) => ({
+  uniqueUserEntry: unique().on(table.userId, table.entryId),
+}));

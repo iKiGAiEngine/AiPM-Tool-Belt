@@ -1089,6 +1089,7 @@ function render() {
   populateGlobalFilters();
   buildHeaders();
   buildRows();
+  if (tab === 'dash') renderDash();
 }
 
 function populateGlobalFilters() {
