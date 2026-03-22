@@ -1637,35 +1637,26 @@ function renderNewlyAssigned() {
   const myInitials = currentUser?.initials || '';
   if (!myInitials) { wrap.style.display = 'none'; return; }
 
-  const myEntries = data.filter(p =>
+  const unacked = data.filter(p =>
     p.nbsEstimator === myInitials &&
-    p._serverDbId
+    p._serverDbId &&
+    !acknowledgedEntryIds.has(p._serverDbId)
   );
 
-  const hasUnacked = myEntries.some(p => !acknowledgedEntryIds.has(p._serverDbId));
-  if (!hasUnacked) {
+  if (!unacked.length) {
     wrap.style.display = 'none';
     return;
   }
 
   wrap.style.display = 'block';
-  const sorted = [...myEntries].sort((a,b) => {
-    const aAcked = acknowledgedEntryIds.has(a._serverDbId) ? 1 : 0;
-    const bAcked = acknowledgedEntryIds.has(b._serverDbId) ? 1 : 0;
-    return aAcked - bAcked;
-  });
-  container.innerHTML = sorted.map(p => {
-    const isAcked = acknowledgedEntryIds.has(p._serverDbId);
+  container.innerHTML = unacked.map(p => {
     const dueDateStr = p.dueDate ? new Date(p.dueDate + 'T00:00:00').toLocaleDateString('en-US', {month:'short',day:'numeric'}) : '';
-    const actionHtml = isAcked
-      ? `<span class="newly-assigned-done">&#10003; Acknowledged</span>`
-      : `<button class="newly-assigned-ack" data-testid="ack-btn-${p._serverDbId}" onclick="acknowledgeEntryById(${p._serverDbId})">Acknowledge</button>`;
-    return `<div class="newly-assigned-item${isAcked ? ' acked' : ''}" data-testid="newly-assigned-item-${p._serverDbId}">
+    return `<div class="newly-assigned-item" data-testid="newly-assigned-item-${p._serverDbId}">
       <div class="newly-assigned-info">
         <div class="newly-assigned-name">${p.projectName || '\u2014'}</div>
         <div class="newly-assigned-meta">${p.estimateNumber || ''} ${dueDateStr ? '\u00b7 Due ' + dueDateStr : ''} ${p.region ? '\u00b7 ' + p.region : ''}</div>
       </div>
-      ${actionHtml}
+      <button class="newly-assigned-ack" data-testid="ack-btn-${p._serverDbId}" onclick="acknowledgeEntryById(${p._serverDbId})">Acknowledge</button>
     </div>`;
   }).join('');
 }
@@ -2688,6 +2679,7 @@ async function initApp() {
   setInterval(async () => {
     if (activeInlineEdit) return;
     const loaded = await loadFromServer();
+    await fetchAcknowledgements();
     if (!loaded) return;
     const h = dataHash();
     if (h === _lastDataHash) return;
