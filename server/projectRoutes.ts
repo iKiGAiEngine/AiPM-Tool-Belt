@@ -43,7 +43,7 @@ import { getActiveFolderTemplate, getActiveEstimateTemplate } from "./templateSt
 import ExcelJS from "exceljs";
 import { extractProjectDetailsFromScreenshot } from "./screenshotExtractor";
 import { guessMarket, guessRegion, createProposalLogEntry, bulkCreateProposalLogEntries, getUnsyncedEntries, markEntriesSynced, getActiveProposalLogEntries, getAllProposalLogEntries, updateProposalLogEntryById, deleteProposalLogEntry, deleteProposalLogEntries, getAcknowledgedEntryIds, acknowledgeEntry, unacknowledgeEntry, clearAcknowledgementsForEntry } from "./proposalLogService";
-import { getSheetUrl, syncProposalLogToSheet, syncSheetToProposalLog, isGoogleSheetConfigured } from "./googleSheetSync";
+import { getSheetUrl, syncProposalLogToSheet, syncSheetToProposalLog, pullRepairAndPush, isGoogleSheetConfigured } from "./googleSheetSync";
 import { users } from "@shared/schema";
 import { eq } from "drizzle-orm";
 import { db } from "./db";
@@ -1867,12 +1867,7 @@ export function registerProjectRoutes(app: Express) {
       if (!isGoogleSheetConfigured()) {
         return res.status(400).json({ message: "Google Sheets integration not configured" });
       }
-      const result = await syncSheetToProposalLog();
-      if (result.success) {
-        syncProposalLogToSheet().catch(err => {
-          console.error("[GoogleSheetSync] Failed to push repaired statuses after pull:", err.message);
-        });
-      }
+      const result = await pullRepairAndPush();
       res.json(result);
     } catch (error: any) {
       console.error("Failed to import from sheet:", error);

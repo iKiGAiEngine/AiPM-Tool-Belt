@@ -428,6 +428,19 @@ export async function syncSheetToProposalLog(retryCount = 0): Promise<{ success:
   }
 }
 
+export async function pullRepairAndPush(): Promise<{ success: boolean; updated: number; error?: string }> {
+  const pullResult = await syncSheetToProposalLog();
+  if (pullResult.success) {
+    try {
+      await syncProposalLogToSheet();
+      console.log("[GoogleSheetSync] Pushed repaired statuses back to sheet after pull");
+    } catch (err: any) {
+      console.error("[GoogleSheetSync] Failed to push repaired statuses after pull:", err.message);
+    }
+  }
+  return pullResult;
+}
+
 export function triggerSheetSync() {
   if (syncTimer) {
     clearTimeout(syncTimer);
