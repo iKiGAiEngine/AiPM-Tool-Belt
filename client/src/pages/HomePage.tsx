@@ -323,27 +323,24 @@ export default function HomePage() {
     return { newlyAssigned: na, dueThisWeek: dtw, activePipeline: ap };
   }, [activeBids, acknowledgedIds]);
 
-  const handleAcknowledge = useCallback(async (p: ProposalRow, rowEl: HTMLElement) => {
+  const [animatingOutIds, setAnimatingOutIds] = useState<Set<number>>(new Set());
+
+  const handleAcknowledge = useCallback(async (p: ProposalRow) => {
     if (!p._serverDbId) return;
     const entryId = p._serverDbId;
 
-    const btn = rowEl.querySelector(".ack-btn") as HTMLElement;
-    if (btn) {
-      btn.style.background = "rgba(61,170,106,0.2)";
-      btn.style.borderColor = "rgba(61,170,106,0.5)";
-      btn.style.color = "#3DAA6A";
-    }
-
-    setTimeout(() => {
-      rowEl.style.transition = "opacity .3s, max-height .4s .1s, padding .3s, margin .3s";
-      rowEl.style.opacity = "0";
-      rowEl.style.maxHeight = "0";
-      rowEl.style.paddingTop = "0";
-      rowEl.style.paddingBottom = "0";
-      rowEl.style.marginTop = "0";
-    }, 300);
+    setAnimatingOutIds((prev) => {
+      const next = new Set(prev);
+      next.add(entryId);
+      return next;
+    });
 
     setTimeout(async () => {
+      setAnimatingOutIds((prev) => {
+        const next = new Set(prev);
+        next.delete(entryId);
+        return next;
+      });
       setAcknowledgedIds((prev) => {
         const next = new Set(prev);
         next.add(entryId);
@@ -371,7 +368,7 @@ export default function HomePage() {
           return next;
         });
       }
-    }, 800);
+    }, 700);
   }, []);
 
   const selectedToolTitle = tools.find((t) => t.id === selectedToolForStats)?.title || "";
@@ -472,23 +469,21 @@ export default function HomePage() {
                   {newlyAssigned.map((p, i) => {
                     const due = formatDueLabel(p._bizDays!, p.dueDate!);
                     const stableId = p._serverDbId || p.estimateNumber || `new-${i}`;
-                    const rowId = `new-row-${stableId}`;
+                    const isAnimating = p._serverDbId ? animatingOutIds.has(p._serverDbId) : false;
                     return (
                       <div
                         key={stableId}
-                        id={rowId}
-                        className="bid-row"
-                        style={{ overflow: "hidden" }}
+                        className={`bid-row bid-row-ack-anim${isAnimating ? " bid-row-hiding" : ""}`}
                       >
                         <div className="bid-name" data-testid={`text-bid-name-new-${i}`}>{p.projectName}</div>
                         <button
-                          className="ack-btn"
+                          className={`ack-btn${isAnimating ? " ack-btn-done" : ""}`}
                           title="Acknowledge"
+                          disabled={isAnimating}
                           onClick={(e) => {
                             e.preventDefault();
                             e.stopPropagation();
-                            const row = document.getElementById(rowId);
-                            if (row) handleAcknowledge(p, row);
+                            handleAcknowledge(p);
                           }}
                           data-testid={`button-ack-${stableId}`}
                         >
