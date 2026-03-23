@@ -9,16 +9,21 @@ import {
   getAllFolderTemplates,
   getActiveFolderTemplate,
   getFolderTemplateById,
+  getFolderTemplateByIdFull,
   createFolderTemplate,
   setActiveFolderTemplate,
   deleteFolderTemplate,
   getAllEstimateTemplates,
   getActiveEstimateTemplate,
   getEstimateTemplateById,
+  getEstimateTemplateByIdFull,
   createEstimateTemplate,
   setActiveEstimateTemplate,
   updateEstimateTemplateStampMappings,
   deleteEstimateTemplate,
+  getFolderTemplateFileBuffer,
+  getEstimateTemplateFileBuffer,
+  backfillTemplateFileData,
 } from "./templateStorage";
 
 const FOLDER_TEMPLATE_DIR = path.join(process.cwd(), "data", "templates", "folders");
@@ -58,10 +63,24 @@ const templateUpload = multer({
   limits: { fileSize: 200 * 1024 * 1024 },
 });
 
+function stripFileData<T extends Record<string, any>>(obj: T): Omit<T, 'fileData'> {
+  const { fileData, ...rest } = obj;
+  return rest;
+}
+
 export function registerTemplateRoutes(app: Express) {
-  migrateLegacyTemplatePaths().catch(err => {
-    console.error("[TemplateMigration] Failed to migrate legacy paths:", err);
-  });
+  (async () => {
+    try {
+      await migrateLegacyTemplatePaths();
+    } catch (err) {
+      console.error("[TemplateMigration] Failed to migrate legacy paths:", err);
+    }
+    try {
+      await backfillTemplateFileData();
+    } catch (err) {
+      console.error("[TemplateBackfill] Failed to backfill file data:", err);
+    }
+  })();
   app.get("/api/templates/folders", async (req: Request, res: Response) => {
     try {
       const templates = await getAllFolderTemplates();
@@ -78,7 +97,7 @@ export function registerTemplateRoutes(app: Express) {
       if (!template) {
         return res.status(404).json({ message: "No active folder template found" });
       }
-      res.json(template);
+      res.json(stripFileData(template));
     } catch (error) {
       console.error("Error fetching active folder template:", error);
       res.status(500).json({ message: "Failed to fetch active folder template" });
@@ -109,6 +128,7 @@ export function registerTemplateRoutes(app: Express) {
         name,
         filePath: tempFilePath,
         fileSize: req.file.size,
+        fileData: req.file.buffer,
         folderStructure,
         uploadedBy: "admin",
       });
@@ -120,7 +140,7 @@ export function registerTemplateRoutes(app: Express) {
       const { updateFolderTemplatePath } = await import("./templateStorage");
       await updateFolderTemplatePath(template.id, finalPath);
 
-      res.status(201).json({ ...template, filePath: finalPath });
+      res.status(201).json(stripFileData({ ...template, filePath: finalPath }));
     } catch (error) {
       console.error("Error creating folder template:", error);
       res.status(500).json({ message: "Failed to create folder template" });
@@ -137,7 +157,7 @@ export function registerTemplateRoutes(app: Express) {
       if (!template) {
         return res.status(404).json({ message: "Folder template not found" });
       }
-      res.json(template);
+      res.json(stripFileData(template));
     } catch (error) {
       console.error("Error activating folder template:", error);
       res.status(500).json({ message: "Failed to activate folder template" });
@@ -171,17 +191,17 @@ export function registerTemplateRoutes(app: Express) {
       if (isNaN(id)) {
         return res.status(400).json({ message: "Invalid template ID" });
       }
-      const template = await getFolderTemplateById(id);
+      const template = await getFolderTemplateByIdFull(id);
       if (!template) {
         return res.status(404).json({ message: "Folder template not found" });
       }
-      if (!fs.existsSync(template.filePath)) {
-        return res.status(404).json({ message: "Template file not found on disk" });
+      const fileBuffer = await getFolderTemplateFileBuffer(template);
+      if (!fileBuffer) {
+        return res.status(404).json({ message: "Template file not found" });
       }
       res.setHeader("Content-Type", "application/zip");
       res.setHeader("Content-Disposition", `attachment; filename="folder_template_v${template.version}.zip"`);
-      const fileStream = fs.createReadStream(template.filePath);
-      fileStream.pipe(res);
+      res.send(fileBuffer);
     } catch (error) {
       console.error("Error downloading folder template:", error);
       res.status(500).json({ message: "Failed to download folder template" });
@@ -204,7 +224,7 @@ export function registerTemplateRoutes(app: Express) {
       if (!template) {
         return res.status(404).json({ message: "No active estimate template found" });
       }
-      res.json(template);
+      res.json(stripFileData(template));
     } catch (error) {
       console.error("Error fetching active estimate template:", error);
       res.status(500).json({ message: "Failed to fetch active estimate template" });
@@ -246,6 +266,7 @@ export function registerTemplateRoutes(app: Express) {
         filePath: tempFilePath,
         originalFilename,
         fileSize: req.file.size,
+        fileData: req.file.buffer,
         sheetNames,
         stampMappings: defaultStampMappings,
         uploadedBy: "admin",
@@ -258,7 +279,7 @@ export function registerTemplateRoutes(app: Express) {
       const { updateEstimateTemplatePath } = await import("./templateStorage");
       await updateEstimateTemplatePath(template.id, finalPath);
 
-      res.status(201).json({ ...template, filePath: finalPath });
+      res.status(201).json(stripFileData({ ...template, filePath: finalPath }));
     } catch (error) {
       console.error("Error creating estimate template:", error);
       res.status(500).json({ message: "Failed to create estimate template" });
@@ -275,7 +296,7 @@ export function registerTemplateRoutes(app: Express) {
       if (!template) {
         return res.status(404).json({ message: "Estimate template not found" });
       }
-      res.json(template);
+      res.json(stripFileData(template));
     } catch (error) {
       console.error("Error activating estimate template:", error);
       res.status(500).json({ message: "Failed to activate estimate template" });
@@ -296,7 +317,7 @@ export function registerTemplateRoutes(app: Express) {
       if (!template) {
         return res.status(404).json({ message: "Estimate template not found" });
       }
-      res.json(template);
+      res.json(stripFileData(template));
     } catch (error) {
       console.error("Error updating stamp mappings:", error);
       res.status(500).json({ message: "Failed to update stamp mappings" });
@@ -330,12 +351,13 @@ export function registerTemplateRoutes(app: Express) {
       if (isNaN(id)) {
         return res.status(400).json({ message: "Invalid template ID" });
       }
-      const template = await getEstimateTemplateById(id);
+      const template = await getEstimateTemplateByIdFull(id);
       if (!template) {
         return res.status(404).json({ message: "Estimate template not found" });
       }
-      if (!fs.existsSync(template.filePath)) {
-        return res.status(404).json({ message: "Template file not found on disk" });
+      const fileBuffer = await getEstimateTemplateFileBuffer(template);
+      if (!fileBuffer) {
+        return res.status(404).json({ message: "Template file not found" });
       }
       const ext = path.extname(template.originalFilename) || ".xlsx";
       const contentType = ext === ".xlsm"
@@ -343,8 +365,7 @@ export function registerTemplateRoutes(app: Express) {
         : "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
       res.setHeader("Content-Type", contentType);
       res.setHeader("Content-Disposition", `attachment; filename="${template.originalFilename}"`);
-      const fileStream = fs.createReadStream(template.filePath);
-      fileStream.pipe(res);
+      res.send(fileBuffer);
     } catch (error) {
       console.error("Error downloading estimate template:", error);
       res.status(500).json({ message: "Failed to download estimate template" });

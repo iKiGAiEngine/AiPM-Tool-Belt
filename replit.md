@@ -18,7 +18,7 @@ The design system features specific typography (Rajdhani for headings, DM Sans f
 The backend is an Express.js application in TypeScript, handling PDF uploads via Multer and text extraction with pdf-parse. It exposes RESTful APIs. Core modules include `specExtractorEngine.ts` for specification extraction and `planparser/` for OCR processing and keyword-based classification using tesseract.js.
 
 ### Data Storage
-All data is persistently stored in PostgreSQL, managed by Drizzle ORM. Key tables include `sessions`, `extracted_sections`, `plan_parser_jobs`, `projects`, `scope_dictionaries`, and `proposal_log_entries`. PDF buffers and templates are stored on the filesystem.
+All data is persistently stored in PostgreSQL, managed by Drizzle ORM. Key tables include `sessions`, `extracted_sections`, `plan_parser_jobs`, `projects`, `scope_dictionaries`, and `proposal_log_entries`. PDF buffers are stored on the filesystem. Template files (folder ZIPs and estimate Excel files) are stored as binary data (`bytea`) in the `folder_templates.file_data` and `estimate_templates.file_data` columns to survive production deployments (filesystem is ephemeral). On startup, `backfillTemplateFileData()` copies any disk-only templates into the DB. Template retrieval uses DB first, filesystem fallback.
 
 ### Core Logic
 - **Spec Extractor**: Automates extraction of Division 10 specifications using a regex-based engine with AI enhancement. Features include zone-based scanning, canonization, TOC exclusion, AI review of section labels (GPT-4o-mini), and project name suggestion. It includes automatic exclusion of certain sections and accessory scope selection based on keywords.

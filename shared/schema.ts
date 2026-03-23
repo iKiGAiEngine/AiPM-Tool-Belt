@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { pgTable, serial, text, timestamp, jsonb, boolean, integer, varchar, unique } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, timestamp, jsonb, boolean, integer, varchar, unique, customType } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { sql } from "drizzle-orm";
 
@@ -593,6 +593,9 @@ export const folderTemplates = pgTable("folder_templates", {
   isActive: boolean("is_active").notNull().default(false),
   filePath: varchar("file_path", { length: 1000 }).notNull(),
   fileSize: integer("file_size").notNull().default(0),
+  fileData: customType<{ data: Buffer; driverData: Buffer }>({
+    dataType() { return "bytea"; },
+  })("file_data"),
   folderStructure: jsonb("folder_structure").$type<string[]>().default([]),
   uploadedBy: varchar("uploaded_by", { length: 100 }).default("admin"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
@@ -625,6 +628,9 @@ export const estimateTemplates = pgTable("estimate_templates", {
   filePath: varchar("file_path", { length: 1000 }).notNull(),
   originalFilename: varchar("original_filename", { length: 500 }).notNull(),
   fileSize: integer("file_size").notNull().default(0),
+  fileData: customType<{ data: Buffer; driverData: Buffer }>({
+    dataType() { return "bytea"; },
+  })("file_data"),
   sheetNames: jsonb("sheet_names").$type<string[]>().default([]),
   stampMappings: jsonb("stamp_mappings").$type<StampMapping[]>().default([]),
   uploadedBy: varchar("uploaded_by", { length: 100 }).default("admin"),

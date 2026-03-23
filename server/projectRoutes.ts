@@ -39,7 +39,7 @@ import { reprocessJobWithSpecBoost } from "./planparser/pdfProcessor";
 import type { SpecBoostData } from "./planparser/classificationConfig";
 import { processJob } from "./planparser/pdfProcessor";
 import { planParserStorage } from "./planparser/storage";
-import { getActiveFolderTemplate, getActiveEstimateTemplate } from "./templateStorage";
+import { getActiveFolderTemplate, getActiveEstimateTemplate, getFolderTemplateFileBuffer, getEstimateTemplateFileBuffer } from "./templateStorage";
 import ExcelJS from "exceljs";
 import { extractProjectDetailsFromScreenshot } from "./screenshotExtractor";
 import { guessMarket, guessRegion, createProposalLogEntry, bulkCreateProposalLogEntries, getUnsyncedEntries, markEntriesSynced, getActiveProposalLogEntries, getAllProposalLogEntries, updateProposalLogEntryById, deleteProposalLogEntry, deleteProposalLogEntries, getAcknowledgedEntryIds, acknowledgeEntry, unacknowledgeEntry, clearAcknowledgementsForEntry } from "./proposalLogService";
@@ -434,9 +434,10 @@ export function registerProjectRoutes(app: Express) {
         ensureDir(projectDir);
 
         const activeFolderTemplate = await getActiveFolderTemplate();
-        if (activeFolderTemplate && fs.existsSync(activeFolderTemplate.filePath)) {
-          console.log(`[ProjectCreate] Extracting folder template v${activeFolderTemplate.version} from ${activeFolderTemplate.filePath}`);
-          const zipBuffer = fs.readFileSync(activeFolderTemplate.filePath);
+        const folderZipBuffer = activeFolderTemplate ? await getFolderTemplateFileBuffer(activeFolderTemplate) : null;
+        if (activeFolderTemplate && folderZipBuffer) {
+          console.log(`[ProjectCreate] Extracting folder template v${activeFolderTemplate.version} (${folderZipBuffer.length} bytes from ${activeFolderTemplate.fileData ? 'database' : 'disk'})`);
+          const zipBuffer = folderZipBuffer;
           const zip = await JSZip.loadAsync(zipBuffer);
           let extractedCount = 0;
           for (const [relativePath, zipEntry] of Object.entries(zip.files)) {
@@ -472,11 +473,12 @@ export function registerProjectRoutes(app: Express) {
         }
 
         const activeEstimateTemplate = await getActiveEstimateTemplate();
-        if (activeEstimateTemplate && fs.existsSync(activeEstimateTemplate.filePath)) {
+        const estimateBuffer = activeEstimateTemplate ? await getEstimateTemplateFileBuffer(activeEstimateTemplate) : null;
+        if (activeEstimateTemplate && estimateBuffer) {
           try {
-            console.log(`[ProjectCreate] Stamping estimate template v${activeEstimateTemplate.version} from ${activeEstimateTemplate.filePath}`);
+            console.log(`[ProjectCreate] Stamping estimate template v${activeEstimateTemplate.version} (${estimateBuffer.length} bytes from ${activeEstimateTemplate.fileData ? 'database' : 'disk'})`);
             const workbook = new ExcelJS.Workbook();
-            await workbook.xlsx.readFile(activeEstimateTemplate.filePath);
+            await workbook.xlsx.load(estimateBuffer);
 
             const projectData: Record<string, string> = {
               projectId: projectIdStr,
@@ -506,13 +508,13 @@ export function registerProjectRoutes(app: Express) {
 
             const dueParts = dueDate.split("-");
             const formattedDueDate = `${dueParts[1]}.${dueParts[2]}.${dueParts[0].slice(2)}`;
-            const ext = path.extname(activeEstimateTemplate.filePath) || ".xlsx";
+            const ext = path.extname(activeEstimateTemplate.originalFilename || activeEstimateTemplate.filePath) || ".xlsx";
             const estimateFilename = `${safeName} - NBS Estimate - ${formattedDueDate}${ext}`;
 
             const estimatePath = path.join(projectDir, estimateFilename);
 
             if (ext === ".xlsm") {
-              fs.copyFileSync(activeEstimateTemplate.filePath, estimatePath);
+              fs.writeFileSync(estimatePath, estimateBuffer);
               console.log(`[ProjectCreate] Estimate file copied as .xlsm (macros preserved): ${estimateFilename} (stamping skipped for macro-enabled format)`);
             } else {
               await workbook.xlsx.writeFile(estimatePath);
