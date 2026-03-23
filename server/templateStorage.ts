@@ -48,6 +48,15 @@ export async function getActiveFolderTemplate(): Promise<FolderTemplate | null> 
   return result[0] || null;
 }
 
+export async function getActiveFolderTemplateMeta(): Promise<Omit<FolderTemplate, 'fileData'> | null> {
+  const result = await db
+    .select(folderTemplateMetaCols)
+    .from(folderTemplates)
+    .where(eq(folderTemplates.isActive, true))
+    .limit(1);
+  return result[0] || null;
+}
+
 export async function getFolderTemplateById(id: number): Promise<Omit<FolderTemplate, 'fileData'> | null> {
   const result = await db
     .select(folderTemplateMetaCols)
@@ -122,6 +131,15 @@ export async function getAllEstimateTemplates(): Promise<Omit<EstimateTemplate, 
 export async function getActiveEstimateTemplate(): Promise<EstimateTemplate | null> {
   const result = await db
     .select()
+    .from(estimateTemplates)
+    .where(eq(estimateTemplates.isActive, true))
+    .limit(1);
+  return result[0] || null;
+}
+
+export async function getActiveEstimateTemplateMeta(): Promise<Omit<EstimateTemplate, 'fileData'> | null> {
+  const result = await db
+    .select(estimateTemplateMetaCols)
     .from(estimateTemplates)
     .where(eq(estimateTemplates.isActive, true))
     .limit(1);

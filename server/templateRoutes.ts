@@ -7,14 +7,14 @@ import ExcelJS from "exceljs";
 import type { StampMapping } from "@shared/schema";
 import {
   getAllFolderTemplates,
-  getActiveFolderTemplate,
+  getActiveFolderTemplateMeta,
   getFolderTemplateById,
   getFolderTemplateByIdFull,
   createFolderTemplate,
   setActiveFolderTemplate,
   deleteFolderTemplate,
   getAllEstimateTemplates,
-  getActiveEstimateTemplate,
+  getActiveEstimateTemplateMeta,
   getEstimateTemplateById,
   getEstimateTemplateByIdFull,
   createEstimateTemplate,
@@ -93,11 +93,11 @@ export function registerTemplateRoutes(app: Express) {
 
   app.get("/api/templates/folders/active", async (req: Request, res: Response) => {
     try {
-      const template = await getActiveFolderTemplate();
+      const template = await getActiveFolderTemplateMeta();
       if (!template) {
         return res.status(404).json({ message: "No active folder template found" });
       }
-      res.json(stripFileData(template));
+      res.json(template);
     } catch (error) {
       console.error("Error fetching active folder template:", error);
       res.status(500).json({ message: "Failed to fetch active folder template" });
@@ -220,11 +220,11 @@ export function registerTemplateRoutes(app: Express) {
 
   app.get("/api/templates/estimates/active", async (req: Request, res: Response) => {
     try {
-      const template = await getActiveEstimateTemplate();
+      const template = await getActiveEstimateTemplateMeta();
       if (!template) {
         return res.status(404).json({ message: "No active estimate template found" });
       }
-      res.json(stripFileData(template));
+      res.json(template);
     } catch (error) {
       console.error("Error fetching active estimate template:", error);
       res.status(500).json({ message: "Failed to fetch active estimate template" });
