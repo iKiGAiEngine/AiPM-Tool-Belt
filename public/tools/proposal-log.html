@@ -1171,7 +1171,7 @@ function buildHeaders() {
       if(def.filter==='select') {
         const sel=document.createElement('select');
         sel.className='col-filter-select';
-        sel.innerHTML='<option value=""></option>'+(def.opts||[]).map(o=>`<option${(colFilters[key]||'')===(o)?'selected':''}>${o}</option>`).join('');
+        sel.innerHTML='<option value=""></option>'+(def.opts||[]).map(o=>`<option${(colFilters[key]||'')===(o)?' selected':''}>${o}</option>`).join('');
         sel.addEventListener('change',e=>{colFilters[key]=e.target.value;buildRows();});
         if(colFilters[key]) sel.value=colFilters[key];
         ftd.appendChild(sel);
