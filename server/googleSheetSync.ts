@@ -387,6 +387,23 @@ export async function syncSheetToProposalLog(retryCount = 0): Promise<{ success:
       if (sheetVals.anticipatedStart !== undefined && sheetVals.anticipatedStart !== (dbEntry.anticipatedStart || '')) changes.anticipatedStart = sheetVals.anticipatedStart;
       if (sheetVals.anticipatedFinish !== undefined && sheetVals.anticipatedFinish !== (dbEntry.anticipatedFinish || '')) changes.anticipatedFinish = sheetVals.anticipatedFinish;
 
+      const terminalStatuses = ['Awarded', 'Lost', 'Lost - Note Why in Comments'];
+      const resolvedTotal = changes.proposalTotal !== undefined ? changes.proposalTotal : (dbEntry.proposalTotal || '');
+      const resolvedStatus = changes.estimateStatus !== undefined ? changes.estimateStatus : (dbEntry.estimateStatus || '');
+      const hasTotal = resolvedTotal.replace(/[^0-9.]/g, '');
+
+      if (!terminalStatuses.includes(resolvedStatus)) {
+        if (hasTotal && Number(hasTotal) > 0) {
+          if (resolvedStatus !== 'Submitted') {
+            changes.estimateStatus = 'Submitted';
+          }
+        } else {
+          if (resolvedStatus !== 'Estimating') {
+            changes.estimateStatus = 'Estimating';
+          }
+        }
+      }
+
       if (Object.keys(changes).length > 0) {
         await db.update(proposalLogEntries).set(changes).where(eq(proposalLogEntries.id, dbEntry.id));
         updatedCount++;

@@ -99,10 +99,33 @@ export async function repairDuplicateEstimateNumbers(): Promise<void> {
   console.log(`[DataRepair] Updated sequence counter to ${nextSeq}`);
 }
 
+export async function repairProposalStatuses(): Promise<void> {
+  const result = await db.execute(sql`
+    UPDATE proposal_log_entries
+    SET estimate_status = 'Submitted'
+    WHERE estimate_status = 'Estimating'
+      AND proposal_total IS NOT NULL
+      AND proposal_total != ''
+      AND proposal_total != '0'
+      AND REGEXP_REPLACE(proposal_total, '[^0-9.]', '', 'g') ~ '^\d+\.?\d*$'
+      AND CAST(REGEXP_REPLACE(proposal_total, '[^0-9.]', '', 'g') AS NUMERIC) > 0
+      AND deleted_at IS NULL
+    RETURNING id, estimate_number
+  `);
+
+  if (result.rows.length > 0) {
+    console.log(`[DataRepair] Fixed ${result.rows.length} proposal entries: had proposalTotal but status was still "Estimating" -> "Submitted"`);
+    for (const row of result.rows) {
+      console.log(`[DataRepair]   Entry id=${(row as any).id} estNum=${(row as any).estimate_number}`);
+    }
+  }
+}
+
 export async function runDataRepairs(): Promise<void> {
   try {
     await repairProjectIdSequence();
     await repairDuplicateEstimateNumbers();
+    await repairProposalStatuses();
   } catch (err) {
     console.error("[DataRepair] Error during data repair:", err);
   }

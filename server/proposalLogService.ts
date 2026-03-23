@@ -141,26 +141,41 @@ export async function bulkCreateProposalLogEntries(entries: Array<{
     return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
   })();
 
-  const values = entries.map(data => ({
-    projectName: data.projectName,
-    estimateNumber: data.estimateNumber,
-    region: data.region || "",
-    primaryMarket: data.primaryMarket || guessMarket(data.projectName),
-    inviteDate: data.inviteDate || fallbackInviteDate,
-    dueDate: data.dueDate || "",
-    estimateStatus: data.estimateStatus || "Estimating",
-    owner: data.owner || "",
-    filePath: data.filePath || "",
-    screenshotPath: data.screenshotPath || "",
-    projectDbId: 0,
-    anticipatedStart: data.anticipatedStart || null,
-    anticipatedFinish: data.anticipatedFinish || null,
-    nbsEstimator: data.nbsEstimator || null,
-    gcEstimateLead: data.gcEstimateLead || null,
-    proposalTotal: data.proposalTotal || null,
-    isTest: data.isTest || false,
-    syncedToLocal: true,
-  }));
+  const terminalStatuses = ['Awarded', 'Lost', 'Lost - Note Why in Comments'];
+
+  const values = entries.map(data => {
+    let status = data.estimateStatus || "Estimating";
+    const totalDigits = (data.proposalTotal || '').replace(/[^0-9.]/g, '');
+
+    if (!terminalStatuses.includes(status)) {
+      if (totalDigits && Number(totalDigits) > 0) {
+        status = 'Submitted';
+      } else {
+        status = 'Estimating';
+      }
+    }
+
+    return {
+      projectName: data.projectName,
+      estimateNumber: data.estimateNumber,
+      region: data.region || "",
+      primaryMarket: data.primaryMarket || guessMarket(data.projectName),
+      inviteDate: data.inviteDate || fallbackInviteDate,
+      dueDate: data.dueDate || "",
+      estimateStatus: status,
+      owner: data.owner || "",
+      filePath: data.filePath || "",
+      screenshotPath: data.screenshotPath || "",
+      projectDbId: 0,
+      anticipatedStart: data.anticipatedStart || null,
+      anticipatedFinish: data.anticipatedFinish || null,
+      nbsEstimator: data.nbsEstimator || null,
+      gcEstimateLead: data.gcEstimateLead || null,
+      proposalTotal: data.proposalTotal || null,
+      isTest: data.isTest || false,
+      syncedToLocal: true,
+    };
+  });
 
   const created = await db.insert(proposalLogEntries).values(values).returning();
 
