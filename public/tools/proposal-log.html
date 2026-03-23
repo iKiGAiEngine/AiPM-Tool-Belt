@@ -427,7 +427,7 @@ th.col-drop-after::after{content:'';position:absolute;right:0;top:0;bottom:0;wid
 .inline-edit-wrap{position:relative;display:inline-flex;align-items:center;gap:4px;width:100%;cursor:pointer;}
 .inline-edit-wrap:hover .inline-edit-hint{opacity:1;}
 .inline-edit-hint{opacity:0;font-size:9px;color:var(--gold-dim);transition:opacity .15s;flex-shrink:0;user-select:none;}
-td.inline-editing{padding:2px 4px !important;background:rgba(201,168,76,.06) !important;outline:2px solid var(--gold-dim);outline-offset:-1px;border-radius:3px;}
+td.inline-editing{padding:2px 4px !important;background:rgba(201,168,76,.06) !important;outline:2px solid var(--gold-dim);outline-offset:-1px;border-radius:3px;min-width:150px !important;max-width:none !important;overflow:visible !important;}
 .inline-input{background:var(--bg4);border:1px solid var(--gold-dim);color:var(--text);padding:3px 6px;border-radius:4px;font-size:12px;font-family:'DM Sans',sans-serif;outline:none;min-width:90px;width:100%;max-width:180px;box-sizing:border-box;}
 .inline-select{background:var(--bg4);border:1px solid var(--gold-dim);color:var(--text);padding:3px 6px;border-radius:4px;font-size:11px;font-family:'DM Sans',sans-serif;outline:none;cursor:pointer;}
 .inline-date{background:var(--bg4);border:1px solid var(--gold-dim);color:var(--text);padding:3px 6px;border-radius:4px;font-size:11px;font-family:'DM Sans',sans-serif;outline:none;color-scheme:var(--inline-date-scheme);}
@@ -982,7 +982,7 @@ const COL_DEFS = [
   {key:'dueDate',        label:'Due Date',            w:100, filter:'date'},
   {key:'nbsEstimator',   label:'NBS Estimator',       w:130, filter:'text'},
   {key:'gcEstimateLead', label:'GC Estimate Lead',    w:140, filter:'text'},
-  {key:'proposalTotal',  label:'Proposal Total',      w:120, filter:'text'},
+  {key:'proposalTotal',  label:'Proposal Total',      w:150, filter:'text'},
   {key:'estimateStatus', label:'Status',              w:150, filter:'select', opts:STATUSES},
   {key:'finalReviewer',  label:'Final Reviewer',      w:130, filter:'text'},
   {key:'anticipatedStart',  label:'Est. Start',       w:100, filter:'date'},
