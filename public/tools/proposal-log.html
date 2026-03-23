@@ -1535,7 +1535,7 @@ async function checkGoogleSheet(){
     }
     if(d.configured && currentUser){
       if(syncBtn && currentUser.role==='admin') syncBtn.style.display='';
-      if(importBtn) importBtn.style.display='';
+      if(importBtn && currentUser.role==='admin') importBtn.style.display='';
     }
   }catch(e){console.warn('Sheet URL check failed:',e);}
 }
@@ -2580,6 +2580,9 @@ function applyModeRestrictions() {
 
   const importBtn = document.getElementById('btn-import');
   if (importBtn) importBtn.style.display = caps.importExcel ? '' : 'none';
+
+  const importSheetBtn = document.getElementById('btn-import-sheet');
+  if (importSheetBtn && !isAdmin) importSheetBtn.style.display = 'none';
 }
 
 function viewScreenshot(estNum) {
