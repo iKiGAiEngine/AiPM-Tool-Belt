@@ -427,8 +427,10 @@ th.col-drop-after::after{content:'';position:absolute;right:0;top:0;bottom:0;wid
 .inline-edit-wrap{position:relative;display:inline-flex;align-items:center;gap:4px;width:100%;cursor:pointer;}
 .inline-edit-wrap:hover .inline-edit-hint{opacity:1;}
 .inline-edit-hint{opacity:0;font-size:9px;color:var(--gold-dim);transition:opacity .15s;flex-shrink:0;user-select:none;}
-td.inline-editing{padding:2px 4px !important;background:rgba(201,168,76,.06) !important;outline:2px solid var(--gold-dim);outline-offset:-1px;border-radius:3px;min-width:150px !important;max-width:none !important;overflow:visible !important;}
-.inline-input{background:var(--bg4);border:1px solid var(--gold-dim);color:var(--text);padding:3px 6px;border-radius:4px;font-size:12px;font-family:'DM Sans',sans-serif;outline:none;min-width:90px;width:100%;max-width:180px;box-sizing:border-box;}
+td.inline-editing{padding:0 !important;position:relative;overflow:visible !important;}
+td.inline-editing>.inline-editor-pop{position:absolute;left:-2px;top:50%;transform:translateY(-50%);display:flex;align-items:center;gap:4px;background:var(--bg4);border:2px solid var(--gold-dim);border-radius:5px;padding:4px 8px;z-index:100;box-shadow:0 4px 16px rgba(0,0,0,.4);white-space:nowrap;}
+.inline-input{background:var(--bg3);border:1px solid var(--border);color:var(--text);padding:4px 8px;border-radius:4px;font-size:13px;font-family:'DM Sans',sans-serif;outline:none;width:120px;box-sizing:border-box;}
+.inline-input:focus{border-color:var(--gold-dim);box-shadow:0 0 0 2px rgba(201,168,76,.2);}
 .inline-select{background:var(--bg4);border:1px solid var(--gold-dim);color:var(--text);padding:3px 6px;border-radius:4px;font-size:11px;font-family:'DM Sans',sans-serif;outline:none;cursor:pointer;}
 .inline-date{background:var(--bg4);border:1px solid var(--gold-dim);color:var(--text);padding:3px 6px;border-radius:4px;font-size:11px;font-family:'DM Sans',sans-serif;outline:none;color-scheme:var(--inline-date-scheme);}
 .inline-actions{display:flex;gap:2px;flex-shrink:0;}
@@ -2151,38 +2153,37 @@ function startInlineEdit(e,oi,field){
   td.classList.add('inline-editing');
   const type=INLINE_FIELDS[field];
   if(type==='number'){
-    td.innerHTML=`<div style="display:flex;align-items:center;gap:4px;width:100%">
-      <span style="font-size:11px;color:var(--text-dim);flex-shrink:0">$</span>
+    td.innerHTML=`<div class="inline-editor-pop">
+      <span style="font-size:12px;color:var(--text-dim)">$</span>
       <input class="inline-input" id="inline-inp" type="number" value="${p[field]||''}" min="0" step="1" placeholder="0"
-        onkeydown="inlineKeydown(event,${oi},'${field}')" onclick="event.stopPropagation()" style="flex:1 1 auto">
+        onkeydown="inlineKeydown(event,${oi},'${field}')" onclick="event.stopPropagation()">
       <div class="inline-actions">
-        <button class="inline-save" onclick="commitInlineEdit(${oi},'${field}')">\u2713</button>
-        <button class="inline-cancel" onclick="cancelInlineEdit()">\u2715</button>
+        <button class="inline-save" onclick="commitInlineEdit(${oi},'${field}')" title="Save">\u2713</button>
+        <button class="inline-cancel" onclick="cancelInlineEdit()" title="Cancel">\u2715</button>
       </div></div>`;
   } else if(type==='select-status'){
     const opts=['Estimating','Revising','Submitted','Awarded'].map(s=>`<option value="${s}"${p[field]===s?' selected':''}>${s}</option>`).join('');
-    td.innerHTML=`<div style="display:flex;align-items:center;gap:4px">
+    td.innerHTML=`<div class="inline-editor-pop">
       <select class="inline-select" id="inline-inp" onkeydown="inlineKeydown(event,${oi},'${field}')" onclick="event.stopPropagation()">${opts}</select>
       <div class="inline-actions">
-        <button class="inline-save" onclick="commitInlineEdit(${oi},'${field}')">\u2713</button>
-        <button class="inline-cancel" onclick="cancelInlineEdit()">\u2715</button>
-      </div></div>
-      <div style="font-size:9px;color:var(--text-dim);margin-top:2px">Use \u270f edit for Lost status</div>`;
+        <button class="inline-save" onclick="commitInlineEdit(${oi},'${field}')" title="Save">\u2713</button>
+        <button class="inline-cancel" onclick="cancelInlineEdit()" title="Cancel">\u2715</button>
+      </div></div>`;
   } else if(type==='select-estimator'){
     const opts=[`<option value="">\u2014 Select \u2014</option>`,...ESTIMATORS.map(est=>`<option value="${est.code}"${p[field]===est.code?' selected':''}>${est.label}</option>`)].join('');
-    td.innerHTML=`<div style="display:flex;align-items:center;gap:4px">
+    td.innerHTML=`<div class="inline-editor-pop">
       <select class="inline-select" id="inline-inp" style="min-width:150px" onkeydown="inlineKeydown(event,${oi},'${field}')" onclick="event.stopPropagation()">${opts}</select>
       <div class="inline-actions">
-        <button class="inline-save" onclick="commitInlineEdit(${oi},'${field}')">\u2713</button>
-        <button class="inline-cancel" onclick="cancelInlineEdit()">\u2715</button>
+        <button class="inline-save" onclick="commitInlineEdit(${oi},'${field}')" title="Save">\u2713</button>
+        <button class="inline-cancel" onclick="cancelInlineEdit()" title="Cancel">\u2715</button>
       </div></div>`;
   } else if(type==='month'){
     const cur=p[field]?p[field].slice(0,7):'';
-    td.innerHTML=`<div style="display:flex;align-items:center;gap:4px">
+    td.innerHTML=`<div class="inline-editor-pop">
       <input class="inline-date" id="inline-inp" type="month" value="${cur}" onkeydown="inlineKeydown(event,${oi},'${field}')" onclick="event.stopPropagation()">
       <div class="inline-actions">
-        <button class="inline-save" onclick="commitInlineEdit(${oi},'${field}')">\u2713</button>
-        <button class="inline-cancel" onclick="cancelInlineEdit()">\u2715</button>
+        <button class="inline-save" onclick="commitInlineEdit(${oi},'${field}')" title="Save">\u2713</button>
+        <button class="inline-cancel" onclick="cancelInlineEdit()" title="Cancel">\u2715</button>
       </div></div>`;
   }
   setTimeout(()=>{const i=document.getElementById('inline-inp');if(i){i.focus();if(i.select)i.select();}},30);
