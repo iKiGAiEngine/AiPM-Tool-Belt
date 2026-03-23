@@ -2682,9 +2682,6 @@ async function initApp() {
   await fetchAcknowledgements();
   render();
   checkGoogleSheet();
-  let _lastDataHash = '';
-  function dataHash() { return JSON.stringify(data); }
-  _lastDataHash = dataHash();
 
 }
 
