@@ -5,6 +5,7 @@ import { getActiveProposalLogEntries } from './proposalLogService';
 import { db } from './db';
 import { proposalLogEntries } from '@shared/schema';
 import { eq } from 'drizzle-orm';
+import { repairProposalStatuses } from './dataRepair';
 
 let connectionSettings: any;
 
@@ -412,6 +413,9 @@ export async function syncSheetToProposalLog(retryCount = 0): Promise<{ success:
     }
 
     console.log(`[GoogleSheetSync] Sheet-to-app sync complete: ${updatedCount} entries updated`);
+
+    await repairProposalStatuses();
+
     return { success: true, updated: updatedCount };
   } catch (error: any) {
     if (isAuthTimeoutError(error) && retryCount < 2) {

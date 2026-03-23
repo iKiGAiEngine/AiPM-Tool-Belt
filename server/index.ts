@@ -95,9 +95,13 @@ app.use((req, res, next) => {
   const { startNightlyBackup } = await import("./nightlyBackup");
   startNightlyBackup();
 
-  const { isGoogleSheetConfigured, triggerSheetSync } = await import("./googleSheetSync");
+  const { isGoogleSheetConfigured, syncProposalLogToSheet } = await import("./googleSheetSync");
   if (isGoogleSheetConfigured()) {
-    triggerSheetSync();
+    syncProposalLogToSheet().then(() => {
+      console.log("[Startup] Pushed repaired statuses to Google Sheet");
+    }).catch(err => {
+      console.error("[Startup] Failed to push repaired statuses to sheet:", err.message);
+    });
   }
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {

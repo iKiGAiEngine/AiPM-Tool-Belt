@@ -1868,6 +1868,11 @@ export function registerProjectRoutes(app: Express) {
         return res.status(400).json({ message: "Google Sheets integration not configured" });
       }
       const result = await syncSheetToProposalLog();
+      if (result.success) {
+        syncProposalLogToSheet().catch(err => {
+          console.error("[GoogleSheetSync] Failed to push repaired statuses after pull:", err.message);
+        });
+      }
       res.json(result);
     } catch (error: any) {
       console.error("Failed to import from sheet:", error);
