@@ -1492,7 +1492,7 @@ function saveProposal(){
   } else {
     data.push(formVals);
   }
-  save();closeModal();render();
+  save();closeModal();delete colFilters.estimateStatus;render();
 }
 function autoPromoteStatus(){
   const a=document.getElementById('f-proposalTotal'), s=document.getElementById('f-estimateStatus');
@@ -2205,7 +2205,9 @@ function commitInlineEdit(oi,field){
   } else if(field==='anticipatedStart'||field==='anticipatedFinish'){
     v=v?v+'-01':'';
   }
-  data[oi][field]=v; activeInlineEdit=null; save(); render();
+  data[oi][field]=v; activeInlineEdit=null; save();
+  delete colFilters.estimateStatus;
+  render();
   syncFieldToServer(data[oi], field, v);
 }
 async function syncFieldToServer(entry, field, value) {
@@ -2225,7 +2227,9 @@ async function syncFieldToServer(entry, field, value) {
         const idx = data.findIndex(d => d._serverDbId === entry._serverDbId);
         if (idx !== -1) {
           data[idx].estimateStatus = result.entry.estimateStatus;
-          save(); render();
+          save();
+          delete colFilters.estimateStatus;
+          render();
           showToast('\ud83d\udca1 Status auto-updated to ' + result.entry.estimateStatus);
         }
       }
@@ -2682,19 +2686,6 @@ async function initApp() {
   function dataHash() { return JSON.stringify(data); }
   _lastDataHash = dataHash();
 
-  setInterval(async () => {
-    if (activeInlineEdit) return;
-    const loaded = await loadFromServer();
-    await fetchAcknowledgements();
-    if (!loaded) return;
-    const h = dataHash();
-    if (h === _lastDataHash) return;
-    _lastDataHash = h;
-    const scrollEl = document.querySelector('.table-wrapper') || document.documentElement;
-    const scrollTop = scrollEl.scrollTop;
-    render();
-    requestAnimationFrame(() => { scrollEl.scrollTop = scrollTop; });
-  }, 60000);
 }
 
 checkAuth();
