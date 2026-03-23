@@ -475,7 +475,6 @@ export default function HomePage() {
                         key={stableId}
                         className={`bid-row bid-row-ack-anim${isAnimating ? " bid-row-hiding" : ""}`}
                       >
-                        <div className="bid-name" data-testid={`text-bid-name-new-${i}`}>{p.projectName}</div>
                         <button
                           className={`ack-btn${isAnimating ? " ack-btn-done" : ""}`}
                           title="Acknowledge"
@@ -489,6 +488,7 @@ export default function HomePage() {
                         >
                           <Check style={{ width: 11, height: 11 }} />
                         </button>
+                        <div className="bid-name" data-testid={`text-bid-name-new-${i}`}>{p.projectName}</div>
                         {p.filePath ? (
                           <a
                             className="bid-folder"
@@ -520,8 +520,8 @@ export default function HomePage() {
                     const stableId = p._serverDbId || p.estimateNumber || `due-${i}`;
                     return (
                       <div key={stableId} className="bid-row">
-                        <div className="bid-name" data-testid={`text-bid-name-due-${i}`}>{p.projectName}</div>
                         <span className="ack-btn-spacer" />
+                        <div className="bid-name" data-testid={`text-bid-name-due-${i}`}>{p.projectName}</div>
                         {p.filePath ? (
                           <a
                             className="bid-folder"
@@ -553,8 +553,8 @@ export default function HomePage() {
                     const stableId = p._serverDbId || p.estimateNumber || `pipe-${i}`;
                     return (
                       <div key={stableId} className="bid-row">
-                        <div className="bid-name" data-testid={`text-bid-name-pipe-${i}`}>{p.projectName}</div>
                         <span className="ack-btn-spacer" />
+                        <div className="bid-name" data-testid={`text-bid-name-pipe-${i}`}>{p.projectName}</div>
                         {p.filePath ? (
                           <a
                             className="bid-folder"

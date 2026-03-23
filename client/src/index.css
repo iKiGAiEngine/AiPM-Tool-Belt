@@ -916,7 +916,7 @@
 }
 .bid-row {
   display: grid;
-  grid-template-columns: 1fr 26px 24px auto;
+  grid-template-columns: 26px 1fr 24px auto;
   align-items: center;
   gap: 8px;
   padding: 6px 20px;
