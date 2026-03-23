@@ -43,7 +43,7 @@ import { getActiveFolderTemplate, getActiveEstimateTemplate } from "./templateSt
 import ExcelJS from "exceljs";
 import { extractProjectDetailsFromScreenshot } from "./screenshotExtractor";
 import { guessMarket, guessRegion, createProposalLogEntry, bulkCreateProposalLogEntries, getUnsyncedEntries, markEntriesSynced, getActiveProposalLogEntries, getAllProposalLogEntries, updateProposalLogEntryById, deleteProposalLogEntry, deleteProposalLogEntries, getAcknowledgedEntryIds, acknowledgeEntry, unacknowledgeEntry, clearAcknowledgementsForEntry } from "./proposalLogService";
-import { getSheetUrl, syncProposalLogToSheet, syncSheetToProposalLog, pullRepairAndPush, isGoogleSheetConfigured } from "./googleSheetSync";
+import { getSheetUrl, syncProposalLogToSheet, pullRepairAndPush, isGoogleSheetConfigured } from "./googleSheetSync";
 import { users } from "@shared/schema";
 import { eq } from "drizzle-orm";
 import { db } from "./db";
