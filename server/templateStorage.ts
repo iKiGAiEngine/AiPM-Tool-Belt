@@ -77,7 +77,7 @@ export async function createFolderTemplate(data: InsertFolderTemplateInput & { f
     .update(folderTemplates)
     .set({ isActive: false });
 
-  const result = await db.insert(folderTemplates).values({
+  const insertValues: typeof folderTemplates.$inferInsert = {
     name: data.name!,
     version: nextVersion,
     isActive: true,
@@ -86,7 +86,8 @@ export async function createFolderTemplate(data: InsertFolderTemplateInput & { f
     fileData: data.fileData ?? null,
     folderStructure: data.folderStructure ?? [],
     uploadedBy: data.uploadedBy ?? "admin",
-  } as any).returning();
+  };
+  const result = await db.insert(folderTemplates).values(insertValues).returning();
   return result[0];
 }
 
@@ -156,7 +157,7 @@ export async function createEstimateTemplate(data: InsertEstimateTemplateInput &
     .update(estimateTemplates)
     .set({ isActive: false });
 
-  const result = await db.insert(estimateTemplates).values({
+  const insertValues: typeof estimateTemplates.$inferInsert = {
     name: data.name!,
     version: nextVersion,
     isActive: true,
@@ -167,7 +168,8 @@ export async function createEstimateTemplate(data: InsertEstimateTemplateInput &
     sheetNames: data.sheetNames ?? [],
     stampMappings: data.stampMappings ?? [],
     uploadedBy: data.uploadedBy ?? "admin",
-  } as any).returning();
+  };
+  const result = await db.insert(estimateTemplates).values(insertValues).returning();
   return result[0];
 }
 
@@ -245,8 +247,9 @@ export async function backfillTemplateFileData(): Promise<void> {
   for (const t of folderRows) {
     if (!t.hasData && t.filePath && fs.existsSync(t.filePath)) {
       const buf = fs.readFileSync(t.filePath);
+      const updatePayload: Partial<typeof folderTemplates.$inferInsert> = { fileData: buf };
       await db.update(folderTemplates)
-        .set({ fileData: buf } as any)
+        .set(updatePayload)
         .where(eq(folderTemplates.id, t.id));
       console.log(`[TemplateBackfill] Stored folder template ${t.id} (v${t.version}) file data in DB (${buf.length} bytes)`);
     } else if (!t.hasData && (!t.filePath || !fs.existsSync(t.filePath))) {
@@ -259,8 +262,9 @@ export async function backfillTemplateFileData(): Promise<void> {
   for (const t of estimateRows) {
     if (!t.hasData && t.filePath && fs.existsSync(t.filePath)) {
       const buf = fs.readFileSync(t.filePath);
+      const updatePayload: Partial<typeof estimateTemplates.$inferInsert> = { fileData: buf };
       await db.update(estimateTemplates)
-        .set({ fileData: buf } as any)
+        .set(updatePayload)
         .where(eq(estimateTemplates.id, t.id));
       console.log(`[TemplateBackfill] Stored estimate template ${t.id} (v${t.version}) file data in DB (${buf.length} bytes)`);
     } else if (!t.hasData && (!t.filePath || !fs.existsSync(t.filePath))) {
