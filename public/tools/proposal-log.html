@@ -1030,7 +1030,7 @@ const saveLayout = () => localStorage.setItem('nbs_layout', JSON.stringify(layou
 })();
 let colFilters = { estimateStatus: 'Estimating' };
 
-const fmt$ = n => (!n&&n!==0)?'\u2014':'$'+Number(n).toLocaleString();
+const fmt$ = n => { if(!n&&n!==0)return'\u2014';const num=Number(n);if(!num||isNaN(num))return'\u2014';return'$'+num.toLocaleString(); };
 const fmtD = d => { if(!d) return '\u2014'; const [y,m,dy]=d.split('-'); return `${m}/${dy}/${y}`; };
 const fmtMY = d => { if(!d) return '\u2014'; const [y,m]=d.split('-'); return `${m}/${y.slice(2)}`; };
 
@@ -1492,7 +1492,7 @@ function saveProposal(){
   } else {
     data.push(formVals);
   }
-  save();closeModal();delete colFilters.estimateStatus;render();
+  save();closeModal();
 }
 function autoPromoteStatus(){
   const a=document.getElementById('f-proposalTotal'), s=document.getElementById('f-estimateStatus');
@@ -2205,9 +2205,18 @@ function commitInlineEdit(oi,field){
   } else if(field==='anticipatedStart'||field==='anticipatedFinish'){
     v=v?v+'-01':'';
   }
+  const editTd = activeInlineEdit.td;
+  editTd.classList.remove('inline-editing');
   data[oi][field]=v; activeInlineEdit=null; save();
-  delete colFilters.estimateStatus;
-  render();
+  if(field==='proposalTotal'){
+    editTd.innerHTML=`<div class="inline-edit-wrap" onclick="startInlineEdit(event,${oi},'proposalTotal')"><span class="val-cell">${fmt$(v)}</span><span class="inline-edit-hint">\u270f</span></div>`;
+  } else if(field==='anticipatedStart'||field==='anticipatedFinish'){
+    editTd.innerHTML=`<div class="inline-edit-wrap" onclick="startInlineEdit(event,${oi},'${field}')"><span class="val-cell">${fmtMY(v)}</span><span class="inline-edit-hint">\u270f</span></div>`;
+  } else if(field==='estimateStatus'){
+    editTd.innerHTML=statusBadge(v);
+  } else if(field==='nbsEstimator'){
+    editTd.innerHTML=`<div class="inline-edit-wrap" onclick="startInlineEdit(event,${oi},'nbsEstimator')"><span class="val-cell">${v||'\u2014'}</span><span class="inline-edit-hint">\u270f</span></div>`;
+  }
   syncFieldToServer(data[oi], field, v);
 }
 async function syncFieldToServer(entry, field, value) {
@@ -2228,8 +2237,6 @@ async function syncFieldToServer(entry, field, value) {
         if (idx !== -1) {
           data[idx].estimateStatus = result.entry.estimateStatus;
           save();
-          delete colFilters.estimateStatus;
-          render();
           showToast('\ud83d\udca1 Status auto-updated to ' + result.entry.estimateStatus);
         }
       }
