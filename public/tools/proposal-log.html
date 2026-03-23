@@ -1028,7 +1028,7 @@ const saveLayout = () => localStorage.setItem('nbs_layout', JSON.stringify(layou
   if (layout.visible['estimateNumber'] !== false) { layout.visible['estimateNumber'] = false; changed = true; }
   if (changed) saveLayout();
 })();
-let colFilters = {};
+let colFilters = { estimateStatus: 'Estimating' };
 
 const fmt$ = n => (!n&&n!==0)?'\u2014':'$'+Number(n).toLocaleString();
 const fmtD = d => { if(!d) return '\u2014'; const [y,m,dy]=d.split('-'); return `${m}/${dy}/${y}`; };
