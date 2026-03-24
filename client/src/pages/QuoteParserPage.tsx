@@ -2,6 +2,7 @@ import { useState, useCallback, useRef, useEffect } from "react";
 import { useDropzone } from "react-dropzone";
 import { useMutation } from "@tanstack/react-query";
 import { useToolUsage } from "@/lib/useToolUsage";
+import { copyTsvWithFormatting } from "@/lib/clipboardUtils";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
@@ -154,21 +155,18 @@ export default function QuoteParserPage() {
       "MATERIAL",
       "FREIGHT",
     ];
-    const tsv = [
-      headers.join("\t"),
-      ...result.rows.map((row) =>
-        [
-          row.planCallout || "",
-          row.description || "",
-          row.modelNumber || "",
-          row.qty || "",
-          row.material || "",
-          row.freight || "",
-        ].join("\t")
-      ),
-    ].join("\n");
+    const rows = result.rows.map((row) =>
+      [
+        row.planCallout || "",
+        row.description || "",
+        row.modelNumber || "",
+        row.qty || "",
+        row.material || "",
+        row.freight || "",
+      ]
+    );
 
-    navigator.clipboard.writeText(tsv);
+    copyTsvWithFormatting(headers, rows);
     toast({ title: "Copied!", description: "Table copied to clipboard as TSV" });
   }, [result, toast]);
 

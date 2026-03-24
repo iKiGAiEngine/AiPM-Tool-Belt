@@ -31,6 +31,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { Link } from "wouter";
 import * as XLSX from "xlsx";
+import { copyTsvWithFormatting } from "@/lib/clipboardUtils";
 
 interface ScheduleItem {
   planCallout: string;
@@ -250,17 +251,16 @@ export default function ScheduleConverterPage() {
     setEditedItems(prev => prev.map(i => ({ ...i, needsReview: !newVal })));
   };
 
-  const copyTSV = useCallback(() => {
+  const copyTSV = useCallback(async () => {
     const headers = ["PLAN CALLOUT", "DESCRIPTION", "MODEL NUMBER", "ITEM QUANTITY"];
     const rows = editedItems.map(item =>
-      [item.planCallout || "", item.description || "", item.modelNumber || "", item.quantity != null ? String(item.quantity) : ""].join("\t")
+      [item.planCallout || "", item.description || "", item.modelNumber || "", item.quantity != null ? String(item.quantity) : ""]
     );
-    const tsv = [headers.join("\t"), ...rows].join("\n");
-    navigator.clipboard.writeText(tsv);
+    await copyTsvWithFormatting(headers, rows);
     toast({ title: "Copied!", description: "Table copied to clipboard as TSV (NBS format)" });
   }, [editedItems, toast]);
 
-  const copyApproved = useCallback(() => {
+  const copyApproved = useCallback(async () => {
     const approved = editedItems.filter(item => !item.needsReview);
     if (approved.length === 0) {
       toast({ title: "No rows approved", description: "All rows are flagged for review", variant: "destructive" });
@@ -268,10 +268,9 @@ export default function ScheduleConverterPage() {
     }
     const headers = ["PLAN CALLOUT", "DESCRIPTION", "MODEL NUMBER", "ITEM QUANTITY"];
     const rows = approved.map(item =>
-      [item.planCallout || "", item.description || "", item.modelNumber || "", item.quantity != null ? String(item.quantity) : ""].join("\t")
+      [item.planCallout || "", item.description || "", item.modelNumber || "", item.quantity != null ? String(item.quantity) : ""]
     );
-    const tsv = [headers.join("\t"), ...rows].join("\n");
-    navigator.clipboard.writeText(tsv);
+    await copyTsvWithFormatting(headers, rows);
     toast({
       title: "Approved rows copied!",
       description: `${approved.length} row${approved.length !== 1 ? "s" : ""} copied to clipboard (NBS format)`,
