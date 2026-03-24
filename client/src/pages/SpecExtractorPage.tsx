@@ -17,6 +17,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
+import ProjectNameComboBox from "@/components/ProjectNameComboBox";
 import type { SpecExtractorSession, SpecExtractorSection } from "@shared/schema";
 
 type ViewState = "upload" | "processing" | "results";
@@ -670,17 +671,15 @@ export default function SpecExtractorPage() {
                   Project Name
                   <span className="text-xs text-muted-foreground font-normal">(optional)</span>
                 </Label>
-                <Input
-                  id="se-project-name"
-                  type="text"
-                  placeholder="Leave blank to auto-detect from specs"
+                <ProjectNameComboBox
                   value={projectName}
-                  onChange={(e) => setProjectName(e.target.value)}
+                  onChange={setProjectName}
+                  placeholder="Select from estimating bids or type a name"
                   className="w-full"
                   data-testid="input-se-project-name"
                 />
                 <p className="mt-1.5 text-xs text-muted-foreground">
-                  AI will suggest a project name from the spec content if left blank
+                  Pick from active bids or type a custom name. AI will suggest if left blank.
                 </p>
               </div>
 
@@ -911,14 +910,14 @@ export default function SpecExtractorPage() {
                     <span className="text-sm font-medium text-muted-foreground shrink-0">Project Name:</span>
                     {isEditingProjectName ? (
                       <div className="flex items-center gap-2 flex-1 min-w-0">
-                        <Input
-                          ref={projectNameInputRef}
+                        <ProjectNameComboBox
+                          inputRef={projectNameInputRef}
                           value={resultsProjectName}
-                          onChange={(e) => setResultsProjectName(e.target.value)}
+                          onChange={setResultsProjectName}
                           onBlur={saveProjectName}
                           onKeyDown={handleProjectNameKeyDown}
                           className="flex-1 min-w-0"
-                          placeholder="Enter project name"
+                          placeholder="Select or type project name"
                           data-testid="input-se-results-project-name"
                         />
                       </div>

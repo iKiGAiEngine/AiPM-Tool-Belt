@@ -1718,6 +1718,24 @@ export function registerProjectRoutes(app: Express) {
     }
   });
 
+  app.get("/api/proposal-log/estimating-projects", async (_req: Request, res: Response) => {
+    try {
+      const entries = await getActiveProposalLogEntries();
+      const estimating = entries
+        .filter((e: any) => e.estimateStatus === "Estimating" || e.estimateStatus === "Revising")
+        .map((e: any) => ({
+          id: e.id,
+          projectName: e.projectName || "",
+          estimateNumber: e.estimateNumber || "",
+        }))
+        .filter((e: any) => e.projectName.trim() !== "");
+      res.json(estimating);
+    } catch (error) {
+      console.error("Failed to get estimating projects:", error);
+      res.status(500).json({ message: "Failed to get estimating projects" });
+    }
+  });
+
   app.patch("/api/proposal-log/entry/:id", async (req: Request, res: Response) => {
     try {
       const id = parseInt(req.params.id);
