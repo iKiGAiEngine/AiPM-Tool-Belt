@@ -2058,13 +2058,13 @@ function renderDash() {
       '<div class="dash-empty"><div class="dash-empty-icon">\ud83c\udfd7</div>No active projects with Est. Start dates yet</div>';
   } else {
     document.getElementById('dash-followup').innerHTML = startItems.map(p => {
-      const pillLabel = p.daysUntil < 0 ? `${Math.abs(p.daysUntil)}d OVERDUE`
+      const pillLabel = p.daysUntil < 0 ? `${Math.abs(p.daysUntil)} BD OVERDUE`
         : p.daysUntil === 0 ? 'STARTS TODAY'
-        : p.daysUntil <= 14 ? `${p.daysUntil}d \u2014 URGENT`
-        : p.daysUntil <= 45 ? `${p.daysUntil}d \u2014 SOON`
-        : `${p.daysUntil}d out`;
-      const daysLabel = p.daysUntil < 0 ? `${Math.abs(p.daysUntil)} days overdue`
-        : p.daysUntil === 0 ? 'Starts today' : `${p.daysUntil} days to start`;
+        : p.daysUntil <= 14 ? `${p.daysUntil} BD \u2014 URGENT`
+        : p.daysUntil <= 45 ? `${p.daysUntil} BD \u2014 SOON`
+        : `${p.daysUntil} BD out`;
+      const daysLabel = p.daysUntil < 0 ? `${Math.abs(p.daysUntil)} BD overdue`
+        : p.daysUntil === 0 ? 'Starts today' : `${p.daysUntil} BD to start`;
       const endStr = p.anticipatedFinish ? ` \u2192 ${fmtD(p.anticipatedFinish)}` : '';
       const swTag = p.swinertonProject==='Y'
         ? `<span style="font-family:'Rajdhani',sans-serif;font-size:9px;font-weight:700;background:rgba(61,170,106,.15);color:var(--win);border:1px solid rgba(61,170,106,.3);padding:1px 5px;border-radius:3px;margin-left:5px">SWINERTON</span>` : '';
