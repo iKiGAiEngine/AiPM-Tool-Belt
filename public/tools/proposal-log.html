@@ -1955,7 +1955,7 @@ function renderDash() {
       ${shown.length
         ? shown.map(p=>`<div class="due-item">
             <span class="due-item-name" title="${p.projectName||''}">${p.projectName||'\u2014'}</span>
-            <span class="due-item-date">${p._bizDays<0?Math.abs(p._bizDays)+'bd overdue':p._bizDays===0?'Today':p._bizDays===1?'Tomorrow':p._bizDays+'bd'}</span>
+            <span class="due-item-date">${p._bizDays<0?Math.abs(p._bizDays)+' BD overdue':p._bizDays===0?'Today':p._bizDays===1?'Tomorrow':p._bizDays+' BD'}</span>
           </div>`).join('')
           + (items.length > maxShow ? `<div class="due-empty">+${items.length-maxShow} more</div>` : '')
         : '<div class="due-empty">None</div>'}
