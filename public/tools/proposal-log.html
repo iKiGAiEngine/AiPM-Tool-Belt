@@ -1249,7 +1249,14 @@ function buildRows() {
           break;
         }
         case 'swinertonProject': val=p.swinertonProject==='Y'?'<span class="swin-yes">Y</span>':p.swinertonProject==='N'?'<span class="swin-no">N</span>':'\u2014'; break;
-        case 'inviteDate': case 'dueDate': val=`<span class="date-dim">${fmtD(p[key])}</span>`; break;
+        case 'inviteDate': val=`<span class="date-dim">${fmtD(p[key])}</span>`; break;
+        case 'dueDate':
+          if(mode==='estimator' && can('editRow')) {
+            val=`<div class="inline-edit-wrap" onclick="startInlineEdit(event,${oi},'dueDate')">
+              <span class="date-dim">${fmtD(p.dueDate)}</span>
+              <span class="inline-edit-hint">\u270f</span></div>`;
+          } else { val=`<span class="date-dim">${fmtD(p.dueDate)}</span>`; }
+          break;
         case 'anticipatedStart': case 'anticipatedFinish':
           if(mode==='estimator' && can('editRow')) {
             val=`<div class="inline-edit-wrap" onclick="startInlineEdit(event,${oi},'${key}')">
@@ -2150,7 +2157,7 @@ let ESTIMATORS=[
     sel.innerHTML='<option value="">\u2014 Select \u2014</option>'+ESTIMATORS.map(e=>`<option value="${e.code}">${e.label}</option>`).join('');
   }
 })();
-const INLINE_FIELDS={proposalTotal:'number',estimateStatus:'select-status',nbsEstimator:'select-estimator',anticipatedStart:'month',anticipatedFinish:'month'};
+const INLINE_FIELDS={proposalTotal:'number',estimateStatus:'select-status',nbsEstimator:'select-estimator',anticipatedStart:'month',anticipatedFinish:'month',dueDate:'date',notes:'text'};
 let activeInlineEdit=null;
 
 function startInlineEdit(e,oi,field){
@@ -2194,6 +2201,21 @@ function startInlineEdit(e,oi,field){
         <button class="inline-save" onclick="commitInlineEdit(${oi},'${field}')" title="Save">\u2713</button>
         <button class="inline-cancel" onclick="cancelInlineEdit()" title="Cancel">\u2715</button>
       </div></div>`;
+  } else if(type==='date'){
+    td.innerHTML=`<div class="inline-editor-pop">
+      <input class="inline-date" id="inline-inp" type="date" value="${p[field]||''}" onkeydown="inlineKeydown(event,${oi},'${field}')" onclick="event.stopPropagation()">
+      <div class="inline-actions">
+        <button class="inline-save" onclick="commitInlineEdit(${oi},'${field}')" title="Save">\u2713</button>
+        <button class="inline-cancel" onclick="cancelInlineEdit()" title="Cancel">\u2715</button>
+      </div></div>`;
+  } else if(type==='text'){
+    td.innerHTML=`<div class="inline-editor-pop">
+      <input class="inline-input" id="inline-inp" type="text" value="${(p[field]||'').replace(/"/g,'&quot;')}" placeholder="" style="min-width:140px"
+        onkeydown="inlineKeydown(event,${oi},'${field}')" onclick="event.stopPropagation()">
+      <div class="inline-actions">
+        <button class="inline-save" onclick="commitInlineEdit(${oi},'${field}')" title="Save">\u2713</button>
+        <button class="inline-cancel" onclick="cancelInlineEdit()" title="Cancel">\u2715</button>
+      </div></div>`;
   }
   setTimeout(()=>{const i=document.getElementById('inline-inp');if(i){i.focus();if(i.select)i.select();}},30);
   setTimeout(()=>document.addEventListener('click',inlineClickAway,{once:true}),50);
@@ -2227,11 +2249,13 @@ function commitInlineEdit(oi,field){
     editTd.innerHTML=`<div class="inline-edit-wrap" onclick="startInlineEdit(event,${oi},'nbsEstimator')"><span class="val-cell">${v||'\u2014'}</span><span class="inline-edit-hint">\u270f</span></div>`;
   } else if(field==='notes'){
     editTd.innerHTML=`<div class="inline-edit-wrap" onclick="startInlineEdit(event,${oi},'notes')"><span class="val-cell">${v||'\u2014'}</span><span class="inline-edit-hint">\u270f</span></div>`;
+  } else if(field==='dueDate'){
+    editTd.innerHTML=`<div class="inline-edit-wrap" onclick="startInlineEdit(event,${oi},'dueDate')"><span class="date-dim">${fmtD(v)}</span><span class="inline-edit-hint">\u270f</span></div>`;
   }
   syncFieldToServer(data[oi], field, v);
 }
 async function syncFieldToServer(entry, field, value) {
-  const syncableFields = ['nbsEstimator','estimateStatus','proposalTotal','gcEstimateLead','anticipatedStart','anticipatedFinish','estimateNumber','notes'];
+  const syncableFields = ['nbsEstimator','estimateStatus','proposalTotal','gcEstimateLead','anticipatedStart','anticipatedFinish','estimateNumber','notes','dueDate'];
   if (!syncableFields.includes(field)) return;
   if (!entry._serverDbId) { console.warn('Cannot sync field: entry has no _serverDbId'); return; }
   try {

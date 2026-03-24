@@ -213,6 +213,7 @@ export async function updateProposalLogEntryById(id: number, updates: Partial<{
   anticipatedFinish: string;
   estimateNumber: string;
   notes: string;
+  dueDate: string;
 }>) {
   const cleanUpdates: Record<string, any> = {};
   if (updates.nbsEstimator !== undefined) cleanUpdates.nbsEstimator = updates.nbsEstimator;
@@ -223,6 +224,7 @@ export async function updateProposalLogEntryById(id: number, updates: Partial<{
   if (updates.anticipatedFinish !== undefined) cleanUpdates.anticipatedFinish = updates.anticipatedFinish;
   if (updates.estimateNumber !== undefined) cleanUpdates.estimateNumber = updates.estimateNumber;
   if (updates.notes !== undefined) cleanUpdates.notes = updates.notes;
+  if (updates.dueDate !== undefined) cleanUpdates.dueDate = updates.dueDate;
 
   if (Object.keys(cleanUpdates).length === 0) return null;
 
