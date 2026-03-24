@@ -686,9 +686,14 @@ export default function SpecExtractorPage() {
               <div className="mx-auto max-w-2xl">
                 <Label htmlFor="se-toc-hints" className="flex items-center gap-2 text-sm font-medium text-foreground mb-2">
                   <ClipboardList className="h-4 w-4" />
-                  TOC Section Hints
-                  <span className="text-xs text-muted-foreground font-normal">(optional)</span>
+                  Table of Contents Section Hints
+                  <span className="text-xs font-semibold" style={{ color: '#C9A84C' }}>Recommended for Best Results</span>
                 </Label>
+                <div className="rounded-md border-l-4 px-3 py-2.5 mb-2 text-sm" style={{ borderColor: '#C9A84C', background: 'rgba(201,168,76,0.08)' }}>
+                  <p className="font-medium" style={{ color: '#C9A84C' }}>
+                    Copy and paste the Division 10 section list from your spec's Table of Contents here. This significantly improves accuracy and ensures no sections are missed.
+                  </p>
+                </div>
                 <Textarea
                   id="se-toc-hints"
                   placeholder={"Paste a snippet from the Table of Contents to guide extraction.\nExample:\n10 21 13 - TOILET COMPARTMENTS\n10 22 13 - WIRE MESH PARTITIONS\n10 28 00 - TOILET ACCESSORIES"}
@@ -698,7 +703,7 @@ export default function SpecExtractorPage() {
                   data-testid="textarea-toc-hints"
                 />
                 <p className="mt-1.5 text-xs text-muted-foreground">
-                  Paste section numbers from a table of contents to ensure these sections are found. Helpful when the standard scan misses sections.
+                  Paste the Division 10 section numbers and names from your spec's Table of Contents. This helps the extractor find every relevant section.
                 </p>
                 {tocHints.trim() && (
                   <div className="mt-2 flex items-center gap-2">
