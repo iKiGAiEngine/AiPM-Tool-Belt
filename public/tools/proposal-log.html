@@ -938,6 +938,7 @@ td.inline-editing>.inline-editor-pop{position:absolute;left:-2px;top:50%;transfo
         </div>
       </div>
 
+      <div class="form-group"><label class="fl">Notes</label><textarea class="fi" id="f-notes" rows="2" placeholder="General notes..."></textarea></div>
       <div class="form-group"><label class="fl">Comments / Notes</label><textarea class="fi" id="f-comments" placeholder="Additional notes, follow-up actions..."></textarea></div>
     </div>
     <div class="modal-footer">
@@ -990,6 +991,7 @@ const COL_DEFS = [
   {key:'anticipatedStart',  label:'Est. Start',       w:100, filter:'date'},
   {key:'anticipatedFinish', label:'Est. End',         w:100, filter:'date'},
   {key:'swinertonProject',  label:'Swinerton',        w:90,  filter:'select', opts:['Y','N']},
+  {key:'notes',          label:'Notes',               w:200, filter:'text'},
   {key:'owner',          label:'Owner',               w:110, filter:'text'},
   {key:'filePath',       label:'File Path',           w:90,  filter:'none'},
   {key:'_screenshot',    label:'Source',              w:70,  filter:'none'},
@@ -1262,6 +1264,13 @@ function buildRows() {
               <span class="inline-edit-hint">\u270f</span></div>`;
           } else { val=p.nbsEstimator||'\u2014'; }
           break;
+        case 'notes':
+          if(mode==='estimator' && can('editRow')) {
+            val=`<div class="inline-edit-wrap" onclick="startInlineEdit(event,${oi},'notes')">
+              <span>${p.notes||'\u2014'}</span>
+              <span class="inline-edit-hint">\u270f</span></div>`;
+          } else { val=p.notes||'\u2014'; }
+          break;
         case 'filePath': val=p.filePath?`<span class="link-cell"><a href="${p.filePath}" target="_blank">&#128194; Open</a></span>`:'\u2014'; break;
         case 'estimateNumber':
           if(mode==='estimator' && currentUser && currentUser.role==='admin') {
@@ -1400,7 +1409,7 @@ function resetColLayout() {
   buildRows();
 }
 
-const FIELDS=['projectName','estimateNumber','region','primaryMarket','inviteDate','dueDate','nbsEstimator','gcEstimateLead','proposalTotal','estimateStatus','lossWho','lossReason','lossDetail','lossCompetitor','lossNotes','finalReviewer','anticipatedStart','anticipatedFinish','swinertonProject','owner','filePath','comments'];
+const FIELDS=['projectName','estimateNumber','region','primaryMarket','inviteDate','dueDate','nbsEstimator','gcEstimateLead','proposalTotal','estimateStatus','lossWho','lossReason','lossDetail','lossCompetitor','lossNotes','finalReviewer','anticipatedStart','anticipatedFinish','swinertonProject','notes','owner','filePath','comments'];
 const FIELD_ID_MAP = { region: 'f-region-input' };
 function fieldElId(k) { return FIELD_ID_MAP[k] || ('f-' + k); }
 
@@ -2216,11 +2225,13 @@ function commitInlineEdit(oi,field){
     editTd.innerHTML=statusBadge(v);
   } else if(field==='nbsEstimator'){
     editTd.innerHTML=`<div class="inline-edit-wrap" onclick="startInlineEdit(event,${oi},'nbsEstimator')"><span class="val-cell">${v||'\u2014'}</span><span class="inline-edit-hint">\u270f</span></div>`;
+  } else if(field==='notes'){
+    editTd.innerHTML=`<div class="inline-edit-wrap" onclick="startInlineEdit(event,${oi},'notes')"><span class="val-cell">${v||'\u2014'}</span><span class="inline-edit-hint">\u270f</span></div>`;
   }
   syncFieldToServer(data[oi], field, v);
 }
 async function syncFieldToServer(entry, field, value) {
-  const syncableFields = ['nbsEstimator','estimateStatus','proposalTotal','gcEstimateLead','anticipatedStart','anticipatedFinish','estimateNumber'];
+  const syncableFields = ['nbsEstimator','estimateStatus','proposalTotal','gcEstimateLead','anticipatedStart','anticipatedFinish','estimateNumber','notes'];
   if (!syncableFields.includes(field)) return;
   if (!entry._serverDbId) { console.warn('Cannot sync field: entry has no _serverDbId'); return; }
   try {
@@ -2609,7 +2620,7 @@ function viewScreenshot(estNum) {
 function serverEntryToLocal(e, existingLocal) {
   const base = existingLocal || {
     lossWho: '', lossReason: '', lossDetail: '', lossCompetitor: '', lossNotes: '',
-    finalReviewer: '', swinertonProject: '', comments: '',
+    finalReviewer: '', swinertonProject: '', notes: '', comments: '',
   };
   return Object.assign({}, base, {
     projectName: e.projectName || '',
@@ -2624,6 +2635,7 @@ function serverEntryToLocal(e, existingLocal) {
     estimateStatus: e.estimateStatus || 'Estimating',
     anticipatedStart: e.anticipatedStart || base.anticipatedStart || '',
     anticipatedFinish: e.anticipatedFinish || base.anticipatedFinish || '',
+    notes: e.notes || base.notes || '',
     owner: e.owner || '',
     filePath: e.filePath || '',
     _screenshotId: e.estimateNumber || '',

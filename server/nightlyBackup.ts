@@ -48,6 +48,7 @@ export async function generateBackup(): Promise<string> {
     { header: 'Estimate Status', key: 'estimateStatus', width: 18 },
     { header: 'Anticipated Start', key: 'anticipatedStart', width: 16 },
     { header: 'Anticipated Finish', key: 'anticipatedFinish', width: 16 },
+    { header: 'Notes', key: 'notes', width: 30 },
   ];
   ws.columns = columns;
 
@@ -80,10 +81,11 @@ export async function generateBackup(): Promise<string> {
       estimateStatus: entry.estimateStatus || '',
       anticipatedStart: entry.anticipatedStart || '',
       anticipatedFinish: entry.anticipatedFinish || '',
+      notes: entry.notes || '',
     });
   }
 
-  ws.autoFilter = { from: 'A1', to: `L${entries.length + 1}` };
+  ws.autoFilter = { from: 'A1', to: `M${entries.length + 1}` };
 
   const now = new Date();
   const dateStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
