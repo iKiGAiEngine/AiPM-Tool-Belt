@@ -868,6 +868,25 @@ export const insertToolUsageEventSchema = createInsertSchema(toolUsageEvents).om
 export type InsertToolUsageEvent = z.infer<typeof insertToolUsageEventSchema>;
 export type ToolUsageEvent = typeof toolUsageEvents.$inferSelect;
 
+export const emailTemplateConfig = pgTable("email_template_config", {
+  id: serial("id").primaryKey(),
+  templateKey: varchar("template_key", { length: 100 }).notNull().unique(),
+  subject: varchar("subject", { length: 500 }).notNull(),
+  greeting: text("greeting").notNull(),
+  bodyMessage: text("body_message").notNull(),
+  signOff: text("sign_off").notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export type EmailTemplateConfig = typeof emailTemplateConfig.$inferSelect;
+export type InsertEmailTemplateConfig = typeof emailTemplateConfig.$inferInsert;
+
+export const insertEmailTemplateConfigSchema = createInsertSchema(emailTemplateConfig).omit({
+  id: true,
+  updatedAt: true,
+});
+export type InsertEmailTemplateConfigInput = z.infer<typeof insertEmailTemplateConfigSchema>;
+
 export const proposalLogEntries = pgTable("proposal_log_entries", {
   id: serial("id").primaryKey(),
   projectName: varchar("project_name", { length: 500 }).notNull(),

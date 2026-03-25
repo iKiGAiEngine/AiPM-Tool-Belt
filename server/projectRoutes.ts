@@ -44,9 +44,11 @@ import ExcelJS from "exceljs";
 import { extractProjectDetailsFromScreenshot } from "./screenshotExtractor";
 import { guessMarket, guessRegion, createProposalLogEntry, bulkCreateProposalLogEntries, getUnsyncedEntries, markEntriesSynced, getActiveProposalLogEntries, getAllProposalLogEntries, updateProposalLogEntryById, deleteProposalLogEntry, deleteProposalLogEntries, getAcknowledgedEntryIds, acknowledgeEntry, unacknowledgeEntry, clearAcknowledgementsForEntry } from "./proposalLogService";
 import { getSheetUrl, syncProposalLogToSheet, pullRepairAndPush, isGoogleSheetConfigured } from "./googleSheetSync";
-import { users } from "@shared/schema";
+import { users, proposalLogEntries } from "@shared/schema";
 import { eq } from "drizzle-orm";
 import { db } from "./db";
+import { sendBidAssignmentEmail, getBidAssignmentTemplate, saveBidAssignmentTemplate } from "./emailService";
+import { QUICK_LOGIN_USERS } from "./authRoutes";
 
 const SCREENSHOTS_DIR = path.join(process.cwd(), "project_screenshots");
 
@@ -1765,7 +1767,12 @@ export function registerProjectRoutes(app: Express) {
         return res.status(400).json({ message: "No valid fields to update" });
       }
 
+      let oldEstimator: string | null = null;
       if (updates.nbsEstimator !== undefined) {
+        const [existingEntry] = await db.select().from(proposalLogEntries).where(eq(proposalLogEntries.id, id));
+        if (existingEntry) {
+          oldEstimator = existingEntry.nbsEstimator;
+        }
         await clearAcknowledgementsForEntry(id);
       }
 
@@ -1781,6 +1788,49 @@ export function registerProjectRoutes(app: Express) {
       const updated = await updateProposalLogEntryById(id, updates);
       if (!updated) {
         return res.status(404).json({ message: "Entry not found" });
+      }
+
+      if (updates.nbsEstimator !== undefined) {
+        const newEstimator = updates.nbsEstimator?.trim() || null;
+        const oldEst = oldEstimator?.trim() || null;
+
+        if (newEstimator && newEstimator !== oldEst) {
+          (async () => {
+            try {
+              const initials = newEstimator.toUpperCase();
+              const quickLoginKey = initials.toLowerCase();
+              const quickLoginUser = QUICK_LOGIN_USERS[quickLoginKey];
+
+              let email: string | null = null;
+              let displayName: string = initials;
+
+              if (quickLoginUser) {
+                email = quickLoginUser.email;
+                displayName = quickLoginUser.displayName || initials;
+              } else {
+                const [estimatorUser] = await db.select().from(users).where(eq(users.initials, initials));
+                if (estimatorUser?.email) {
+                  email = estimatorUser.email;
+                  displayName = estimatorUser.displayName || initials;
+                }
+              }
+
+              if (email) {
+                await sendBidAssignmentEmail(email, displayName, {
+                  estimatorInitials: initials,
+                  projectName: updated.projectName,
+                  estimateNumber: updated.estimateNumber || "",
+                  dueDate: updated.dueDate || "",
+                  gcLead: updated.gcEstimateLead || "",
+                });
+              } else {
+                console.log(`[Email] No user found for estimator initials: ${initials}`);
+              }
+            } catch (err) {
+              console.error("[Email] Failed to send bid assignment email:", err);
+            }
+          })();
+        }
       }
 
       console.log(`[ProposalLog] Updated entry id=${id}:`, updates);
@@ -1932,6 +1982,45 @@ export function registerProjectRoutes(app: Express) {
     } catch (error) {
       console.error("Failed to unacknowledge entry:", error);
       res.status(500).json({ message: "Failed to unacknowledge" });
+    }
+  });
+
+  app.get("/api/settings/email-template/bid-assignment", async (req: Request, res: Response) => {
+    try {
+      const userId = (req.session as any)?.userId;
+      if (!userId) return res.status(401).json({ message: "Not authenticated" });
+      const [u] = await db.select().from(users).where(eq(users.id, userId));
+      if (!u || u.role !== "admin") {
+        return res.status(403).json({ message: "Admin access required" });
+      }
+
+      const template = await getBidAssignmentTemplate();
+      res.json(template);
+    } catch (error) {
+      console.error("Failed to get email template:", error);
+      res.status(500).json({ message: "Failed to get email template" });
+    }
+  });
+
+  app.put("/api/settings/email-template/bid-assignment", async (req: Request, res: Response) => {
+    try {
+      const userId = (req.session as any)?.userId;
+      if (!userId) return res.status(401).json({ message: "Not authenticated" });
+      const [u] = await db.select().from(users).where(eq(users.id, userId));
+      if (!u || u.role !== "admin") {
+        return res.status(403).json({ message: "Admin access required" });
+      }
+
+      const { subject, greeting, bodyMessage, signOff } = req.body;
+      if (!subject || !greeting || !bodyMessage || !signOff) {
+        return res.status(400).json({ message: "All template fields are required" });
+      }
+
+      await saveBidAssignmentTemplate({ subject, greeting, bodyMessage, signOff });
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Failed to save email template:", error);
+      res.status(500).json({ message: "Failed to save email template" });
     }
   });
 }

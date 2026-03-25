@@ -45,7 +45,7 @@ function getClientIP(req: Request): string {
   return (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() || req.socket.remoteAddress || "unknown";
 }
 
-const QUICK_LOGIN_USERS: Record<string, { email: string; role: "admin" | "user"; initials: string; displayName: string }> = {
+export const QUICK_LOGIN_USERS: Record<string, { email: string; role: "admin" | "user"; initials: string; displayName: string }> = {
   hk: { email: "hkkruse@nationalbuildingspecialties.com", role: "admin", initials: "HK", displayName: "Haley Kruse" },
   gm: { email: "gm@nationalbuildingspecialties.com", role: "user", initials: "GM", displayName: "GM" },
   gt: { email: "gt@nationalbuildingspecialties.com", role: "user", initials: "GT", displayName: "GT" },
