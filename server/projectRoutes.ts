@@ -513,7 +513,7 @@ export function registerProjectRoutes(app: Express) {
             const ext = path.extname(activeEstimateTemplate.originalFilename || activeEstimateTemplate.filePath) || ".xlsx";
             const estimateFilename = `${safeName} - NBS Estimate - ${formattedDueDate}${ext}`;
 
-            const estimatePath = path.join(projectDir, estimateFilename);
+            const estimatePath = path.join(projectDir, "Estimate Folder", "Estimate", estimateFilename);
 
             if (ext === ".xlsm") {
               fs.writeFileSync(estimatePath, estimateBuffer);
