@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, Fragment } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { useToolUsage } from "@/lib/useToolUsage";
 import { Button } from "@/components/ui/button";
@@ -27,6 +27,8 @@ import {
   Download,
   ShieldCheck,
   Type,
+  X,
+  Plus,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Link } from "wouter";
@@ -44,6 +46,12 @@ interface ScheduleItem {
   confidence: number;
   flags: string[];
   needsReview: boolean;
+  sourceIndex?: number;
+}
+
+interface QueuedImage {
+  file: File;
+  preview: string;
 }
 
 interface ExtractionResult {
@@ -62,8 +70,7 @@ export default function ScheduleConverterPage() {
   useToolUsage("scheduleconverter");
   const { toast } = useToast();
   const [inputMode, setInputMode] = useState<"image" | "text">("image");
-  const [imageFile, setImageFile] = useState<File | null>(null);
-  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [imageQueue, setImageQueue] = useState<QueuedImage[]>([]);
   const [scheduleText, setScheduleText] = useState<string>("");
   const [result, setResult] = useState<ExtractionResult | null>(null);
   const [editedItems, setEditedItems] = useState<ScheduleItem[]>([]);
@@ -71,52 +78,97 @@ export default function ScheduleConverterPage() {
   const [editDraft, setEditDraft] = useState<string>("");
   const [isFocused, setIsFocused] = useState(false);
   const [outputMode, setOutputMode] = useState<"nbs" | "excel">("nbs");
+  const [batchProgress, setBatchProgress] = useState<{ current: number; total: number } | null>(null);
+  const [imageCount, setImageCount] = useState(0);
 
-  const handleImageFile = useCallback((file: File) => {
-    setImageFile(file);
+  const addImageFiles = useCallback((files: File[]) => {
+    const imageFiles = files.filter(f => f.type.startsWith("image/"));
+    if (imageFiles.length === 0) return;
+    const readPromises = imageFiles.map((file) =>
+      new Promise<QueuedImage>((resolve) => {
+        const reader = new FileReader();
+        reader.onload = (e) => resolve({ file, preview: e.target?.result as string });
+        reader.readAsDataURL(file);
+      })
+    );
+    Promise.all(readPromises).then((newEntries) => {
+      setImageQueue(prev => [...prev, ...newEntries]);
+    });
     setResult(null);
     setEditedItems([]);
     setEditingCell(null);
-    const reader = new FileReader();
-    reader.onload = (e) => setImagePreview(e.target?.result as string);
-    reader.readAsDataURL(file);
   }, []);
 
+  const removeQueuedImage = useCallback((index: number) => {
+    setImageQueue(prev => prev.filter((_, i) => i !== index));
+  }, []);
+
+  const extractSingleImage = async (file: File): Promise<ExtractionResult> => {
+    const formData = new FormData();
+    formData.append("image", file);
+    const response = await fetch("/api/toolbelt/schedule-to-estimate", {
+      method: "POST",
+      body: formData,
+    });
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data.message || "Failed to extract schedule");
+    }
+    return data as ExtractionResult;
+  };
+
   const extractMutation = useMutation({
-    mutationFn: async (file: File) => {
-      const formData = new FormData();
-      formData.append("image", file);
-      const response = await fetch("/api/toolbelt/schedule-to-estimate", {
-        method: "POST",
-        body: formData,
-      });
-      const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data.message || "Failed to extract schedule");
+    mutationFn: async (files: File[]) => {
+      const allItems: ScheduleItem[] = [];
+      let totalProcessingTime = 0;
+      let anyTruncation = false;
+      let anyContinuation = false;
+      let anyVerified = false;
+      let lastModel = "";
+      let totalExpectedRows = 0;
+
+      for (let i = 0; i < files.length; i++) {
+        setBatchProgress({ current: i + 1, total: files.length });
+        const data = await extractSingleImage(files[i]);
+        const taggedItems = data.items.map(item => ({ ...item, sourceIndex: i }));
+        allItems.push(...taggedItems);
+        totalProcessingTime += data.processingTimeMs;
+        if (data.possibleTruncation) anyTruncation = true;
+        if (data.continuationUsed) anyContinuation = true;
+        if (data.verified) anyVerified = true;
+        if (data.modelUsed) lastModel = data.modelUsed;
+        totalExpectedRows += data.totalRowCount || 0;
       }
-      return data as ExtractionResult;
+
+      const imageTotal = files.length;
+      return {
+        items: allItems,
+        rawText: "",
+        processingTimeMs: totalProcessingTime,
+        modelUsed: lastModel,
+        retried: false,
+        continuationUsed: anyContinuation,
+        possibleTruncation: anyTruncation,
+        totalRowCount: totalExpectedRows,
+        verified: anyVerified,
+        _imageCount: imageTotal,
+      } as ExtractionResult & { _imageCount: number };
     },
-    onSuccess: (data) => {
+    onSuccess: (data: ExtractionResult & { _imageCount?: number }) => {
+      const imgTotal = data._imageCount || 1;
       setResult(data);
       setEditedItems(data.items.map(item => ({ ...item })));
-      const modelInfo = data.modelUsed ? ` via ${data.modelUsed}` : "";
-      const retriedInfo = data.retried ? " (auto-upgraded)" : "";
-      const contInfo = data.continuationUsed ? " (multi-pass)" : "";
-      const verifiedInfo = data.verified ? " (verified)" : "";
+      setImageCount(imgTotal);
+      setBatchProgress(null);
+      const imgCountStr = imgTotal > 1 ? ` from ${imgTotal} screenshots` : "";
       toast({
         title: data.possibleTruncation ? "Schedule Partially Extracted" : "Schedule Extracted",
-        description: `Found ${data.items.length} line item${data.items.length !== 1 ? "s" : ""} in ${(data.processingTimeMs / 1000).toFixed(1)}s${modelInfo}${retriedInfo}${contInfo}${verifiedInfo}`,
+        description: `Found ${data.items.length} line item${data.items.length !== 1 ? "s" : ""}${imgCountStr} in ${(data.processingTimeMs / 1000).toFixed(1)}s`,
         variant: data.possibleTruncation ? "destructive" : "default",
       });
-      if (data.possibleTruncation) {
-        toast({
-          title: "Possible Missing Rows",
-          description: "The schedule may have more rows than were extracted. Please compare against the original image and re-run if needed.",
-          variant: "destructive",
-        });
-      }
     },
     onError: (error: Error) => {
+      setBatchProgress(null);
       toast({
         title: "Extraction Failed",
         description: error.message,
@@ -161,15 +213,16 @@ export default function ScheduleConverterPage() {
   const handlePaste = useCallback((e: React.ClipboardEvent) => {
     const items = e.clipboardData?.items;
     if (!items) return;
+    const files: File[] = [];
     for (const item of Array.from(items)) {
       if (item.type.startsWith("image/")) {
         e.preventDefault();
         const file = item.getAsFile();
-        if (file) handleImageFile(file);
-        return;
+        if (file) files.push(file);
       }
     }
-  }, [handleImageFile]);
+    if (files.length > 0) addImageFiles(files);
+  }, [addImageFiles]);
 
   const handleClickPaste = useCallback(async () => {
     try {
@@ -179,7 +232,7 @@ export default function ScheduleConverterPage() {
         if (imageType) {
           const blob = await item.getType(imageType);
           const file = new File([blob], "pasted-screenshot.png", { type: imageType });
-          handleImageFile(file);
+          addImageFiles([file]);
           return;
         }
       }
@@ -187,16 +240,14 @@ export default function ScheduleConverterPage() {
     } catch {
       toast({ title: "Could not read clipboard", description: "Use Ctrl+V to paste, or browse for a file instead.", variant: "destructive" });
     }
-  }, [handleImageFile, toast]);
+  }, [addImageFiles, toast]);
 
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     setIsFocused(false);
-    const file = e.dataTransfer.files[0];
-    if (file && file.type.startsWith("image/")) {
-      handleImageFile(file);
-    }
-  }, [handleImageFile]);
+    const files = Array.from(e.dataTransfer.files).filter(f => f.type.startsWith("image/"));
+    if (files.length > 0) addImageFiles(files);
+  }, [addImageFiles]);
 
   const startCellEdit = (row: number, col: string) => {
     const item = editedItems[row];
@@ -386,8 +437,64 @@ export default function ScheduleConverterPage() {
           <Card className="p-6 mb-8 card-accent-bar">
             <div className="flex items-center gap-2 mb-4">
               <ImageIcon className="w-5 h-5" style={{ color: "var(--gold)" }} />
-              <h2 className="font-medium font-heading">Schedule Screenshot</h2>
+              <h2 className="font-medium font-heading">Schedule Screenshots</h2>
+              {imageQueue.length > 0 && (
+                <Badge variant="secondary" className="text-xs" data-testid="badge-queue-count">
+                  {imageQueue.length} image{imageQueue.length !== 1 ? "s" : ""} queued
+                </Badge>
+              )}
             </div>
+
+            {imageQueue.length > 0 && (
+              <div className="mb-4">
+                <div className="flex flex-wrap gap-3" data-testid="thumbnail-strip">
+                  {imageQueue.map((qi, idx) => (
+                    <div key={idx} className="relative group" data-testid={`thumbnail-${idx}`}>
+                      <img
+                        src={qi.preview}
+                        alt={`Screenshot ${idx + 1}`}
+                        className="h-24 w-auto rounded-md border border-border object-cover"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => removeQueuedImage(idx)}
+                        className="absolute -top-2 -right-2 w-5 h-5 rounded-full bg-destructive text-destructive-foreground flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                        data-testid={`button-remove-thumbnail-${idx}`}
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                      <div className="absolute bottom-1 left-1 bg-black/60 text-white text-[10px] px-1.5 py-0.5 rounded font-mono">
+                        {idx + 1}
+                      </div>
+                    </div>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="h-24 w-20 rounded-md border-2 border-dashed border-border hover:border-[var(--gold)] flex flex-col items-center justify-center gap-1 transition-colors"
+                    data-testid="button-add-more"
+                  >
+                    <Plus className="w-5 h-5 text-muted-foreground" />
+                    <span className="text-[10px] text-muted-foreground">Add more</span>
+                  </button>
+                </div>
+                <div className="flex items-center gap-2 mt-3">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      setImageQueue([]);
+                      setResult(null);
+                      setEditedItems([]);
+                    }}
+                    data-testid="button-clear-all-images"
+                  >
+                    Clear all
+                  </Button>
+                </div>
+              </div>
+            )}
+
             <div
               tabIndex={0}
               onPaste={handlePaste}
@@ -396,12 +503,12 @@ export default function ScheduleConverterPage() {
               onDragOver={(e) => { e.preventDefault(); setIsFocused(true); }}
               onDragLeave={() => setIsFocused(false)}
               onDrop={handleDrop}
-              onClick={imageFile ? undefined : handleClickPaste}
+              onClick={imageQueue.length > 0 ? undefined : handleClickPaste}
               className={`border-2 border-dashed rounded-md p-8 text-center cursor-pointer transition-all duration-200 outline-none ${
                 isFocused
                   ? "border-[var(--gold)] ring-2 ring-[rgba(200,164,78,0.3)]"
-                  : imageFile
-                  ? "border-green-500 bg-green-950/30"
+                  : imageQueue.length > 0
+                  ? "border-green-500/30 bg-green-950/10"
                   : "border-border hover:border-[rgba(200,164,78,0.5)]"
               }`}
               style={isFocused ? { background: "rgba(200,164,78,0.1)" } : undefined}
@@ -411,39 +518,21 @@ export default function ScheduleConverterPage() {
                 ref={fileInputRef}
                 type="file"
                 accept="image/*"
+                multiple
                 className="hidden"
                 onChange={(e) => {
-                  const file = e.target.files?.[0];
-                  if (file) handleImageFile(file);
+                  const files = Array.from(e.target.files || []);
+                  if (files.length > 0) addImageFiles(files);
+                  e.target.value = "";
                 }}
                 data-testid="input-schedule-file"
               />
-              {imageFile ? (
-                <div className="flex flex-col items-center gap-3">
-                  <CheckCircle2 className="w-8 h-8 text-green-600" />
-                  <p className="font-medium text-foreground">{imageFile.name}</p>
-                  {imagePreview && (
-                    <img
-                      src={imagePreview}
-                      alt="Schedule preview"
-                      className="max-h-48 max-w-full rounded-md border border-border mt-2"
-                      data-testid="img-preview"
-                    />
-                  )}
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setImageFile(null);
-                      setImagePreview(null);
-                      setResult(null);
-                      setEditedItems([]);
-                    }}
-                    data-testid="button-remove-image"
-                  >
-                    Remove
-                  </Button>
+              {imageQueue.length > 0 ? (
+                <div className="flex flex-col items-center gap-2">
+                  <CheckCircle2 className="w-6 h-6 text-green-600" />
+                  <p className="text-sm text-muted-foreground">
+                    Drag more screenshots here, paste with <kbd className="px-1.5 py-0.5 rounded bg-muted text-xs font-mono">Ctrl+V</kbd>, or use the + button above
+                  </p>
                 </div>
               ) : (
                 <div className="flex flex-col items-center gap-3">
@@ -452,7 +541,7 @@ export default function ScheduleConverterPage() {
                     Click to paste from clipboard
                   </p>
                   <p className="text-sm text-muted-foreground">
-                    or drag and drop, or press <kbd className="px-1.5 py-0.5 rounded bg-muted text-xs font-mono">Ctrl+V</kbd>
+                    or drag and drop one or more screenshots, or press <kbd className="px-1.5 py-0.5 rounded bg-muted text-xs font-mono">Ctrl+V</kbd>
                   </p>
                   <button
                     type="button"
@@ -503,17 +592,19 @@ export default function ScheduleConverterPage() {
           {inputMode === "image" ? (
             <Button
               size="lg"
-              onClick={() => imageFile && extractMutation.mutate(imageFile)}
-              disabled={!imageFile || extractMutation.isPending}
+              onClick={() => imageQueue.length > 0 && extractMutation.mutate(imageQueue.map(q => q.file))}
+              disabled={imageQueue.length === 0 || extractMutation.isPending}
               data-testid="button-extract"
             >
               {extractMutation.isPending ? (
                 <>
                   <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  Extracting...
+                  {batchProgress && batchProgress.total > 1
+                    ? `Processing ${batchProgress.current} of ${batchProgress.total}...`
+                    : "Extracting..."}
                 </>
               ) : (
-                "Extract Schedule"
+                imageQueue.length > 1 ? `Extract All ${imageQueue.length} Screenshots` : "Extract Schedule"
               )}
             </Button>
           ) : (
@@ -704,6 +795,10 @@ export default function ScheduleConverterPage() {
                       const isEditing = (col: string) =>
                         editingCell?.row === idx && editingCell?.col === col;
 
+                      const showSourceDivider = imageCount > 1 &&
+                        item.sourceIndex !== undefined &&
+                        (idx === 0 || editedItems[idx - 1]?.sourceIndex !== item.sourceIndex);
+
                       const renderEditableCell = (col: string, display: React.ReactNode, className?: string) => (
                         <TableCell
                           className={`cursor-pointer ${className ?? ""}`}
@@ -728,6 +823,16 @@ export default function ScheduleConverterPage() {
                       );
 
                       return (
+                        <Fragment key={`item-${idx}`}>
+                        {showSourceDivider && (
+                          <TableRow key={`divider-${item.sourceIndex}`} className="bg-muted/30 border-t-2 border-[var(--gold)]/20">
+                            <TableCell colSpan={7} className="py-1.5 px-4">
+                              <span className="text-xs font-heading font-semibold uppercase tracking-wide" style={{ color: "var(--gold)" }}>
+                                Screenshot {(item.sourceIndex || 0) + 1}
+                              </span>
+                            </TableCell>
+                          </TableRow>
+                        )}
                         <TableRow
                           key={idx}
                           className={item.needsReview ? "bg-yellow-500/5" : ""}
@@ -776,6 +881,7 @@ export default function ScheduleConverterPage() {
                             </div>
                           </TableCell>
                         </TableRow>
+                        </Fragment>
                       );
                     })}
                     {editedItems.length === 0 && (
@@ -815,22 +921,39 @@ export default function ScheduleConverterPage() {
           <Card className="p-8 text-center">
             <Loader2 className="w-8 h-8 animate-spin mx-auto mb-4" style={{ color: "var(--gold)" }} />
             <p className="text-muted-foreground">
-              Analyzing schedule with AI vision...
+              {batchProgress && batchProgress.total > 1
+                ? `Analyzing screenshot ${batchProgress.current} of ${batchProgress.total}...`
+                : "Analyzing schedule with AI vision..."}
             </p>
             <p className="text-xs text-muted-foreground mt-1">
-              This may take 10-30 seconds (includes verification pass)
+              {batchProgress && batchProgress.total > 1
+                ? `Each screenshot takes 10-30 seconds`
+                : "This may take 10-30 seconds (includes verification pass)"}
             </p>
+            {batchProgress && batchProgress.total > 1 && (
+              <div className="mt-4 max-w-xs mx-auto">
+                <div className="w-full h-2 bg-muted rounded-full overflow-hidden">
+                  <div
+                    className="h-full rounded-full transition-all duration-500"
+                    style={{
+                      width: `${(batchProgress.current / batchProgress.total) * 100}%`,
+                      background: "var(--gold)",
+                    }}
+                  />
+                </div>
+              </div>
+            )}
           </Card>
         )}
 
-        {!result && !extractMutation.isPending && !imageFile && (
+        {!result && !extractMutation.isPending && imageQueue.length === 0 && (
           <Card className="p-8 text-center border-dashed">
             <AlertTriangle className="w-8 h-8 text-muted-foreground/40 mx-auto mb-3" />
             <p className="text-muted-foreground text-sm">
-              Upload a schedule screenshot (Appliance Schedule, Accessory Schedule, Plumbing Fixtures, etc.) to get started.
+              Upload one or more schedule screenshots (Appliance Schedule, Accessory Schedule, Plumbing Fixtures, etc.) to get started.
             </p>
             <p className="text-xs text-muted-foreground mt-2">
-              The tool will extract plan callouts, descriptions (with all additional details like finish, size, mounting, etc.), model numbers, and quantities into a table you can copy directly into Excel.
+              Upload multiple screenshots at once for multi-page schedules — all results merge into a single output table you can copy directly into Excel.
             </p>
           </Card>
         )}
