@@ -486,6 +486,7 @@ export default function ScheduleConverterPage() {
                       setImageQueue([]);
                       setResult(null);
                       setEditedItems([]);
+                      setImageCount(0);
                     }}
                     data-testid="button-clear-all-images"
                   >
