@@ -504,7 +504,7 @@ export default function ScheduleConverterPage() {
               onDragOver={(e) => { e.preventDefault(); setIsFocused(true); }}
               onDragLeave={() => setIsFocused(false)}
               onDrop={handleDrop}
-              onClick={imageQueue.length > 0 ? undefined : handleClickPaste}
+              onClick={handleClickPaste}
               className={`border-2 border-dashed rounded-md p-8 text-center cursor-pointer transition-all duration-200 outline-none ${
                 isFocused
                   ? "border-[var(--gold)] ring-2 ring-[rgba(200,164,78,0.3)]"
@@ -532,7 +532,7 @@ export default function ScheduleConverterPage() {
                 <div className="flex flex-col items-center gap-2">
                   <CheckCircle2 className="w-6 h-6 text-green-600" />
                   <p className="text-sm text-muted-foreground">
-                    Drag more screenshots here, paste with <kbd className="px-1.5 py-0.5 rounded bg-muted text-xs font-mono">Ctrl+V</kbd>, or use the + button above
+                    Drag more screenshots here, click to paste, press <kbd className="px-1.5 py-0.5 rounded bg-muted text-xs font-mono">Ctrl+V</kbd>, or use the + button above
                   </p>
                 </div>
               ) : (
