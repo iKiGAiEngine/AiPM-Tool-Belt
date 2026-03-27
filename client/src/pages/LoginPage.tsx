@@ -255,6 +255,17 @@ export default function LoginPage() {
     },
   });
 
+  const quickLoginUsers = [
+    { key: "hk", initials: "HK", name: "Haley Kruse", subtitle: "Admin", isAdmin: true },
+    { key: "gm", initials: "GM", name: "Gonzalo Martinez", subtitle: "Estimator", isAdmin: false },
+    { key: "gt", initials: "GT", name: "Gene Trabert", subtitle: "Estimator", isAdmin: false },
+    { key: "kr", initials: "KR", name: "Kenny Ruester", subtitle: "President", isAdmin: false },
+    { key: "ck", initials: "CK", name: "Christina Keith", subtitle: "Project Manager", isAdmin: false },
+    { key: "hc", initials: "HC", name: "Hallyn Crozier", subtitle: "Project Manager", isAdmin: false },
+    { key: "mm", initials: "MM", name: "Melissa Magallanes", subtitle: "Project Manager", isAdmin: false },
+    { key: "jw", initials: "JW", name: "Joey White", subtitle: "Controller", isAdmin: false },
+  ];
+
   const handleQuickLogin = useCallback((username: string) => {
     setSelectedRole(username === "hk" ? "admin" : "user");
     setError("");
@@ -380,7 +391,7 @@ export default function LoginPage() {
             className="login-card"
             style={{
               width: "100%",
-              maxWidth: "380px",
+              maxWidth: "440px",
               background: "rgba(14,17,24,0.88)",
               backdropFilter: "blur(40px)",
               WebkitBackdropFilter: "blur(40px)",
@@ -416,68 +427,34 @@ export default function LoginPage() {
                 <h2 style={{ fontFamily: "'Rajdhani', sans-serif", fontSize: "1.55rem", fontWeight: 700, color: "var(--text)", margin: "0 0 0.4rem" }} data-testid="text-login-title">Sign in</h2>
                 <p style={{ fontSize: "0.88rem", color: "#8A8F9E", margin: "0 0 1.5rem" }}>Select your access level to continue.</p>
 
-                <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem", marginBottom: "1.25rem" }}>
-                  <button
-                    className="role-btn"
-                    onClick={() => handleQuickLogin("hk")}
-                    disabled={quickLoginMutation.isPending}
-                    data-testid="button-login-hk"
-                  >
-                    <div style={{ width: "42px", height: "42px", borderRadius: "10px", background: "rgba(200,164,78,0.1)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#C8A44E" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <path d={shieldPath}/>
-                      </svg>
-                    </div>
-                    <div style={{ flex: 1 }}>
-                      <div style={{ fontSize: "0.92rem", fontWeight: 600, color: "#F0F0F2" }}>HK — Haley Kruse</div>
-                      <div style={{ fontSize: "0.76rem", color: "#5C6170" }}>Admin</div>
-                    </div>
-                    <svg className="role-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#5C6170" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ transition: "color 0.2s", flexShrink: 0 }}>
-                      <path d={chevronPath}/>
-                    </svg>
-                  </button>
-
-                  <button
-                    className="role-btn"
-                    onClick={() => handleQuickLogin("gm")}
-                    disabled={quickLoginMutation.isPending}
-                    data-testid="button-login-gm"
-                  >
-                    <div style={{ width: "42px", height: "42px", borderRadius: "10px", background: "rgba(200,164,78,0.1)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#C8A44E" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        {personPaths.map((d, i) => <path key={i} d={d}/>)}
-                        <circle cx={personCircle.cx} cy={personCircle.cy} r={personCircle.r}/>
-                      </svg>
-                    </div>
-                    <div style={{ flex: 1 }}>
-                      <div style={{ fontSize: "0.92rem", fontWeight: 600, color: "#F0F0F2" }}>GM — Gonzalo Martinez</div>
-                      <div style={{ fontSize: "0.76rem", color: "#5C6170" }}>Estimator</div>
-                    </div>
-                    <svg className="role-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#5C6170" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ transition: "color 0.2s", flexShrink: 0 }}>
-                      <path d={chevronPath}/>
-                    </svg>
-                  </button>
-
-                  <button
-                    className="role-btn"
-                    onClick={() => handleQuickLogin("gt")}
-                    disabled={quickLoginMutation.isPending}
-                    data-testid="button-login-gt"
-                  >
-                    <div style={{ width: "42px", height: "42px", borderRadius: "10px", background: "rgba(200,164,78,0.1)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#C8A44E" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        {personPaths.map((d, i) => <path key={i} d={d}/>)}
-                        <circle cx={personCircle.cx} cy={personCircle.cy} r={personCircle.r}/>
-                      </svg>
-                    </div>
-                    <div style={{ flex: 1 }}>
-                      <div style={{ fontSize: "0.92rem", fontWeight: 600, color: "#F0F0F2" }}>GT — Gene Trabert</div>
-                      <div style={{ fontSize: "0.76rem", color: "#5C6170" }}>Estimator</div>
-                    </div>
-                    <svg className="role-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#5C6170" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ transition: "color 0.2s", flexShrink: 0 }}>
-                      <path d={chevronPath}/>
-                    </svg>
-                  </button>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.5rem", marginBottom: "1.25rem" }}>
+                  {quickLoginUsers.map((user) => (
+                    <button
+                      key={user.key}
+                      className="role-btn"
+                      onClick={() => handleQuickLogin(user.key)}
+                      disabled={quickLoginMutation.isPending}
+                      data-testid={`button-login-${user.key}`}
+                      style={{ flexDirection: "column", alignItems: "center", textAlign: "center", padding: "0.7rem 0.5rem", gap: "0.4rem" }}
+                    >
+                      <div style={{ width: "36px", height: "36px", borderRadius: "8px", background: "rgba(200,164,78,0.1)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                        {user.isAdmin ? (
+                          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#C8A44E" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d={shieldPath}/>
+                          </svg>
+                        ) : (
+                          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#C8A44E" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            {personPaths.map((d, i) => <path key={i} d={d}/>)}
+                            <circle cx={personCircle.cx} cy={personCircle.cy} r={personCircle.r}/>
+                          </svg>
+                        )}
+                      </div>
+                      <div>
+                        <div style={{ fontSize: "0.82rem", fontWeight: 600, color: "#F0F0F2" }}>{user.initials} — {user.name}</div>
+                        <div style={{ fontSize: "0.7rem", color: "#5C6170" }}>{user.subtitle}</div>
+                      </div>
+                    </button>
+                  ))}
                 </div>
 
                 {quickLoginMutation.isPending && (

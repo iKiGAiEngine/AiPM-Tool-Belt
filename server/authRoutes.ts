@@ -49,6 +49,11 @@ export const QUICK_LOGIN_USERS: Record<string, { email: string; role: "admin" | 
   hk: { email: "hkkruse@nationalbuildingspecialties.com", role: "admin", initials: "HK", displayName: "Haley Kruse" },
   gm: { email: "gm@nationalbuildingspecialties.com", role: "user", initials: "GM", displayName: "GM" },
   gt: { email: "gt@nationalbuildingspecialties.com", role: "user", initials: "GT", displayName: "GT" },
+  kr: { email: "kenny.ruester@nationalbuildingspecialties.com", role: "user", initials: "KR", displayName: "Kenny Ruester" },
+  ck: { email: "christina.keith@nationalbuildingspecialties.com", role: "user", initials: "CK", displayName: "Christina Keith" },
+  hc: { email: "hallyn.crozier@nationalbuildingspecialties.com", role: "user", initials: "HC", displayName: "Hallyn Crozier" },
+  mm: { email: "melissa.magallanes@nationalbuildingspecialties.com", role: "user", initials: "MM", displayName: "Melissa Magallanes" },
+  jw: { email: "joey.white@nationalbuildingspecialties.com", role: "user", initials: "JW", displayName: "Joey White" },
 };
 
 export function registerAuthRoutes(app: Express) {
