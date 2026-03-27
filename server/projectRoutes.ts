@@ -190,6 +190,7 @@ export function registerProjectRoutes(app: Express) {
         gcContactName: result.gcContactName,
         gcContactEmail: result.gcContactEmail,
         primaryMarket,
+        bcLink: result.bcLink,
         rawText: result.rawText,
         extractionFailed: result.extractionFailed || false,
       });
@@ -800,6 +801,7 @@ export function registerProjectRoutes(app: Express) {
           const frontendEstimateStatus = req.body.estimateStatus || "";
           const frontendAnticipatedStart = req.body.anticipatedStart || "";
           const frontendAnticipatedFinish = req.body.anticipatedFinish || "";
+          const frontendBcLink = req.body.bcLink || "";
 
           await createProposalLogEntry({
             projectName: safeName,
@@ -817,6 +819,7 @@ export function registerProjectRoutes(app: Express) {
             anticipatedStart: frontendAnticipatedStart || undefined,
             anticipatedFinish: frontendAnticipatedFinish || undefined,
             nbsEstimator: undefined,
+            bcLink: frontendBcLink || undefined,
           });
           console.log(`[ProjectCreate] Proposal log entry created for ${safeName}`);
         } catch (err) {
@@ -1743,7 +1746,7 @@ export function registerProjectRoutes(app: Express) {
       const id = parseInt(req.params.id);
       if (isNaN(id)) return res.status(400).json({ message: "Valid numeric id required" });
 
-      const allowedFields = ["nbsEstimator", "estimateStatus", "proposalTotal", "gcEstimateLead", "anticipatedStart", "anticipatedFinish", "dueDate", "notes"];
+      const allowedFields = ["nbsEstimator", "estimateStatus", "proposalTotal", "gcEstimateLead", "anticipatedStart", "anticipatedFinish", "dueDate", "notes", "bcLink"];
       const updates: Record<string, string> = {};
       for (const field of allowedFields) {
         if (req.body[field] !== undefined) {

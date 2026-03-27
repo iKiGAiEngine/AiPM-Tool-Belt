@@ -992,6 +992,7 @@ const COL_DEFS = [
   {key:'anticipatedFinish', label:'Est. End',         w:100, filter:'date'},
   {key:'swinertonProject',  label:'Swinerton',        w:90,  filter:'select', opts:['Y','N']},
   {key:'notes',          label:'Notes',               w:200, filter:'text'},
+  {key:'bcLink',         label:'BC Link',             w:100, filter:'none'},
   {key:'owner',          label:'Owner',               w:110, filter:'text'},
   {key:'filePath',       label:'File Path',           w:90,  filter:'none'},
   {key:'_screenshot',    label:'Source',              w:70,  filter:'none'},
@@ -1277,6 +1278,24 @@ function buildRows() {
               <span>${p.notes||'\u2014'}</span>
               <span class="inline-edit-hint">\u270f</span></div>`;
           } else { val=p.notes||'\u2014'; }
+          break;
+        case 'bcLink':
+          if(p.bcLink && /^https?:\/\//i.test(p.bcLink)){
+            const safeUrl=p.bcLink.replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
+            if(mode==='estimator' && can('editRow')) {
+              val=`<div class="inline-edit-wrap" onclick="startInlineEdit(event,${oi},'bcLink')">
+                <span class="link-cell"><a href="${safeUrl}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()" title="${safeUrl}">&#128279; Open</a></span>
+                <span class="inline-edit-hint">\u270f</span></div>`;
+            } else {
+              val=`<span class="link-cell"><a href="${safeUrl}" target="_blank" rel="noopener noreferrer" title="${safeUrl}">&#128279; Open</a></span>`;
+            }
+          } else {
+            if(mode==='estimator' && can('editRow')) {
+              val=`<div class="inline-edit-wrap" onclick="startInlineEdit(event,${oi},'bcLink')">
+                <span>\u2014</span>
+                <span class="inline-edit-hint">\u270f</span></div>`;
+            } else { val='\u2014'; }
+          }
           break;
         case 'filePath': val=p.filePath?`<span class="link-cell"><a href="${p.filePath}" target="_blank">&#128194; Open</a></span>`:'\u2014'; break;
         case 'estimateNumber':
@@ -2157,7 +2176,7 @@ let ESTIMATORS=[
     sel.innerHTML='<option value="">\u2014 Select \u2014</option>'+ESTIMATORS.map(e=>`<option value="${e.code}">${e.label}</option>`).join('');
   }
 })();
-const INLINE_FIELDS={proposalTotal:'number',estimateStatus:'select-status',nbsEstimator:'select-estimator',anticipatedStart:'month',anticipatedFinish:'month',dueDate:'date',notes:'text'};
+const INLINE_FIELDS={proposalTotal:'number',estimateStatus:'select-status',nbsEstimator:'select-estimator',anticipatedStart:'month',anticipatedFinish:'month',dueDate:'date',notes:'text',bcLink:'text'};
 let activeInlineEdit=null;
 
 function startInlineEdit(e,oi,field){
@@ -2251,11 +2270,18 @@ function commitInlineEdit(oi,field){
     editTd.innerHTML=`<div class="inline-edit-wrap" onclick="startInlineEdit(event,${oi},'notes')"><span class="val-cell">${v||'\u2014'}</span><span class="inline-edit-hint">\u270f</span></div>`;
   } else if(field==='dueDate'){
     editTd.innerHTML=`<div class="inline-edit-wrap" onclick="startInlineEdit(event,${oi},'dueDate')"><span class="date-dim">${fmtD(v)}</span><span class="inline-edit-hint">\u270f</span></div>`;
+  } else if(field==='bcLink'){
+    if(v && /^https?:\/\//i.test(v)){
+      const sv=v.replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
+      editTd.innerHTML=`<div class="inline-edit-wrap" onclick="startInlineEdit(event,${oi},'bcLink')"><span class="link-cell"><a href="${sv}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()" title="${sv}">&#128279; Open</a></span><span class="inline-edit-hint">\u270f</span></div>`;
+    } else {
+      editTd.innerHTML=`<div class="inline-edit-wrap" onclick="startInlineEdit(event,${oi},'bcLink')"><span>\u2014</span><span class="inline-edit-hint">\u270f</span></div>`;
+    }
   }
   syncFieldToServer(data[oi], field, v);
 }
 async function syncFieldToServer(entry, field, value) {
-  const syncableFields = ['nbsEstimator','estimateStatus','proposalTotal','gcEstimateLead','anticipatedStart','anticipatedFinish','estimateNumber','notes','dueDate'];
+  const syncableFields = ['nbsEstimator','estimateStatus','proposalTotal','gcEstimateLead','anticipatedStart','anticipatedFinish','estimateNumber','notes','dueDate','bcLink'];
   if (!syncableFields.includes(field)) return;
   if (!entry._serverDbId) { console.warn('Cannot sync field: entry has no _serverDbId'); return; }
   try {
@@ -2470,6 +2496,7 @@ async function pushLocalEntriesToServer(entries){
         estimateStatus:e.estimateStatus||'Estimating',
         anticipatedStart:e.anticipatedStart||'',
         anticipatedFinish:e.anticipatedFinish||'',
+        bcLink:e.bcLink||'',
         isTest:e._isTest||false,
       }))}),
       credentials:'include'
@@ -2660,6 +2687,7 @@ function serverEntryToLocal(e, existingLocal) {
     anticipatedStart: e.anticipatedStart || base.anticipatedStart || '',
     anticipatedFinish: e.anticipatedFinish || base.anticipatedFinish || '',
     notes: e.notes || base.notes || '',
+    bcLink: e.bcLink || base.bcLink || '',
     owner: e.owner || '',
     filePath: e.filePath || '',
     _screenshotId: e.estimateNumber || '',

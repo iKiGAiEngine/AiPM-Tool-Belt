@@ -12,6 +12,7 @@ export interface ExtractedProjectDetails {
   clientLocation: string | null;
   gcContactName: string | null;
   gcContactEmail: string | null;
+  bcLink: string | null;
   rawText: string;
   extractionFailed?: boolean;
 }
@@ -132,6 +133,7 @@ export async function extractProjectDetailsFromScreenshot(
     clientLocation: null,
     gcContactName: null,
     gcContactEmail: null,
+    bcLink: null,
     rawText: `[Extraction failed] No methods succeeded`,
     extractionFailed: true,
   };
@@ -207,6 +209,7 @@ async function extractWithAIFromText(ocrText: string, apiKey: string): Promise<E
     clientLocation: parsed.clientLocation || null,
     gcContactName: parsed.gcContactName || null,
     gcContactEmail: parsed.gcContactEmail || null,
+    bcLink: extractBcLink(ocrText) || null,
     rawText: `[Hybrid: OCR + AI Text Parse]\n${content}`,
   };
 }
@@ -254,6 +257,7 @@ async function extractWithAIFromImage(imageBuffer: Buffer, apiKey: string): Prom
     clientLocation: parsed.clientLocation || null,
     gcContactName: parsed.gcContactName || null,
     gcContactEmail: parsed.gcContactEmail || null,
+    bcLink: null,
     rawText: `[AI Vision Extraction via GPT-4o]\n${content}`,
   };
 }
@@ -343,6 +347,8 @@ function extractFieldsFromOCRText(text: string): ExtractedProjectDetails {
   const expectedFinish = extractLabeledDate(text, ["Expected\\s*Finish", "Expected\\s*End", "Est\\.?\\s*End", "Est\\.?\\s*Finish", "Anticipated\\s*Finish", "Anticipated\\s*End", "End\\s*Date", "Completion\\s*Date"]);
   const { clientName, clientLocation, gcContactName, gcContactEmail } = extractClientInfo(text);
 
+  const bcLink = extractBcLink(text);
+
   const result: ExtractedProjectDetails = {
     projectName,
     dueDate,
@@ -355,6 +361,7 @@ function extractFieldsFromOCRText(text: string): ExtractedProjectDetails {
     clientLocation,
     gcContactName,
     gcContactEmail,
+    bcLink,
     rawText: text,
   };
 
@@ -434,6 +441,13 @@ function extractTradeName(text: string): string | null {
       if (trade.length > 2 && trade.length < 100) return trade;
     }
   }
+  return null;
+}
+
+function extractBcLink(text: string): string | null {
+  const bcPattern = /https?:\/\/app\.buildingconnected\.com\/[^\s"'<>)}\]]+/i;
+  const match = text.match(bcPattern);
+  if (match) return match[0].replace(/[.,;:]+$/, '');
   return null;
 }
 

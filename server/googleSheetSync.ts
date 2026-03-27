@@ -65,6 +65,7 @@ const SHEET_COLUMNS = [
   'Anticipated Start',
   'Anticipated Finish',
   'Notes',
+  'BC Link',
 ];
 
 const SHEET_ID_FILE = path.join(process.cwd(), '.google-sheet-id');
@@ -203,6 +204,7 @@ function entryToRow(entry: any): string[] {
     entry.anticipatedStart || '',
     entry.anticipatedFinish || '',
     entry.notes || '',
+    entry.bcLink || '',
   ];
 }
 
@@ -210,13 +212,13 @@ async function clearSheet(sheets: any, sid: string) {
   try {
     await sheets.spreadsheets.values.clear({
       spreadsheetId: sid,
-      range: 'Proposal Log!A:M',
+      range: 'Proposal Log!A:N',
     });
   } catch (clearErr: any) {
     if (clearErr.code === 400 || clearErr.status === 400) {
       await sheets.spreadsheets.values.clear({
         spreadsheetId: sid,
-        range: 'Sheet1!A:M',
+        range: 'Sheet1!A:N',
       });
     } else {
       throw clearErr;
@@ -327,13 +329,13 @@ export async function syncSheetToProposalLog(retryCount = 0): Promise<{ success:
     try {
       result = await sheets.spreadsheets.values.get({
         spreadsheetId: sid,
-        range: 'Proposal Log!A:M',
+        range: 'Proposal Log!A:N',
       });
     } catch (e: any) {
       if (e.code === 400 || e.status === 400) {
         result = await sheets.spreadsheets.values.get({
           spreadsheetId: sid,
-          range: 'Sheet1!A:M',
+          range: 'Sheet1!A:N',
         });
       } else {
         throw e;
@@ -382,6 +384,7 @@ export async function syncSheetToProposalLog(retryCount = 0): Promise<{ success:
       if (colMap['Anticipated Start'] !== undefined) sheetVals.anticipatedStart = (row[colMap['Anticipated Start']] || '').trim();
       if (colMap['Anticipated Finish'] !== undefined) sheetVals.anticipatedFinish = (row[colMap['Anticipated Finish']] || '').trim();
       if (colMap['Notes'] !== undefined) sheetVals.notes = (row[colMap['Notes']] || '').trim();
+      if (colMap['BC Link'] !== undefined) sheetVals.bcLink = (row[colMap['BC Link']] || '').trim();
 
       const changes: Record<string, string> = {};
       if (sheetVals.nbsEstimator !== undefined && sheetVals.nbsEstimator !== (dbEntry.nbsEstimator || '')) changes.nbsEstimator = sheetVals.nbsEstimator;
@@ -391,6 +394,7 @@ export async function syncSheetToProposalLog(retryCount = 0): Promise<{ success:
       if (sheetVals.anticipatedStart !== undefined && sheetVals.anticipatedStart !== (dbEntry.anticipatedStart || '')) changes.anticipatedStart = sheetVals.anticipatedStart;
       if (sheetVals.anticipatedFinish !== undefined && sheetVals.anticipatedFinish !== (dbEntry.anticipatedFinish || '')) changes.anticipatedFinish = sheetVals.anticipatedFinish;
       if (sheetVals.notes !== undefined && sheetVals.notes !== (dbEntry.notes || '')) changes.notes = sheetVals.notes;
+      if (sheetVals.bcLink !== undefined && sheetVals.bcLink !== (dbEntry.bcLink || '')) changes.bcLink = sheetVals.bcLink;
 
       const terminalStatuses = ['Awarded', 'Lost', 'Lost - Note Why in Comments'];
       const resolvedTotal = changes.proposalTotal !== undefined ? changes.proposalTotal : (dbEntry.proposalTotal || '');

@@ -87,6 +87,7 @@ export async function createProposalLogEntry(data: {
   anticipatedStart?: string;
   anticipatedFinish?: string;
   nbsEstimator?: string;
+  bcLink?: string;
 }) {
   const fallbackInviteDate = (() => {
     const today = new Date();
@@ -108,6 +109,7 @@ export async function createProposalLogEntry(data: {
     anticipatedStart: data.anticipatedStart || null,
     anticipatedFinish: data.anticipatedFinish || null,
     nbsEstimator: data.nbsEstimator || null,
+    bcLink: data.bcLink || null,
     isTest: data.isTest || false,
     syncedToLocal: false,
   }).returning();
@@ -133,6 +135,7 @@ export async function bulkCreateProposalLogEntries(entries: Array<{
   nbsEstimator?: string;
   gcEstimateLead?: string;
   proposalTotal?: string;
+  bcLink?: string;
 }>) {
   if (!entries.length) return [];
 
@@ -172,6 +175,7 @@ export async function bulkCreateProposalLogEntries(entries: Array<{
       nbsEstimator: data.nbsEstimator || null,
       gcEstimateLead: data.gcEstimateLead || null,
       proposalTotal: data.proposalTotal || null,
+      bcLink: data.bcLink || null,
       isTest: data.isTest || false,
       syncedToLocal: true,
     };
@@ -214,6 +218,7 @@ export async function updateProposalLogEntryById(id: number, updates: Partial<{
   estimateNumber: string;
   notes: string;
   dueDate: string;
+  bcLink: string;
 }>) {
   const cleanUpdates: Record<string, any> = {};
   if (updates.nbsEstimator !== undefined) cleanUpdates.nbsEstimator = updates.nbsEstimator;
@@ -225,6 +230,7 @@ export async function updateProposalLogEntryById(id: number, updates: Partial<{
   if (updates.estimateNumber !== undefined) cleanUpdates.estimateNumber = updates.estimateNumber;
   if (updates.notes !== undefined) cleanUpdates.notes = updates.notes;
   if (updates.dueDate !== undefined) cleanUpdates.dueDate = updates.dueDate;
+  if (updates.bcLink !== undefined) cleanUpdates.bcLink = updates.bcLink;
 
   if (Object.keys(cleanUpdates).length === 0) return null;
 

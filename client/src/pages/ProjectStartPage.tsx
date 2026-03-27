@@ -89,6 +89,7 @@ export default function ProjectStartPage() {
     gcContactName: string | null;
     gcContactEmail: string | null;
     primaryMarket: string | null;
+    bcLink: string | null;
     rawText: string | null;
   } | null>(null);
   const [screenshotDragging, setScreenshotDragging] = useState(false);
@@ -98,6 +99,7 @@ export default function ProjectStartPage() {
   const [inviteDate, setInviteDate] = useState("");
   const [anticipatedStart, setAnticipatedStart] = useState("");
   const [anticipatedFinish, setAnticipatedFinish] = useState("");
+  const [bcLink, setBcLink] = useState("");
   const [estimateStatus, setEstimateStatus] = useState("Estimating");
   const [regionNotConfident, setRegionNotConfident] = useState(false);
 
@@ -190,6 +192,9 @@ export default function ProjectStartPage() {
       if (data.expectedFinish && !anticipatedFinish) {
         setAnticipatedFinish(data.expectedFinish);
       }
+      if (data.bcLink && !bcLink) {
+        setBcLink(data.bcLink);
+      }
 
       if (data.extractionFailed) {
         toast({
@@ -215,7 +220,7 @@ export default function ProjectStartPage() {
     } finally {
       setIsExtracting(false);
     }
-  }, [projectName, dueDate, regionCode, primaryMarket, inviteDate, anticipatedStart, anticipatedFinish, toast, regions]);
+  }, [projectName, dueDate, regionCode, primaryMarket, inviteDate, anticipatedStart, anticipatedFinish, bcLink, toast, regions]);
 
   useEffect(() => {
     const handlePaste = (e: ClipboardEvent) => {
@@ -349,6 +354,7 @@ export default function ProjectStartPage() {
     if (anticipatedStart) formData.append("anticipatedStart", anticipatedStart);
     if (anticipatedFinish) formData.append("anticipatedFinish", anticipatedFinish);
     if (estimateStatus) formData.append("estimateStatus", estimateStatus);
+    if (bcLink) formData.append("bcLink", bcLink);
 
     if (screenshotPreview) {
       try {
@@ -440,7 +446,7 @@ export default function ProjectStartPage() {
 
     xhr.timeout = 600000;
     xhr.send(formData);
-  }, [projectName, regionCode, dueDate, plans.file, specs.file, isTestMode, startProgressPolling, screenshotPreview, extractionResult, primaryMarket, inviteDate, anticipatedStart, anticipatedFinish, estimateStatus]);
+  }, [projectName, regionCode, dueDate, plans.file, specs.file, isTestMode, startProgressPolling, screenshotPreview, extractionResult, primaryMarket, inviteDate, anticipatedStart, anticipatedFinish, estimateStatus, bcLink]);
 
   const handleGoToProject = () => {
     if (createdProject) {
@@ -1077,6 +1083,24 @@ export default function ProjectStartPage() {
                   onChange={(e) => setAnticipatedFinish(e.target.value)}
                   data-testid="input-anticipated-finish"
                 />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="bcLink">Building Connected Link</Label>
+              <div className="flex gap-2">
+                <Input
+                  id="bcLink"
+                  type="url"
+                  placeholder="https://app.buildingconnected.com/..."
+                  value={bcLink}
+                  onChange={(e) => setBcLink(e.target.value)}
+                  data-testid="input-bc-link"
+                />
+                {bcLink && (
+                  <a href={bcLink} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 px-3 py-1 text-xs font-medium border rounded-md whitespace-nowrap hover:bg-accent" data-testid="link-bc-open">
+                    <ExternalLink className="w-3 h-3" /> Open
+                  </a>
+                )}
               </div>
             </div>
             {extractionResult && (
