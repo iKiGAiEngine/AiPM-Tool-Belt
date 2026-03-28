@@ -262,7 +262,7 @@ async function extractWithAIFromImage(imageBuffer: Buffer, apiKey: string): Prom
     clientLocation: parsed.clientLocation || null,
     gcContactName: parsed.gcContactName || null,
     gcContactEmail: parsed.gcContactEmail || null,
-    bcLink: parsed.bcLink || null,
+    bcLink: normalizeBcLink(parsed.bcLink) || null,
     rawText: `[AI Vision Extraction via GPT-4o]\n${content}`,
   };
 }
@@ -449,10 +449,29 @@ function extractTradeName(text: string): string | null {
   return null;
 }
 
+function normalizeBcLink(link: string | null | undefined): string | null {
+  if (!link) return null;
+  let url = link.trim();
+  if (!url) return null;
+  if (url.includes('app.buildingconnected.com') && !url.startsWith('http')) {
+    url = 'https://' + url.replace(/^\/\//, '');
+  }
+  if (/^https?:\/\/app\.buildingconnected\.com\//i.test(url)) return url;
+  return null;
+}
+
 function extractBcLink(text: string): string | null {
-  const bcPattern = /https?:\/\/app\.buildingconnected\.com\/[^\s"'<>)}\]]+/i;
-  const match = text.match(bcPattern);
-  if (match) return match[0].replace(/[.,;:]+$/, '');
+  const bcPatternWithProtocol = /https?:\/\/app\.buildingconnected\.com\/[^\s"'<>)}\]]+/i;
+  const match1 = text.match(bcPatternWithProtocol);
+  if (match1) return match1[0].replace(/[.,;:]+$/, '');
+
+  const bcPatternNoProtocol = /(?:^|[\s"'<>({\[])(?:www\.)?app\.buildingconnected\.com\/[^\s"'<>)}\]]+/im;
+  const match2 = text.match(bcPatternNoProtocol);
+  if (match2) {
+    let url = match2[0].replace(/^[\s"'<>({\[]/, '').replace(/[.,;:]+$/, '');
+    if (!url.startsWith('http')) url = 'https://' + url;
+    return url;
+  }
   return null;
 }
 
