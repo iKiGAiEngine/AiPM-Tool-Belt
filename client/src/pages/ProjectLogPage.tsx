@@ -27,6 +27,7 @@ interface ProposalLogEntry {
   projectDbId: number | null;
   anticipatedStart: string | null;
   anticipatedFinish: string | null;
+  bcLink: string | null;
   isTest: boolean | null;
   deletedAt: string | null;
   createdAt: string;
@@ -116,7 +117,7 @@ export default function ProjectLogPage() {
   const deletedCount = entries.filter(e => !!e.deletedAt && (!e.isTest || isTestMode)).length;
 
   const exportToCSV = () => {
-    const headers = ["Project Name", "Region", "Due Date", "Status", "Estimator", "GC Lead", "Market", "Created", "Deleted"];
+    const headers = ["Project Name", "Region", "Due Date", "Status", "Estimator", "GC Lead", "Market", "BC Link", "Created", "Deleted"];
     const rows = filteredEntries.map(e => [
       e.projectName,
       e.region || "",
@@ -125,6 +126,7 @@ export default function ProjectLogPage() {
       e.nbsEstimator || "",
       e.gcEstimateLead || "",
       e.primaryMarket || "",
+      e.bcLink || "",
       e.createdAt ? new Date(e.createdAt).toLocaleString() : "",
       e.deletedAt ? new Date(e.deletedAt).toLocaleString() : "",
     ]);
@@ -138,7 +140,7 @@ export default function ProjectLogPage() {
   };
 
   const exportToXLSX = () => {
-    const headers = ["Project Name", "Region", "Due Date", "Status", "Estimator", "GC Lead", "Market", "Created", "Deleted"];
+    const headers = ["Project Name", "Region", "Due Date", "Status", "Estimator", "GC Lead", "Market", "BC Link", "Created", "Deleted"];
     const rows = filteredEntries.map(e => [
       e.projectName,
       e.region || "",
@@ -147,6 +149,7 @@ export default function ProjectLogPage() {
       e.nbsEstimator || "",
       e.gcEstimateLead || "",
       e.primaryMarket || "",
+      e.bcLink || "",
       e.createdAt ? new Date(e.createdAt).toLocaleString() : "",
       e.deletedAt ? new Date(e.deletedAt).toLocaleString() : "",
     ]);
@@ -276,6 +279,7 @@ export default function ProjectLogPage() {
                         <span className="flex items-center gap-1">Estimator <SortIcon field="nbsEstimator" /></span>
                       </th>
                       <th className="text-left py-3 px-3 font-medium" style={{ color: "var(--text-dim)" }}>GC Lead</th>
+                      <th className="text-left py-3 px-3 font-medium" style={{ color: "var(--text-dim)" }} data-testid="th-bc-link">BC Link</th>
                       <th
                         className="text-left py-3 px-3 font-medium cursor-pointer select-none"
                         style={{ color: "var(--text-dim)" }}
@@ -346,6 +350,19 @@ export default function ProjectLogPage() {
                           </td>
                           <td className="py-3 px-3 text-xs" style={{ color: "var(--text-dim)" }}>
                             {entry.gcEstimateLead || "\u2014"}
+                          </td>
+                          <td className="py-3 px-3 text-xs" data-testid={`text-bc-link-${entry.id}`}>
+                            {entry.bcLink && /^https?:\/\//i.test(entry.bcLink) ? (
+                              <a
+                                href={entry.bcLink}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-blue-500 hover:underline"
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                Open
+                              </a>
+                            ) : "\u2014"}
                           </td>
                           <td className="py-3 px-3 text-xs" style={{ color: "var(--text-dim)" }} data-testid={`text-created-${entry.id}`}>
                             <div>

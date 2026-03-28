@@ -57,6 +57,7 @@ CHECKLIST - Before returning, verify you checked for EACH of these fields in the
 7. Client/GC name and location
 8. GC Contact name and email
 9. Trade Name
+10. Any BuildingConnected URL visible in the browser address bar or page content (bcLink)
 
 Response schema:
 {
@@ -70,7 +71,8 @@ Response schema:
   "clientName": string | null,
   "clientLocation": string | null,
   "gcContactName": string | null,
-  "gcContactEmail": string | null
+  "gcContactEmail": string | null,
+  "bcLink": string | null
 }`;
 
 export async function extractProjectDetailsFromScreenshot(
@@ -103,6 +105,9 @@ export async function extractProjectDetailsFromScreenshot(
   if (apiKey) {
     try {
       const result = await extractWithAIFromImage(imageBuffer, apiKey);
+      if (!result.bcLink && ocrText) {
+        result.bcLink = extractBcLink(ocrText) || null;
+      }
       console.log("[ScreenshotExtractor] Vision extraction succeeded (image-only)");
       return result;
     } catch (err: any) {
@@ -257,7 +262,7 @@ async function extractWithAIFromImage(imageBuffer: Buffer, apiKey: string): Prom
     clientLocation: parsed.clientLocation || null,
     gcContactName: parsed.gcContactName || null,
     gcContactEmail: parsed.gcContactEmail || null,
-    bcLink: null,
+    bcLink: parsed.bcLink || null,
     rawText: `[AI Vision Extraction via GPT-4o]\n${content}`,
   };
 }
