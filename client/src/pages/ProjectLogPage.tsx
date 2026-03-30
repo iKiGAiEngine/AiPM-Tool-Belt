@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect } from "react";
-import { Link, useLocation } from "wouter";
+import { Link } from "wouter";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft, Search, ChevronUp, ChevronDown, FileSpreadsheet, FileText, FlaskConical, Archive, Link2, CheckCircle2, Unplug } from "lucide-react";
+import { ArrowLeft, Search, ChevronUp, ChevronDown, FileSpreadsheet, FileText, FlaskConical, Archive, Link2, CheckCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -47,7 +47,6 @@ export default function ProjectLogPage() {
   const { isTestMode } = useTestMode();
   const { toast } = useToast();
   const { isAdmin } = useAuth();
-  const [location, setLocation] = useLocation();
 
   const { data: bcStatus } = useQuery<{ connected: boolean }>({
     queryKey: ["/api/autodesk/status"],

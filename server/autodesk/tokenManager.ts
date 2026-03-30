@@ -101,13 +101,6 @@ async function refreshToken(tokenId: number, refreshTokenValue: string): Promise
 }
 
 export async function hasValidConnection(userId: number): Promise<boolean> {
-  const [token] = await db
-    .select()
-    .from(apsTokens)
-    .where(eq(apsTokens.userId, userId));
-
-  if (!token) return false;
-
-  const expiresAt = new Date(token.expiresAt);
-  return expiresAt.getTime() > Date.now();
+  const token = await getValidToken(userId);
+  return token !== null;
 }
