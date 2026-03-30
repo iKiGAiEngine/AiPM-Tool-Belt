@@ -8,7 +8,6 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useTestMode } from "@/lib/testMode";
 import { useToast } from "@/hooks/use-toast";
-import { useAuth } from "@/lib/auth";
 import { saveAs } from "file-saver";
 import * as XLSX from "xlsx";
 
@@ -46,7 +45,6 @@ export default function ProjectLogPage() {
   const [sortDir, setSortDir] = useState<SortDir>("desc");
   const { isTestMode } = useTestMode();
   const { toast } = useToast();
-  const { isAdmin } = useAuth();
 
   const { data: bcStatus } = useQuery<{ connected: boolean }>({
     queryKey: ["/api/autodesk/status"],
@@ -65,17 +63,8 @@ export default function ProjectLogPage() {
     }
   }, []);
 
-  const handleBcConnect = async () => {
-    try {
-      const res = await fetch("/api/autodesk/login", { credentials: "include" });
-      if (!res.ok) throw new Error("Failed to start connection");
-      const data = await res.json();
-      if (data.url) {
-        window.location.href = data.url;
-      }
-    } catch {
-      toast({ title: "Connection failed", description: "Could not initiate BuildingConnected login.", variant: "destructive" });
-    }
+  const handleBcConnect = () => {
+    window.location.href = "/api/autodesk/login";
   };
 
   const { data: entries = [], isLoading } = useQuery<ProposalLogEntry[]>({
@@ -222,18 +211,16 @@ export default function ProjectLogPage() {
             <p className="text-sm" style={{ color: "var(--text-dim)" }}>Immutable audit trail of all proposal log entries</p>
           </div>
           <div className="flex items-center gap-2">
-            {isAdmin && (
-              bcStatus?.connected ? (
-                <Badge variant="outline" className="text-xs border-green-500/50 text-green-500 gap-1 py-1.5 px-3" data-testid="badge-bc-connected">
-                  <CheckCircle2 className="w-3.5 h-3.5" />
-                  BC Connected
-                </Badge>
-              ) : (
-                <Button variant="outline" size="sm" onClick={handleBcConnect} className="gap-1.5 border-amber-500/50 text-amber-600 hover:bg-amber-500/10" data-testid="button-bc-connect">
-                  <Link2 className="w-4 h-4" />
-                  Connect to BC
-                </Button>
-              )
+            {bcStatus?.connected ? (
+              <Badge variant="outline" className="text-xs border-green-500/50 text-green-500 gap-1 py-1.5 px-3" data-testid="badge-bc-connected">
+                <CheckCircle2 className="w-3.5 h-3.5" />
+                BC Connected
+              </Badge>
+            ) : (
+              <Button variant="outline" size="sm" onClick={handleBcConnect} className="gap-1.5 border-amber-500/50 text-amber-600 hover:bg-amber-500/10" data-testid="button-bc-connect">
+                <Link2 className="w-4 h-4" />
+                Connect to BC
+              </Button>
             )}
             <Button variant="outline" size="sm" onClick={exportToCSV} data-testid="button-export-csv">
               <FileText className="w-4 h-4 mr-2" />

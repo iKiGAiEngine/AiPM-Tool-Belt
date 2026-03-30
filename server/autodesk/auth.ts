@@ -35,12 +35,12 @@ export function registerAutodeskRoutes(app: Express) {
   app.get("/api/autodesk/login", requireAuth, (req: Request, res: Response) => {
     const clientId = process.env.APS_CLIENT_ID;
     if (!clientId) {
-      return res.status(500).json({ message: "BuildingConnected integration not configured" });
+      return res.redirect("/project-log?bc=error");
     }
 
     const userId = (req.session as any)?.userId;
     if (!userId) {
-      return res.status(401).json({ message: "Authentication required" });
+      return res.redirect("/project-log?bc=error");
     }
 
     cleanExpiredStates();
@@ -58,7 +58,7 @@ export function registerAutodeskRoutes(app: Express) {
     authUrl.searchParams.set("scope", scope);
     authUrl.searchParams.set("state", nonce);
 
-    res.json({ url: authUrl.toString() });
+    res.redirect(authUrl.toString());
   });
 
   app.get("/auth/autodesk/callback", async (req: Request, res: Response) => {
