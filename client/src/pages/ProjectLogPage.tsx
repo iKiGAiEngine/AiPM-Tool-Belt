@@ -56,7 +56,7 @@ export default function ProjectLogPage() {
   const [sortDir, setSortDir] = useState<SortDir>("desc");
   const [showBcSync, setShowBcSync] = useState(false);
   const [editingDraft, setEditingDraft] = useState<ProposalLogEntry | null>(null);
-  const [editForm, setEditForm] = useState({ projectName: "", region: "", dueDate: "", nbsEstimator: "", gcEstimateLead: "", primaryMarket: "", notes: "" });
+  const [editForm, setEditForm] = useState({ projectName: "", region: "", dueDate: "", nbsEstimator: "", gcEstimateLead: "", owner: "", primaryMarket: "", notes: "", scopeList: "" });
   const [rejectingDraftId, setRejectingDraftId] = useState<number | null>(null);
   const [rejectReason, setRejectReason] = useState("");
   const [approveResult, setApproveResult] = useState<{ projectId: string; downloadUrl: string; projectName: string } | null>(null);
@@ -173,8 +173,10 @@ export default function ProjectLogPage() {
       dueDate: entry.dueDate || "",
       nbsEstimator: entry.nbsEstimator || "",
       gcEstimateLead: entry.gcEstimateLead || "",
+      owner: entry.owner || "",
       primaryMarket: entry.primaryMarket || "",
       notes: entry.notes || "",
+      scopeList: entry.scopeList || "[]",
     });
   };
 
@@ -740,6 +742,27 @@ export default function ProjectLogPage() {
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
+                      <label className="text-xs font-medium mb-1 block" style={{ color: "var(--text-dim)" }}>GC Company</label>
+                      <Input
+                        value={editForm.owner}
+                        onChange={(e) => setEditForm(f => ({ ...f, owner: e.target.value }))}
+                        placeholder="e.g. Swinerton"
+                        className="text-sm"
+                        data-testid="input-edit-gc-company"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs font-medium mb-1 block" style={{ color: "var(--text-dim)" }}>GC Contact Name</label>
+                      <Input
+                        value={editForm.gcEstimateLead}
+                        onChange={(e) => setEditForm(f => ({ ...f, gcEstimateLead: e.target.value }))}
+                        className="text-sm"
+                        data-testid="input-edit-gc-lead"
+                      />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
                       <label className="text-xs font-medium mb-1 block" style={{ color: "var(--text-dim)" }}>NBS Estimator</label>
                       <Input
                         value={editForm.nbsEstimator}
@@ -749,23 +772,31 @@ export default function ProjectLogPage() {
                       />
                     </div>
                     <div>
-                      <label className="text-xs font-medium mb-1 block" style={{ color: "var(--text-dim)" }}>GC Lead</label>
+                      <label className="text-xs font-medium mb-1 block" style={{ color: "var(--text-dim)" }}>Market</label>
                       <Input
-                        value={editForm.gcEstimateLead}
-                        onChange={(e) => setEditForm(f => ({ ...f, gcEstimateLead: e.target.value }))}
+                        value={editForm.primaryMarket}
+                        onChange={(e) => setEditForm(f => ({ ...f, primaryMarket: e.target.value }))}
                         className="text-sm"
-                        data-testid="input-edit-gc-lead"
+                        data-testid="input-edit-market"
                       />
                     </div>
                   </div>
                   <div>
-                    <label className="text-xs font-medium mb-1 block" style={{ color: "var(--text-dim)" }}>Market</label>
+                    <label className="text-xs font-medium mb-1 block" style={{ color: "var(--text-dim)" }}>Scopes / Trades</label>
                     <Input
-                      value={editForm.primaryMarket}
-                      onChange={(e) => setEditForm(f => ({ ...f, primaryMarket: e.target.value }))}
+                      value={(() => {
+                        try { return JSON.parse(editForm.scopeList).join(", "); } catch { return editForm.scopeList; }
+                      })()}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        const arr = val.split(",").map(s => s.trim()).filter(Boolean);
+                        setEditForm(f => ({ ...f, scopeList: JSON.stringify(arr) }));
+                      }}
+                      placeholder="e.g. Div 10 Specialties, Toilet Accessories"
                       className="text-sm"
-                      data-testid="input-edit-market"
+                      data-testid="input-edit-scopes"
                     />
+                    <p className="text-[10px] mt-0.5" style={{ color: "var(--text-dim)" }}>Comma-separated list of scopes</p>
                   </div>
                   <div>
                     <label className="text-xs font-medium mb-1 block" style={{ color: "var(--text-dim)" }}>Notes (optional)</label>
@@ -777,22 +808,6 @@ export default function ProjectLogPage() {
                       data-testid="input-edit-notes"
                     />
                   </div>
-                  {(() => {
-                    const scopes = parseScopeList(editingDraft.scopeList);
-                    if (scopes.length === 0) return null;
-                    return (
-                      <div>
-                        <label className="text-xs font-medium mb-1.5 block" style={{ color: "var(--text-dim)" }}>Scopes from BC</label>
-                        <div className="flex gap-1.5 flex-wrap">
-                          {scopes.map((scope, i) => (
-                            <span key={i} className="text-[10px] px-2 py-1 rounded" style={{ background: "var(--bg-input)", color: "var(--text)" }}>
-                              {scope}
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-                    );
-                  })()}
                   <div className="rounded-lg px-3 py-2 text-[11px]" style={{ background: "var(--bg-input)", color: "var(--text-dim)" }}>
                     Folder will be created as: <strong style={{ color: "var(--text)" }}>{(editForm.region || "???").toUpperCase()} - {editForm.projectName || "???"}</strong>
                   </div>

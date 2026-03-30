@@ -986,14 +986,16 @@ export function registerBcSyncRoutes(app: Express) {
       if (!entry.isDraft) return res.status(400).json({ message: "Entry is not a draft" });
       if (entry.deletedAt) return res.status(400).json({ message: "Entry has been deleted" });
 
-      const { projectName, region, dueDate, nbsEstimator, gcEstimateLead, primaryMarket, notes } = req.body || {};
+      const { projectName, region, dueDate, nbsEstimator, gcEstimateLead, owner, primaryMarket, notes, scopeList } = req.body || {};
 
       const finalProjectName = (projectName || entry.projectName || "").slice(0, 500);
       const finalRegion = (region || entry.region || "").replace(/[^A-Za-z0-9]/g, "").slice(0, 10);
       const finalDueDate = dueDate || entry.dueDate || "";
       const finalNbsEstimator = nbsEstimator !== undefined ? nbsEstimator : entry.nbsEstimator;
       const finalGcEstimateLead = gcEstimateLead !== undefined ? gcEstimateLead : entry.gcEstimateLead;
+      const finalOwner = owner !== undefined ? owner : entry.owner;
       const finalPrimaryMarket = primaryMarket || entry.primaryMarket || guessMarket(finalProjectName);
+      const finalScopeList = scopeList !== undefined ? scopeList : entry.scopeList;
 
       if (!finalProjectName) {
         return res.status(400).json({ message: "Project name is required" });
@@ -1121,8 +1123,10 @@ export function registerBcSyncRoutes(app: Express) {
         dueDate: finalDueDate,
         nbsEstimator: finalNbsEstimator,
         gcEstimateLead: finalGcEstimateLead,
+        owner: finalOwner,
         primaryMarket: finalPrimaryMarket,
         notes: notes || entry.notes,
+        scopeList: finalScopeList,
         projectDbId: project.id,
         filePath: projectDir,
         draftApprovedBy: approverName,
@@ -1212,7 +1216,7 @@ export function registerBcSyncRoutes(app: Express) {
       if (!entry) return res.status(404).json({ message: "Entry not found" });
       if (!entry.isDraft) return res.status(400).json({ message: "Entry is not a draft" });
 
-      const { projectName, region, dueDate, nbsEstimator, gcEstimateLead, primaryMarket, notes } = req.body;
+      const { projectName, region, dueDate, nbsEstimator, gcEstimateLead, owner, primaryMarket, notes, scopeList } = req.body;
 
       const updates: Record<string, unknown> = {};
       if (projectName !== undefined) updates.projectName = projectName;
@@ -1220,8 +1224,10 @@ export function registerBcSyncRoutes(app: Express) {
       if (dueDate !== undefined) updates.dueDate = dueDate;
       if (nbsEstimator !== undefined) updates.nbsEstimator = nbsEstimator;
       if (gcEstimateLead !== undefined) updates.gcEstimateLead = gcEstimateLead;
+      if (owner !== undefined) updates.owner = owner;
       if (primaryMarket !== undefined) updates.primaryMarket = primaryMarket;
       if (notes !== undefined) updates.notes = notes;
+      if (scopeList !== undefined) updates.scopeList = scopeList;
 
       if (Object.keys(updates).length === 0) {
         return res.status(400).json({ message: "No fields to update" });
