@@ -254,6 +254,8 @@ export function registerBcSyncRoutes(app: Express) {
       const preview: PreviewItem[] = [];
       let createCount = 0, mergeCount = 0, updateCount = 0;
 
+      const inRunCreates = new Map<string, PreviewItem>();
+
       for (const opp of filteredOpps) {
         const existingLog = existingLogMap.get(opp.id);
 
@@ -302,10 +304,30 @@ export function registerBcSyncRoutes(app: Express) {
           continue;
         }
 
+        if (!existingLog && opp.projectId && inRunCreates.has(opp.projectId)) {
+          const existing = inRunCreates.get(opp.projectId)!;
+          mergeCount++;
+          existing.scopeChanges = [...new Set([...(existing.scopeChanges || []), ...(opp.scopes || [])])];
+          preview.push({
+            opportunityId: opp.id,
+            action: "merge",
+            projectName: existing.projectName,
+            region: existing.region,
+            dueDate: existing.dueDate,
+            inviteDate: existing.inviteDate,
+            gcEstimateLead: existing.gcEstimateLead,
+            gcCompanyName: existing.gcCompanyName,
+            location: getLocationStr(opp),
+            bcLink: existing.bcLink,
+            scopeChanges: opp.scopes || [],
+          });
+          continue;
+        }
+
         if (!existingLog) {
           createCount++;
           const mapped = mapOpportunityToEntry(opp);
-          preview.push({
+          const item: PreviewItem = {
             opportunityId: opp.id,
             action: "create",
             projectName: mapped.projectName,
@@ -316,7 +338,12 @@ export function registerBcSyncRoutes(app: Express) {
             gcCompanyName: opp.gcCompanyName || "",
             location: getLocationStr(opp),
             bcLink: mapped.bcLink,
-          });
+            scopeChanges: opp.scopes || [],
+          };
+          preview.push(item);
+          if (opp.projectId) {
+            inRunCreates.set(opp.projectId, item);
+          }
         }
       }
 
@@ -385,6 +412,8 @@ export function registerBcSyncRoutes(app: Express) {
         if (e.bcProjectId) entriesByBcProjectId.set(e.bcProjectId, e);
       }
 
+      const inRunCreatedByProjectId = new Map<string, number>();
+
       for (const opp of filteredOpps) {
         const existingLog = existingLogMap.get(opp.id);
 
@@ -432,45 +461,52 @@ export function registerBcSyncRoutes(app: Express) {
           }
         }
 
-        if (!existingLog && opp.projectId && entriesByBcProjectId.has(opp.projectId)) {
-          const existingEntry = entriesByBcProjectId.get(opp.projectId)!;
+        const mergeTargetId = (!existingLog && opp.projectId)
+          ? (entriesByBcProjectId.has(opp.projectId)
+            ? entriesByBcProjectId.get(opp.projectId)!.id
+            : inRunCreatedByProjectId.get(opp.projectId) ?? null)
+          : null;
 
-          const existingOppIds: string[] = existingEntry.bcOpportunityIds ? JSON.parse(existingEntry.bcOpportunityIds) : [];
-          if (!existingOppIds.includes(opp.id)) {
-            existingOppIds.push(opp.id);
-          }
+        if (mergeTargetId !== null) {
+          const [targetEntry] = await db.select().from(proposalLogEntries).where(eq(proposalLogEntries.id, mergeTargetId));
+          if (targetEntry) {
+            const existingOppIds: string[] = targetEntry.bcOpportunityIds ? JSON.parse(targetEntry.bcOpportunityIds) : [];
+            if (!existingOppIds.includes(opp.id)) {
+              existingOppIds.push(opp.id);
+            }
 
-          const existingScopes: string[] = existingEntry.scopeList ? JSON.parse(existingEntry.scopeList) : [];
-          const mergedScopes = [...new Set([...existingScopes, ...(opp.scopes || [])])];
-          const addedScopes = (opp.scopes || []).filter(s => !existingScopes.includes(s));
+            const existingScopes: string[] = targetEntry.scopeList ? JSON.parse(targetEntry.scopeList) : [];
+            const mergedScopes = [...new Set([...existingScopes, ...(opp.scopes || [])])];
+            const addedScopes = (opp.scopes || []).filter(s => !existingScopes.includes(s));
 
-          await db.update(proposalLogEntries).set({
-            bcOpportunityIds: JSON.stringify(existingOppIds),
-            scopeList: JSON.stringify(mergedScopes),
-            bcUpdateFlag: addedScopes.length > 0,
-          }).where(eq(proposalLogEntries.id, existingEntry.id));
+            await db.update(proposalLogEntries).set({
+              bcOpportunityIds: JSON.stringify(existingOppIds),
+              scopeList: JSON.stringify(mergedScopes),
+              bcUpdateFlag: addedScopes.length > 0,
+            }).where(eq(proposalLogEntries.id, targetEntry.id));
 
-          await db.insert(bcSyncLog).values({
-            bcOpportunityId: opp.id,
-            rawData: opp as Record<string, unknown>,
-            entryId: existingEntry.id,
-          });
-
-          merged.push(existingEntry.id);
-
-          if (addedScopes.length > 0) {
-            await createNotificationForAdmins({
-              type: "draft_scope_updated",
-              title: "Draft Scopes Updated",
-              message: `"${existingEntry.projectName}" gained scopes: ${addedScopes.join(", ")}`,
-              metadata: { entryId: existingEntry.id, addedScopes },
+            await db.insert(bcSyncLog).values({
+              bcOpportunityId: opp.id,
+              rawData: opp as Record<string, unknown>,
+              entryId: targetEntry.id,
             });
 
-            sendDraftNotificationEmail("draft_scope_updated", existingEntry.projectName, existingEntry.dueDate || "", existingEntry.gcEstimateLead || "").catch(err => {
-              console.error("[BC Sync] Email notification error (merge):", err);
-            });
+            merged.push(targetEntry.id);
+
+            if (addedScopes.length > 0) {
+              await createNotificationForAdmins({
+                type: "draft_scope_updated",
+                title: "Draft Scopes Updated",
+                message: `"${targetEntry.projectName}" gained scopes: ${addedScopes.join(", ")}`,
+                metadata: { entryId: targetEntry.id, addedScopes },
+              });
+
+              sendDraftNotificationEmail("draft_scope_updated", targetEntry.projectName, targetEntry.dueDate || "", targetEntry.gcEstimateLead || "").catch(err => {
+                console.error("[BC Sync] Email notification error (merge):", err);
+              });
+            }
+            continue;
           }
-          continue;
         }
 
         if (!existingLog) {
@@ -489,6 +525,11 @@ export function registerBcSyncRoutes(app: Express) {
             });
 
             created.push(entry.id);
+
+            if (opp.projectId) {
+              inRunCreatedByProjectId.set(opp.projectId, entry.id);
+              entriesByBcProjectId.set(opp.projectId, entry);
+            }
 
             await createNotificationForAdmins({
               type: "draft_created",

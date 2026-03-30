@@ -36,6 +36,7 @@ interface ProposalLogEntry {
   isTest: boolean | null;
   isDraft: boolean | null;
   bcProjectId: string | null;
+  bcOpportunityIds: string | null;
   scopeList: string | null;
   draftApprovedBy: string | null;
   draftApprovedAt: string | null;
@@ -469,10 +470,20 @@ export default function ProjectLogPage() {
                                 {entry.projectName}
                               </span>
                               {isDraft && !isDeleted && (
-                                <Badge className="text-xs bg-amber-500/20 text-amber-500 border-amber-500/30" data-testid={`badge-draft-${entry.id}`}>
-                                  <FileEdit className="w-3 h-3 mr-1" />
-                                  DRAFT
-                                </Badge>
+                                <>
+                                  <Badge className="text-xs bg-amber-500/20 text-amber-500 border-amber-500/30" data-testid={`badge-draft-${entry.id}`}>
+                                    <FileEdit className="w-3 h-3 mr-1" />
+                                    DRAFT
+                                  </Badge>
+                                  {(() => {
+                                    const bidCount = entry.bcOpportunityIds ? (JSON.parse(entry.bcOpportunityIds) as string[]).length : 0;
+                                    return bidCount > 1 ? (
+                                      <Badge className="text-[10px] bg-blue-500/10 text-blue-500 border-blue-500/30" data-testid={`badge-bid-packages-${entry.id}`}>
+                                        {bidCount} bid packages
+                                      </Badge>
+                                    ) : null;
+                                  })()}
+                                </>
                               )}
                               {entry.isTest && (
                                 <Badge variant="outline" className="text-xs border-amber-500/50 text-amber-500">
