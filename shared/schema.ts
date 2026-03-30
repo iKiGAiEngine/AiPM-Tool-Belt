@@ -917,6 +917,27 @@ export const insertProposalLogEntrySchema = createInsertSchema(proposalLogEntrie
 export type InsertProposalLogEntry = z.infer<typeof insertProposalLogEntrySchema>;
 export type ProposalLogEntry = typeof proposalLogEntries.$inferSelect;
 
+export const apsTokens = pgTable("aps_tokens", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull().references(() => users.id).unique(),
+  accessToken: text("access_token").notNull(),
+  refreshToken: text("refresh_token").notNull(),
+  expiresAt: timestamp("expires_at").notNull(),
+  scope: varchar("scope", { length: 500 }),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+export type ApsToken = typeof apsTokens.$inferSelect;
+export type InsertApsToken = typeof apsTokens.$inferInsert;
+
+export const insertApsTokenSchema = createInsertSchema(apsTokens).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type InsertApsTokenInput = z.infer<typeof insertApsTokenSchema>;
+
 export const proposalAcknowledgements = pgTable("proposal_acknowledgements", {
   id: serial("id").primaryKey(),
   userId: integer("user_id").notNull().references(() => users.id),

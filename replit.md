@@ -34,6 +34,7 @@ All data is persistently stored in PostgreSQL, managed by Drizzle ORM. Key table
 - **Schedule Converter**: Transforms schedule screenshots or pasted text into structured data using AI vision models (GPT-4o). It features a verification pass, row-by-row anchored processing, confidence scores, inline editing, and export to NBS Template (TSV) or standard Excel.
 - **Test Mode**: Allows for creating isolated test projects for development and data cleanup.
 - **Processing Indicators**: Provides dynamic progress overlays and status labels for real-time project processing feedback.
+- **BuildingConnected OAuth**: APS OAuth 2.0 integration allowing users to connect their BuildingConnected account. Uses cryptographic nonce-based CSRF protection, per-user unique token storage in `aps_tokens` table, and automatic token refresh with concurrency-safe locking. Admin-only connect button on Project Log page. Routes in `server/autodesk/auth.ts` and `server/autodesk/tokenManager.ts`.
 
 ### Authentication & Access Control
 - **OTP Email Login**: Users log in via a 6-digit email code (SendGrid or console logging). Codes are hashed, single-use, and expire in 10 minutes.

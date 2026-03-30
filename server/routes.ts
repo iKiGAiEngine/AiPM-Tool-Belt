@@ -21,6 +21,7 @@ import { registerSpecExtractorRoutes } from "./specExtractorRoutes";
 import { registerAuthRoutes, requireAuth } from "./authRoutes";
 import { registerAdminRoutes } from "./adminRoutes";
 import { registerToolUsageRoutes } from "./toolUsageRoutes";
+import { registerAutodeskRoutes } from "./autodesk/auth";
 import { auditLog } from "./auditService";
 import { db } from "./db";
 import { users as usersTable } from "@shared/schema";
@@ -65,6 +66,7 @@ export async function registerRoutes(
   });
 
   registerAuthRoutes(app);
+  registerAutodeskRoutes(app);
 
   app.get("/tools/proposal-log", (req, res) => {
     res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
