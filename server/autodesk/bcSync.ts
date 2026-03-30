@@ -1,10 +1,12 @@
 import type { Express, Request, Response } from "express";
 import { db } from "../db";
 import { proposalLogEntries, bcSyncLog, bcSyncState, users } from "@shared/schema";
-import { eq, and } from "drizzle-orm";
-import { getValidToken } from "./tokenManager";
-import { createNotificationForAdmins } from "../notificationRoutes";
+import { eq } from "drizzle-orm";
+import { getValidToken, hasValidConnection } from "./tokenManager";
+import { createNotification, createNotificationForAdmins } from "../notificationRoutes";
 import { guessMarket } from "../proposalLogService";
+import { generateProjectId } from "../scopeDictionaryStorage";
+import { sendDraftNotificationEmail } from "../emailService";
 
 const BC_API_BASE = "https://developer.api.autodesk.com/construction/buildingconnected/v2";
 
@@ -48,6 +50,8 @@ const REGION_MAP: Record<string, string> = {
   "new york": "LGA",
 };
 
+const MAX_SYNC_ENTRIES = 50;
+
 function guessRegionFromLocation(location: string): string {
   const loc = (location || "").toLowerCase();
   for (const [key, code] of Object.entries(REGION_MAP)) {
@@ -75,7 +79,12 @@ interface BcOpportunity {
   updatedAt?: string;
 }
 
-async function fetchBcOpportunities(accessToken: string, since?: Date): Promise<{ opportunities: BcOpportunity[]; error?: string }> {
+interface FetchResult {
+  opportunities: BcOpportunity[];
+  error?: string;
+}
+
+async function fetchBcOpportunities(accessToken: string, since?: Date): Promise<FetchResult> {
   let url = `${BC_API_BASE}/opportunities?limit=50`;
 
   if (since) {
@@ -94,7 +103,13 @@ async function fetchBcOpportunities(accessToken: string, since?: Date): Promise<
     }
 
     const data = await res.json() as { results?: BcOpportunity[] };
-    return { opportunities: data.results || [] };
+    const results = data.results || [];
+
+    if (results.length > 0) {
+      console.log(`[BC Sync] First API response sample: projectName="${results[0].projectName}", id="${results[0].id}", gcCompanyName="${results[0].gcCompanyName}"`);
+    }
+
+    return { opportunities: results };
   } catch (err) {
     console.error("[BC Sync] Fetch error:", err);
     return { opportunities: [], error: "Failed to connect to BuildingConnected API" };
@@ -108,12 +123,15 @@ function filterByGcAllowlist(opps: BcOpportunity[]): BcOpportunity[] {
   });
 }
 
-function mapOpportunityToEntry(opp: BcOpportunity) {
-  const locationParts: string[] = [];
-  if (opp.location?.city) locationParts.push(opp.location.city);
-  if (opp.location?.state) locationParts.push(opp.location.state);
-  const locationStr = locationParts.join(", ") || opp.location?.formattedAddress || "";
+function getLocationStr(opp: BcOpportunity): string {
+  const parts: string[] = [];
+  if (opp.location?.city) parts.push(opp.location.city);
+  if (opp.location?.state) parts.push(opp.location.state);
+  return parts.join(", ") || opp.location?.formattedAddress || "";
+}
 
+function mapOpportunityToEntry(opp: BcOpportunity) {
+  const locationStr = getLocationStr(opp);
   const region = guessRegionFromLocation(locationStr);
   const projectName = opp.projectName || "Untitled BC Project";
   const primaryMarket = guessMarket(projectName, "");
@@ -149,8 +167,47 @@ function mapOpportunityToEntry(opp: BcOpportunity) {
   };
 }
 
+type SyncAction = "create" | "merge" | "update";
+
+interface PreviewItem {
+  opportunityId: string;
+  action: SyncAction;
+  projectName: string;
+  region: string;
+  dueDate: string;
+  inviteDate: string;
+  gcEstimateLead: string;
+  gcCompanyName: string;
+  location: string;
+  bcLink: string;
+  existingEntryId?: number;
+  scopeChanges?: string[];
+  fieldChanges?: string[];
+}
+
 function isAdmin(user: { role: string } | null | undefined): boolean {
   return user?.role === "admin";
+}
+
+function detectFieldChanges(existing: typeof proposalLogEntries.$inferSelect, opp: BcOpportunity): string[] {
+  const changes: string[] = [];
+  const mapped = mapOpportunityToEntry(opp);
+
+  if (existing.dueDate !== mapped.dueDate && mapped.dueDate) {
+    changes.push(`dueDate: ${existing.dueDate || "none"} → ${mapped.dueDate}`);
+  }
+  if (existing.gcEstimateLead !== mapped.gcEstimateLead && mapped.gcEstimateLead) {
+    changes.push(`gcEstimateLead: ${existing.gcEstimateLead || "none"} → ${mapped.gcEstimateLead}`);
+  }
+
+  const existingScopes = existing.scopeList ? JSON.parse(existing.scopeList) as string[] : [];
+  const newScopes = opp.scopes || [];
+  const addedScopes = newScopes.filter(s => !existingScopes.includes(s));
+  if (addedScopes.length > 0) {
+    changes.push(`scopes added: ${addedScopes.join(", ")}`);
+  }
+
+  return changes;
 }
 
 export function registerBcSyncRoutes(app: Express) {
@@ -185,24 +242,97 @@ export function registerBcSyncRoutes(app: Express) {
       const filteredOpps = filterByGcAllowlist(allOpps);
 
       const existingLogs = await db.select().from(bcSyncLog);
-      const existingIds = new Set(existingLogs.map(l => l.bcOpportunityId));
+      const existingLogMap = new Map(existingLogs.map(l => [l.bcOpportunityId, l]));
 
-      const newOpps = filteredOpps.filter(opp => !existingIds.has(opp.id));
-      const capped = newOpps.slice(0, 50);
+      const existingEntries = await db.select().from(proposalLogEntries);
+      const entriesById = new Map(existingEntries.map(e => [e.id, e]));
+      const entriesByBcProjectId = new Map<string, typeof proposalLogEntries.$inferSelect>();
+      for (const e of existingEntries) {
+        if (e.bcProjectId) entriesByBcProjectId.set(e.bcProjectId, e);
+      }
 
-      const preview = capped.map(opp => ({
-        opportunityId: opp.id,
-        ...mapOpportunityToEntry(opp),
-        gcCompanyName: opp.gcCompanyName || "",
-        location: opp.location?.formattedAddress || "",
-      }));
+      const preview: PreviewItem[] = [];
+      let createCount = 0, mergeCount = 0, updateCount = 0;
+
+      for (const opp of filteredOpps) {
+        const existingLog = existingLogMap.get(opp.id);
+
+        if (existingLog && existingLog.entryId) {
+          const existingEntry = entriesById.get(existingLog.entryId);
+          if (existingEntry) {
+            const changes = detectFieldChanges(existingEntry, opp);
+            if (changes.length > 0) {
+              updateCount++;
+              preview.push({
+                opportunityId: opp.id,
+                action: "update",
+                projectName: opp.projectName || existingEntry.projectName,
+                region: existingEntry.region || "",
+                dueDate: mapOpportunityToEntry(opp).dueDate,
+                inviteDate: mapOpportunityToEntry(opp).inviteDate,
+                gcEstimateLead: opp.gcContactName || opp.gcCompanyName || "",
+                gcCompanyName: opp.gcCompanyName || "",
+                location: getLocationStr(opp),
+                bcLink: existingEntry.bcLink || "",
+                existingEntryId: existingEntry.id,
+                fieldChanges: changes,
+              });
+            }
+            continue;
+          }
+        }
+
+        if (!existingLog && opp.projectId && entriesByBcProjectId.has(opp.projectId)) {
+          const existingEntry = entriesByBcProjectId.get(opp.projectId)!;
+          mergeCount++;
+          preview.push({
+            opportunityId: opp.id,
+            action: "merge",
+            projectName: existingEntry.projectName,
+            region: existingEntry.region || "",
+            dueDate: mapOpportunityToEntry(opp).dueDate || existingEntry.dueDate || "",
+            inviteDate: mapOpportunityToEntry(opp).inviteDate,
+            gcEstimateLead: opp.gcContactName || opp.gcCompanyName || "",
+            gcCompanyName: opp.gcCompanyName || "",
+            location: getLocationStr(opp),
+            bcLink: existingEntry.bcLink || "",
+            existingEntryId: existingEntry.id,
+            scopeChanges: opp.scopes || [],
+          });
+          continue;
+        }
+
+        if (!existingLog) {
+          createCount++;
+          const mapped = mapOpportunityToEntry(opp);
+          preview.push({
+            opportunityId: opp.id,
+            action: "create",
+            projectName: mapped.projectName,
+            region: mapped.region,
+            dueDate: mapped.dueDate,
+            inviteDate: mapped.inviteDate,
+            gcEstimateLead: mapped.gcEstimateLead,
+            gcCompanyName: opp.gcCompanyName || "",
+            location: getLocationStr(opp),
+            bcLink: mapped.bcLink,
+          });
+        }
+      }
+
+      const cappedPreview = preview.slice(0, MAX_SYNC_ENTRIES);
+      const wasCapped = preview.length > MAX_SYNC_ENTRIES;
 
       res.json({
         totalFound: allOpps.length,
         afterFilter: filteredOpps.length,
-        newEntries: preview.length,
-        alreadySynced: filteredOpps.length - newOpps.length,
-        preview,
+        newEntries: createCount,
+        mergeEntries: mergeCount,
+        updateEntries: updateCount,
+        alreadySynced: filteredOpps.length - (createCount + mergeCount + updateCount),
+        preview: cappedPreview,
+        wasCapped,
+        cappedAt: wasCapped ? MAX_SYNC_ENTRIES : null,
         lastSyncAt: syncState?.lastSyncAt || null,
       });
     } catch (err) {
@@ -224,6 +354,10 @@ export function registerBcSyncRoutes(app: Express) {
         return res.status(400).json({ message: "No opportunities selected" });
       }
 
+      if (opportunityIds.length > MAX_SYNC_ENTRIES) {
+        return res.status(400).json({ message: `Maximum ${MAX_SYNC_ENTRIES} entries per sync` });
+      }
+
       const accessToken = await getValidToken(userId);
       if (!accessToken) {
         return res.status(400).json({ message: "No BuildingConnected connection" });
@@ -238,36 +372,147 @@ export function registerBcSyncRoutes(app: Express) {
       const filteredOpps = filterByGcAllowlist(selectedOpps);
 
       const created: number[] = [];
+      const merged: number[] = [];
+      const updated: number[] = [];
+
+      const existingLogs = await db.select().from(bcSyncLog);
+      const existingLogMap = new Map(existingLogs.map(l => [l.bcOpportunityId, l]));
+
+      const existingEntries = await db.select().from(proposalLogEntries);
+      const entriesById = new Map(existingEntries.map(e => [e.id, e]));
+      const entriesByBcProjectId = new Map<string, typeof proposalLogEntries.$inferSelect>();
+      for (const e of existingEntries) {
+        if (e.bcProjectId) entriesByBcProjectId.set(e.bcProjectId, e);
+      }
 
       for (const opp of filteredOpps) {
-        const existingLog = await db.select().from(bcSyncLog).where(eq(bcSyncLog.bcOpportunityId, opp.id));
-        if (existingLog.length > 0) continue;
+        const existingLog = existingLogMap.get(opp.id);
 
-        const entryData = mapOpportunityToEntry(opp);
+        if (existingLog && existingLog.entryId) {
+          const existingEntry = entriesById.get(existingLog.entryId);
+          if (existingEntry) {
+            const changes = detectFieldChanges(existingEntry, opp);
+            if (changes.length > 0) {
+              const existingChangeLog: string[] = existingEntry.bcChangeLog ? JSON.parse(existingEntry.bcChangeLog) : [];
+              const newLogEntry = `${new Date().toISOString()}: ${changes.join("; ")}`;
+              existingChangeLog.push(newLogEntry);
 
-        try {
-          const [entry] = await db.insert(proposalLogEntries).values({
-            ...entryData,
-            syncedToLocal: false,
-          }).returning();
+              const mapped = mapOpportunityToEntry(opp);
+              const mergedScopes = new Set([
+                ...(existingEntry.scopeList ? JSON.parse(existingEntry.scopeList) as string[] : []),
+                ...(opp.scopes || []),
+              ]);
+
+              await db.update(proposalLogEntries).set({
+                dueDate: mapped.dueDate || existingEntry.dueDate,
+                gcEstimateLead: mapped.gcEstimateLead || existingEntry.gcEstimateLead,
+                scopeList: JSON.stringify([...mergedScopes]),
+                bcUpdateFlag: true,
+                bcChangeLog: JSON.stringify(existingChangeLog),
+              }).where(eq(proposalLogEntries.id, existingEntry.id));
+
+              await db.update(bcSyncLog).set({
+                rawData: opp as Record<string, unknown>,
+              }).where(eq(bcSyncLog.id, existingLog.id));
+
+              updated.push(existingEntry.id);
+
+              await createNotificationForAdmins({
+                type: "draft_bc_updated",
+                title: "BC Draft Updated",
+                message: `"${existingEntry.projectName}" updated: ${changes.join(", ")}`,
+                metadata: { entryId: existingEntry.id, changes },
+              });
+
+              sendDraftNotificationEmail("draft_bc_updated", existingEntry.projectName, mapped.dueDate || existingEntry.dueDate || "", mapped.gcEstimateLead || existingEntry.gcEstimateLead || "").catch(err => {
+                console.error("[BC Sync] Email notification error (update):", err);
+              });
+            }
+            continue;
+          }
+        }
+
+        if (!existingLog && opp.projectId && entriesByBcProjectId.has(opp.projectId)) {
+          const existingEntry = entriesByBcProjectId.get(opp.projectId)!;
+
+          const existingOppIds: string[] = existingEntry.bcOpportunityIds ? JSON.parse(existingEntry.bcOpportunityIds) : [];
+          if (!existingOppIds.includes(opp.id)) {
+            existingOppIds.push(opp.id);
+          }
+
+          const existingScopes: string[] = existingEntry.scopeList ? JSON.parse(existingEntry.scopeList) : [];
+          const mergedScopes = [...new Set([...existingScopes, ...(opp.scopes || [])])];
+          const addedScopes = (opp.scopes || []).filter(s => !existingScopes.includes(s));
+
+          await db.update(proposalLogEntries).set({
+            bcOpportunityIds: JSON.stringify(existingOppIds),
+            scopeList: JSON.stringify(mergedScopes),
+            bcUpdateFlag: addedScopes.length > 0,
+          }).where(eq(proposalLogEntries.id, existingEntry.id));
 
           await db.insert(bcSyncLog).values({
             bcOpportunityId: opp.id,
-            rawData: opp as any,
-            entryId: entry.id,
+            rawData: opp as Record<string, unknown>,
+            entryId: existingEntry.id,
           });
 
-          created.push(entry.id);
-        } catch (insertErr: any) {
-          if (insertErr?.code === "23505") {
-            console.warn(`[BC Sync] Duplicate opportunity ${opp.id}, skipping`);
-            continue;
+          merged.push(existingEntry.id);
+
+          if (addedScopes.length > 0) {
+            await createNotificationForAdmins({
+              type: "draft_scope_updated",
+              title: "Draft Scopes Updated",
+              message: `"${existingEntry.projectName}" gained scopes: ${addedScopes.join(", ")}`,
+              metadata: { entryId: existingEntry.id, addedScopes },
+            });
+
+            sendDraftNotificationEmail("draft_scope_updated", existingEntry.projectName, existingEntry.dueDate || "", existingEntry.gcEstimateLead || "").catch(err => {
+              console.error("[BC Sync] Email notification error (merge):", err);
+            });
           }
-          throw insertErr;
+          continue;
+        }
+
+        if (!existingLog) {
+          try {
+            const entryData = mapOpportunityToEntry(opp);
+
+            const [entry] = await db.insert(proposalLogEntries).values({
+              ...entryData,
+              syncedToLocal: false,
+            }).returning();
+
+            await db.insert(bcSyncLog).values({
+              bcOpportunityId: opp.id,
+              rawData: opp as Record<string, unknown>,
+              entryId: entry.id,
+            });
+
+            created.push(entry.id);
+
+            await createNotificationForAdmins({
+              type: "draft_created",
+              title: "New BC Draft",
+              message: `"${entryData.projectName}" imported from BuildingConnected.`,
+              metadata: { entryId: entry.id, opportunityId: opp.id },
+            });
+
+            sendDraftNotificationEmail("draft_created", entryData.projectName, entryData.dueDate, entryData.gcEstimateLead).catch(err => {
+              console.error("[BC Sync] Email notification error:", err);
+            });
+          } catch (insertErr: unknown) {
+            const pgErr = insertErr as { code?: string };
+            if (pgErr?.code === "23505") {
+              console.warn(`[BC Sync] Duplicate opportunity ${opp.id}, skipping`);
+              continue;
+            }
+            throw insertErr;
+          }
         }
       }
 
-      if (created.length > 0) {
+      const totalProcessed = created.length + merged.length + updated.length;
+      if (totalProcessed > 0) {
         const [existingState] = await db.select().from(bcSyncState).limit(1);
         if (existingState) {
           await db.update(bcSyncState).set({
@@ -281,16 +526,16 @@ export function registerBcSyncRoutes(app: Express) {
             syncedBy: userId,
           });
         }
-
-        await createNotificationForAdmins({
-          type: "bc_sync_complete",
-          title: "BC Sync Complete",
-          message: `${created.length} new draft${created.length !== 1 ? "s" : ""} imported from BuildingConnected.`,
-          metadata: { entryIds: created, syncedBy: userId },
-        });
       }
 
-      res.json({ created: created.length, entryIds: created });
+      res.json({
+        created: created.length,
+        merged: merged.length,
+        updated: updated.length,
+        createdIds: created,
+        mergedIds: merged,
+        updatedIds: updated,
+      });
     } catch (err) {
       console.error("[BC Sync] Confirm error:", err);
       res.status(500).json({ message: "Failed to confirm BC sync" });
@@ -299,10 +544,18 @@ export function registerBcSyncRoutes(app: Express) {
 
   app.get("/api/bc/sync-status", async (req: Request, res: Response) => {
     try {
+      const userId = (req.session as any)?.userId;
       const [syncState] = await db.select().from(bcSyncState).limit(1);
+
+      let connected = false;
+      if (userId) {
+        connected = await hasValidConnection(userId);
+      }
+
       res.json({
         lastSyncAt: syncState?.lastSyncAt || null,
         syncedBy: syncState?.syncedBy || null,
+        connected,
       });
     } catch (err) {
       console.error("[BC Sync] Status error:", err);
@@ -326,10 +579,15 @@ export function registerBcSyncRoutes(app: Express) {
       if (!entry.isDraft) return res.status(400).json({ message: "Entry is not a draft" });
       if (entry.deletedAt) return res.status(400).json({ message: "Entry has been deleted" });
 
+      const estimateNumber = await generateProjectId();
+
       const [updated] = await db.update(proposalLogEntries).set({
         isDraft: false,
+        estimateNumber,
+        estimateStatus: "Estimating",
         draftApprovedBy: user!.displayName || user!.email,
         draftApprovedAt: new Date(),
+        bcUpdateFlag: false,
       }).where(eq(proposalLogEntries.id, id)).returning();
 
       res.json(updated);
@@ -350,19 +608,63 @@ export function registerBcSyncRoutes(app: Express) {
       const id = parseInt(req.params.id);
       if (isNaN(id)) return res.status(400).json({ message: "Invalid ID" });
 
+      const { reason } = req.body as { reason?: string };
+
       const [entry] = await db.select().from(proposalLogEntries).where(eq(proposalLogEntries.id, id));
       if (!entry) return res.status(404).json({ message: "Entry not found" });
       if (!entry.isDraft) return res.status(400).json({ message: "Entry is not a draft" });
 
+      const changeLog: string[] = entry.bcChangeLog ? JSON.parse(entry.bcChangeLog) : [];
+      changeLog.push(`${new Date().toISOString()}: Rejected by ${user!.displayName || user!.email}${reason ? ` - ${reason}` : ""}`);
+
       const [updated] = await db.update(proposalLogEntries).set({
         isDraft: false,
+        estimateStatus: "Declined",
         deletedAt: new Date(),
+        bcChangeLog: JSON.stringify(changeLog),
       }).where(eq(proposalLogEntries.id, id)).returning();
 
       res.json(updated);
     } catch (err) {
       console.error("[BC Sync] Reject error:", err);
       res.status(500).json({ message: "Failed to reject draft" });
+    }
+  });
+
+  app.patch("/api/bc/drafts/:id", async (req: Request, res: Response) => {
+    try {
+      const userId = (req.session as any)?.userId;
+      if (!userId) return res.status(401).json({ message: "Not authenticated" });
+
+      const [user] = await db.select().from(users).where(eq(users.id, userId));
+      if (!isAdmin(user)) return res.status(403).json({ message: "Admin access required" });
+
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) return res.status(400).json({ message: "Invalid ID" });
+
+      const [entry] = await db.select().from(proposalLogEntries).where(eq(proposalLogEntries.id, id));
+      if (!entry) return res.status(404).json({ message: "Entry not found" });
+      if (!entry.isDraft) return res.status(400).json({ message: "Entry is not a draft" });
+
+      const { projectName, region, dueDate, nbsEstimator, gcEstimateLead, primaryMarket } = req.body;
+
+      const updates: Record<string, unknown> = {};
+      if (projectName !== undefined) updates.projectName = projectName;
+      if (region !== undefined) updates.region = region;
+      if (dueDate !== undefined) updates.dueDate = dueDate;
+      if (nbsEstimator !== undefined) updates.nbsEstimator = nbsEstimator;
+      if (gcEstimateLead !== undefined) updates.gcEstimateLead = gcEstimateLead;
+      if (primaryMarket !== undefined) updates.primaryMarket = primaryMarket;
+
+      if (Object.keys(updates).length === 0) {
+        return res.status(400).json({ message: "No fields to update" });
+      }
+
+      const [updated] = await db.update(proposalLogEntries).set(updates).where(eq(proposalLogEntries.id, id)).returning();
+      res.json(updated);
+    } catch (err) {
+      console.error("[BC Sync] Edit draft error:", err);
+      res.status(500).json({ message: "Failed to update draft" });
     }
   });
 }

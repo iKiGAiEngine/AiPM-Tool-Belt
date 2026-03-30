@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { X, RefreshCw, Check, Loader2 } from "lucide-react";
+import { X, Check, Loader2, Plus, Merge, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { queryClient, apiRequest } from "@/lib/queryClient";
@@ -8,6 +8,7 @@ import { useToast } from "@/hooks/use-toast";
 
 interface PreviewEntry {
   opportunityId: string;
+  action: "create" | "merge" | "update";
   projectName: string;
   region: string;
   dueDate: string;
@@ -16,14 +17,21 @@ interface PreviewEntry {
   gcCompanyName: string;
   location: string;
   bcLink: string;
+  existingEntryId?: number;
+  scopeChanges?: string[];
+  fieldChanges?: string[];
 }
 
 interface SyncPreviewResponse {
   totalFound: number;
   afterFilter: number;
   newEntries: number;
+  mergeEntries: number;
+  updateEntries: number;
   alreadySynced: number;
   preview: PreviewEntry[];
+  wasCapped: boolean;
+  cappedAt: number | null;
   lastSyncAt: string | null;
 }
 
@@ -31,11 +39,17 @@ interface BCSyncPreviewProps {
   onClose: () => void;
 }
 
+const ACTION_LABELS: Record<string, { label: string; color: string; icon: typeof Plus }> = {
+  create: { label: "New", color: "text-green-500 bg-green-500/10 border-green-500/30", icon: Plus },
+  merge: { label: "Merge", color: "text-blue-500 bg-blue-500/10 border-blue-500/30", icon: Merge },
+  update: { label: "Update", color: "text-amber-500 bg-amber-500/10 border-amber-500/30", icon: RefreshCw },
+};
+
 export function BCSyncPreview({ onClose }: BCSyncPreviewProps) {
   const { toast } = useToast();
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
-  const { data: preview, isLoading: previewLoading, refetch } = useQuery<SyncPreviewResponse>({
+  const { data: preview, isLoading: previewLoading } = useQuery<SyncPreviewResponse>({
     queryKey: ["/api/bc/sync/preview"],
     queryFn: async () => {
       const res = await apiRequest("POST", "/api/bc/sync/preview");
@@ -52,9 +66,13 @@ export function BCSyncPreview({ onClose }: BCSyncPreviewProps) {
       queryClient.invalidateQueries({ queryKey: ["/api/proposal-log/all-entries"] });
       queryClient.invalidateQueries({ queryKey: ["/api/bc/sync-status"] });
       queryClient.invalidateQueries({ queryKey: ["/api/notifications"] });
+      const parts: string[] = [];
+      if (data.created > 0) parts.push(`${data.created} created`);
+      if (data.merged > 0) parts.push(`${data.merged} merged`);
+      if (data.updated > 0) parts.push(`${data.updated} updated`);
       toast({
         title: "BC Sync Complete",
-        description: `${data.created} new draft${data.created !== 1 ? "s" : ""} imported from BuildingConnected.`,
+        description: parts.join(", ") || "No changes made.",
       });
       onClose();
     },
@@ -104,10 +122,28 @@ export function BCSyncPreview({ onClose }: BCSyncPreviewProps) {
               BuildingConnected Sync Preview
             </h2>
             {preview && (
-              <p className="text-xs mt-1" style={{ color: "var(--text-dim)" }}>
-                Found {preview.totalFound} total, {preview.afterFilter} from approved GCs, {preview.newEntries} new
-                {preview.alreadySynced > 0 && `, ${preview.alreadySynced} already synced`}
-              </p>
+              <div className="flex items-center gap-3 mt-1">
+                <span className="text-xs" style={{ color: "var(--text-dim)" }}>
+                  {preview.totalFound} total, {preview.afterFilter} from approved GCs
+                </span>
+                {preview.newEntries > 0 && (
+                  <Badge className="text-[10px] bg-green-500/10 text-green-500 border-green-500/30">{preview.newEntries} new</Badge>
+                )}
+                {preview.mergeEntries > 0 && (
+                  <Badge className="text-[10px] bg-blue-500/10 text-blue-500 border-blue-500/30">{preview.mergeEntries} merge</Badge>
+                )}
+                {preview.updateEntries > 0 && (
+                  <Badge className="text-[10px] bg-amber-500/10 text-amber-500 border-amber-500/30">{preview.updateEntries} update</Badge>
+                )}
+                {preview.alreadySynced > 0 && (
+                  <span className="text-[10px]" style={{ color: "var(--text-dim)" }}>{preview.alreadySynced} already synced</span>
+                )}
+              </div>
+            )}
+            {preview?.wasCapped && (
+              <div className="text-xs mt-1 text-amber-500">
+                Results capped at {preview.cappedAt} entries. Run sync again for more.
+              </div>
             )}
           </div>
           <button onClick={onClose} className="p-1 rounded hover:bg-white/10" data-testid="button-close-bc-sync">
@@ -138,42 +174,63 @@ export function BCSyncPreview({ onClose }: BCSyncPreviewProps) {
                       data-testid="checkbox-select-all"
                     />
                   </th>
+                  <th className="py-2 px-2 text-left text-xs font-medium w-16" style={{ color: "var(--text-dim)" }}>Action</th>
                   <th className="py-2 px-2 text-left text-xs font-medium" style={{ color: "var(--text-dim)" }}>Project</th>
                   <th className="py-2 px-2 text-left text-xs font-medium" style={{ color: "var(--text-dim)" }}>GC</th>
                   <th className="py-2 px-2 text-left text-xs font-medium" style={{ color: "var(--text-dim)" }}>Region</th>
                   <th className="py-2 px-2 text-left text-xs font-medium" style={{ color: "var(--text-dim)" }}>Due Date</th>
-                  <th className="py-2 px-2 text-left text-xs font-medium" style={{ color: "var(--text-dim)" }}>Location</th>
+                  <th className="py-2 px-2 text-left text-xs font-medium" style={{ color: "var(--text-dim)" }}>Details</th>
                 </tr>
               </thead>
               <tbody>
-                {preview.preview.map(entry => (
-                  <tr
-                    key={entry.opportunityId}
-                    className="hover-elevate"
-                    style={{ borderBottom: "1px solid var(--border-ds)" }}
-                    data-testid={`row-bc-${entry.opportunityId}`}
-                  >
-                    <td className="py-2 px-2">
-                      <input
-                        type="checkbox"
-                        checked={selectedIds.has(entry.opportunityId)}
-                        onChange={() => toggleSelect(entry.opportunityId)}
-                        className="rounded"
-                      />
-                    </td>
-                    <td className="py-2 px-2 text-xs font-medium">{entry.projectName}</td>
-                    <td className="py-2 px-2 text-xs" style={{ color: "var(--text-dim)" }}>{entry.gcCompanyName || entry.gcEstimateLead || "\u2014"}</td>
-                    <td className="py-2 px-2">
-                      {entry.region ? (
-                        <Badge variant="secondary" className="text-xs">{entry.region}</Badge>
-                      ) : (
-                        <span style={{ color: "var(--text-dim)" }}>\u2014</span>
-                      )}
-                    </td>
-                    <td className="py-2 px-2 text-xs" style={{ color: "var(--text-dim)" }}>{fmtDate(entry.dueDate)}</td>
-                    <td className="py-2 px-2 text-xs" style={{ color: "var(--text-dim)" }}>{entry.location || "\u2014"}</td>
-                  </tr>
-                ))}
+                {preview.preview.map(entry => {
+                  const actionInfo = ACTION_LABELS[entry.action];
+                  const ActionIcon = actionInfo.icon;
+                  return (
+                    <tr
+                      key={entry.opportunityId}
+                      className="hover-elevate"
+                      style={{ borderBottom: "1px solid var(--border-ds)" }}
+                      data-testid={`row-bc-${entry.opportunityId}`}
+                    >
+                      <td className="py-2 px-2">
+                        <input
+                          type="checkbox"
+                          checked={selectedIds.has(entry.opportunityId)}
+                          onChange={() => toggleSelect(entry.opportunityId)}
+                          className="rounded"
+                        />
+                      </td>
+                      <td className="py-2 px-2">
+                        <Badge className={`text-[10px] gap-1 ${actionInfo.color}`}>
+                          <ActionIcon className="h-2.5 w-2.5" />
+                          {actionInfo.label}
+                        </Badge>
+                      </td>
+                      <td className="py-2 px-2 text-xs font-medium">{entry.projectName}</td>
+                      <td className="py-2 px-2 text-xs" style={{ color: "var(--text-dim)" }}>{entry.gcCompanyName || entry.gcEstimateLead || "\u2014"}</td>
+                      <td className="py-2 px-2">
+                        {entry.region ? (
+                          <Badge variant="secondary" className="text-xs">{entry.region}</Badge>
+                        ) : (
+                          <span style={{ color: "var(--text-dim)" }}>\u2014</span>
+                        )}
+                      </td>
+                      <td className="py-2 px-2 text-xs" style={{ color: "var(--text-dim)" }}>{fmtDate(entry.dueDate)}</td>
+                      <td className="py-2 px-2 text-xs" style={{ color: "var(--text-dim)" }}>
+                        {entry.action === "update" && entry.fieldChanges?.map((c, i) => (
+                          <div key={i} className="text-[10px] text-amber-500">{c}</div>
+                        ))}
+                        {entry.action === "merge" && entry.scopeChanges && entry.scopeChanges.length > 0 && (
+                          <div className="text-[10px] text-blue-500">+{entry.scopeChanges.length} scopes</div>
+                        )}
+                        {entry.action === "create" && entry.location && (
+                          <div className="text-[10px]">{entry.location}</div>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           )}
@@ -200,7 +257,7 @@ export function BCSyncPreview({ onClose }: BCSyncPreviewProps) {
               ) : (
                 <Check className="h-4 w-4" />
               )}
-              Import {selectedIds.size} as Drafts
+              Sync {selectedIds.size} Selected
             </Button>
           </div>
         </div>

@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { Bell, Check, CheckCheck } from "lucide-react";
 import { useQuery, useMutation } from "@tanstack/react-query";
+import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { queryClient, apiRequest } from "@/lib/queryClient";
@@ -23,6 +24,7 @@ interface NotificationsResponse {
 export function NotificationBell() {
   const [open, setOpen] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
+  const [, navigate] = useLocation();
 
   const { data } = useQuery<NotificationsResponse>({
     queryKey: ["/api/notifications"],
@@ -138,6 +140,8 @@ export function NotificationBell() {
                   }}
                   onClick={() => {
                     if (!item.isRead) markReadMutation.mutate(item.id);
+                    setOpen(false);
+                    navigate("/project-log");
                   }}
                   data-testid={`notification-item-${item.id}`}
                 >
