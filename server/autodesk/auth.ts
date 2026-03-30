@@ -10,22 +10,6 @@ const APS_AUTH_BASE = "https://developer.api.autodesk.com/authentication/v2";
 const APS_TOKEN_URL = `${APS_AUTH_BASE}/token`;
 const STATE_TTL_MS = 10 * 60 * 1000;
 
-interface OAuthPending {
-  userId: number;
-  createdAt: number;
-}
-
-const pendingStates = new Map<string, OAuthPending>();
-
-function cleanExpiredStates() {
-  const now = Date.now();
-  for (const [nonce, pending] of pendingStates) {
-    if (now - pending.createdAt > STATE_TTL_MS) {
-      pendingStates.delete(nonce);
-    }
-  }
-}
-
 function getRedirectUri(): string {
   const raw = process.env.APS_REDIRECT_DOMAIN || process.env.REPLIT_DEV_DOMAIN || process.env.REPLIT_DOMAINS || "";
   const domain = raw.split(",")[0].trim();
@@ -33,9 +17,14 @@ function getRedirectUri(): string {
 }
 
 export function registerAutodeskRoutes(app: Express) {
+  const envClientId = process.env.APS_CLIENT_ID;
+  const envClientSecret = process.env.APS_CLIENT_SECRET;
+  if (!envClientId || !envClientSecret) {
+    console.warn("[APS] APS_CLIENT_ID / APS_CLIENT_SECRET not configured — BuildingConnected OAuth routes disabled");
+  }
+
   app.get("/api/autodesk/login", requireAuth, (req: Request, res: Response) => {
-    const clientId = process.env.APS_CLIENT_ID;
-    if (!clientId) {
+    if (!envClientId) {
       return res.redirect("/project-log?bc=error");
     }
 
@@ -44,17 +33,20 @@ export function registerAutodeskRoutes(app: Express) {
       return res.redirect("/project-log?bc=error");
     }
 
-    cleanExpiredStates();
-
     const nonce = randomBytes(32).toString("hex");
-    pendingStates.set(nonce, { userId, createdAt: Date.now() });
+
+    (req.session as any).apsOAuthState = {
+      nonce,
+      userId,
+      createdAt: Date.now(),
+    };
 
     const redirectUri = getRedirectUri();
     const scope = "data:read";
 
     const authUrl = new URL(`${APS_AUTH_BASE}/authorize`);
     authUrl.searchParams.set("response_type", "code");
-    authUrl.searchParams.set("client_id", clientId);
+    authUrl.searchParams.set("client_id", envClientId);
     authUrl.searchParams.set("redirect_uri", redirectUri);
     authUrl.searchParams.set("scope", scope);
     authUrl.searchParams.set("state", nonce);
@@ -76,21 +68,21 @@ export function registerAutodeskRoutes(app: Express) {
       }
 
       const nonce = state as string;
-      const pending = pendingStates.get(nonce);
+      const oauthState = (req.session as any)?.apsOAuthState;
 
-      if (!pending) {
-        console.error("[APS] Invalid or expired OAuth state");
+      if (!oauthState || oauthState.nonce !== nonce) {
+        console.error("[APS] Invalid or mismatched OAuth state");
         return res.redirect("/project-log?bc=error");
       }
 
-      if (Date.now() - pending.createdAt > STATE_TTL_MS) {
-        pendingStates.delete(nonce);
+      if (Date.now() - oauthState.createdAt > STATE_TTL_MS) {
+        delete (req.session as any).apsOAuthState;
         console.error("[APS] OAuth state expired");
         return res.redirect("/project-log?bc=error");
       }
 
-      pendingStates.delete(nonce);
-      const userId = pending.userId;
+      const userId = oauthState.userId;
+      delete (req.session as any).apsOAuthState;
 
       const clientId = process.env.APS_CLIENT_ID;
       const clientSecret = process.env.APS_CLIENT_SECRET;
