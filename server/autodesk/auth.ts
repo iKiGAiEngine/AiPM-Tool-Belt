@@ -27,7 +27,8 @@ function cleanExpiredStates() {
 }
 
 function getRedirectUri(): string {
-  const domain = process.env.REPLIT_DEV_DOMAIN || process.env.REPLIT_DOMAINS || "";
+  const raw = process.env.APS_REDIRECT_DOMAIN || process.env.REPLIT_DEV_DOMAIN || process.env.REPLIT_DOMAINS || "";
+  const domain = raw.split(",")[0].trim();
   return `https://${domain}/auth/autodesk/callback`;
 }
 
