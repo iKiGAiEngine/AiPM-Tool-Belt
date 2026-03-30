@@ -12,6 +12,7 @@ import { useTestMode } from "@/lib/testMode";
 import { useAuth } from "@/lib/auth";
 import { cn } from "@/lib/utils";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { NotificationBell } from "@/components/NotificationBell";
 import type { Project } from "@shared/schema";
 
 interface ToolRoute {
@@ -158,6 +159,7 @@ export function Header() {
                 </Button>
               </Link>
             )}
+            <NotificationBell />
             <ThemeToggle />
             <div className="flex items-center gap-2">
               {user && (

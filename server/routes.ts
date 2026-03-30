@@ -22,6 +22,8 @@ import { registerAuthRoutes, requireAuth } from "./authRoutes";
 import { registerAdminRoutes } from "./adminRoutes";
 import { registerToolUsageRoutes } from "./toolUsageRoutes";
 import { registerAutodeskRoutes } from "./autodesk/auth";
+import { registerBcSyncRoutes } from "./autodesk/bcSync";
+import { registerNotificationRoutes } from "./notificationRoutes";
 import { auditLog } from "./auditService";
 import { db } from "./db";
 import { users as usersTable } from "@shared/schema";
@@ -121,6 +123,8 @@ export async function registerRoutes(
   registerScheduleConverterRoutes(app);
   registerSpecExtractorRoutes(app);
   registerToolUsageRoutes(app);
+  registerNotificationRoutes(app);
+  registerBcSyncRoutes(app);
   
   app.post("/api/upload", upload.single("file"), async (req: Request, res: Response) => {
     try {

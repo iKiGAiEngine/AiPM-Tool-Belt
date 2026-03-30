@@ -909,6 +909,14 @@ export const proposalLogEntries = pgTable("proposal_log_entries", {
   bcLink: varchar("bc_link", { length: 1000 }),
   isTest: boolean("is_test").default(false),
   syncedToLocal: boolean("synced_to_local").default(false),
+  isDraft: boolean("is_draft").default(false),
+  bcProjectId: varchar("bc_project_id", { length: 100 }),
+  bcOpportunityIds: text("bc_opportunity_ids"),
+  scopeList: text("scope_list"),
+  draftApprovedBy: varchar("draft_approved_by", { length: 200 }),
+  draftApprovedAt: timestamp("draft_approved_at"),
+  bcUpdateFlag: boolean("bc_update_flag").default(false),
+  bcChangeLog: text("bc_change_log"),
   deletedAt: timestamp("deleted_at"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
@@ -946,3 +954,37 @@ export const proposalAcknowledgements = pgTable("proposal_acknowledgements", {
 }, (table) => ({
   uniqueUserEntry: unique().on(table.userId, table.entryId),
 }));
+
+export const notifications = pgTable("notifications", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").references(() => users.id),
+  type: varchar("type", { length: 100 }).notNull(),
+  title: varchar("title", { length: 500 }).notNull(),
+  message: text("message").notNull(),
+  metadata: jsonb("metadata"),
+  isRead: boolean("is_read").default(false),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const insertNotificationSchema = createInsertSchema(notifications).omit({ id: true, createdAt: true });
+export type Notification = typeof notifications.$inferSelect;
+export type InsertNotification = z.infer<typeof insertNotificationSchema>;
+
+export const bcSyncLog = pgTable("bc_sync_log", {
+  id: serial("id").primaryKey(),
+  bcOpportunityId: varchar("bc_opportunity_id", { length: 200 }).notNull().unique(),
+  rawData: jsonb("raw_data"),
+  entryId: integer("entry_id").references(() => proposalLogEntries.id),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export type BcSyncLog = typeof bcSyncLog.$inferSelect;
+
+export const bcSyncState = pgTable("bc_sync_state", {
+  id: serial("id").primaryKey(),
+  lastSyncAt: timestamp("last_sync_at"),
+  syncedBy: integer("synced_by").references(() => users.id),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+export type BcSyncState = typeof bcSyncState.$inferSelect;

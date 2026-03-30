@@ -1,15 +1,18 @@
 import { useState, useMemo, useEffect } from "react";
 import { Link } from "wouter";
-import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft, Search, ChevronUp, ChevronDown, FileSpreadsheet, FileText, FlaskConical, Archive, Link2, CheckCircle2 } from "lucide-react";
+import { useQuery, useMutation } from "@tanstack/react-query";
+import { ArrowLeft, Search, ChevronUp, ChevronDown, FileSpreadsheet, FileText, FlaskConical, Archive, Link2, CheckCircle2, RefreshCw, Check, X, FileEdit } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useTestMode } from "@/lib/testMode";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/lib/auth";
+import { queryClient, apiRequest } from "@/lib/queryClient";
 import { saveAs } from "file-saver";
 import * as XLSX from "xlsx";
+import { BCSyncPreview } from "@/components/BCSyncPreview";
 
 interface ProposalLogEntry {
   id: number;
@@ -30,25 +33,37 @@ interface ProposalLogEntry {
   anticipatedFinish: string | null;
   bcLink: string | null;
   isTest: boolean | null;
+  isDraft: boolean | null;
+  bcProjectId: string | null;
+  scopeList: string | null;
+  draftApprovedBy: string | null;
+  draftApprovedAt: string | null;
   deletedAt: string | null;
   createdAt: string;
 }
 
 type SortField = "projectName" | "region" | "dueDate" | "estimateStatus" | "nbsEstimator" | "createdAt";
 type SortDir = "asc" | "desc";
-type StatusFilter = "all" | "active" | "deleted";
+type ViewTab = "all" | "active" | "drafts" | "deleted";
 
 export default function ProjectLogPage() {
   const [searchQuery, setSearchQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  const [viewTab, setViewTab] = useState<ViewTab>("all");
   const [sortField, setSortField] = useState<SortField>("createdAt");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
+  const [showBcSync, setShowBcSync] = useState(false);
   const { isTestMode } = useTestMode();
   const { toast } = useToast();
+  const { isAdmin } = useAuth();
 
   const { data: bcStatus } = useQuery<{ connected: boolean }>({
     queryKey: ["/api/autodesk/status"],
     staleTime: 5 * 60 * 1000,
+  });
+
+  const { data: syncStatus } = useQuery<{ lastSyncAt: string | null }>({
+    queryKey: ["/api/bc/sync-status"],
+    staleTime: 60 * 1000,
   });
 
   useEffect(() => {
@@ -77,6 +92,32 @@ export default function ProjectLogPage() {
     placeholderData: (prev) => prev,
   });
 
+  const approveDraftMutation = useMutation({
+    mutationFn: async (id: number) => {
+      await apiRequest("POST", `/api/bc/drafts/${id}/approve`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/proposal-log/all-entries"] });
+      toast({ title: "Draft approved", description: "The draft has been approved and is now active." });
+    },
+    onError: () => {
+      toast({ title: "Error", description: "Failed to approve draft.", variant: "destructive" });
+    },
+  });
+
+  const rejectDraftMutation = useMutation({
+    mutationFn: async (id: number) => {
+      await apiRequest("POST", `/api/bc/drafts/${id}/reject`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/proposal-log/all-entries"] });
+      toast({ title: "Draft rejected", description: "The draft has been rejected." });
+    },
+    onError: () => {
+      toast({ title: "Error", description: "Failed to reject draft.", variant: "destructive" });
+    },
+  });
+
   const filteredEntries = useMemo(() => {
     let filtered = [...entries];
 
@@ -95,9 +136,11 @@ export default function ProjectLogPage() {
       );
     }
 
-    if (statusFilter === "active") {
-      filtered = filtered.filter(e => !e.deletedAt);
-    } else if (statusFilter === "deleted") {
+    if (viewTab === "active") {
+      filtered = filtered.filter(e => !e.deletedAt && !e.isDraft);
+    } else if (viewTab === "drafts") {
+      filtered = filtered.filter(e => e.isDraft && !e.deletedAt);
+    } else if (viewTab === "deleted") {
       filtered = filtered.filter(e => !!e.deletedAt);
     }
 
@@ -120,7 +163,7 @@ export default function ProjectLogPage() {
     });
 
     return filtered;
-  }, [entries, searchQuery, statusFilter, sortField, sortDir, isTestMode]);
+  }, [entries, searchQuery, viewTab, sortField, sortDir, isTestMode]);
 
   const toggleSort = (field: SortField) => {
     if (sortField === field) {
@@ -136,8 +179,10 @@ export default function ProjectLogPage() {
     return sortDir === "asc" ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />;
   };
 
-  const activeCount = entries.filter(e => !e.deletedAt && (!e.isTest || isTestMode)).length;
-  const deletedCount = entries.filter(e => !!e.deletedAt && (!e.isTest || isTestMode)).length;
+  const visibleEntries = entries.filter(e => !e.isTest || isTestMode);
+  const activeCount = visibleEntries.filter(e => !e.deletedAt && !e.isDraft).length;
+  const draftCount = visibleEntries.filter(e => e.isDraft && !e.deletedAt).length;
+  const deletedCount = visibleEntries.filter(e => !!e.deletedAt).length;
 
   const exportToCSV = () => {
     const headers = ["Project Name", "Region", "Due Date", "Status", "Estimator", "GC Lead", "Market", "BC Link", "Created", "Deleted"];
@@ -145,7 +190,7 @@ export default function ProjectLogPage() {
       e.projectName,
       e.region || "",
       e.dueDate || "",
-      e.deletedAt ? "DELETED" : (e.estimateStatus || ""),
+      e.deletedAt ? "DELETED" : e.isDraft ? "DRAFT" : (e.estimateStatus || ""),
       e.nbsEstimator || "",
       e.gcEstimateLead || "",
       e.primaryMarket || "",
@@ -168,7 +213,7 @@ export default function ProjectLogPage() {
       e.projectName,
       e.region || "",
       e.dueDate || "",
-      e.deletedAt ? "DELETED" : (e.estimateStatus || ""),
+      e.deletedAt ? "DELETED" : e.isDraft ? "DRAFT" : (e.estimateStatus || ""),
       e.nbsEstimator || "",
       e.gcEstimateLead || "",
       e.primaryMarket || "",
@@ -197,6 +242,15 @@ export default function ProjectLogPage() {
     return `${m}/${dy}/${y}`;
   };
 
+  const parseScopeList = (scopeListStr: string | null): string[] => {
+    if (!scopeListStr) return [];
+    try {
+      return JSON.parse(scopeListStr);
+    } catch {
+      return [];
+    }
+  };
+
   return (
     <div className="min-h-screen" style={{ background: "var(--bg)" }}>
       <div className="container max-w-7xl mx-auto py-8 px-4">
@@ -211,6 +265,18 @@ export default function ProjectLogPage() {
             <p className="text-sm" style={{ color: "var(--text-dim)" }}>Immutable audit trail of all proposal log entries</p>
           </div>
           <div className="flex items-center gap-2">
+            {isAdmin && bcStatus?.connected && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowBcSync(true)}
+                className="gap-1.5 border-blue-500/50 text-blue-600 hover:bg-blue-500/10"
+                data-testid="button-bc-sync"
+              >
+                <RefreshCw className="w-4 h-4" />
+                Sync from BC
+              </Button>
+            )}
             {bcStatus?.connected ? (
               <Badge variant="outline" className="text-xs border-green-500/50 text-green-500 gap-1 py-1.5 px-3" data-testid="badge-bc-connected">
                 <CheckCircle2 className="w-3.5 h-3.5" />
@@ -247,20 +313,37 @@ export default function ProjectLogPage() {
                   data-testid="input-search-projects"
                 />
               </div>
-              <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as StatusFilter)}>
-                <SelectTrigger className="w-[180px]" data-testid="select-status-filter">
-                  <SelectValue placeholder="All Entries" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Entries ({activeCount + deletedCount})</SelectItem>
-                  <SelectItem value="active">Active ({activeCount})</SelectItem>
-                  <SelectItem value="deleted">Deleted ({deletedCount})</SelectItem>
-                </SelectContent>
-              </Select>
+              <div className="flex items-center gap-1 rounded-lg p-1" style={{ background: "var(--bg-input)" }}>
+                {([
+                  { key: "all" as ViewTab, label: "All", count: activeCount + draftCount + deletedCount },
+                  { key: "active" as ViewTab, label: "Active", count: activeCount },
+                  { key: "drafts" as ViewTab, label: "Drafts", count: draftCount },
+                  { key: "deleted" as ViewTab, label: "Deleted", count: deletedCount },
+                ]).map(tab => (
+                  <button
+                    key={tab.key}
+                    onClick={() => setViewTab(tab.key)}
+                    className="px-3 py-1.5 rounded-md text-xs font-medium transition-colors"
+                    style={{
+                      background: viewTab === tab.key ? "var(--bg-card)" : "transparent",
+                      color: viewTab === tab.key ? "var(--text)" : "var(--text-dim)",
+                      boxShadow: viewTab === tab.key ? "0 1px 2px rgba(0,0,0,0.1)" : "none",
+                    }}
+                    data-testid={`tab-${tab.key}`}
+                  >
+                    {tab.label} ({tab.count})
+                  </button>
+                ))}
+              </div>
               <Badge variant="secondary" className="text-xs">
                 {filteredEntries.length} entr{filteredEntries.length !== 1 ? "ies" : "y"}
               </Badge>
             </div>
+            {syncStatus?.lastSyncAt && (
+              <div className="mt-2 text-[11px]" style={{ color: "var(--text-dim)" }}>
+                Last BC sync: {new Date(syncStatus.lastSyncAt).toLocaleString()}
+              </div>
+            )}
           </div>
           <div className="px-6 pb-6">
             {isLoading && entries.length === 0 ? (
@@ -322,11 +405,16 @@ export default function ProjectLogPage() {
                       >
                         <span className="flex items-center gap-1">Created <SortIcon field="createdAt" /></span>
                       </th>
+                      {viewTab === "drafts" && isAdmin && (
+                        <th className="text-left py-3 px-3 font-medium" style={{ color: "var(--text-dim)" }}>Actions</th>
+                      )}
                     </tr>
                   </thead>
                   <tbody>
                     {filteredEntries.map((entry) => {
                       const isDeleted = !!entry.deletedAt;
+                      const isDraft = !!entry.isDraft;
+                      const scopes = parseScopeList(entry.scopeList);
                       return (
                         <tr
                           key={entry.id}
@@ -335,10 +423,16 @@ export default function ProjectLogPage() {
                           data-testid={`row-entry-${entry.id}`}
                         >
                           <td className="py-3 px-3">
-                            <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-2 flex-wrap">
                               <span className={isDeleted ? "line-through" : ""} style={{ color: isDeleted ? "var(--text-dim)" : "var(--text)" }} data-testid={`text-name-${entry.id}`}>
                                 {entry.projectName}
                               </span>
+                              {isDraft && !isDeleted && (
+                                <Badge className="text-xs bg-amber-500/20 text-amber-500 border-amber-500/30" data-testid={`badge-draft-${entry.id}`}>
+                                  <FileEdit className="w-3 h-3 mr-1" />
+                                  DRAFT
+                                </Badge>
+                              )}
                               {entry.isTest && (
                                 <Badge variant="outline" className="text-xs border-amber-500/50 text-amber-500">
                                   <FlaskConical className="w-3 h-3 mr-1" />
@@ -352,6 +446,24 @@ export default function ProjectLogPage() {
                                 </Badge>
                               )}
                             </div>
+                            {isDraft && scopes.length > 0 && (
+                              <div className="flex gap-1 mt-1 flex-wrap">
+                                {scopes.slice(0, 4).map((scope, i) => (
+                                  <span
+                                    key={i}
+                                    className="text-[10px] px-1.5 py-0.5 rounded"
+                                    style={{ background: "var(--bg-input)", color: "var(--text-dim)" }}
+                                  >
+                                    {scope}
+                                  </span>
+                                ))}
+                                {scopes.length > 4 && (
+                                  <span className="text-[10px] px-1.5 py-0.5 rounded" style={{ color: "var(--text-dim)" }}>
+                                    +{scopes.length - 4} more
+                                  </span>
+                                )}
+                              </div>
+                            )}
                           </td>
                           <td className="py-3 px-3">
                             <Badge variant="secondary" className="text-xs" data-testid={`text-region-${entry.id}`}>
@@ -365,6 +477,10 @@ export default function ProjectLogPage() {
                             {isDeleted ? (
                               <Badge variant="destructive" className="text-xs" data-testid={`text-status-${entry.id}`}>
                                 Deleted
+                              </Badge>
+                            ) : isDraft ? (
+                              <Badge className="text-xs bg-amber-500/20 text-amber-500 border-amber-500/30" data-testid={`text-status-${entry.id}`}>
+                                Draft
                               </Badge>
                             ) : (
                               <Badge
@@ -408,6 +524,36 @@ export default function ProjectLogPage() {
                               </div>
                             )}
                           </td>
+                          {viewTab === "drafts" && isAdmin && (
+                            <td className="py-3 px-3">
+                              {isDraft && !isDeleted && (
+                                <div className="flex items-center gap-1">
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-7 w-7 p-0 text-green-500 hover:text-green-600 hover:bg-green-500/10"
+                                    onClick={() => approveDraftMutation.mutate(entry.id)}
+                                    disabled={approveDraftMutation.isPending}
+                                    title="Approve draft"
+                                    data-testid={`button-approve-${entry.id}`}
+                                  >
+                                    <Check className="h-4 w-4" />
+                                  </Button>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-7 w-7 p-0 text-red-500 hover:text-red-600 hover:bg-red-500/10"
+                                    onClick={() => rejectDraftMutation.mutate(entry.id)}
+                                    disabled={rejectDraftMutation.isPending}
+                                    title="Reject draft"
+                                    data-testid={`button-reject-${entry.id}`}
+                                  >
+                                    <X className="h-4 w-4" />
+                                  </Button>
+                                </div>
+                              )}
+                            </td>
+                          )}
                         </tr>
                       );
                     })}
@@ -418,6 +564,10 @@ export default function ProjectLogPage() {
           </div>
         </div>
       </div>
+
+      {showBcSync && (
+        <BCSyncPreview onClose={() => setShowBcSync(false)} />
+      )}
     </div>
   );
 }
