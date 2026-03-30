@@ -219,7 +219,7 @@ export default function ProjectLogPage() {
             ) : (
               <Button variant="outline" size="sm" onClick={handleBcConnect} className="gap-1.5 border-amber-500/50 text-amber-600 hover:bg-amber-500/10" data-testid="button-bc-connect">
                 <Link2 className="w-4 h-4" />
-                Connect to BC
+                Connect to BuildingConnected
               </Button>
             )}
             <Button variant="outline" size="sm" onClick={exportToCSV} data-testid="button-export-csv">
