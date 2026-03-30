@@ -17,20 +17,28 @@ const GC_ALLOWLIST = [
 const REGION_MAP: Record<string, string> = {
   "colorado": "DEN",
   "denver": "DEN",
+  "arvada": "DEN",
   "atlanta": "ATL",
   "georgia": "ATL",
+  "foley": "ATL",
+  "greenville": "CLT",
   "norcal": "SFO",
   "nor cal": "SFO",
   "san francisco": "SFO",
   "bay area": "SFO",
   "sacramento": "SFO",
   "oakland": "SFO",
+  "fairfield": "SFO",
+  "cameron park": "SFO",
+  "fresno": "SFO",
+  "san jose": "SFO",
   "special projects": "LAX",
   "spd": "LAX",
   "los angeles": "LAX",
   "ocla": "LAX",
-  "la": "LAX",
   "orange county": "LAX",
+  "santa ana": "LAX",
+  "irvine": "LAX",
   "washington": "SEA",
   "seattle": "SEA",
   "tacoma": "SEA",
@@ -85,20 +93,107 @@ interface FetchResult {
   error?: string;
 }
 
+function normalizeOpportunity(raw: Record<string, any>): BcOpportunity {
+  const addr = raw.address || raw.location || {};
+  const invitedBy = raw.invitedBy || {};
+  const project = raw.project || {};
+
+  const city = addr.city || "";
+  const state = addr.state || "";
+  const street = addr.street || addr.formattedAddress || "";
+  const formattedAddress = [street, city, state].filter(Boolean).join(", ");
+
+  const gcCompanyName =
+    raw.gcCompanyName ||
+    invitedBy.companyName ||
+    invitedBy.name ||
+    "";
+
+  const gcContactName =
+    raw.gcContactName ||
+    invitedBy.contactName ||
+    "";
+
+  const gcContactEmail =
+    raw.gcContactEmail ||
+    invitedBy.email ||
+    "";
+
+  const projectName =
+    raw.name ||
+    raw.projectName ||
+    project.name ||
+    "";
+
+  const projectId =
+    raw.projectId ||
+    project.id ||
+    "";
+
+  const bidDueDate =
+    raw.bidsDueAt ||
+    raw.bidDueDate ||
+    raw.dueDate ||
+    raw.bidDate ||
+    "";
+
+  const invitedDate =
+    raw.invitedAt ||
+    raw.invitedDate ||
+    raw.createdAt ||
+    "";
+
+  let scopes: string[] = [];
+  const rawScopes = raw.trades || raw.scopes;
+  if (Array.isArray(rawScopes)) {
+    scopes = rawScopes.map((s: unknown) => typeof s === "string" ? s : String(s));
+  } else if (typeof rawScopes === "string") {
+    scopes = [rawScopes];
+  } else if (typeof raw.scope === "string" && raw.scope) {
+    scopes = [raw.scope];
+  }
+
+  return {
+    id: raw.id || raw._id || "",
+    projectId,
+    projectName,
+    location: { city, state, formattedAddress },
+    bidDueDate,
+    invitedDate,
+    gcCompanyName,
+    gcContactName,
+    gcContactEmail,
+    scopes,
+    status: raw.status || "",
+    updatedAt: raw.updatedAt || "",
+  };
+}
+
 async function fetchBcOpportunities(accessToken: string, since?: Date, isFirstSync: boolean = false): Promise<FetchResult> {
   const PAGE_SIZE = 100;
   const MAX_PAGES = 3;
   const allResults: BcOpportunity[] = [];
   let totalAvailable = 0;
-  let offset = 0;
+  let cursor: string | null = null;
 
   try {
     for (let page = 0; page < MAX_PAGES; page++) {
-      let url = `${BC_API_BASE}/opportunities?limit=${PAGE_SIZE}&offset=${offset}`;
+      let url: string;
 
-      if (since) {
-        url += `&filter[updatedAt]=${since.toISOString()}`;
+      if (cursor) {
+        if (cursor.startsWith("http")) {
+          url = cursor;
+        } else {
+          url = `${BC_API_BASE}/opportunities?page[limit]=${PAGE_SIZE}&page[cursor]=${encodeURIComponent(cursor)}`;
+        }
+      } else {
+        url = `${BC_API_BASE}/opportunities?page[limit]=${PAGE_SIZE}`;
+        if (since) {
+          url += `&filter[updatedAt]=${since.toISOString()}`;
+        }
       }
+
+      console.log(`[BC Sync] Fetching page ${page + 1}: ${url.replace(/Bearer\s+\S+/, "Bearer ***")}`);
 
       const res = await fetch(url, {
         headers: { Authorization: `Bearer ${accessToken}` },
@@ -110,24 +205,44 @@ async function fetchBcOpportunities(accessToken: string, since?: Date, isFirstSy
         return { opportunities: [], totalAvailable: 0, error: `BuildingConnected API returned ${res.status}` };
       }
 
-      const data = await res.json() as { results?: BcOpportunity[]; pagination?: { total?: number } };
-      const results = data.results || [];
+      const data = await res.json() as Record<string, any>;
 
-      if (data.pagination?.total) {
-        totalAvailable = data.pagination.total;
+      const rawResults: Record<string, any>[] = data.results || data.data || [];
+
+      const pagination = data.pagination || data.meta || {};
+      if (pagination.totalResults) {
+        totalAvailable = pagination.totalResults;
+      } else if (pagination.total) {
+        totalAvailable = pagination.total;
       }
 
-      if (page === 0 && results.length > 0 && isFirstSync) {
-        console.log(`[BC Sync] First sync raw opportunity sample:`, JSON.stringify(results[0], null, 2));
+      if (page === 0) {
+        console.log(`[BC Sync] API response keys: ${Object.keys(data).join(", ")}`);
+        console.log(`[BC Sync] Pagination: ${JSON.stringify(pagination)}`);
+        console.log(`[BC Sync] Raw results count: ${rawResults.length}, totalAvailable: ${totalAvailable}`);
+        if (rawResults.length > 0) {
+          const first = rawResults[0];
+          console.log(`[BC Sync] First raw opportunity keys: ${Object.keys(first).join(", ")}`);
+          console.log(`[BC Sync] First opp id=${first.id}, name="${first.name || first.projectName || "?"}", status=${first.status || "?"}`);
+          if (first.invitedBy) console.log(`[BC Sync] invitedBy keys: ${Object.keys(first.invitedBy).join(", ")}`);
+          if (first.address) console.log(`[BC Sync] address keys: ${Object.keys(first.address).join(", ")}`);
+          if (first.project) console.log(`[BC Sync] project keys: ${Object.keys(first.project).join(", ")}`);
+        } else {
+          console.log(`[BC Sync] No results returned from API. Response keys: ${Object.keys(data).join(", ")}, pagination: ${JSON.stringify(pagination)}`);
+        }
       }
 
-      allResults.push(...results);
+      const normalized = rawResults.map(normalizeOpportunity);
+      allResults.push(...normalized);
 
-      if (results.length < PAGE_SIZE) break;
-      offset += PAGE_SIZE;
+      const nextUrl = pagination.nextUrl || pagination.nextCursor || pagination.next || null;
+      if (!nextUrl || rawResults.length === 0) break;
+      cursor = nextUrl;
     }
 
     if (totalAvailable === 0) totalAvailable = allResults.length;
+
+    console.log(`[BC Sync] Total fetched: ${allResults.length}, totalAvailable: ${totalAvailable}`);
 
     return { opportunities: allResults, totalAvailable };
   } catch (err) {
@@ -251,7 +366,7 @@ export function registerBcSyncRoutes(app: Express) {
       if (syncState?.lastSyncAt) {
         since = new Date(syncState.lastSyncAt);
       } else {
-        since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+        since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
       }
 
       const isFirstSync = !syncState?.lastSyncAt;
@@ -422,7 +537,7 @@ export function registerBcSyncRoutes(app: Express) {
         if (syncState?.lastSyncAt) {
           since = new Date(syncState.lastSyncAt);
         } else {
-          since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+          since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
         }
       }
 
