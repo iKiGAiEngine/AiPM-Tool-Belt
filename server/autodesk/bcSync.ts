@@ -283,7 +283,8 @@ async function fetchBcOpportunities(accessToken: string, since?: Date, isFirstSy
       const normalized = rawResults.map(normalizeOpportunity);
       allResults.push(...normalized);
 
-      const nextUrl = pagination.nextUrl || pagination.nextCursor || pagination.next || null;
+      const links = data.links || {};
+      const nextUrl = pagination.nextUrl || pagination.nextCursor || pagination.next || links.next || null;
       if (!nextUrl || rawResults.length === 0) break;
       cursor = nextUrl;
     }
