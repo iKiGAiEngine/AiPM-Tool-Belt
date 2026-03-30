@@ -1,11 +1,12 @@
 import { useState, useMemo, useEffect } from "react";
 import { Link } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { ArrowLeft, Search, ChevronUp, ChevronDown, FileSpreadsheet, FileText, FlaskConical, Archive, Link2, CheckCircle2, RefreshCw, Check, X, FileEdit } from "lucide-react";
+import { ArrowLeft, Search, ChevronUp, ChevronDown, FileSpreadsheet, FileText, FlaskConical, Archive, Link2, CheckCircle2, RefreshCw, Check, X, FileEdit, Pencil } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
 import { useTestMode } from "@/lib/testMode";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/lib/auth";
@@ -52,6 +53,10 @@ export default function ProjectLogPage() {
   const [sortField, setSortField] = useState<SortField>("createdAt");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
   const [showBcSync, setShowBcSync] = useState(false);
+  const [editingDraft, setEditingDraft] = useState<ProposalLogEntry | null>(null);
+  const [editForm, setEditForm] = useState({ projectName: "", region: "", dueDate: "", nbsEstimator: "", gcEstimateLead: "", primaryMarket: "" });
+  const [rejectingDraftId, setRejectingDraftId] = useState<number | null>(null);
+  const [rejectReason, setRejectReason] = useState("");
   const { isTestMode } = useTestMode();
   const { toast } = useToast();
   const { isAdmin } = useAuth();
@@ -98,6 +103,7 @@ export default function ProjectLogPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/proposal-log/all-entries"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/notifications"] });
       toast({ title: "Draft approved", description: "The draft has been approved and is now active." });
     },
     onError: () => {
@@ -106,17 +112,52 @@ export default function ProjectLogPage() {
   });
 
   const rejectDraftMutation = useMutation({
-    mutationFn: async (id: number) => {
-      await apiRequest("POST", `/api/bc/drafts/${id}/reject`);
+    mutationFn: async ({ id, reason }: { id: number; reason: string }) => {
+      await apiRequest("POST", `/api/bc/drafts/${id}/reject`, { reason });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/proposal-log/all-entries"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/notifications"] });
       toast({ title: "Draft rejected", description: "The draft has been rejected." });
+      setRejectingDraftId(null);
+      setRejectReason("");
     },
     onError: () => {
       toast({ title: "Error", description: "Failed to reject draft.", variant: "destructive" });
     },
   });
+
+  const editDraftMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: number; data: Record<string, string> }) => {
+      await apiRequest("PATCH", `/api/bc/drafts/${id}`, data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/proposal-log/all-entries"] });
+      toast({ title: "Draft updated", description: "The draft has been updated." });
+      setEditingDraft(null);
+    },
+    onError: () => {
+      toast({ title: "Error", description: "Failed to update draft.", variant: "destructive" });
+    },
+  });
+
+  const openEditDraft = (entry: ProposalLogEntry) => {
+    setEditingDraft(entry);
+    setEditForm({
+      projectName: entry.projectName || "",
+      region: entry.region || "",
+      dueDate: entry.dueDate || "",
+      nbsEstimator: entry.nbsEstimator || "",
+      gcEstimateLead: entry.gcEstimateLead || "",
+      primaryMarket: entry.primaryMarket || "",
+    });
+  };
+
+  const handleRejectConfirm = () => {
+    if (rejectingDraftId !== null) {
+      rejectDraftMutation.mutate({ id: rejectingDraftId, reason: rejectReason });
+    }
+  };
 
   const filteredEntries = useMemo(() => {
     let filtered = [...entries];
@@ -542,8 +583,19 @@ export default function ProjectLogPage() {
                                   <Button
                                     variant="ghost"
                                     size="sm"
+                                    className="h-7 w-7 p-0"
+                                    style={{ color: "var(--gold)" }}
+                                    onClick={() => openEditDraft(entry)}
+                                    title="Edit draft"
+                                    data-testid={`button-edit-draft-${entry.id}`}
+                                  >
+                                    <Pencil className="h-4 w-4" />
+                                  </Button>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
                                     className="h-7 w-7 p-0 text-red-500 hover:text-red-600 hover:bg-red-500/10"
-                                    onClick={() => rejectDraftMutation.mutate(entry.id)}
+                                    onClick={() => { setRejectingDraftId(entry.id); setRejectReason(""); }}
                                     disabled={rejectDraftMutation.isPending}
                                     title="Reject draft"
                                     data-testid={`button-reject-${entry.id}`}
@@ -567,6 +619,145 @@ export default function ProjectLogPage() {
 
       {showBcSync && (
         <BCSyncPreview onClose={() => setShowBcSync(false)} />
+      )}
+
+      {editingDraft && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setEditingDraft(null)}>
+          <div
+            className="relative w-full max-w-md rounded-xl overflow-hidden shadow-2xl"
+            style={{ background: "var(--bg-card)", border: "1px solid var(--border-ds)" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between p-4" style={{ borderBottom: "1px solid var(--border-ds)" }}>
+              <h3 className="text-sm font-heading font-semibold" style={{ color: "var(--text)" }}>Edit Draft</h3>
+              <button onClick={() => setEditingDraft(null)} className="p-1 rounded hover:bg-white/10" data-testid="button-close-edit-draft">
+                <X className="h-4 w-4" style={{ color: "var(--text-dim)" }} />
+              </button>
+            </div>
+            <div className="p-4 space-y-3">
+              <div>
+                <label className="text-xs font-medium mb-1 block" style={{ color: "var(--text-dim)" }}>Project Name</label>
+                <Input
+                  value={editForm.projectName}
+                  onChange={(e) => setEditForm(f => ({ ...f, projectName: e.target.value }))}
+                  className="text-sm"
+                  data-testid="input-edit-project-name"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-medium mb-1 block" style={{ color: "var(--text-dim)" }}>Region</label>
+                  <Input
+                    value={editForm.region}
+                    onChange={(e) => setEditForm(f => ({ ...f, region: e.target.value }))}
+                    className="text-sm"
+                    data-testid="input-edit-region"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-medium mb-1 block" style={{ color: "var(--text-dim)" }}>Due Date</label>
+                  <Input
+                    type="date"
+                    value={editForm.dueDate}
+                    onChange={(e) => setEditForm(f => ({ ...f, dueDate: e.target.value }))}
+                    className="text-sm"
+                    data-testid="input-edit-due-date"
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-medium mb-1 block" style={{ color: "var(--text-dim)" }}>Estimator</label>
+                  <Input
+                    value={editForm.nbsEstimator}
+                    onChange={(e) => setEditForm(f => ({ ...f, nbsEstimator: e.target.value }))}
+                    className="text-sm"
+                    data-testid="input-edit-estimator"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-medium mb-1 block" style={{ color: "var(--text-dim)" }}>GC Lead</label>
+                  <Input
+                    value={editForm.gcEstimateLead}
+                    onChange={(e) => setEditForm(f => ({ ...f, gcEstimateLead: e.target.value }))}
+                    className="text-sm"
+                    data-testid="input-edit-gc-lead"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="text-xs font-medium mb-1 block" style={{ color: "var(--text-dim)" }}>Market</label>
+                <Input
+                  value={editForm.primaryMarket}
+                  onChange={(e) => setEditForm(f => ({ ...f, primaryMarket: e.target.value }))}
+                  className="text-sm"
+                  data-testid="input-edit-market"
+                />
+              </div>
+            </div>
+            <div className="flex items-center justify-end gap-2 p-4" style={{ borderTop: "1px solid var(--border-ds)" }}>
+              <Button variant="outline" size="sm" onClick={() => setEditingDraft(null)} data-testid="button-cancel-edit-draft">
+                Cancel
+              </Button>
+              <Button
+                size="sm"
+                onClick={() => {
+                  if (editingDraft) {
+                    editDraftMutation.mutate({ id: editingDraft.id, data: editForm });
+                  }
+                }}
+                disabled={editDraftMutation.isPending}
+                style={{ background: "linear-gradient(135deg, var(--gold), var(--gold-dim))", color: "var(--bg)" }}
+                data-testid="button-save-edit-draft"
+              >
+                Save Changes
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {rejectingDraftId !== null && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setRejectingDraftId(null)}>
+          <div
+            className="relative w-full max-w-sm rounded-xl overflow-hidden shadow-2xl"
+            style={{ background: "var(--bg-card)", border: "1px solid var(--border-ds)" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between p-4" style={{ borderBottom: "1px solid var(--border-ds)" }}>
+              <h3 className="text-sm font-heading font-semibold" style={{ color: "var(--text)" }}>Reject Draft</h3>
+              <button onClick={() => setRejectingDraftId(null)} className="p-1 rounded hover:bg-white/10" data-testid="button-close-reject">
+                <X className="h-4 w-4" style={{ color: "var(--text-dim)" }} />
+              </button>
+            </div>
+            <div className="p-4">
+              <label className="text-xs font-medium mb-2 block" style={{ color: "var(--text-dim)" }}>
+                Reason for rejection (optional)
+              </label>
+              <Textarea
+                value={rejectReason}
+                onChange={(e) => setRejectReason(e.target.value)}
+                placeholder="Enter rejection reason..."
+                className="text-sm min-h-[80px]"
+                data-testid="input-reject-reason"
+              />
+            </div>
+            <div className="flex items-center justify-end gap-2 p-4" style={{ borderTop: "1px solid var(--border-ds)" }}>
+              <Button variant="outline" size="sm" onClick={() => setRejectingDraftId(null)} data-testid="button-cancel-reject">
+                Cancel
+              </Button>
+              <Button
+                size="sm"
+                variant="destructive"
+                onClick={handleRejectConfirm}
+                disabled={rejectDraftMutation.isPending}
+                data-testid="button-confirm-reject"
+              >
+                Reject Draft
+              </Button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

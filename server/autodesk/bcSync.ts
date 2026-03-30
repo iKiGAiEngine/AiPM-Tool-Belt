@@ -162,7 +162,7 @@ function mapOpportunityToEntry(opp: BcOpportunity) {
     bcOpportunityIds: JSON.stringify([opp.id]),
     scopeList: opp.scopes ? JSON.stringify(opp.scopes) : null,
     isDraft: true,
-    estimateStatus: "Estimating",
+    estimateStatus: "Draft",
     isTest: false,
   };
 }
@@ -581,14 +581,23 @@ export function registerBcSyncRoutes(app: Express) {
 
       const estimateNumber = await generateProjectId();
 
+      const approverName = user!.displayName || user!.email;
+
       const [updated] = await db.update(proposalLogEntries).set({
         isDraft: false,
         estimateNumber,
         estimateStatus: "Estimating",
-        draftApprovedBy: user!.displayName || user!.email,
+        draftApprovedBy: approverName,
         draftApprovedAt: new Date(),
         bcUpdateFlag: false,
       }).where(eq(proposalLogEntries.id, id)).returning();
+
+      await createNotificationForAdmins({
+        type: "draft_approved",
+        title: "Draft Approved",
+        message: `"${entry.projectName}" approved by ${approverName} — assigned estimate #${estimateNumber}.`,
+        metadata: { entryId: id, estimateNumber, approvedBy: approverName },
+      });
 
       res.json(updated);
     } catch (err) {
@@ -614,8 +623,10 @@ export function registerBcSyncRoutes(app: Express) {
       if (!entry) return res.status(404).json({ message: "Entry not found" });
       if (!entry.isDraft) return res.status(400).json({ message: "Entry is not a draft" });
 
+      const rejectorName = user!.displayName || user!.email;
+
       const changeLog: string[] = entry.bcChangeLog ? JSON.parse(entry.bcChangeLog) : [];
-      changeLog.push(`${new Date().toISOString()}: Rejected by ${user!.displayName || user!.email}${reason ? ` - ${reason}` : ""}`);
+      changeLog.push(`${new Date().toISOString()}: Rejected by ${rejectorName}${reason ? ` - ${reason}` : ""}`);
 
       const [updated] = await db.update(proposalLogEntries).set({
         isDraft: false,
@@ -623,6 +634,13 @@ export function registerBcSyncRoutes(app: Express) {
         deletedAt: new Date(),
         bcChangeLog: JSON.stringify(changeLog),
       }).where(eq(proposalLogEntries.id, id)).returning();
+
+      await createNotificationForAdmins({
+        type: "draft_rejected",
+        title: "Draft Rejected",
+        message: `"${entry.projectName}" rejected by ${rejectorName}${reason ? `: ${reason}` : ""}.`,
+        metadata: { entryId: id, rejectedBy: rejectorName, reason: reason || null },
+      });
 
       res.json(updated);
     } catch (err) {
