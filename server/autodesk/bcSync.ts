@@ -8,7 +8,8 @@ import { guessMarket } from "../proposalLogService";
 import { generateProjectId } from "../scopeDictionaryStorage";
 import { sendDraftNotificationEmail } from "../emailService";
 
-const BC_API_BASE = "https://developer.api.autodesk.com/construction/buildingconnected/v2";
+const BC_GC_API_BASE = "https://developer.api.autodesk.com/construction/buildingconnected/v2";
+const BC_SUB_API_BASE = "https://developer.api.autodesk.com/buildingconnected/v2/bid-board";
 
 const GC_ALLOWLIST = [
   "swinerton",
@@ -52,11 +53,30 @@ const REGION_MAP: Record<string, string> = {
   "fort worth": "DFW",
   "charlotte": "CLT",
   "san diego": "SAN",
+  "colton": "LAX",
+  "inglewood": "LAX",
+  "riverside": "LAX",
+  "ontario": "LAX",
+  "pasadena": "LAX",
+  "long beach": "LAX",
+  "anaheim": "LAX",
+  "glendale": "LAX",
+  "burbank": "LAX",
+  "temecula": "LAX",
+  "fontana": "LAX",
+  "rancho cucamonga": "LAX",
+  "pomona": "LAX",
+  "san bernardino": "LAX",
+  "eugene": "PDX",
+  "salem": "PDX",
+  "bend": "PDX",
   "hawaii": "HNL",
   "honolulu": "HNL",
   "spokane": "GEG",
   "boise": "GEG",
   "new york": "LGA",
+  "ca": "LAX",
+  "az": "LAX",
 };
 
 const MAX_SYNC_ENTRIES = 50;
@@ -121,10 +141,16 @@ export function normalizeOpportunity(raw: Record<string, any>): BcOpportunity {
 
   const city = addr.city || "";
   const state = addr.state || "";
-  const street = addr.street || addr.formattedAddress || "";
+  const street = addr.street
+    ? addr.street
+    : addr.streetName
+      ? [addr.streetNumber, addr.streetName].filter(Boolean).join(" ")
+      : addr.formattedAddress || addr.complete || "";
   const formattedAddress = [street, city, state].filter(Boolean).join(", ");
 
   const gcCompanyName = deepGet(raw,
+    "client.company.name",
+    "client.company.companyName",
     "gcCompanyName",
     "invitedBy.companyName",
     "invitedBy.name",
@@ -140,19 +166,27 @@ export function normalizeOpportunity(raw: Record<string, any>): BcOpportunity {
     "attributes.client.name",
   );
 
-  const gcContactName = deepGet(raw,
+  const leadFirst = deepGet(raw, "client.lead.firstName");
+  const leadLast = deepGet(raw, "client.lead.lastName");
+  const leadFullName = [leadFirst, leadLast].filter(Boolean).join(" ") || "";
+
+  const gcContactName = leadFullName || deepGet(raw,
+    "client.lead.name",
     "gcContactName",
     "invitedBy.contactName",
     "client.contactName",
+    "client.contact.name",
     "owner.contactName",
     "attributes.gcContactName",
     "attributes.invitedBy.contactName",
   );
 
   const gcContactEmail = deepGet(raw,
+    "client.lead.email",
     "gcContactEmail",
     "invitedBy.email",
     "client.email",
+    "client.contact.email",
     "owner.email",
     "attributes.gcContactEmail",
     "attributes.invitedBy.email",
@@ -173,10 +207,12 @@ export function normalizeOpportunity(raw: Record<string, any>): BcOpportunity {
   );
 
   const bidDueDate = deepGet(raw,
+    "dueAt",
     "bidsDueAt",
     "bidDueDate",
     "dueDate",
     "bidDate",
+    "attributes.dueAt",
     "attributes.bidsDueAt",
     "attributes.dueDate",
   );
@@ -198,6 +234,10 @@ export function normalizeOpportunity(raw: Record<string, any>): BcOpportunity {
   } else if (typeof (src.scope || raw.scope) === "string" && (src.scope || raw.scope)) {
     scopes = [src.scope || raw.scope];
   }
+  const tradeName = deepGet(raw, "tradeName", "attributes.tradeName");
+  if (tradeName && scopes.length === 0) {
+    scopes = [tradeName];
+  }
 
   return {
     id: raw.id || raw._id || "",
@@ -215,85 +255,155 @@ export function normalizeOpportunity(raw: Record<string, any>): BcOpportunity {
   };
 }
 
-async function fetchBcOpportunities(accessToken: string, since?: Date, isFirstSync: boolean = false): Promise<FetchResult> {
+interface EndpointConfig {
+  label: string;
+  baseUrl: string;
+  buildUrl: (pageSize: number, cursor: string | null, since?: Date) => string;
+}
+
+const ENDPOINTS: EndpointConfig[] = [
+  {
+    label: "Bid Board (sub)",
+    baseUrl: BC_SUB_API_BASE,
+    buildUrl: (pageSize, cursor, since) => {
+      if (cursor) {
+        if (cursor.startsWith("http") || cursor.startsWith("/")) {
+          const fullUrl = cursor.startsWith("http") ? cursor : `https://developer.api.autodesk.com${cursor}`;
+          return fullUrl;
+        }
+        return `${BC_SUB_API_BASE}/opportunities?page[limit]=${pageSize}&page[cursor]=${encodeURIComponent(cursor)}`;
+      }
+      let url = `${BC_SUB_API_BASE}/opportunities?page[limit]=${pageSize}`;
+      if (since) url += `&filter[updatedAt]=${encodeURIComponent(since.toISOString())}`;
+      return url;
+    },
+  },
+  {
+    label: "GC (construction)",
+    baseUrl: BC_GC_API_BASE,
+    buildUrl: (pageSize, cursor, since) => {
+      if (cursor) {
+        if (cursor.startsWith("http") || cursor.startsWith("/")) {
+          const fullUrl = cursor.startsWith("http") ? cursor : `https://developer.api.autodesk.com${cursor}`;
+          return fullUrl;
+        }
+        return `${BC_GC_API_BASE}/opportunities?limit=${pageSize}&cursorState=${encodeURIComponent(cursor)}`;
+      }
+      let url = `${BC_GC_API_BASE}/opportunities?limit=${pageSize}`;
+      if (since) url += `&filter[updatedAt]=${encodeURIComponent(since.toISOString())}`;
+      return url;
+    },
+  },
+];
+
+async function fetchFromEndpoint(
+  endpoint: EndpointConfig,
+  accessToken: string,
+  since?: Date,
+  isFirstSync: boolean = false,
+): Promise<FetchResult> {
   const PAGE_SIZE = 100;
   const MAX_PAGES = 3;
   const allResults: BcOpportunity[] = [];
   let totalAvailable = 0;
   let cursor: string | null = null;
 
-  try {
-    for (let page = 0; page < MAX_PAGES; page++) {
-      let url: string;
+  for (let page = 0; page < MAX_PAGES; page++) {
+    const url = endpoint.buildUrl(PAGE_SIZE, cursor, page === 0 ? since : undefined);
 
-      if (cursor) {
-        if (cursor.startsWith("http")) {
-          url = cursor;
-        } else {
-          url = `${BC_API_BASE}/opportunities?page[limit]=${PAGE_SIZE}&page[cursor]=${encodeURIComponent(cursor)}`;
-        }
-      } else {
-        url = `${BC_API_BASE}/opportunities?page[limit]=${PAGE_SIZE}`;
-        if (since) {
-          url += `&filter[updatedAt]=${since.toISOString()}`;
-        }
-      }
-
-      if (isFirstSync || page === 0) {
-        console.log(`[BC Sync] Fetching page ${page + 1}: ${url.replace(/Bearer\s+\S+/, "Bearer ***")}`);
-      }
-
-      const res = await fetch(url, {
-        headers: { Authorization: `Bearer ${accessToken}` },
-      });
-
-      if (!res.ok) {
-        const errText = await res.text();
-        console.error("[BC Sync] API error:", res.status, errText);
-        return { opportunities: [], totalAvailable: 0, error: `BuildingConnected API returned ${res.status}` };
-      }
-
-      const data = await res.json() as Record<string, any>;
-
-      const rawResults: Record<string, any>[] = data.results || data.data || [];
-
-      const pagination = data.pagination || data.meta || {};
-      if (pagination.totalResults) {
-        totalAvailable = pagination.totalResults;
-      } else if (pagination.total) {
-        totalAvailable = pagination.total;
-      }
-
-      if (isFirstSync && page === 0) {
-        console.log(`[BC Sync] API response keys: ${Object.keys(data).join(", ")}`);
-        console.log(`[BC Sync] Pagination: ${JSON.stringify(pagination)}`);
-        console.log(`[BC Sync] Raw results count: ${rawResults.length}, totalAvailable: ${totalAvailable}`);
-        if (rawResults.length > 0) {
-          const first = rawResults[0];
-          console.log(`[BC Sync] First raw opportunity keys: ${Object.keys(first).join(", ")}`);
-          console.log(`[BC Sync] First opp id=${first.id}, name="${first.name || first.projectName || "?"}", status=${first.status || "?"}`);
-          if (first.invitedBy) console.log(`[BC Sync] invitedBy keys: ${Object.keys(first.invitedBy).join(", ")}`);
-          if (first.address) console.log(`[BC Sync] address keys: ${Object.keys(first.address).join(", ")}`);
-          if (first.project) console.log(`[BC Sync] project keys: ${Object.keys(first.project).join(", ")}`);
-        } else {
-          console.log(`[BC Sync] No results returned from API. Response keys: ${Object.keys(data).join(", ")}, pagination: ${JSON.stringify(pagination)}`);
-        }
-      }
-
-      const normalized = rawResults.map(normalizeOpportunity);
-      allResults.push(...normalized);
-
-      const links = data.links || {};
-      const nextUrl = pagination.nextUrl || pagination.nextCursor || pagination.next || links.next || null;
-      if (!nextUrl || rawResults.length === 0) break;
-      cursor = nextUrl;
+    if (page === 0) {
+      console.log(`[BC Sync] [${endpoint.label}] Fetching page ${page + 1}: ${url}`);
     }
 
-    if (totalAvailable === 0) totalAvailable = allResults.length;
+    const res = await fetch(url, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
 
-    console.log(`[BC Sync] Total fetched: ${allResults.length}, totalAvailable: ${totalAvailable}`);
+    if (!res.ok) {
+      const errText = await res.text();
+      console.error(`[BC Sync] [${endpoint.label}] API error: ${res.status} ${errText.slice(0, 300)}`);
+      return { opportunities: [], totalAvailable: 0, error: `${endpoint.label}: ${res.status} ${errText.slice(0, 200)}` };
+    }
 
-    return { opportunities: allResults, totalAvailable };
+    const data = await res.json() as Record<string, any>;
+    const rawResults: Record<string, any>[] = data.results || data.data || [];
+
+    const pagination = data.pagination || data.meta || {};
+    if (pagination.totalResults) totalAvailable = pagination.totalResults;
+    else if (pagination.total) totalAvailable = pagination.total;
+
+    if (page === 0) {
+      console.log(`[BC Sync] [${endpoint.label}] Response keys: ${Object.keys(data).join(", ")}`);
+      console.log(`[BC Sync] [${endpoint.label}] Pagination: ${JSON.stringify(pagination)}`);
+      console.log(`[BC Sync] [${endpoint.label}] Results count: ${rawResults.length}, totalAvailable: ${totalAvailable}`);
+      if (rawResults.length > 0) {
+        const first = rawResults[0];
+        console.log(`[BC Sync] [${endpoint.label}] First opp keys: ${Object.keys(first).join(", ")}`);
+        if (first.attributes) console.log(`[BC Sync] [${endpoint.label}] First opp attributes keys: ${Object.keys(first.attributes).join(", ")}`);
+        if (first.client) {
+          console.log(`[BC Sync] [${endpoint.label}] client keys: ${Object.keys(first.client).join(", ")}`);
+          if (first.client.company) console.log(`[BC Sync] [${endpoint.label}] client.company: ${JSON.stringify(first.client.company).slice(0, 300)}`);
+          if (first.client.lead) console.log(`[BC Sync] [${endpoint.label}] client.lead: ${JSON.stringify(first.client.lead).slice(0, 300)}`);
+        }
+        if (first.invitedBy) console.log(`[BC Sync] [${endpoint.label}] invitedBy keys: ${Object.keys(first.invitedBy).join(", ")}`);
+        if (first.address) console.log(`[BC Sync] [${endpoint.label}] address keys: ${Object.keys(first.address).join(", ")}`);
+        if (first.location) console.log(`[BC Sync] [${endpoint.label}] location keys: ${Object.keys(first.location).join(", ")}`);
+        const norm = normalizeOpportunity(first);
+        console.log(`[BC Sync] [${endpoint.label}] Normalized: name="${norm.projectName}", gc="${norm.gcCompanyName}", city="${norm.location?.city}", state="${norm.location?.state}"`);
+      } else {
+        console.log(`[BC Sync] [${endpoint.label}] Empty results. Sample: ${JSON.stringify(data).slice(0, 500)}`);
+      }
+    }
+
+    const normalized = rawResults.map(normalizeOpportunity);
+    allResults.push(...normalized);
+
+    const links = data.links || {};
+    const nextUrl = pagination.nextUrl || pagination.nextCursor || pagination.cursorState || pagination.next || pagination.cursor || links.next || null;
+    if (!nextUrl || rawResults.length === 0) break;
+    cursor = nextUrl;
+  }
+
+  if (totalAvailable === 0) totalAvailable = allResults.length;
+  console.log(`[BC Sync] [${endpoint.label}] Total fetched: ${allResults.length}`);
+  return { opportunities: allResults, totalAvailable };
+}
+
+async function fetchBcOpportunities(accessToken: string, since?: Date, isFirstSync: boolean = false): Promise<FetchResult> {
+  try {
+    for (const endpoint of ENDPOINTS) {
+      console.log(`[BC Sync] Trying ${endpoint.label} endpoint...`);
+      const result = await fetchFromEndpoint(endpoint, accessToken, since, isFirstSync);
+
+      if (result.error) {
+        console.log(`[BC Sync] ${endpoint.label} failed: ${result.error}`);
+        continue;
+      }
+
+      if (result.opportunities.length > 0) {
+        console.log(`[BC Sync] ${endpoint.label} returned ${result.opportunities.length} opportunities`);
+        return result;
+      }
+
+      if (isFirstSync && since) {
+        console.log(`[BC Sync] ${endpoint.label} returned 0 with date filter, trying without filter...`);
+        const noFilterResult = await fetchFromEndpoint(endpoint, accessToken, undefined, isFirstSync);
+        if (!noFilterResult.error && noFilterResult.opportunities.length > 0) {
+          console.log(`[BC Sync] ${endpoint.label} returned ${noFilterResult.opportunities.length} without filter`);
+          return noFilterResult;
+        }
+        if (noFilterResult.error) {
+          console.log(`[BC Sync] ${endpoint.label} without filter also failed: ${noFilterResult.error}`);
+        } else {
+          console.log(`[BC Sync] ${endpoint.label} without filter also returned 0`);
+        }
+      }
+
+      console.log(`[BC Sync] ${endpoint.label} returned 0 results, trying next endpoint...`);
+    }
+
+    console.log(`[BC Sync] All endpoints returned 0 results`);
+    return { opportunities: [], totalAvailable: 0 };
   } catch (err) {
     console.error("[BC Sync] Fetch error:", err);
     return { opportunities: [], totalAvailable: 0, error: "Failed to connect to BuildingConnected API" };

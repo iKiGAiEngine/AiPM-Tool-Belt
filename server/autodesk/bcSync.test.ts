@@ -45,6 +45,34 @@ const swinertonClientPayload = {
   trades: ["Specialties"],
 };
 
+const swinertonLiveApiPayload = {
+  id: "69c6e1d59317e8e48f1c9603",
+  name: "Illumina Project SOL",
+  number: "12345",
+  client: {
+    company: { id: "abc", name: "Swinerton Builders" },
+    lead: { id: "xyz", email: "vahid@swinerton.com", firstName: "Vahid", lastName: "Balali", phoneNumber: "" },
+    office: null,
+  },
+  dueAt: "2026-04-21T00:00:00.000Z",
+  invitedAt: "2026-03-27T13:09:00.000Z",
+  tradeName: "Specialties",
+  location: {
+    country: "US",
+    state: "CA",
+    streetName: "Illumina Way",
+    streetNumber: "5200",
+    suite: "",
+    city: "San Diego",
+    zip: "92122",
+    complete: "5200 Illumina Way, San Diego, CA 92122",
+    coords: { lat: 32.88, lng: -117.23 },
+    precisionLevel: "address",
+  },
+  submissionState: "submitted",
+  requestType: "budget",
+};
+
 const swinertonAttributesPayload = {
   id: "ghi789",
   attributes: {
@@ -95,12 +123,24 @@ assert.strictEqual(nested.projectName, "Nested Project");
 assert.strictEqual(nested.bidDueDate, "2026-06-01");
 console.log("PASS: Attributes nested payload — fields from raw.attributes.*");
 
-const allOpps = [v2, flat, client, nested, normalizeOpportunity(nonSwinertonPayload)];
+const live = normalizeOpportunity(swinertonLiveApiPayload);
+assert.strictEqual(live.projectName, "Illumina Project SOL");
+assert.strictEqual(live.gcCompanyName, "Swinerton Builders");
+assert.strictEqual(live.gcContactName, "Vahid Balali");
+assert.strictEqual(live.gcContactEmail, "vahid@swinerton.com");
+assert.strictEqual(live.bidDueDate, "2026-04-21T00:00:00.000Z");
+assert.strictEqual(live.invitedDate, "2026-03-27T13:09:00.000Z");
+assert.strictEqual(live.location?.city, "San Diego");
+assert.strictEqual(live.location?.state, "CA");
+assert.deepStrictEqual(live.scopes, ["Specialties"]);
+console.log("PASS: Live API payload (client.company.name, dueAt, tradeName, location) — all fields extracted");
+
+const allOpps = [v2, flat, client, nested, live, normalizeOpportunity(nonSwinertonPayload)];
 const filtered = filterByGcAllowlist(allOpps);
-assert.strictEqual(filtered.length, 4);
+assert.strictEqual(filtered.length, 5);
 assert.ok(filtered.every(o => (o.gcCompanyName || "").toLowerCase().includes("swinerton")));
 assert.ok(!filtered.find(o => o.id === "xyz000"));
-console.log("PASS: GC allowlist filter — 4 Swinerton opps pass, 1 Turner filtered out");
+console.log("PASS: GC allowlist filter — 5 Swinerton opps pass, 1 Turner filtered out");
 
 const scopeEdgeCases = [
   { id: "s1", trades: "SingleTrade" },
@@ -129,6 +169,10 @@ assert.strictEqual(guessRegionFromLocation("Irvine, CA"), "LAX");
 assert.strictEqual(guessRegionFromLocation("Santa Ana, CA"), "LAX");
 assert.strictEqual(guessRegionFromLocation("Foley, AL"), "ATL");
 assert.strictEqual(guessRegionFromLocation("Greenville, SC"), "CLT");
-console.log("PASS: Region mapping — all key cities resolve correctly, including LA shorthand");
+assert.strictEqual(guessRegionFromLocation("Colton, CA"), "LAX");
+assert.strictEqual(guessRegionFromLocation("Inglewood, CA"), "LAX");
+assert.strictEqual(guessRegionFromLocation("Eugene, OR"), "PDX");
+assert.strictEqual(guessRegionFromLocation("Temecula, CA"), "LAX");
+console.log("PASS: Region mapping — all key cities resolve correctly, including LA shorthand and new cities");
 
 console.log("\nAll tests passed!");
