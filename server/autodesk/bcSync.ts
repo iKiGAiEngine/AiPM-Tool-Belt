@@ -34,6 +34,7 @@ const REGION_MAP: Record<string, string> = {
   "san jose": "SFO",
   "special projects": "LAX",
   "spd": "LAX",
+  "la": "LAX",
   "los angeles": "LAX",
   "ocla": "LAX",
   "orange county": "LAX",
@@ -60,10 +61,11 @@ const REGION_MAP: Record<string, string> = {
 
 const MAX_SYNC_ENTRIES = 50;
 
-function guessRegionFromLocation(location: string): string {
+export function guessRegionFromLocation(location: string): string {
   const loc = (location || "").toLowerCase();
   for (const [key, code] of Object.entries(REGION_MAP)) {
-    if (loc.includes(key)) return code;
+    const re = new RegExp(`(?:^|[\\s,/\\-])${key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?:$|[\\s,/\\-])`, "i");
+    if (re.test(` ${loc} `)) return code;
   }
   return "";
 }
@@ -93,7 +95,7 @@ interface FetchResult {
   error?: string;
 }
 
-function deepGet(obj: Record<string, any>, ...paths: string[]): string {
+export function deepGet(obj: Record<string, any>, ...paths: string[]): string {
   for (const path of paths) {
     const parts = path.split(".");
     let val: any = obj;
@@ -106,7 +108,7 @@ function deepGet(obj: Record<string, any>, ...paths: string[]): string {
   return "";
 }
 
-function normalizeOpportunity(raw: Record<string, any>): BcOpportunity {
+export function normalizeOpportunity(raw: Record<string, any>): BcOpportunity {
   const attrs = raw.attributes || {};
   const src = { ...raw, ...attrs };
 
@@ -297,7 +299,7 @@ async function fetchBcOpportunities(accessToken: string, since?: Date, isFirstSy
   }
 }
 
-function filterByGcAllowlist(opps: BcOpportunity[]): BcOpportunity[] {
+export function filterByGcAllowlist(opps: BcOpportunity[]): BcOpportunity[] {
   return opps.filter(opp => {
     const gcName = (opp.gcCompanyName || "").toLowerCase();
     return GC_ALLOWLIST.some(gc => gcName.includes(gc));

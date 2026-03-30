@@ -1,100 +1,5 @@
 import assert from "assert";
-
-function deepGet(obj: Record<string, any>, ...paths: string[]): string {
-  for (const path of paths) {
-    const parts = path.split(".");
-    let val: any = obj;
-    for (const p of parts) {
-      if (val == null || typeof val !== "object") { val = undefined; break; }
-      val = val[p];
-    }
-    if (val != null && val !== "") return String(val);
-  }
-  return "";
-}
-
-interface BcOpportunity {
-  id: string;
-  projectId?: string;
-  projectName?: string;
-  location?: { city?: string; state?: string; formattedAddress?: string };
-  bidDueDate?: string;
-  invitedDate?: string;
-  gcCompanyName?: string;
-  gcContactName?: string;
-  gcContactEmail?: string;
-  scopes?: string[];
-  status?: string;
-  updatedAt?: string;
-}
-
-function normalizeOpportunity(raw: Record<string, any>): BcOpportunity {
-  const attrs = raw.attributes || {};
-  const src = { ...raw, ...attrs };
-  const addr = src.address || src.location || {};
-  const city = addr.city || "";
-  const state = addr.state || "";
-  const street = addr.street || addr.formattedAddress || "";
-  const formattedAddress = [street, city, state].filter(Boolean).join(", ");
-  const gcCompanyName = deepGet(raw,
-    "gcCompanyName", "invitedBy.companyName", "invitedBy.name",
-    "client.name", "client.companyName", "company.name",
-    "company.companyName", "owner.name", "owner.companyName",
-    "ownerCompanyName", "attributes.gcCompanyName",
-    "attributes.invitedBy.companyName", "attributes.client.name",
-  );
-  const gcContactName = deepGet(raw,
-    "gcContactName", "invitedBy.contactName", "client.contactName",
-    "owner.contactName", "attributes.gcContactName",
-    "attributes.invitedBy.contactName",
-  );
-  const gcContactEmail = deepGet(raw,
-    "gcContactEmail", "invitedBy.email", "client.email",
-    "owner.email", "attributes.gcContactEmail",
-    "attributes.invitedBy.email",
-  );
-  const projectName = deepGet(raw,
-    "name", "projectName", "project.name",
-    "attributes.name", "attributes.projectName",
-  );
-  const projectId = deepGet(raw,
-    "projectId", "project.id", "attributes.projectId",
-  );
-  const bidDueDate = deepGet(raw,
-    "bidsDueAt", "bidDueDate", "dueDate", "bidDate",
-    "attributes.bidsDueAt", "attributes.dueDate",
-  );
-  const invitedDate = deepGet(raw,
-    "invitedAt", "invitedDate", "createdAt",
-    "attributes.invitedAt", "attributes.createdAt",
-  );
-  const rawScopes = src.trades || src.scopes || raw.trades || raw.scopes;
-  let scopes: string[] = [];
-  if (Array.isArray(rawScopes)) {
-    scopes = rawScopes.map((s: unknown) => typeof s === "string" ? s : String(s));
-  } else if (typeof rawScopes === "string") {
-    scopes = [rawScopes];
-  } else if (typeof (src.scope || raw.scope) === "string" && (src.scope || raw.scope)) {
-    scopes = [src.scope || raw.scope];
-  }
-  return {
-    id: raw.id || raw._id || "",
-    projectId, projectName,
-    location: { city, state, formattedAddress },
-    bidDueDate, invitedDate, gcCompanyName, gcContactName, gcContactEmail,
-    scopes, status: raw.status || src.status || "",
-    updatedAt: raw.updatedAt || src.updatedAt || "",
-  };
-}
-
-const GC_ALLOWLIST = ["swinerton"];
-
-function filterByGcAllowlist(opps: BcOpportunity[]): BcOpportunity[] {
-  return opps.filter(opp => {
-    const gcName = (opp.gcCompanyName || "").toLowerCase();
-    return GC_ALLOWLIST.some(gc => gcName.includes(gc));
-  });
-}
+import { normalizeOpportunity, filterByGcAllowlist, guessRegionFromLocation } from "./bcSync.js";
 
 const swinertonV2Payload = {
   id: "6627779ac415eba5996c5723",
@@ -159,7 +64,7 @@ const nonSwinertonPayload = {
   bidsDueAt: "2026-04-15",
 };
 
-console.log("Running BC Sync normalization tests...\n");
+console.log("Running BC Sync normalization tests (importing production code)...\n");
 
 const v2 = normalizeOpportunity(swinertonV2Payload);
 assert.strictEqual(v2.projectName, "Illumina Project SOL");
@@ -171,31 +76,31 @@ assert.strictEqual(v2.invitedDate, "2026-03-27T13:09:00.000Z");
 assert.strictEqual(v2.location?.city, "San Diego");
 assert.strictEqual(v2.location?.state, "CA");
 assert.deepStrictEqual(v2.scopes, ["Specialties"]);
-console.log("✓ V2 payload (invitedBy nesting) — all fields extracted");
+console.log("PASS: V2 payload (invitedBy nesting) — all fields extracted");
 
 const flat = normalizeOpportunity(swinertonFlatPayload);
 assert.strictEqual(flat.gcCompanyName, "Swinerton - Seattle");
 assert.strictEqual(flat.projectName, "Test Project");
 assert.deepStrictEqual(flat.scopes, ["Specialties", "Doors"]);
-console.log("✓ Flat payload (legacy format) — all fields extracted");
+console.log("PASS: Flat payload (legacy format) — all fields extracted");
 
 const client = normalizeOpportunity(swinertonClientPayload);
 assert.strictEqual(client.gcCompanyName, "Swinerton Builders - NorCal");
 assert.strictEqual(client.projectName, "NorCal Healthcare Project");
-console.log("✓ Client nested payload — GC name from client.name");
+console.log("PASS: Client nested payload — GC name from client.name");
 
 const nested = normalizeOpportunity(swinertonAttributesPayload);
 assert.strictEqual(nested.gcCompanyName, "Swinerton");
 assert.strictEqual(nested.projectName, "Nested Project");
 assert.strictEqual(nested.bidDueDate, "2026-06-01");
-console.log("✓ Attributes nested payload — fields from raw.attributes.*");
+console.log("PASS: Attributes nested payload — fields from raw.attributes.*");
 
 const allOpps = [v2, flat, client, nested, normalizeOpportunity(nonSwinertonPayload)];
 const filtered = filterByGcAllowlist(allOpps);
 assert.strictEqual(filtered.length, 4);
 assert.ok(filtered.every(o => (o.gcCompanyName || "").toLowerCase().includes("swinerton")));
 assert.ok(!filtered.find(o => o.id === "xyz000"));
-console.log("✓ GC allowlist filter — 4 Swinerton opps pass, 1 Turner filtered out");
+console.log("PASS: GC allowlist filter — 4 Swinerton opps pass, 1 Turner filtered out");
 
 const scopeEdgeCases = [
   { id: "s1", trades: "SingleTrade" },
@@ -211,6 +116,19 @@ const s3 = normalizeOpportunity(scopeEdgeCases[2]);
 assert.deepStrictEqual(s3.scopes, []);
 const s4 = normalizeOpportunity(scopeEdgeCases[3]);
 assert.deepStrictEqual(s4.scopes, ["42", "Plumbing"]);
-console.log("✓ Scope edge cases — string, null, mixed array all handled");
+console.log("PASS: Scope edge cases — string, null, mixed array all handled");
+
+assert.strictEqual(guessRegionFromLocation("San Diego, CA"), "SAN");
+assert.strictEqual(guessRegionFromLocation("Portland, OR"), "PDX");
+assert.strictEqual(guessRegionFromLocation("Denver, CO"), "DEN");
+assert.strictEqual(guessRegionFromLocation("Los Angeles, CA"), "LAX");
+assert.strictEqual(guessRegionFromLocation("LA"), "LAX");
+assert.strictEqual(guessRegionFromLocation("Seattle, WA"), "SEA");
+assert.strictEqual(guessRegionFromLocation("San Francisco, CA"), "SFO");
+assert.strictEqual(guessRegionFromLocation("Irvine, CA"), "LAX");
+assert.strictEqual(guessRegionFromLocation("Santa Ana, CA"), "LAX");
+assert.strictEqual(guessRegionFromLocation("Foley, AL"), "ATL");
+assert.strictEqual(guessRegionFromLocation("Greenville, SC"), "CLT");
+console.log("PASS: Region mapping — all key cities resolve correctly, including LA shorthand");
 
 console.log("\nAll tests passed!");
