@@ -7,7 +7,7 @@ import {
   vendors, div10Products, notifications, bcSyncLog,
   auditLogs,
 } from "@shared/schema";
-import { eq } from "drizzle-orm";
+import { eq, desc } from "drizzle-orm";
 import { auditLog } from "./auditService";
 
 const MAX_UPLOAD_SIZE = 10 * 1024 * 1024;
@@ -211,7 +211,11 @@ function formatCellValue(val: unknown): string | number | boolean | Date {
   return val as string | number | boolean;
 }
 
-async function generateFullBackup(): Promise<ExcelJS.Workbook> {
+const AUDIT_LOG_CAP = 2000;
+
+async function generateFullBackup(): Promise<Buffer> {
+  console.log("[Backup] Starting full backup generation...");
+  const startTime = Date.now();
   const wb = new ExcelJS.Workbook();
   wb.creator = "AiPM Tool Belt";
   wb.created = new Date();
@@ -236,7 +240,13 @@ async function generateFullBackup(): Promise<ExcelJS.Workbook> {
 
   for (const tableDef of BACKUP_TABLES) {
     try {
-      const rows = await db.select().from(tableDef.table);
+      let rows: any[];
+      if (tableDef.key === "audit_logs") {
+        rows = await db.select().from(tableDef.table).orderBy(desc(tableDef.table.id)).limit(AUDIT_LOG_CAP);
+      } else {
+        rows = await db.select().from(tableDef.table);
+      }
+
       const ws = wb.addWorksheet(tableDef.label);
       ws.columns = tableDef.columns;
 
@@ -257,11 +267,13 @@ async function generateFullBackup(): Promise<ExcelJS.Workbook> {
       }
 
       if (rows.length > 0) {
-        ws.autoFilter = { from: "A1", to: `${String.fromCharCode(64 + tableDef.columns.length)}${rows.length + 1}` };
+        const lastCol = String.fromCharCode(64 + Math.min(tableDef.columns.length, 26));
+        ws.autoFilter = { from: "A1", to: `${lastCol}${rows.length + 1}` };
       }
 
       tableCount++;
       totalRows += rows.length;
+      console.log(`[Backup] Exported ${tableDef.label}: ${rows.length} rows`);
     } catch (err) {
       console.error(`[Backup] Error backing up ${tableDef.key}:`, err);
       const ws = wb.addWorksheet(tableDef.label);
@@ -272,7 +284,10 @@ async function generateFullBackup(): Promise<ExcelJS.Workbook> {
   metaSheet.addRow({ field: "Tables Exported", value: tableCount });
   metaSheet.addRow({ field: "Total Rows", value: totalRows });
 
-  return wb;
+  const buffer = await wb.xlsx.writeBuffer();
+  const elapsed = Date.now() - startTime;
+  console.log(`[Backup] Full backup generated in ${elapsed}ms (${totalRows} rows, ${(buffer.byteLength / 1024).toFixed(1)} KB)`);
+  return Buffer.from(buffer);
 }
 
 export function registerBackupRoutes(app: Express) {
@@ -285,7 +300,7 @@ export function registerBackupRoutes(app: Express) {
       const [user] = await db.select().from(users).where(eq(users.id, userId));
       if (user?.role !== "admin") return res.status(403).json({ message: "Admin access required" });
 
-      const wb = await generateFullBackup();
+      const buffer = await generateFullBackup();
 
       const now = new Date();
       const dateStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
@@ -294,9 +309,9 @@ export function registerBackupRoutes(app: Express) {
 
       res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
       res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+      res.setHeader("Content-Length", buffer.length.toString());
 
-      await wb.xlsx.write(res);
-      res.end();
+      res.send(buffer);
 
       console.log(`[Backup] Full backup downloaded by user ${userId}`);
       await auditLog({
