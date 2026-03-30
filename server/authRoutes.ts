@@ -47,8 +47,8 @@ function getClientIP(req: Request): string {
 
 export const QUICK_LOGIN_USERS: Record<string, { email: string; role: "admin" | "user"; initials: string; displayName: string }> = {
   hk: { email: "hkkruse@nationalbuildingspecialties.com", role: "admin", initials: "HK", displayName: "Haley Kruse" },
-  gm: { email: "gm@nationalbuildingspecialties.com", role: "user", initials: "GM", displayName: "GM" },
-  gt: { email: "gt@nationalbuildingspecialties.com", role: "user", initials: "GT", displayName: "GT" },
+  gm: { email: "gm@nationalbuildingspecialties.com", role: "user", initials: "GM", displayName: "Gonzalo Martinez" },
+  gt: { email: "gene.trabert@nationalbuildingspecialties.com", role: "user", initials: "GT", displayName: "Gene Trabert" },
   kr: { email: "kenny.ruester@nationalbuildingspecialties.com", role: "user", initials: "KR", displayName: "Kenny Ruester" },
   ck: { email: "christina.keith@nationalbuildingspecialties.com", role: "user", initials: "CK", displayName: "Christina Keith" },
   hc: { email: "hallyn.crozier@nationalbuildingspecialties.com", role: "user", initials: "HC", displayName: "Hallyn Crozier" },

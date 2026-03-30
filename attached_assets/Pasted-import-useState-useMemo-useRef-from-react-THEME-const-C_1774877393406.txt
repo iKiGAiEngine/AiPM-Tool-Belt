@@ -1,0 +1,1320 @@
+import { useState, useMemo, useRef } from “react”;
+
+// ═══ THEME ═══
+const C = {
+bg: “#0F1419”, surface: “#1A2028”, surfaceHover: “#222B35”, border: “#2A3540”,
+accent: “#3B82F6”, accentGlow: “rgba(59,130,246,0.15)”,
+green: “#22C55E”, greenSoft: “rgba(34,197,94,0.12)”,
+orange: “#F59E0B”, orangeSoft: “rgba(245,158,11,0.12)”,
+red: “#EF4444”, redSoft: “rgba(239,68,68,0.12)”,
+purple: “#A78BFA”, purpleSoft: “rgba(167,139,250,0.12)”,
+cyan: “#06B6D4”,
+text: “#F1F5F9”, textMuted: “#94A3B8”, textDim: “#64748B”,
+};
+
+// ═══ ALL DIV 10 SCOPE SECTIONS (master list — filtered by project scope) ═══
+const ALL_SCOPES = [
+{ id: “accessories”, label: “Toilet Accessories”, icon: “\u{1F6BF}” },
+{ id: “partitions”, label: “Toilet Partitions”, icon: “\u{1F6AA}” },
+{ id: “lockers”, label: “Lockers”, icon: “\u{1F510}” },
+{ id: “fire_ext”, label: “Fire Protection”, icon: “\u{1F9EF}” },
+{ id: “visual”, label: “Visual Display”, icon: “\u{1F4CB}” },
+{ id: “corner_guards”, label: “Corner Guards”, icon: “\u{1F6E1}” },
+{ id: “signage”, label: “Signage”, icon: “\u{1FAA7}” },
+{ id: “wall_protect”, label: “Wall Protection”, icon: “\u{1F6E1}” },
+{ id: “postal”, label: “Postal Specialties”, icon: “\u{1F4EC}” },
+{ id: “window_shades”, label: “Window Shades”, icon: “\u{1FA9F}” },
+{ id: “operable_walls”, label: “Operable Walls”, icon: “\u{1F3DB}” },
+{ id: “toilet_compartments”, label: “Toilet Compartments”, icon: “\u{1F6BD}” },
+{ id: “storage”, label: “Storage Assemblies”, icon: “\u{1F4E6}” },
+{ id: “other”, label: “Other Div 10”, icon: “\u{1F4E6}” },
+];
+
+const INIT_QUOTES = [
+{ id: “vq1”, vendor: “Bobrick”, category: “accessories”, freight: 850, note: “Commercial restrooms”, taxIncluded: false, pricingMode: “per_item”, lumpSumTotal: 0, hasBackup: true },
+{ id: “vq2”, vendor: “Kohler”, category: “accessories”, freight: 1200, note: “Residential standard”, taxIncluded: false, pricingMode: “per_item”, lumpSumTotal: 0, hasBackup: true },
+{ id: “vq3”, vendor: “Bradley”, category: “accessories”, freight: 650, note: “High-end ADA - Matte Black”, taxIncluded: true, pricingMode: “per_item”, lumpSumTotal: 0, hasBackup: true },
+{ id: “vq4”, vendor: “Bobrick”, category: “partitions”, freight: 2400, note: “HDPE overhead braced”, taxIncluded: false, pricingMode: “per_item”, lumpSumTotal: 0, hasBackup: false },
+{ id: “vq5”, vendor: “Amerex”, category: “fire_ext”, freight: 320, note: “FECs - Lump sum”, taxIncluded: false, pricingMode: “lump_sum”, lumpSumTotal: 3850, hasBackup: true },
+];
+
+const INIT_ITEMS = [
+{ id: “li1”, name: ‘Grab Bar - 42”’, model: “B-5806x42”, mfr: “Bobrick”, unitCost: 48.5, qty: 24, category: “accessories”, quoteId: “vq1”, source: “price_book”, note: “”, hasBackup: true },
+{ id: “li2”, name: “Paper Towel Dispenser”, model: “B-2621”, mfr: “Bobrick”, unitCost: 185, qty: 12, category: “accessories”, quoteId: “vq1”, source: “price_book”, note: “”, hasBackup: true },
+{ id: “li3”, name: “Soap Dispenser (Surface)”, model: “B-2111”, mfr: “Bobrick”, unitCost: 42, qty: 18, category: “accessories”, quoteId: “vq1”, source: “price_book”, note: “”, hasBackup: true },
+{ id: “li4”, name: ‘Residential Towel Bar 24”’, model: “K-27924”, mfr: “Kohler”, unitCost: 125, qty: 8, category: “accessories”, quoteId: “vq2”, source: “vendor_quote”, note: “”, hasBackup: true },
+{ id: “li5”, name: “Residential Robe Hook”, model: “K-27925”, mfr: “Kohler”, unitCost: 55, qty: 8, category: “accessories”, quoteId: “vq2”, source: “vendor_quote”, note: “”, hasBackup: true },
+{ id: “li6”, name: ‘ADA Grab Bar - Matte Black 36”’, model: “BRA-MB36”, mfr: “Bradley”, unitCost: 165, qty: 6, category: “accessories”, quoteId: “vq3”, source: “vendor_quote”, note: “”, hasBackup: true },
+{ id: “li7”, name: “ADA Shower Seat - Matte Black”, model: “BRA-MBSS”, mfr: “Bradley”, unitCost: 340, qty: 6, category: “accessories”, quoteId: “vq3”, source: “vendor_quote”, note: “”, hasBackup: true },
+{ id: “li8”, name: “Partition - Overhead Braced”, model: “Custom”, mfr: “Bobrick”, unitCost: 450, qty: 32, category: “partitions”, quoteId: “vq4”, source: “vendor_quote”, note: “”, hasBackup: false },
+{ id: “li9”, name: “Urinal Screen”, model: “Custom”, mfr: “Bobrick”, unitCost: 275, qty: 8, category: “partitions”, quoteId: “vq4”, source: “vendor_quote”, note: “”, hasBackup: false },
+{ id: “li10”, name: “Fire Ext. Cabinet (Recessed)”, model: “B-350”, mfr: “Bobrick”, unitCost: 0, qty: 14, category: “fire_ext”, quoteId: “vq5”, source: “library”, note: “”, hasBackup: true },
+{ id: “li11”, name: “Fire Extinguisher - 5lb ABC”, model: “FE-5ABC”, mfr: “Amerex”, unitCost: 0, qty: 14, category: “fire_ext”, quoteId: “vq5”, source: “vendor_quote”, note: “”, hasBackup: true },
+];
+
+function fmt(n) { return “$” + n.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, “,”); }
+let _id = 200;
+function uid() { return “id” + (++_id); }
+
+const srcPill = { vendor_quote: { c: C.purple, l: “VQ” }, price_book: { c: C.accent, l: “PB” }, library: { c: C.green, l: “Lib” } };
+
+// ═══ CHECKLIST TEMPLATE ═══
+const CHECKLIST_TEMPLATE = [
+{ id: “ack_addenda”, label: “Acknowledge all addenda”, stage: “intake” },
+{ id: “review_specs”, label: “Review specs & drawings”, stage: “intake” },
+{ id: “scope_identified”, label: “All scope categories identified”, stage: “intake” },
+{ id: “all_items_entered”, label: “All line items entered”, stage: “lineItems” },
+{ id: “all_items_priced”, label: “All line items priced”, stage: “lineItems” },
+{ id: “all_backups_attached”, label: “All backup docs attached”, stage: “lineItems” },
+{ id: “vendor_quotes_received”, label: “All vendor quotes received”, stage: “lineItems” },
+{ id: “markups_reviewed”, label: “OH&P & escalation reviewed”, stage: “calculations” },
+{ id: “tax_rates_confirmed”, label: “Tax rates confirmed for region”, stage: “calculations” },
+{ id: “proposal_reviewed”, label: “Proposal letter reviewed”, stage: “output” },
+{ id: “docs_filed”, label: “Documents filed to project folder”, stage: “output” },
+{ id: “final_review”, label: “Final review complete”, stage: “output” },
+];
+
+export default function EstimatingModule() {
+const [stage, setStage] = useState(“intake”);
+const [lineItems, setLineItems] = useState([…INIT_ITEMS]);
+const [quotes, setQuotes] = useState([…INIT_QUOTES]);
+const [defaultOhp, setDefaultOhp] = useState(8);
+const [defaultEsc, setDefaultEsc] = useState(0);
+const [taxRate, setTaxRate] = useState(8.75);
+const [bondRate, setBondRate] = useState(0);
+const [catOverrides, setCatOverrides] = useState({});
+const [catQuals, setCatQuals] = useState({});
+const [catComplete, setCatComplete] = useState({});
+const [showCatQuals, setShowCatQuals] = useState(false);
+
+// ═══ SESSION & DATA ISOLATION ═══
+// Dirty state: tracks if anything has changed since last save
+const [isDirty, setIsDirty] = useState(false);
+const [lastSaved, setLastSaved] = useState(null);
+const [isSaving, setIsSaving] = useState(false);
+
+// Mark dirty on any data change
+const markDirty = () => { if (!isDirty) setIsDirty(true); };
+
+// Wrapped setters that auto-mark dirty
+const setLineItemsD = (fn) => { setLineItems(fn); markDirty(); };
+const setQuotesD = (fn) => { setQuotes(fn); markDirty(); };
+const setCatOverridesD = (fn) => { setCatOverrides(fn); markDirty(); };
+const setCatQualsD = (fn) => { setCatQuals(fn); markDirty(); };
+const setCatCompleteD = (fn) => { setCatComplete(fn); markDirty(); };
+
+// Auto-save simulation (in production: POST to /api/estimates/:id)
+const saveProject = () => {
+setIsSaving(true);
+// Simulate save — in production this is an API call scoped to project.estimateNumber
+setTimeout(() => {
+setIsDirty(false);
+setLastSaved(new Date());
+setIsSaving(false);
+}, 400);
+};
+
+// Switch project gate — blocks if unsaved changes
+const confirmSwitchProject = (newPvNumber) => {
+if (isDirty) {
+const proceed = window.confirm(
+“You have unsaved changes on “ + project.projectName + “ (” + project.estimateNumber + “).\n\nSave before switching projects?”
+);
+if (proceed) {
+saveProject();
+}
+// In production: after save completes, navigate to /estimates/{newPvNumber}
+// which loads fresh state scoped to that PV# only
+}
+// In production: window.location = /estimates/{newPvNumber}
+// All state gets cleared and reloaded from DB for the new project
+alert(“In production: navigating to “ + newPvNumber + “\nAll state reloads from database for that project only.”);
+};
+
+// ═══ PROJECT DATA — mapped from Proposal Log ═══
+// In production: fetched from PostgreSQL via estimate_id linked to proposal_log.pv_number
+const [project, setProject] = useState({
+// Proposal Log fields
+projectName: “Mesa Gateway Medical Office”,
+estimateNumber: “PV-2026-0147”,
+region: “OCLA (LAX)”,
+nbsEstimator: “Gene Trabert”,
+gcEstimateLead: “Swinerton Builders”,
+dueDate: “04/15/2026”,
+primaryMarket: “Healthcare”,
+estimateStatus: “Estimating”,
+swinertonProject: “Y”,
+inviteDate: “03/15/2026”,
+anticipatedStart: “08/2026”,
+anticipatedFinish: “03/2027”,
+filePath: “”,
+owner: “Haley Kruseek”,
+finalReviewer: “”,
+// Scope sections identified for this project (drives which tabs appear)
+activeScopes: [“accessories”, “partitions”, “fire_ext”],
+});
+
+// Active categories = only the scopes identified for this project
+const CATEGORIES = ALL_SCOPES.filter(s => project.activeScopes.includes(s.id));
+const [activeCat, setActiveCat] = useState(project.activeScopes[0] || “accessories”);
+
+// Quote management
+const [showNewQuote, setShowNewQuote] = useState(false);
+const [newQuote, setNewQuote] = useState({ vendor: “”, note: “”, freight: 0, taxIncluded: false, pricingMode: “per_item”, lumpSumTotal: 0 });
+
+// 3-dot menu
+const [openMenu, setOpenMenu] = useState(null);
+
+// AI + Extractor
+const [showExtractor, setShowExtractor] = useState(false);
+const [showAiParse, setShowAiParse] = useState(false);
+const [pasteText, setPasteText] = useState(””);
+const [aiParsing, setAiParsing] = useState(false);
+const [parsedQuote, setParsedQuote] = useState(null);
+
+// Proposal options
+const [showUnitPricing, setShowUnitPricing] = useState(false);
+
+// Project switcher (pulls from Proposal Log)
+const [showProjectSwitcher, setShowProjectSwitcher] = useState(false);
+const proposalLogProjects = [
+{ pv: “PV-2026-0147”, name: “Mesa Gateway Medical Office”, gc: “Swinerton Builders”, status: “Estimating”, due: “04/15/2026”, estimator: “Gene Trabert” },
+{ pv: “PV-2026-0152”, name: “LAX Terminal 4 Renovation”, gc: “Hensel Phelps”, status: “Estimating”, due: “04/22/2026”, estimator: “Gonzalo Martinez” },
+{ pv: “PV-2026-0138”, name: “Cedars-Sinai Tower B TI”, gc: “Swinerton Builders”, status: “Submitted”, due: “03/28/2026”, estimator: “Gene Trabert” },
+{ pv: “PV-2026-0161”, name: “Scottsdale Data Center Ph2”, gc: “Swinerton (Dave Higgins)”, status: “Lead”, due: “05/01/2026”, estimator: “Haley Kruseek” },
+{ pv: “PV-2026-0155”, name: “UCI Student Housing”, gc: “McCarthy”, status: “Estimating”, due: “04/18/2026”, estimator: “Gonzalo Martinez” },
+];
+
+// Multi-select for bulk quote assignment
+const [bulkSelectMode, setBulkSelectMode] = useState(false);
+const [bulkSelected, setBulkSelected] = useState(new Set());
+const [bulkAssignQuoteId, setBulkAssignQuoteId] = useState(””);
+
+// ═══ RFQ GENERATOR ═══
+const [showRfq, setShowRfq] = useState(false);
+const [rfqItems, setRfqItems] = useState([]); // items selected for RFQ
+const [rfqMfrs, setRfqMfrs] = useState(new Set()); // selected manufacturers to send to
+const [rfqPreview, setRfqPreview] = useState(null); // { mfr, email, subject, body }
+
+// Manufacturer contact database (in production: from vendor_profiles table)
+const MFR_CONTACTS = {
+“Bobrick”: { email: “quotes@bobrick.com”, rep: “Mike Johnson”, phone: “(800) 553-1600” },
+“Bradley”: { email: “pricing@bradleycorp.com”, rep: “Sarah Chen”, phone: “(800) 272-3539” },
+“ASI”: { email: “quotes@americanspecialties.com”, rep: “Tom Rivera”, phone: “(914) 476-9000” },
+“Kohler”: { email: “commercial@kohler.com”, rep: “Regional Rep”, phone: “(800) 456-4537” },
+“Amerex”: { email: “quotes@amerex-fire.com”, rep: “Dave Wilson”, phone: “(205) 655-3271” },
+“Claridge”: { email: “sales@claridgeproducts.com”, rep: “Jim Hayes”, phone: “(800) 434-4499” },
+“InPro”: { email: “quotes@inprocorp.com”, rep: “Lisa Park”, phone: “(800) 222-5556” },
+“Salsbury”: { email: “sales@salsbury.com”, rep: “Regional Rep”, phone: “(800) 562-5377” },
+“Hadrian”: { email: “quotes@hadrian-inc.com”, rep: “Regional Rep”, phone: “(800) 363-7997” },
+“Scranton Products”: { email: “quotes@scrantonproducts.com”, rep: “Regional Rep”, phone: “(800) 726-4856” },
+“Construction Specialties”: { email: “quotes@c-sgroup.com”, rep: “Regional Rep”, phone: “(800) 233-8493” },
+};
+
+// Estimator email mapping (in production: from user profile)
+const estimatorEmails = {
+“Gene Trabert”: “gtrabert@nbsspecialties.com”,
+“Gonzalo Martinez”: “gmartinez@nbsspecialties.com”,
+“Haley Kruseek”: “hkruseek@nbsspecialties.com”,
+};
+
+const generateRfqEmail = (mfr) => {
+const contact = MFR_CONTACTS[mfr] || { email: “”, rep: “To Whom It May Concern” };
+const mfrItems = rfqItems.filter(i => i.mfr === mfr || rfqMfrs.has(mfr));
+const estimatorEmail = estimatorEmails[project.nbsEstimator] || “estimating@nbsspecialties.com”;
+const subject = “RFQ — “ + project.projectName + “ (” + project.estimateNumber + “) — “ + CATEGORIES.find(c => c.id === activeCat)?.label;
+const itemLines = (mfrItems.length > 0 ? mfrItems : rfqItems).map(i =>
+“  - “ + i.name + (i.model ? “ (” + i.model + “)” : “”) + “ — Qty: “ + i.qty
+).join(”\n”);
+const body = “Dear “ + contact.rep + “,\n\n” +
+“National Building Specialties is requesting pricing for the following Division 10 items on the project below.\n\n” +
+“PROJECT: “ + project.projectName + “\n” +
+“GC: “ + project.gcEstimateLead + “\n” +
+“REGION: “ + project.region + “\n” +
+“BID DUE: “ + project.dueDate + “\n” +
+“NBS ESTIMATE #: “ + project.estimateNumber + “\n\n” +
+“ITEMS REQUESTED:\n” + itemLines + “\n\n” +
+“Please provide:\n” +
+“  1. Unit pricing for each item listed\n” +
+“  2. Freight cost to jobsite\n” +
+“  3. Lead time / availability\n” +
+“  4. Any applicable substitutions if specified items are unavailable\n\n” +
+“Please respond by: “ + project.dueDate + “ (bid due date)\n\n” +
+“Thank you,\n” +
+project.nbsEstimator + “\n” +
+“National Building Specialties\n” +
+“A Division of Swinerton Builders\n” +
+estimatorEmail;
+
+```
+return { mfr, email: contact.email, rep: contact.rep, subject, body, estimatorEmail };
+```
+
+};
+
+const openInOutlook = (rfq) => {
+// Creates a mailto link that opens Outlook desktop with pre-filled draft
+const mailto = “mailto:” + encodeURIComponent(rfq.email) +
+“?subject=” + encodeURIComponent(rfq.subject) +
+“&body=” + encodeURIComponent(rfq.body);
+window.open(mailto, “_blank”);
+};
+
+// Progress checklist
+const [checklist, setChecklist] = useState(CHECKLIST_TEMPLATE.map(c => ({ …c, done: false })));
+
+const fileInputRef = useRef(null);
+
+// ═══ CALCULATIONS (iterates ALL scopes so calcData[id] is never undefined) ═══
+const calcData = useMemo(() => {
+const data = {};
+ALL_SCOPES.forEach(cat => {
+const items = lineItems.filter(i => i.category === cat.id);
+const material = items.reduce((s, i) => s + i.unitCost * i.qty, 0);
+const catQuotes = quotes.filter(q => q.category === cat.id);
+const lumpAdj = catQuotes.reduce((s, q) => {
+if (q.pricingMode === “lump_sum” && q.lumpSumTotal > 0) {
+const qTotal = items.filter(i => i.quoteId === q.id).reduce((ss, i) => ss + i.unitCost * i.qty, 0);
+return s + Math.max(0, q.lumpSumTotal - qTotal);
+}
+return s;
+}, 0);
+const effMat = material + lumpAdj;
+const escRate = catOverrides[cat.id]?.esc ?? defaultEsc;
+const isEscOvr = catOverrides[cat.id]?.esc != null;
+const escalation = items.reduce((s, i) => {
+const r = i.escOverride != null ? i.escOverride : escRate;
+return s + (i.unitCost * i.qty) * (r / 100);
+}, 0) + (lumpAdj * (escRate / 100));
+const escDefault = effMat * (defaultEsc / 100);
+const escImpact = escalation - escDefault;
+const totalFreight = catQuotes.reduce((s, q) => s + q.freight, 0);
+const subtotal = effMat + escalation + totalFreight;
+const ohpRate = catOverrides[cat.id]?.ohp ?? defaultOhp;
+const isOhpOvr = catOverrides[cat.id]?.ohp != null;
+const ohp = subtotal * (ohpRate / 100);
+const ohpDefault = subtotal * (defaultOhp / 100);
+const ohpImpact = ohp - ohpDefault;
+const tax = effMat * (taxRate / 100);
+const bond = subtotal * (bondRate / 100);
+const total = subtotal + ohp + tax + bond;
+const missingBackup = items.filter(i => !i.hasBackup).length;
+const isComplete = catComplete[cat.id] || false;
+data[cat.id] = { items: items.length, material: effMat, escalation, escRate, isEscOvr, escImpact, totalFreight, catQuotes, subtotal, ohpRate, isOhpOvr, ohp, ohpDefault, ohpImpact, tax, bond, total, missingBackup, isComplete };
+});
+const g = (fn) => Object.values(data).reduce((s, d) => s + fn(d), 0);
+const allMat = g(d => d.material); const allEsc = g(d => d.escalation); const allFrt = g(d => d.totalFreight);
+const allSub = g(d => d.subtotal); const allOhp = g(d => d.ohp); const allTax = g(d => d.tax); const allBond = g(d => d.bond);
+const grandTotal = allSub + allOhp + allTax + allBond;
+const ohpOvrs = ALL_SCOPES.filter(c => data[c.id]?.isOhpOvr && data[c.id]?.items > 0);
+const escOvrs = ALL_SCOPES.filter(c => data[c.id]?.isEscOvr && data[c.id]?.items > 0);
+return { …data, allMat, allEsc, allFrt, allSub, allOhp, allTax, allBond, grandTotal, ohpOvrs, escOvrs };
+}, [lineItems, quotes, catOverrides, defaultOhp, defaultEsc, taxRate, bondRate, catComplete]);
+
+// ═══ PROGRESS CALCULATION ═══
+const progress = useMemo(() => {
+const activeCats = CATEGORIES.filter(c => calcData[c.id]?.items > 0);
+const totalCats = activeCats.length || 1;
+// Stage weights
+const intakeW = 10, lineItemsW = 50, calcsW = 15, outputW = 25;
+// Intake: project loaded = done
+const intakePct = 100;
+// Line items: per category (items entered, priced, backup attached, scope complete)
+const catScores = activeCats.map(c => {
+const d = calcData[c.id];
+const hasItems = d.items > 0 ? 25 : 0;
+const allPriced = d.items > 0 && lineItems.filter(i => i.category === c.id && i.unitCost === 0).length === 0 ? 25 : (d.items > 0 ? 25 * (lineItems.filter(i => i.category === c.id && i.unitCost > 0).length / d.items) : 0);
+const allBackup = d.items > 0 ? 25 * ((d.items - d.missingBackup) / d.items) : 0;
+const complete = d.isComplete ? 25 : 0;
+return hasItems + allPriced + allBackup + complete;
+});
+const lineItemsPct = catScores.length > 0 ? catScores.reduce((s, v) => s + v, 0) / catScores.length : 0;
+// Calcs: checklist items for this stage
+const calcChecks = checklist.filter(c => c.stage === “calculations”);
+const calcsPct = calcChecks.length > 0 ? (calcChecks.filter(c => c.done).length / calcChecks.length) * 100 : 0;
+// Output: checklist items for this stage
+const outChecks = checklist.filter(c => c.stage === “output”);
+const outputPct = outChecks.length > 0 ? (outChecks.filter(c => c.done).length / outChecks.length) * 100 : 0;
+const overall = (intakePct * intakeW + lineItemsPct * lineItemsW + calcsPct * calcsW + outputPct * outputW) / 100;
+return { overall, intakePct, lineItemsPct, calcsPct, outputPct, catScores, activeCats };
+}, [calcData, lineItems, checklist, catComplete]);
+
+// ═══ HELPERS (all route through dirty-tracking setters) ═══
+const updateItem = (id, f, v) => setLineItemsD(p => p.map(i => i.id === id ? { …i, [f]: v } : i));
+const removeItem = (id) => setLineItemsD(p => p.filter(i => i.id !== id));
+const updateQuote = (qid, f, v) => setQuotesD(p => p.map(q => q.id === qid ? { …q, [f]: v } : q));
+const deleteQuote = (qid) => { setLineItemsD(p => p.map(i => i.quoteId === qid ? { …i, quoteId: null } : i)); setQuotesD(p => p.filter(q => q.id !== qid)); };
+const addNewQuote = () => { if (!newQuote.vendor.trim()) return; setQuotesD(p => […p, { …newQuote, id: uid(), vendor: newQuote.vendor.trim(), category: activeCat, note: newQuote.note.trim() }]); setNewQuote({ vendor: “”, note: “”, freight: 0, taxIncluded: false, pricingMode: “per_item”, lumpSumTotal: 0 }); setShowNewQuote(false); };
+const assignItemToQuote = (itemId, quoteId) => setLineItemsD(p => p.map(i => i.id === itemId ? { …i, quoteId: quoteId || null, source: quoteId ? “vendor_quote” : i.source } : i));
+const setCatOhp = (catId, v) => setCatOverridesD(p => ({ …p, [catId]: { …p[catId], ohp: v } }));
+const clearCatOhp = (catId) => setCatOverridesD(p => { const n = { …p }; if (n[catId]) { delete n[catId].ohp; if (!Object.keys(n[catId]).length) delete n[catId]; } return n; });
+const setCatEsc = (catId, v) => setCatOverridesD(p => ({ …p, [catId]: { …p[catId], esc: v } }));
+const clearCatEsc = (catId) => setCatOverridesD(p => { const n = { …p }; if (n[catId]) { delete n[catId].esc; if (!Object.keys(n[catId]).length) delete n[catId]; } return n; });
+const toggleCheck = (id) => setChecklist(p => p.map(c => c.id === id ? { …c, done: !c.done } : c));
+
+const tryCompleteCat = (catId) => {
+const d = calcData[catId];
+if (d.missingBackup > 0) { alert(“Cannot complete: “ + d.missingBackup + “ item(s) missing backup documentation.”); return; }
+if (lineItems.filter(i => i.category === catId && i.unitCost === 0).length > 0) { alert(“Cannot complete: Some items have no pricing.”); return; }
+setCatCompleteD(p => ({ …p, [catId]: !p[catId] }));
+};
+
+// AI Quote Parser
+const parseQuoteWithAI = async () => {
+if (!pasteText.trim()) return;
+setAiParsing(true);
+setParsedQuote(null);
+try {
+const catLabel = CATEGORIES.find(c => c.id === activeCat)?.label || activeCat;
+const res = await fetch(“https://api.anthropic.com/v1/messages”, {
+method: “POST”, headers: { “Content-Type”: “application/json” },
+body: JSON.stringify({
+model: “claude-sonnet-4-20250514”, max_tokens: 1000,
+system: “You parse vendor quotes for Division 10 construction specialties. Respond ONLY with JSON, no markdown. Structure: {"vendor":"","note":"","freight":0,"taxIncluded":false,"pricingMode":"per_item","lumpSumTotal":0,"items":[{"name":"","model":"","mfr":"","unitCost":0,"qty":1}]}. If lump sum with no unit prices, set pricingMode to lump_sum. Category: “ + catLabel,
+messages: [{ role: “user”, content: “Parse this vendor quote:\n\n” + pasteText.trim() }],
+}),
+});
+const data = await res.json();
+const text = data.content?.map(b => b.type === “text” ? b.text : “”).join(””) || “”;
+const parsed = JSON.parse(text.replace(/`json|`/g, “”).trim());
+if (parsed.items) parsed.items = parsed.items.map(i => ({ …i, selected: true, category: activeCat }));
+setParsedQuote(parsed);
+} catch (e) { console.error(e); }
+setAiParsing(false);
+};
+
+const acceptParsedQuote = () => {
+if (!parsedQuote) return;
+const qId = uid();
+setQuotesD(p => […p, { id: qId, vendor: parsedQuote.vendor || “Unknown”, category: activeCat, freight: parsedQuote.freight || 0, note: parsedQuote.note || “”, taxIncluded: parsedQuote.taxIncluded || false, pricingMode: parsedQuote.pricingMode || “per_item”, lumpSumTotal: parsedQuote.lumpSumTotal || 0, hasBackup: true }]);
+const newItems = (parsedQuote.items || []).filter(i => i.selected).map(i => ({ id: uid(), name: i.name, model: i.model || “”, mfr: i.mfr || parsedQuote.vendor, unitCost: i.unitCost || 0, qty: i.qty || 1, category: activeCat, quoteId: qId, source: “vendor_quote”, note: “”, hasBackup: true }));
+setLineItemsD(p => […p, …newItems]);
+setParsedQuote(null); setPasteText(””); setShowAiParse(false); setShowNewQuote(false);
+};
+
+// ═══ STYLES ═══
+const card = { background: C.surface, border: “1px solid “ + C.border, borderRadius: 12, padding: 20 };
+const inp = { padding: “6px 8px”, background: C.bg, border: “1px solid “ + C.border, borderRadius: 6, color: C.text, fontSize: 13, fontFamily: “inherit” };
+const pill = (color) => ({ display: “inline-block”, padding: “2px 8px”, borderRadius: 4, fontSize: 10, fontWeight: 600, background: color + “18”, color, border: “1px solid “ + color + “30” });
+const btn = (color, filled) => ({ padding: “8px 16px”, background: filled ? color : color + “18”, border: “1px solid “ + color + (filled ? “” : “40”), borderRadius: 8, color: filled ? “#fff” : color, fontSize: 12, cursor: “pointer”, fontFamily: “inherit”, fontWeight: 600 });
+const catQuotes = quotes.filter(q => q.category === activeCat);
+const quoteOpts = [{ id: “”, label: “– No Quote –” }, …catQuotes.map(q => ({ id: q.id, label: q.vendor + (q.note ? “ (” + q.note + “)” : “”) }))];
+
+// Progress bar helper
+const ProgressBar = ({ pct, color, label, small }) => (
+<div style={{ flex: 1, minWidth: small ? 60 : 100 }}>
+{label && <div style={{ fontSize: 10, color: C.textDim, marginBottom: 3 }}>{label}</div>}
+<div style={{ height: small ? 6 : 8, background: C.border, borderRadius: 4, overflow: “hidden” }}>
+<div style={{ width: Math.min(pct, 100) + “%”, height: “100%”, background: pct >= 100 ? C.green : color || C.accent, borderRadius: 4, transition: “width 0.3s” }} />
+</div>
+<div style={{ fontSize: 9, color: C.textMuted, marginTop: 2 }}>{Math.round(pct)}%</div>
+</div>
+);
+
+return (
+<div style={{ fontFamily: “‘JetBrains Mono’,‘SF Mono’,monospace”, background: C.bg, color: C.text, minHeight: “100vh”, padding: 24 }}>
+
+```
+  {/* ═══ PERSISTENT PROJECT IDENTITY BAR ═══ */}
+  <div style={{ background: C.accent + "12", border: "1px solid " + C.accent + "30", borderRadius: 10, padding: "10px 16px", marginBottom: 12, display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
+    <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+      <div style={{ width: 32, height: 32, background: C.accent, borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, fontWeight: 800, color: "#fff" }}>E</div>
+      <div>
+        <div style={{ fontSize: 14, fontWeight: 700 }}>{project.projectName}</div>
+        <div style={{ fontSize: 10, color: C.textMuted }}>{project.estimateNumber} {"\u2022"} {project.gcEstimateLead} {"\u2022"} {project.region} {"\u2022"} {project.nbsEstimator}</div>
+      </div>
+      {/* Project switcher button */}
+      <div style={{ position: "relative" }}>
+        <button onClick={() => setShowProjectSwitcher(!showProjectSwitcher)} style={{ padding: "4px 10px", borderRadius: 6, fontSize: 10, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", background: C.surface, border: "1px solid " + C.border, color: C.textMuted, display: "flex", alignItems: "center", gap: 4 }}>
+          {"\u{1F504}"} Switch Project
+        </button>
+        {showProjectSwitcher && (
+          <div style={{ position: "absolute", left: 0, top: 30, background: C.surface, border: "1px solid " + C.border, borderRadius: 10, padding: 8, zIndex: 20, minWidth: 320, boxShadow: "0 12px 32px rgba(0,0,0,0.5)" }}>
+            <div style={{ fontSize: 11, fontWeight: 600, color: C.textDim, padding: "4px 8px", marginBottom: 4 }}>Proposal Log — Active Estimates</div>
+            {proposalLogProjects.map(p => (
+              <button key={p.pv} onClick={() => {
+                if (p.pv === project.estimateNumber) { setShowProjectSwitcher(false); return; }
+                confirmSwitchProject(p.pv);
+                setShowProjectSwitcher(false);
+              }} style={{
+                display: "block", width: "100%", padding: "8px 10px", background: p.pv === project.estimateNumber ? C.accentGlow : "transparent",
+                border: "none", textAlign: "left", cursor: "pointer", fontFamily: "inherit", borderRadius: 6, marginBottom: 2,
+              }}
+              onMouseEnter={e => { if (p.pv !== project.estimateNumber) e.currentTarget.style.background = C.surfaceHover; }}
+              onMouseLeave={e => { if (p.pv !== project.estimateNumber) e.currentTarget.style.background = "transparent"; }}
+              >
+                <div style={{ fontSize: 12, fontWeight: 600, color: p.pv === project.estimateNumber ? C.accent : C.text }}>{p.name} {p.pv === project.estimateNumber && "\u2190 current"}</div>
+                <div style={{ fontSize: 10, color: C.textDim }}>{p.pv} {"\u2022"} {p.gc} {"\u2022"} {p.estimator} {"\u2022"} Due {p.due} {"\u2022"} <span style={{ color: p.status === "Estimating" ? C.accent : p.status === "Lead" ? C.orange : C.green }}>{p.status}</span></div>
+              </button>
+            ))}
+            <div style={{ borderTop: "1px solid " + C.border, marginTop: 4, paddingTop: 6 }}>
+              <button onClick={() => { setShowProjectSwitcher(false); alert("In production: opens full Proposal Log view"); }} style={{ width: "100%", padding: "6px 10px", background: "transparent", border: "none", textAlign: "center", color: C.accent, fontSize: 11, cursor: "pointer", fontFamily: "inherit", fontWeight: 600 }}>
+                {"\u{1F4CB}"} Open Full Proposal Log
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+      <div style={{ padding: "4px 10px", borderRadius: 6, fontSize: 10, fontWeight: 600, background: project.estimateStatus === "Estimating" ? C.accentGlow : C.greenSoft, color: project.estimateStatus === "Estimating" ? C.accent : C.green, border: "1px solid " + (project.estimateStatus === "Estimating" ? C.accent : C.green) + "30" }}>
+        {project.estimateStatus}
+      </div>
+      <div style={{ fontSize: 10, color: C.textDim }}>Due: {project.dueDate}</div>
+      {/* Save status */}
+      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+        {isDirty && <div style={{ width: 8, height: 8, borderRadius: "50%", background: C.orange }} title="Unsaved changes" />}
+        <button onClick={saveProject} disabled={isSaving || !isDirty} style={{ padding: "4px 12px", borderRadius: 6, fontSize: 10, fontWeight: 600, cursor: isDirty ? "pointer" : "default", fontFamily: "inherit", background: isDirty ? C.green + "18" : "transparent", border: "1px solid " + (isDirty ? C.green + "40" : C.border), color: isDirty ? C.green : C.textDim, opacity: isDirty ? 1 : 0.5 }}>
+          {isSaving ? "Saving..." : isDirty ? "Save" : "\u2713 Saved"}
+        </button>
+        {lastSaved && <span style={{ fontSize: 9, color: C.textDim }}>{lastSaved.toLocaleTimeString()}</span>}
+      </div>
+    </div>
+  </div>
+
+  {/* ═══ SESSION LOCK NOTICE ═══ */}
+  <div style={{ fontSize: 9, color: C.textDim, textAlign: "center", marginBottom: 8, letterSpacing: "0.5px" }}>
+    {"\u{1F512}"} Session locked to {project.estimateNumber} — one project at a time
+  </div>
+
+  {/* ═══ OVERALL PROGRESS BAR ═══ */}
+  <div style={{ ...card, padding: "12px 20px", marginBottom: 16, display: "flex", gap: 20, alignItems: "center", flexWrap: "wrap" }}>
+    <div style={{ fontSize: 13, fontWeight: 700, color: progress.overall >= 100 ? C.green : C.text, minWidth: 100 }}>
+      Bid Progress: {Math.round(progress.overall)}%
+    </div>
+    <ProgressBar pct={progress.intakePct} color={C.accent} label="Intake" small />
+    <ProgressBar pct={progress.lineItemsPct} color={C.green} label="Line Items" small />
+    <ProgressBar pct={progress.calcsPct} color={C.orange} label="Markups" small />
+    <ProgressBar pct={progress.outputPct} color={C.red} label="Output" small />
+    <div style={{ height: 30, width: 30, borderRadius: "50%", border: "3px solid " + (progress.overall >= 100 ? C.green : progress.overall > 50 ? C.orange : C.red), display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 700, color: progress.overall >= 100 ? C.green : C.text }}>
+      {Math.round(progress.overall)}
+    </div>
+  </div>
+
+  {/* ═══ STAGE NAV ═══ */}
+  <div style={{ display: "flex", gap: 4, marginBottom: 24, overflowX: "auto", paddingBottom: 4 }}>
+    {[
+      { id: "intake", num: "1", label: "Project Intake", color: C.accent },
+      { id: "lineItems", num: "2", label: "Line Items", color: C.green },
+      { id: "calculations", num: "3", label: "Markups & Totals", color: C.orange },
+      { id: "output", num: "4", label: "Bid Summary", color: C.red },
+    ].map((s, idx, arr) => (
+      <button key={s.id} onClick={() => setStage(s.id)} style={{ flex: 1, minWidth: 130, padding: "12px 10px", borderRadius: 10, cursor: "pointer", textAlign: "left", position: "relative", background: stage === s.id ? s.color + "18" : C.surface, border: "1px solid " + (stage === s.id ? s.color + "60" : C.border) }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <span style={{ width: 20, height: 20, borderRadius: 6, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 700, background: stage === s.id ? s.color : C.border, color: stage === s.id ? "#fff" : C.textDim }}>{s.num}</span>
+          <span style={{ fontSize: 12, fontWeight: 600, color: stage === s.id ? s.color : C.text }}>{s.label}</span>
+        </div>
+        {idx < arr.length - 1 && <span style={{ position: "absolute", right: -8, top: "50%", transform: "translateY(-50%)", color: C.textDim, fontSize: 12, zIndex: 1 }}>{"\u2192"}</span>}
+      </button>
+    ))}
+  </div>
+
+  {/* ════════════════ STAGE 1: INTAKE ════════════════ */}
+  {stage === "intake" && (
+    <div style={{ ...card, borderLeft: "3px solid " + C.accent }}>
+      <h2 style={{ margin: "0 0 4px", fontSize: 16 }}>Project Info</h2>
+      <p style={{ margin: "0 0 16px", fontSize: 11, color: C.textDim }}>Populated from Proposal Log — {project.estimateNumber}</p>
+
+      {/* Proposal Log fields */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(200px,1fr))", gap: 12, marginBottom: 20 }}>
+        {[
+          { key: "projectName", label: "Project Name" },
+          { key: "estimateNumber", label: "Estimate / PV#" },
+          { key: "gcEstimateLead", label: "GC / Client" },
+          { key: "region", label: "Region" },
+          { key: "nbsEstimator", label: "NBS Estimator" },
+          { key: "dueDate", label: "Due Date" },
+          { key: "primaryMarket", label: "Primary Market" },
+          { key: "estimateStatus", label: "Status" },
+          { key: "swinertonProject", label: "Swinerton Project" },
+          { key: "inviteDate", label: "Invite Date" },
+          { key: "anticipatedStart", label: "Est. Start" },
+          { key: "anticipatedFinish", label: "Est. Finish" },
+          { key: "owner", label: "Owner" },
+          { key: "finalReviewer", label: "Final Reviewer" },
+        ].map(f => (
+          <div key={f.key}>
+            <label style={{ fontSize: 9, color: C.textDim, textTransform: "uppercase", letterSpacing: "0.5px", display: "block", marginBottom: 4 }}>{f.label}</label>
+            <div style={{ padding: "8px 10px", background: C.bg, border: "1px solid " + C.border, borderRadius: 6, fontSize: 12 }}>{project[f.key] || "\u2014"}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Scope Section Selector — drives which tabs appear in Line Items */}
+      <div style={{ padding: 16, background: C.bg, borderRadius: 10, border: "1px solid " + C.border, marginBottom: 16 }}>
+        <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 8 }}>Scope Sections Identified</div>
+        <p style={{ margin: "0 0 10px", fontSize: 10, color: C.textDim }}>Select the Division 10 scope sections included in this project. These become the category tabs in Line Items.</p>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+          {ALL_SCOPES.map(s => {
+            const active = project.activeScopes.includes(s.id);
+            return (
+              <button key={s.id} onClick={() => {
+                setProject(p => ({
+                  ...p,
+                  activeScopes: active
+                    ? p.activeScopes.filter(id => id !== s.id)
+                    : [...p.activeScopes, s.id],
+                }));
+              }} style={{
+                padding: "6px 12px", borderRadius: 8, fontSize: 11, cursor: "pointer", fontFamily: "inherit",
+                background: active ? C.greenSoft : C.surface,
+                border: "1px solid " + (active ? C.green + "50" : C.border),
+                color: active ? C.green : C.textDim, fontWeight: active ? 600 : 400,
+              }}>
+                {s.icon} {s.label} {active && "\u2713"}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Intake checklist */}
+      <div style={{ padding: 16, background: C.bg, borderRadius: 10, border: "1px solid " + C.border }}>
+        <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 10 }}>Intake Checklist</div>
+        {checklist.filter(c => c.stage === "intake").map(c => (
+          <label key={c.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 0", cursor: "pointer", fontSize: 12, color: c.done ? C.green : C.textMuted }}>
+            <input type="checkbox" checked={c.done} onChange={() => toggleCheck(c.id)} style={{ accentColor: C.green }} />
+            <span style={{ textDecoration: c.done ? "line-through" : "none" }}>{c.label}</span>
+          </label>
+        ))}
+      </div>
+      <button onClick={() => { if (CATEGORIES.length > 0) setActiveCat(CATEGORIES[0].id); setStage("lineItems"); }} style={{ ...btn(C.accent, true), marginTop: 20, padding: "12px 28px" }}>Continue to Line Items {"\u2192"}</button>
+    </div>
+  )}
+
+  {/* ════════════════ STAGE 2: LINE ITEMS ════════════════ */}
+  {stage === "lineItems" && (
+    <div>
+      {/* Category tabs */}
+      <div style={{ display: "flex", gap: 6, marginBottom: 16, overflowX: "auto", paddingBottom: 4 }}>
+        {CATEGORIES.map(c => {
+          const d = calcData[c.id];
+          return (
+            <button key={c.id} onClick={() => setActiveCat(c.id)} style={{
+              padding: "8px 12px", borderRadius: 8, cursor: "pointer", fontSize: 11, fontFamily: "inherit", whiteSpace: "nowrap",
+              border: "1px solid " + (activeCat === c.id ? C.green + "60" : C.border),
+              background: activeCat === c.id ? C.greenSoft : C.surface,
+              color: activeCat === c.id ? C.green : C.textMuted, fontWeight: activeCat === c.id ? 600 : 400,
+            }}>
+              {c.icon} {c.label} {d.items > 0 && <span style={{ opacity: 0.7 }}>({d.items})</span>}
+              {d.isComplete && <span style={{ marginLeft: 4, color: C.green }}>{"\u2713"}</span>}
+              {d.missingBackup > 0 && !d.isComplete && <span style={{ marginLeft: 4, color: C.red }}>{"\u26A0"}</span>}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* OH&P + Escalation bar */}
+      <div style={{ padding: "10px 16px", background: C.orangeSoft, borderRadius: 8, marginBottom: 12, display: "flex", gap: 20, alignItems: "center", flexWrap: "wrap", fontSize: 11 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <span style={{ fontWeight: 600, color: C.orange }}>OH&P:</span>
+          <input type="number" step={0.5} value={calcData[activeCat]?.isOhpOvr ? calcData[activeCat].ohpRate : ""} placeholder={defaultOhp + "% def"} onChange={e => { const v = e.target.value; v === "" ? clearCatOhp(activeCat) : setCatOhp(activeCat, parseFloat(v) || 0); }} style={{ ...inp, width: 70, textAlign: "right", fontSize: 12, color: calcData[activeCat]?.isOhpOvr ? C.orange : C.textDim }} />
+          <span style={{ color: C.textDim }}>%</span>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <span style={{ fontWeight: 600, color: C.accent }}>Escalation:</span>
+          <input type="number" step={0.5} value={calcData[activeCat]?.isEscOvr ? calcData[activeCat].escRate : ""} placeholder={defaultEsc + "% def"} onChange={e => { const v = e.target.value; v === "" ? clearCatEsc(activeCat) : setCatEsc(activeCat, parseFloat(v) || 0); }} style={{ ...inp, width: 70, textAlign: "right", fontSize: 12, color: calcData[activeCat]?.isEscOvr ? C.accent : C.textDim }} />
+          <span style={{ color: C.textDim }}>%</span>
+        </div>
+        <div style={{ marginLeft: "auto" }}>
+          <button onClick={() => tryCompleteCat(activeCat)} style={{ ...btn(calcData[activeCat]?.isComplete ? C.green : C.textDim, calcData[activeCat]?.isComplete), padding: "6px 14px", fontSize: 11 }}>
+            {calcData[activeCat]?.isComplete ? "\u2713 Complete" : "Mark Complete"}
+          </button>
+        </div>
+      </div>
+
+      {/* Vendor Quotes */}
+      <div style={{ ...card, padding: 12, marginBottom: 12, borderLeft: "3px solid " + C.purple }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+          <span style={{ fontSize: 13, fontWeight: 600 }}>Vendor Quotes</span>
+          <div style={{ display: "flex", gap: 6 }}>
+            <button onClick={() => { setShowNewQuote(!showNewQuote); setShowAiParse(false); }} style={btn(C.purple, false)}>+ Manual</button>
+            <button onClick={() => { setShowNewQuote(true); setShowAiParse(true); }} style={btn(C.accent, false)}>{"\u{1F916}"} Paste Quote</button>
+          </div>
+        </div>
+
+        {/* New quote form */}
+        {showNewQuote && !showAiParse && (
+          <div style={{ padding: 14, background: C.bg, borderRadius: 8, border: "1px dashed " + C.purple + "40", marginBottom: 10 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 100px", gap: 8, marginBottom: 10 }}>
+              <input value={newQuote.vendor} onChange={e => setNewQuote(p => ({ ...p, vendor: e.target.value }))} placeholder="Vendor name" style={{ ...inp, width: "100%", boxSizing: "border-box" }} />
+              <input value={newQuote.note} onChange={e => setNewQuote(p => ({ ...p, note: e.target.value }))} placeholder="Description" style={{ ...inp, width: "100%", boxSizing: "border-box" }} />
+              <input type="number" value={newQuote.freight} onChange={e => setNewQuote(p => ({ ...p, freight: parseFloat(e.target.value) || 0 }))} placeholder="Freight $" style={{ ...inp, width: "100%", boxSizing: "border-box", color: C.orange }} />
+            </div>
+            <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+              <select value={newQuote.pricingMode} onChange={e => setNewQuote(p => ({ ...p, pricingMode: e.target.value }))} style={{ ...inp, fontSize: 11, cursor: "pointer" }}>
+                <option value="per_item">Per Item</option>
+                <option value="lump_sum">Lump Sum</option>
+              </select>
+              {newQuote.pricingMode === "lump_sum" && <input type="number" value={newQuote.lumpSumTotal} onChange={e => setNewQuote(p => ({ ...p, lumpSumTotal: parseFloat(e.target.value) || 0 }))} placeholder="LS Total" style={{ ...inp, width: 90, color: C.orange }} />}
+              <button onClick={() => setNewQuote(p => ({ ...p, taxIncluded: !p.taxIncluded }))} style={{ padding: "4px 8px", borderRadius: 4, fontSize: 10, cursor: "pointer", fontFamily: "inherit", background: newQuote.taxIncluded ? C.greenSoft : "transparent", border: "1px solid " + (newQuote.taxIncluded ? C.green + "40" : C.border), color: newQuote.taxIncluded ? C.green : C.textDim }}>{newQuote.taxIncluded ? "\u2713 Tax Incl" : "Tax Excl"}</button>
+              <button onClick={addNewQuote} style={btn(C.purple, true)}>Create</button>
+              <button onClick={() => setShowNewQuote(false)} style={btn(C.textDim, false)}>Cancel</button>
+            </div>
+            {/* File upload for backup */}
+            <div style={{ marginTop: 10, padding: 10, border: "1px dashed " + C.border, borderRadius: 6, textAlign: "center", fontSize: 11, color: C.textDim, cursor: "pointer" }} onClick={() => fileInputRef.current?.click()}>
+              {"\u{1F4CE}"} Click or drag PDF/screenshot as quote backup
+              <input ref={fileInputRef} type="file" accept=".pdf,.png,.jpg,.jpeg" style={{ display: "none" }} onChange={e => { if (e.target.files?.[0]) { alert("File attached: " + e.target.files[0].name + " (storage integration pending)"); } }} />
+            </div>
+          </div>
+        )}
+
+        {/* AI Parse mode */}
+        {showNewQuote && showAiParse && (
+          <div style={{ padding: 14, background: C.bg, borderRadius: 8, border: "1px dashed " + C.accent + "40", marginBottom: 10 }}>
+            {!parsedQuote ? (
+              <>
+                <p style={{ margin: "0 0 8px", fontSize: 11, color: C.textDim }}>Paste vendor quote text or drag a PDF/screenshot below:</p>
+                <textarea value={pasteText} onChange={e => setPasteText(e.target.value)} placeholder="Paste quote text here..." style={{ ...inp, width: "100%", boxSizing: "border-box", minHeight: 120, resize: "vertical", fontSize: 12, marginBottom: 8 }} />
+                <div style={{ padding: 10, border: "1px dashed " + C.accent + "30", borderRadius: 6, textAlign: "center", fontSize: 11, color: C.accent, cursor: "pointer", marginBottom: 8 }} onClick={() => fileInputRef.current?.click()}>
+                  {"\u{1F4CE}"} Or click/drag a PDF or screenshot here
+                  <input ref={fileInputRef} type="file" accept=".pdf,.png,.jpg,.jpeg" style={{ display: "none" }} onChange={e => { if (e.target.files?.[0]) alert("File: " + e.target.files[0].name + " (OCR integration pending)"); }} />
+                </div>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <button onClick={parseQuoteWithAI} disabled={aiParsing || !pasteText.trim()} style={{ ...btn(C.accent, true), opacity: (aiParsing || !pasteText.trim()) ? 0.5 : 1 }}>{aiParsing ? "Parsing..." : "\u{1F916} Parse"}</button>
+                  <button onClick={() => { setShowAiParse(false); setShowNewQuote(false); setPasteText(""); }} style={btn(C.textDim, false)}>Cancel</button>
+                </div>
+              </>
+            ) : (
+              <>
+                <div style={{ fontSize: 12, fontWeight: 600, color: C.green, marginBottom: 8 }}>{"\u2713"} Parsed — review & edit:</div>
+                <div style={{ display: "flex", gap: 8, marginBottom: 10, flexWrap: "wrap" }}>
+                  <input value={parsedQuote.vendor || ""} onChange={e => setParsedQuote(p => ({ ...p, vendor: e.target.value }))} placeholder="Vendor" style={{ ...inp, flex: 1, fontWeight: 600 }} />
+                  <input value={parsedQuote.note || ""} onChange={e => setParsedQuote(p => ({ ...p, note: e.target.value }))} placeholder="Note" style={{ ...inp, flex: 1 }} />
+                  <input type="number" value={parsedQuote.freight || 0} onChange={e => setParsedQuote(p => ({ ...p, freight: parseFloat(e.target.value) || 0 }))} style={{ ...inp, width: 80, color: C.orange }} />
+                </div>
+                {(parsedQuote.items || []).map((item, idx) => (
+                  <div key={idx} style={{ display: "flex", gap: 6, padding: "4px 0", alignItems: "center", opacity: item.selected ? 1 : 0.4, borderBottom: "1px solid " + C.border + "10" }}>
+                    <input type="checkbox" checked={item.selected} onChange={() => setParsedQuote(p => ({ ...p, items: p.items.map((it, i) => i === idx ? { ...it, selected: !it.selected } : it) }))} style={{ accentColor: C.green }} />
+                    <span style={{ fontSize: 11, flex: 2 }}>{item.name}</span>
+                    <span style={{ fontSize: 10, color: C.textDim, flex: 1 }}>{item.model}</span>
+                    <span style={{ fontSize: 11, width: 40, textAlign: "center" }}>{item.qty}</span>
+                    <span style={{ fontSize: 11, width: 70, textAlign: "right", color: C.green }}>{item.unitCost > 0 ? fmt(item.unitCost) : "LS"}</span>
+                  </div>
+                ))}
+                <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+                  <button onClick={acceptParsedQuote} style={btn(C.green, true)}>{"\u2713"} Accept ({(parsedQuote.items || []).filter(i => i.selected).length} items)</button>
+                  <button onClick={() => setParsedQuote(null)} style={btn(C.orange, false)}>Re-parse</button>
+                  <button onClick={() => { setParsedQuote(null); setPasteText(""); setShowAiParse(false); setShowNewQuote(false); }} style={btn(C.textDim, false)}>Cancel</button>
+                </div>
+              </>
+            )}
+          </div>
+        )}
+
+        {/* Existing quotes */}
+        {catQuotes.map(q => {
+          const qItems = lineItems.filter(i => i.quoteId === q.id);
+          const isLS = q.pricingMode === "lump_sum";
+          const qTotal = isLS ? (q.lumpSumTotal || 0) : qItems.reduce((s, i) => s + i.unitCost * i.qty, 0);
+          return (
+            <div key={q.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 10px", background: C.bg, borderRadius: 8, marginBottom: 4, flexWrap: "wrap", border: "1px solid " + C.border }}>
+              <span style={{ fontSize: 13, fontWeight: 600, flex: "1 1 120px" }}>{q.vendor}</span>
+              <span style={{ fontSize: 10, color: C.textDim, flex: "1 1 100px" }}>{q.note}</span>
+              <span style={{ fontSize: 11, color: C.textMuted }}>{qItems.length} items</span>
+              <span style={{ fontSize: 12, fontWeight: 600 }}>{fmt(qTotal)}</span>
+              <span style={{ fontSize: 10, color: C.orange }}>Frt: {fmt(q.freight)}</span>
+              <span style={pill(isLS ? C.orange : C.purple)}>{isLS ? "LS" : "Per Item"}</span>
+              {q.taxIncluded && <span style={pill(C.green)}>Tax Incl</span>}
+              {!q.hasBackup && <span style={{ fontSize: 9, color: C.red }}>{"\u26A0"} No backup</span>}
+              <button onClick={() => deleteQuote(q.id)} style={{ background: "transparent", border: "none", color: C.red, cursor: "pointer", fontSize: 12 }}>{"\u00D7"}</button>
+            </div>
+          );
+        })}
+        {catQuotes.length === 0 && !showNewQuote && <div style={{ padding: 12, textAlign: "center", color: C.textDim, fontSize: 11 }}>No quotes yet</div>}
+      </div>
+
+      {/* ═══ RFQ GENERATOR PANEL ═══ */}
+      {showRfq && (
+        <div style={{ ...card, padding: 16, marginBottom: 12, borderLeft: "3px solid " + C.cyan }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+            <h3 style={{ margin: 0, fontSize: 14, color: C.cyan }}>{"\u{1F4E7}"} Generate RFQ Emails</h3>
+            <button onClick={() => { setShowRfq(false); setRfqPreview(null); }} style={{ ...btn(C.textDim, false), padding: "4px 10px", fontSize: 10 }}>{"\u2715"} Close</button>
+          </div>
+
+          {!rfqPreview ? (
+            <>
+              {/* Items being quoted */}
+              <div style={{ fontSize: 11, fontWeight: 600, marginBottom: 6 }}>Items to Quote ({rfqItems.length})</div>
+              <div style={{ background: C.bg, borderRadius: 8, padding: 10, marginBottom: 12, maxHeight: 150, overflowY: "auto" }}>
+                {rfqItems.map(item => (
+                  <div key={item.id} style={{ display: "flex", justifyContent: "space-between", padding: "3px 0", fontSize: 11, borderBottom: "1px solid " + C.border + "10" }}>
+                    <span>{item.name} {item.model ? "(" + item.model + ")" : ""}</span>
+                    <span style={{ color: C.textDim }}>Qty: {item.qty} {"\u2022"} {item.mfr}</span>
+                  </div>
+                ))}
+              </div>
+
+              {/* Select manufacturers to send RFQ to */}
+              <div style={{ fontSize: 11, fontWeight: 600, marginBottom: 6 }}>Select Manufacturers to Request Pricing From</div>
+              <p style={{ margin: "0 0 8px", fontSize: 10, color: C.textDim }}>Each selected manufacturer gets a separate email draft in your Outlook. Add manufacturers even if they're not on the line items — for competitive pricing.</p>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 12 }}>
+                {Object.keys(MFR_CONTACTS).map(mfr => {
+                  const isSelected = rfqMfrs.has(mfr);
+                  return (
+                    <button key={mfr} onClick={() => setRfqMfrs(p => { const n = new Set(p); if (n.has(mfr)) { n.delete(mfr); } else { n.add(mfr); } return n; })} style={{
+                      padding: "6px 12px", borderRadius: 8, fontSize: 11, cursor: "pointer", fontFamily: "inherit",
+                      background: isSelected ? C.cyan + "18" : C.surface,
+                      border: "1px solid " + (isSelected ? C.cyan + "60" : C.border),
+                      color: isSelected ? C.cyan : C.textDim, fontWeight: isSelected ? 600 : 400,
+                    }}>
+                      {isSelected ? "\u2713 " : ""}{mfr}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Generate buttons */}
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                {Array.from(rfqMfrs).map(mfr => (
+                  <button key={mfr} onClick={() => setRfqPreview(generateRfqEmail(mfr))} style={{ ...btn(C.cyan, false), padding: "6px 14px", fontSize: 11 }}>
+                    {"\u{1F4E7}"} Preview: {mfr}
+                  </button>
+                ))}
+                {rfqMfrs.size === 0 && <span style={{ fontSize: 11, color: C.textDim }}>Select at least one manufacturer above</span>}
+              </div>
+            </>
+          ) : (
+            <>
+              {/* Email preview */}
+              <div style={{ marginBottom: 12 }}>
+                <div style={{ display: "flex", gap: 12, marginBottom: 10, alignItems: "center" }}>
+                  <span style={pill(C.cyan)}>{rfqPreview.mfr}</span>
+                  <span style={{ fontSize: 10, color: C.textDim }}>To: {rfqPreview.email} {"\u2022"} Rep: {rfqPreview.rep}</span>
+                </div>
+                <div style={{ fontSize: 10, color: C.textDim, marginBottom: 4 }}>
+                  From: {rfqPreview.estimatorEmail} (opens as draft in your Outlook)
+                </div>
+                <div style={{ padding: 4, background: C.bg, borderRadius: 4, marginBottom: 8 }}>
+                  <div style={{ fontSize: 10, color: C.textDim }}>Subject:</div>
+                  <div style={{ fontSize: 12, fontWeight: 600, padding: "4px 0" }}>{rfqPreview.subject}</div>
+                </div>
+                <div style={{ padding: 12, background: "#fff", borderRadius: 8, color: "#1a1a1a", fontSize: 11, lineHeight: 1.6, fontFamily: "Georgia, serif", whiteSpace: "pre-wrap", maxHeight: 300, overflowY: "auto" }}>
+                  {rfqPreview.body}
+                </div>
+              </div>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                <button onClick={() => openInOutlook(rfqPreview)} style={{ ...btn(C.cyan, true), padding: "10px 20px" }}>
+                  {"\u{1F4E8}"} Open in Outlook
+                </button>
+                <button onClick={() => { navigator.clipboard?.writeText(rfqPreview.body); }} style={{ ...btn(C.textDim, false), padding: "6px 14px", fontSize: 11 }}>
+                  {"\u{1F4CB}"} Copy Email Body
+                </button>
+                <button onClick={() => setRfqPreview(null)} style={{ ...btn(C.textDim, false), padding: "6px 14px", fontSize: 11 }}>
+                  {"\u2190"} Back to Manufacturers
+                </button>
+                {/* Quick send to next manufacturer */}
+                {Array.from(rfqMfrs).filter(m => m !== rfqPreview.mfr).map(mfr => (
+                  <button key={mfr} onClick={() => setRfqPreview(generateRfqEmail(mfr))} style={{ ...btn(C.cyan, false), padding: "6px 14px", fontSize: 11 }}>
+                    Next: {mfr} {"\u2192"}
+                  </button>
+                ))}
+              </div>
+
+              {/* Production note */}
+              <div style={{ marginTop: 10, padding: 10, background: C.accentGlow, borderRadius: 6, fontSize: 10, color: C.accent }}>
+                {"\u{2139}\uFE0F"} Production: Uses Microsoft Graph API to create a draft directly in the estimator's Outlook mailbox. The estimator reviews and clicks Send — replies come back to their inbox and can be parsed by the AI Quote Parser.
+              </div>
+            </>
+          )}
+        </div>
+      )}
+
+      {/* ═══ LINE ITEMS TABLE ═══ */}
+      <div style={{ ...card, padding: 0, overflow: "hidden", borderLeft: "3px solid " + C.green }}>
+        <div style={{ padding: "12px 16px", borderBottom: "1px solid " + C.border, display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
+          <h3 style={{ margin: 0, fontSize: 14 }}>{CATEGORIES.find(c => c.id === activeCat)?.icon} Line Items</h3>
+          <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+            {calcData[activeCat]?.missingBackup > 0 && <span style={{ fontSize: 10, color: C.red }}>{"\u26A0"} {calcData[activeCat].missingBackup} missing backup</span>}
+            <button onClick={() => { setBulkSelectMode(!bulkSelectMode); setBulkSelected(new Set()); }} style={{ ...btn(bulkSelectMode ? C.accent : C.textDim, bulkSelectMode), padding: "4px 10px", fontSize: 10 }}>
+              {bulkSelectMode ? "Done Selecting" : "\u2610 Select Items"}
+            </button>
+          </div>
+        </div>
+
+        {/* Bulk assign bar — appears when items are selected */}
+        {bulkSelectMode && bulkSelected.size > 0 && (
+          <div style={{ padding: "8px 16px", background: C.accentGlow, borderBottom: "1px solid " + C.accent + "30", display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+            <span style={{ fontSize: 11, fontWeight: 600, color: C.accent }}>{bulkSelected.size} item{bulkSelected.size > 1 ? "s" : ""} selected</span>
+            <select value={bulkAssignQuoteId} onChange={e => setBulkAssignQuoteId(e.target.value)} style={{ ...inp, fontSize: 11, padding: "4px 6px", minWidth: 160 }}>
+              <option value="">Assign to quote...</option>
+              {catQuotes.map(q => <option key={q.id} value={q.id}>{q.vendor} — {q.note}</option>)}
+            </select>
+            <button onClick={() => {
+              if (!bulkAssignQuoteId) return;
+              setLineItemsD(p => p.map(i => bulkSelected.has(i.id) ? { ...i, quoteId: bulkAssignQuoteId, source: "vendor_quote" } : i));
+              setBulkSelected(new Set()); setBulkAssignQuoteId("");
+            }} disabled={!bulkAssignQuoteId} style={{ ...btn(C.accent, true), padding: "4px 12px", fontSize: 10, opacity: bulkAssignQuoteId ? 1 : 0.4 }}>
+              Assign {bulkSelected.size} to Quote
+            </button>
+            <button onClick={() => {
+              setLineItemsD(p => p.map(i => bulkSelected.has(i.id) ? { ...i, quoteId: null } : i));
+              setBulkSelected(new Set());
+            }} style={{ ...btn(C.textDim, false), padding: "4px 12px", fontSize: 10 }}>
+              Unassign
+            </button>
+            <div style={{ width: 1, height: 20, background: C.border }} />
+            <button onClick={() => {
+              const items = lineItems.filter(i => bulkSelected.has(i.id));
+              setRfqItems(items);
+              const mfrs = new Set(items.map(i => i.mfr).filter(Boolean));
+              setRfqMfrs(mfrs);
+              setShowRfq(true);
+              setBulkSelectMode(false);
+              setBulkSelected(new Set());
+            }} style={{ ...btn(C.cyan, false), padding: "4px 12px", fontSize: 10 }}>
+              {"\u{1F4E7}"} Send RFQ ({bulkSelected.size})
+            </button>
+          </div>
+        )}
+
+        {/* Column headers */}
+        <div style={{ display: "grid", gridTemplateColumns: (bulkSelectMode ? "28px " : "") + "2fr 0.7fr 1fr 50px 70px 85px 30px", gap: 4, padding: "8px 16px", borderBottom: "1px solid " + C.border, fontSize: 9, color: C.textDim, textTransform: "uppercase" }}>
+          {bulkSelectMode && <span><input type="checkbox" checked={bulkSelected.size > 0 && bulkSelected.size === lineItems.filter(i => i.category === activeCat).length} onChange={e => { const catItems = lineItems.filter(i => i.category === activeCat); setBulkSelected(e.target.checked ? new Set(catItems.map(i => i.id)) : new Set()); }} style={{ accentColor: C.accent }} /></span>}
+          <span>Item</span><span>Mfr</span><span>Quote</span><span>Qty</span><span>Unit $</span><span>Ext.</span><span></span>
+        </div>
+
+        {/* Line items grouped by quote */}
+        {(() => {
+          const catItems = lineItems.filter(i => i.category === activeCat);
+          const groups = {};
+          catItems.forEach(item => { const k = item.quoteId || "_none"; if (!groups[k]) groups[k] = []; groups[k].push(item); });
+          return Object.entries(groups).map(([qid, items]) => {
+            const quote = quotes.find(q => q.id === qid);
+            return (
+              <div key={qid}>
+                {quote && <div style={{ padding: "4px 16px", background: C.purple + "08", fontSize: 10, color: C.purple, fontWeight: 600, borderBottom: "1px solid " + C.border + "20" }}>{quote.vendor} — {quote.note} {quote.pricingMode === "lump_sum" ? "(LS: " + fmt(quote.lumpSumTotal) + ")" : ""}</div>}
+                {!quote && qid === "_none" && items.length > 0 && <div style={{ padding: "4px 16px", fontSize: 10, color: C.textDim, borderBottom: "1px solid " + C.border + "20" }}>Unassigned</div>}
+                {items.map(item => {
+                  const ext = item.unitCost * item.qty;
+                  const sp = srcPill[item.source] || { c: C.textDim, l: "?" };
+                  const menuOpen = openMenu === item.id;
+                  return (
+                    <div key={item.id}>
+                      <div style={{ display: "grid", gridTemplateColumns: (bulkSelectMode ? "28px " : "") + "2fr 0.7fr 1fr 50px 70px 85px 30px", gap: 4, padding: "8px 16px", borderBottom: item.note || item._showNote ? "none" : "1px solid " + C.border + "06", alignItems: "center" }}
+                        onMouseEnter={e => e.currentTarget.style.background = C.surfaceHover}
+                        onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
+                        {bulkSelectMode && (
+                          <input type="checkbox" checked={bulkSelected.has(item.id)} onChange={() => setBulkSelected(p => { const n = new Set(p); if (n.has(item.id)) { n.delete(item.id); } else { n.add(item.id); } return n; })} style={{ accentColor: C.accent }} />
+                        )}                            <div>
+                          <div style={{ fontSize: 12, fontWeight: 500, display: "flex", alignItems: "center", gap: 4 }}>
+                            {!item.hasBackup && <span style={{ color: C.red, fontSize: 10 }} title="Missing backup">{"\u26A0"}</span>}
+                            {item.name}
+                            <span style={pill(sp.c)}>{sp.l}</span>
+                          </div>
+                          <div style={{ fontSize: 9, color: C.textDim }}>{item.model}</div>
+                        </div>
+                        <span style={{ fontSize: 10, color: C.textMuted }}>{item.mfr}</span>
+                        <select value={item.quoteId || ""} onChange={e => assignItemToQuote(item.id, e.target.value || null)} style={{ ...inp, fontSize: 10, padding: "3px 4px", color: item.quoteId ? C.purple : C.textDim, cursor: "pointer", width: "100%" }}>
+                          {quoteOpts.map(o => <option key={o.id} value={o.id}>{o.label}</option>)}
+                        </select>
+                        <input type="number" value={item.qty} min={1} onChange={e => updateItem(item.id, "qty", Math.max(1, parseInt(e.target.value) || 1))} style={{ ...inp, width: 40, textAlign: "center", fontSize: 11 }} />
+                        <input type="number" value={item.unitCost || ""} placeholder="0" step={0.01} onChange={e => updateItem(item.id, "unitCost", parseFloat(e.target.value) || 0)} style={{ ...inp, width: 60, fontSize: 11, color: item.unitCost > 0 ? C.text : C.orange }} />
+                        <span style={{ fontSize: 11, fontWeight: 600, color: C.green }}>{fmt(ext)}</span>
+                        {/* 3-dot menu */}
+                        <div style={{ position: "relative" }}>
+                          <button onClick={() => setOpenMenu(menuOpen ? null : item.id)} style={{ width: 28, height: 20, background: "transparent", border: "1px solid " + C.border, borderRadius: 5, color: C.textMuted, cursor: "pointer", fontSize: 16, display: "flex", alignItems: "center", justifyContent: "center", letterSpacing: 2 }}>{"\u22EF"}</button>
+                          {menuOpen && (
+                            <div style={{ position: "absolute", right: 0, top: 26, background: C.surface, border: "1px solid " + C.border, borderRadius: 8, padding: 6, zIndex: 10, minWidth: 180, boxShadow: "0 8px 24px rgba(0,0,0,0.4)" }}>
+                              {[
+                                { label: (item.escOverride != null ? "\u2713 " : "") + "Edit Escalation", action: () => { const v = prompt("Escalation % override (blank for category default):", item.escOverride ?? ""); updateItem(item.id, "escOverride", v === null || v === "" ? null : parseFloat(v)); setOpenMenu(null); } },
+                                { label: item.note ? "\u2713 Edit Qualification" : "Add Qualification", action: () => { updateItem(item.id, "_showNote", true); setOpenMenu(null); } },
+                                { label: item.hasBackup ? "\u2713 Backup Attached" : "\u26A0 Attach Backup", action: () => { updateItem(item.id, "hasBackup", !item.hasBackup); setOpenMenu(null); } },
+                                { label: "\u{1F5D1} Remove Item", action: () => { removeItem(item.id); setOpenMenu(null); }, color: C.red },
+                              ].map((m, mi) => (
+                                <button key={mi} onClick={m.action} style={{ display: "block", width: "100%", padding: "7px 10px", background: "transparent", border: "none", textAlign: "left", color: m.color || C.text, fontSize: 11, cursor: "pointer", fontFamily: "inherit", borderRadius: 4 }}
+                                  onMouseEnter={e => e.currentTarget.style.background = C.surfaceHover}
+                                  onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
+                                  {m.label}
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                      {/* Qualification sub-line — editable when toggled, read-only display when has content */}
+                      {(item._showNote || item.note) && (
+                        <div style={{ padding: "4px 16px 8px 40px", borderBottom: "1px solid " + C.border + "06", display: "flex", alignItems: "center", gap: 8 }}>
+                          <span style={{ fontSize: 10, color: C.orange, fontWeight: 600 }}>{"\u{1F4DD}"} Qualification:</span>
+                          <input
+                            autoFocus={item._showNote && !item.note}
+                            value={item.note || ""}
+                            onChange={e => updateItem(item.id, "note", e.target.value)}
+                            onBlur={() => { if (!item.note) updateItem(item.id, "_showNote", false); }}
+                            placeholder="e.g. Model discontinued — substituting with newer model B-270-2"
+                            style={{ ...inp, flex: 1, fontSize: 11, color: C.orange, fontStyle: "italic", background: C.bg, border: "1px solid " + C.orange + "30" }}
+                          />
+                          {item.note && (
+                            <button onClick={() => { updateItem(item.id, "note", ""); updateItem(item.id, "_showNote", false); }} style={{ background: "transparent", border: "none", color: C.textDim, cursor: "pointer", fontSize: 10 }}>{"\u2715"}</button>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          });
+        })()}
+
+        {lineItems.filter(i => i.category === activeCat).length === 0 && <div style={{ padding: "30px 16px", textAlign: "center", color: C.textDim, fontSize: 12 }}>No items yet</div>}
+
+        {calcData[activeCat]?.items > 0 && (
+          <div style={{ padding: "10px 16px", background: C.bg, display: "flex", justifyContent: "space-between", fontSize: 12 }}>
+            <span style={{ color: C.textDim }}>Mat: {fmt(calcData[activeCat].material)} {calcData[activeCat].escalation > 0 ? "+ Esc: " + fmt(calcData[activeCat].escalation) : ""} + Frt: {fmt(calcData[activeCat].totalFreight)}</span>
+            <span style={{ fontWeight: 700, color: C.green }}>{fmt(calcData[activeCat].total)}</span>
+          </div>
+        )}
+      </div>
+
+      {/* Category Quals */}
+      <div style={{ marginTop: 12 }}>
+        <button onClick={() => setShowCatQuals(!showCatQuals)} style={{ ...btn(C.textDim, false), fontSize: 11, padding: "6px 12px" }}>{"\u{1F4DD}"} Category Qualifications {showCatQuals ? "\u25B2" : "\u25BC"}</button>
+        {showCatQuals && (
+          <div style={{ ...card, marginTop: 8, padding: 16 }}>
+            {["inclusions", "exclusions", "qualifications"].map(f => (
+              <div key={f} style={{ marginBottom: 10 }}>
+                <label style={{ fontSize: 10, color: C.textDim, textTransform: "uppercase", display: "block", marginBottom: 4 }}>{f}</label>
+                <textarea value={catQuals[activeCat]?.[f] || ""} onChange={e => setCatQuals(p => ({ ...p, [activeCat]: { ...p[activeCat], [f]: e.target.value } }))} placeholder={"Enter " + f + "..."} style={{ ...inp, width: "100%", boxSizing: "border-box", minHeight: 40, resize: "vertical", fontSize: 11 }} />
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Line items checklist */}
+      <div style={{ ...card, marginTop: 12, padding: 14 }}>
+        <div style={{ fontSize: 11, fontWeight: 600, marginBottom: 8 }}>Line Items Checklist</div>
+        {checklist.filter(c => c.stage === "lineItems").map(c => (
+          <label key={c.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "4px 0", cursor: "pointer", fontSize: 11, color: c.done ? C.green : C.textMuted }}>
+            <input type="checkbox" checked={c.done} onChange={() => toggleCheck(c.id)} style={{ accentColor: C.green }} />
+            <span style={{ textDecoration: c.done ? "line-through" : "none" }}>{c.label}</span>
+          </label>
+        ))}
+      </div>
+
+      <button onClick={() => setStage("calculations")} style={{ ...btn(C.green, true), marginTop: 16, padding: "12px 28px" }}>Continue to Markups {"\u2192"}</button>
+    </div>
+  )}
+
+  {/* ════════════════ STAGE 3: MARKUPS ════════════════ */}
+  {stage === "calculations" && (
+    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+      <div style={{ ...card, borderLeft: "3px solid " + C.orange }}>
+        <h3 style={{ margin: "0 0 16px", fontSize: 14 }}>Global Defaults</h3>
+        {[
+          { label: "Escalation (%)", value: defaultEsc, set: setDefaultEsc, step: 0.5, color: C.accent },
+          { label: "OH&P (%)", value: defaultOhp, set: setDefaultOhp, step: 0.5, color: C.orange },
+          { label: "Sales Tax (%)", value: taxRate, set: setTaxRate, step: 0.25, color: C.orange },
+          { label: "Bond (%)", value: bondRate, set: setBondRate, step: 0.5, color: C.orange },
+        ].map(r => (
+          <div key={r.label} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 0", borderBottom: "1px solid " + C.border + "20" }}>
+            <span style={{ fontSize: 12, color: C.textMuted }}>{r.label}</span>
+            <input type="number" value={r.value} step={r.step} onChange={e => r.set(parseFloat(e.target.value) || 0)} style={{ width: 75, padding: "6px 8px", background: C.bg, border: "1px solid " + C.border, borderRadius: 6, color: r.color, fontSize: 14, fontWeight: 600, fontFamily: "inherit", textAlign: "right" }} />
+          </div>
+        ))}
+        <div style={{ marginTop: 12, padding: 10, background: C.orangeSoft, borderRadius: 6, fontSize: 10, color: C.orange }}>
+          Material {"\u2192"} Escalation {"\u2192"} + Freight = Subtotal {"\u2192"} OH&P on subtotal
+        </div>
+      </div>
+
+      <div style={{ ...card, borderLeft: "3px solid " + C.orange }}>
+        <h3 style={{ margin: "0 0 16px", fontSize: 14 }}>Totals</h3>
+        {[
+          { l: "Material", v: calcData.allMat, bold: true },
+          { l: "Escalation", v: calcData.allEsc, color: C.accent },
+          { l: "Freight", v: calcData.allFrt },
+          null,
+          { l: "Subtotal", v: calcData.allSub, bold: true },
+          { l: "OH&P" + (calcData.ohpOvrs.length > 0 ? " (blended)" : " (" + defaultOhp + "%)"), v: calcData.allOhp },
+          { l: "Tax (" + taxRate + "%)", v: calcData.allTax },
+          ...(bondRate > 0 ? [{ l: "Bond (" + bondRate + "%)", v: calcData.allBond }] : []),
+        ].map((r, i) => !r ? <div key={i} style={{ borderBottom: "1px solid " + C.border, margin: "6px 0" }} /> : (
+          <div key={i} style={{ display: "flex", justifyContent: "space-between", padding: "6px 0", fontSize: r.bold ? 13 : 12, fontWeight: r.bold ? 700 : 400 }}>
+            <span style={{ color: C.textMuted }}>{r.l}</span>
+            <span style={{ color: r.color || (r.bold ? C.text : C.textMuted) }}>{fmt(r.v)}</span>
+          </div>
+        ))}
+        <div style={{ marginTop: 14, padding: 14, background: "linear-gradient(135deg," + C.orange + "15," + C.green + "10)", borderRadius: 10, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <span style={{ fontSize: 14, fontWeight: 700 }}>GRAND TOTAL</span>
+          <span style={{ fontSize: 22, fontWeight: 800, color: C.green }}>{fmt(calcData.grandTotal)}</span>
+        </div>
+      </div>
+
+      {/* Per-category */}
+      <div style={{ ...card, gridColumn: "1 / -1", borderLeft: "3px solid " + C.orange }}>
+        <h3 style={{ margin: "0 0 12px", fontSize: 14 }}>By Category</h3>
+        {CATEGORIES.filter(c => calcData[c.id].items > 0).map(c => {
+          const d = calcData[c.id];
+          return (
+            <div key={c.id} style={{ padding: 12, background: C.bg, borderRadius: 8, marginBottom: 8, border: "1px solid " + ((d.isOhpOvr || d.isEscOvr) ? C.orange + "40" : C.border) }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
+                <div>
+                  <span style={{ fontSize: 13, fontWeight: 600 }}>{c.icon} {c.label}</span>
+                  <span style={{ fontSize: 10, color: C.textDim, marginLeft: 8 }}>Mat: {fmt(d.material)} {d.escalation > 0 ? "+ Esc: " + fmt(d.escalation) : ""}</span>
+                </div>
+                <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+                  {d.isEscOvr && <span style={pill(C.accent)}>Esc {d.escRate}%</span>}
+                  {d.isOhpOvr && <span style={pill(C.orange)}>OH&P {d.ohpRate}%</span>}
+                  <span style={{ fontSize: 14, fontWeight: 700, color: C.green }}>{fmt(d.total)}</span>
+                </div>
+              </div>
+              {(d.isEscOvr || d.isOhpOvr) && (
+                <div style={{ marginTop: 6, fontSize: 10, color: C.orange }}>
+                  {d.isEscOvr && <span>Esc impact: {d.escImpact > 0 ? "+" : ""}{fmt(d.escImpact)} </span>}
+                  {d.isOhpOvr && <span>OH&P impact: {d.ohpImpact > 0 ? "+" : ""}{fmt(d.ohpImpact)}</span>}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Markups checklist */}
+      <div style={{ ...card, gridColumn: "1 / -1", padding: 14 }}>
+        <div style={{ fontSize: 11, fontWeight: 600, marginBottom: 8 }}>Markups Checklist</div>
+        {checklist.filter(c => c.stage === "calculations").map(c => (
+          <label key={c.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "4px 0", cursor: "pointer", fontSize: 11, color: c.done ? C.green : C.textMuted }}>
+            <input type="checkbox" checked={c.done} onChange={() => toggleCheck(c.id)} style={{ accentColor: C.green }} /> {c.label}
+          </label>
+        ))}
+      </div>
+
+      <button onClick={() => setStage("output")} style={{ ...btn(C.orange, true), gridColumn: "1 / -1", justifySelf: "start", padding: "12px 28px" }}>Continue to Bid Summary {"\u2192"}</button>
+    </div>
+  )}
+
+  {/* ════════════════ STAGE 4: OUTPUT ════════════════ */}
+  {stage === "output" && (
+    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+      {/* Summary */}
+      <div style={{ ...card, borderLeft: "3px solid " + C.red }}>
+        <h3 style={{ margin: "0 0 16px", fontSize: 15 }}>Bid Summary</h3>
+        <div style={{ padding: 14, background: C.bg, borderRadius: 8, marginBottom: 14 }}>
+          <div style={{ fontSize: 14, fontWeight: 600 }}>{project.projectName}</div>
+          <div style={{ fontSize: 11, color: C.textMuted }}>{project.gcEstimateLead} {"\u2022"} {project.region} {"\u2022"} Due {project.dueDate}</div>
+        </div>
+        {CATEGORIES.filter(c => calcData[c.id].items > 0).map(c => {
+          const d = calcData[c.id];
+          return (
+            <div key={c.id} style={{ padding: "8px 0", borderBottom: "1px solid " + C.border + "15" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}>
+                <span style={{ color: C.textMuted }}>{c.icon} {c.label}</span>
+                <span style={{ fontWeight: 600 }}>{fmt(d.total)}</span>
+              </div>
+            </div>
+          );
+        })}
+        <div style={{ borderTop: "1px solid " + C.border, marginTop: 10, paddingTop: 10 }}>
+          {[
+            { l: "Material", v: calcData.allMat },
+            ...(calcData.allEsc > 0 ? [{ l: "Escalation", v: calcData.allEsc }] : []),
+            { l: "Freight", v: calcData.allFrt },
+            { l: "OH&P", v: calcData.allOhp },
+            { l: "Tax", v: calcData.allTax },
+            ...(bondRate > 0 ? [{ l: "Bond", v: calcData.allBond }] : []),
+          ].map(r => (
+            <div key={r.l} style={{ display: "flex", justifyContent: "space-between", padding: "4px 0", fontSize: 11, color: C.textDim }}><span>{r.l}</span><span>{fmt(r.v)}</span></div>
+          ))}
+        </div>
+        <div style={{ marginTop: 10, padding: 14, background: "linear-gradient(135deg," + C.red + "15," + C.orange + "10)", borderRadius: 10, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <span style={{ fontSize: 14, fontWeight: 700 }}>BID TOTAL</span>
+          <span style={{ fontSize: 22, fontWeight: 800, color: C.green }}>{fmt(calcData.grandTotal)}</span>
+        </div>
+      </div>
+
+      {/* Proposal */}
+      <div style={{ ...card, borderLeft: "3px solid " + C.red }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+          <h3 style={{ margin: 0, fontSize: 15 }}>Proposal Letter</h3>
+          <label style={{ fontSize: 10, color: C.textDim, display: "flex", alignItems: "center", gap: 4, cursor: "pointer" }}>
+            <input type="checkbox" checked={showUnitPricing} onChange={() => setShowUnitPricing(!showUnitPricing)} style={{ accentColor: C.accent }} />
+            Show unit pricing
+          </label>
+        </div>
+        <div style={{ padding: 20, background: "#fff", borderRadius: 8, color: "#1a1a1a", fontSize: 11, lineHeight: 1.6, fontFamily: "Georgia,serif", maxHeight: 500, overflowY: "auto" }}>
+          <div style={{ fontWeight: 700, fontSize: 13, color: "#1a365d" }}>NATIONAL BUILDING SPECIALTIES</div>
+          <div style={{ fontSize: 9, color: "#666", marginBottom: 16 }}>A Division of Swinerton Builders</div>
+          <div style={{ marginBottom: 14, fontSize: 10 }}>
+            Date: {new Date().toLocaleDateString()} | Attn: {project.gcEstimateLead} | Re: {project.projectName} | PV#: {project.estimateNumber}
+          </div>
+          <p>National Building Specialties is pleased to submit the following proposal for <strong>furnishing</strong> Division 10 Specialties:</p>
+
+          {/* Itemized by category */}
+          {CATEGORIES.filter(c => calcData[c.id].items > 0).map(c => {
+            const catItems = lineItems.filter(i => i.category === c.id);
+            const d = calcData[c.id];
+            return (
+              <div key={c.id} style={{ marginBottom: 14 }}>
+                <div style={{ fontWeight: 700, fontSize: 12, borderBottom: "1px solid #e2e8f0", paddingBottom: 4, marginBottom: 6 }}>{c.label}</div>
+                {catItems.map(item => (
+                  <div key={item.id}>
+                    <div style={{ display: "flex", justifyContent: "space-between", padding: "2px 0 2px 12px", fontSize: 10 }}>
+                      <span>{item.name} {item.model ? "(" + item.model + ")" : ""} — Qty: {item.qty}</span>
+                      <span style={{ fontWeight: 500 }}>{showUnitPricing ? fmt(item.unitCost) + "/ea = " : ""}{fmt(item.unitCost * item.qty)}</span>
+                    </div>
+                    {item.note && (
+                      <div style={{ padding: "1px 0 3px 24px", fontSize: 9, color: "#b45309", fontStyle: "italic" }}>
+                        {"\u25B8"} {item.note}
+                      </div>
+                    )}
+                  </div>
+                ))}
+                <div style={{ display: "flex", justifyContent: "space-between", fontWeight: 600, fontSize: 11, paddingTop: 4, paddingLeft: 12, borderTop: "1px solid #edf2f7" }}>
+                  <span>{c.label} Total</span><span>{fmt(d.total)}</span>
+                </div>
+              </div>
+            );
+          })}
+
+          <div style={{ borderTop: "2px solid #1a365d", marginTop: 10, paddingTop: 8, display: "flex", justifyContent: "space-between", fontWeight: 700, fontSize: 13 }}>
+            <span>TOTAL BID (Furnish Only)</span><span>{fmt(calcData.grandTotal)}</span>
+          </div>
+
+          <p style={{ fontWeight: 600, marginTop: 12 }}>Inclusions:</p>
+          <p style={{ fontSize: 10 }}>{"\u2022"} Furnish all Division 10 items per plans and specifications{"\u2022"} Sales tax included {"\u2022"} Freight to jobsite included</p>
+          <p style={{ fontWeight: 600 }}>Exclusions:</p>
+          <p style={{ fontSize: 10, color: "#c53030" }}>{"\u2022"} Installation by others {"\u2022"} Blocking/backing by others {"\u2022"} Items not listed above</p>
+          <p style={{ marginTop: 12 }}>Proposal valid 30 days.</p>
+          <p>Respectfully,<br/><strong>National Building Specialties</strong></p>
+        </div>
+
+        <div style={{ display: "flex", gap: 8, marginTop: 12, flexWrap: "wrap" }}>
+          {[{ label: "Export PDF", color: C.red }, { label: "Log to Proposal Log", color: C.accent }, { label: "Email to GC", color: C.green }].map(b => (
+            <button key={b.label} style={btn(b.color, false)}>{b.label}</button>
+          ))}
+        </div>
+      </div>
+
+      {/* Output checklist */}
+      <div style={{ ...card, gridColumn: "1 / -1", padding: 14 }}>
+        <div style={{ fontSize: 11, fontWeight: 600, marginBottom: 8 }}>Final Checklist</div>
+        {checklist.filter(c => c.stage === "output").map(c => (
+          <label key={c.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "4px 0", cursor: "pointer", fontSize: 11, color: c.done ? C.green : C.textMuted }}>
+            <input type="checkbox" checked={c.done} onChange={() => toggleCheck(c.id)} style={{ accentColor: C.green }} /> {c.label}
+          </label>
+        ))}
+      </div>
+    </div>
+  )}
+
+  {/* Click-away for menus */}
+  {(openMenu || showProjectSwitcher) && <div onClick={() => { setOpenMenu(null); setShowProjectSwitcher(false); }} style={{ position: "fixed", inset: 0, zIndex: 5 }} />}
+
+  {/* ═══ DATA FLOW FOOTER ═══ */}
+  <div style={{ marginTop: 28, padding: 16, background: C.surface, borderRadius: 10, border: "1px solid " + C.border }}>
+    <div style={{ fontSize: 11, fontWeight: 600, color: C.textDim, marginBottom: 10 }}>Data Flow</div>
+    <div style={{ display: "flex", gap: 6, flexWrap: "wrap", justifyContent: "center", alignItems: "center" }}>
+      {[
+        { name: "Proposal Log", dir: "\u2192", color: C.accent },
+        { name: "Project Start", dir: "\u2192", color: C.accent },
+        { name: "Estimating", dir: "\u2192", color: C.green },
+        { name: "Proposal Log", dir: "\u2192", color: C.orange, note: "total back" },
+        { name: "Database", dir: "\u2192", color: C.purple, note: "analytics" },
+        { name: "Buyout", dir: "", color: C.textDim, note: "on award" },
+      ].map((t, i) => (
+        <div key={i} style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <div style={{ padding: "6px 12px", background: C.bg, borderRadius: 6, border: "1px solid " + t.color + "30", textAlign: "center" }}>
+            <div style={{ fontSize: 11, fontWeight: 600, color: t.color }}>{t.name}</div>
+            {t.note && <div style={{ fontSize: 8, color: C.textDim }}>{t.note}</div>}
+          </div>
+          {t.dir && <span style={{ color: C.textDim, fontSize: 12 }}>{t.dir}</span>}
+        </div>
+      ))}
+    </div>
+  </div>
+</div>
+```
+
+);
+}
+
+/*
+═══ DATABASE SCHEMA — PostgreSQL / Drizzle ORM ═══
+All data stored per project via estimate_number (PV#), fully analyzable.
+
+TABLE: estimates (1:1 with proposal_log entry)
+id, estimate_number (FK → proposal_log.pv_number)
+project_name, gc, region, primary_market, estimator, due_date
+swinerton_project, invite_date, est_start, est_finish, owner, reviewer
+active_scopes (jsonb — array of scope IDs)
+default_ohp, default_esc, tax_rate, bond_rate
+status (draft | estimating | submitted | awarded | lost)
+grand_total (syncs back to proposal_log.proposal_total)
+created_at, updated_at
+
+TABLE: estimate_quotes
+id, estimate_id (FK), vendor, category, note
+freight, pricing_mode, lump_sum_total, tax_included, has_backup
+backup_file_path (nullable)
+
+TABLE: estimate_line_items
+id, estimate_id (FK), quote_id (FK nullable)
+name, model, mfr, category, qty, unit_cost
+source, esc_override, note, has_backup
+backup_file_path (nullable)
+
+TABLE: estimate_category_config
+id, estimate_id (FK), category
+ohp_override, esc_override
+inclusions, exclusions, qualifications
+is_complete (boolean)
+
+TABLE: estimate_checklist
+id, estimate_id (FK), checklist_item_id, is_done
+
+═══ DATA ISOLATION & SESSION CONTROLS ═══
+
+RULE 1: ONE PROJECT PER SESSION
+
+- Frontend enforces single-project mode
+- All state (lineItems, quotes, overrides, quals) loaded from DB
+  scoped to one estimate_id at session start
+- No shared state between projects — switching clears everything
+
+RULE 2: EVERY ROW SCOPED TO ESTIMATE_ID
+
+- All tables have estimate_id FK with NOT NULL constraint
+- API middleware validates estimate_id on every request
+- No endpoint returns data across multiple estimates
+- Query pattern: WHERE estimate_id = :currentEstimateId
+
+RULE 3: ESTIMATOR ACCESS CONTROL
+
+- API validates: logged-in user = project.estimator OR admin
+- Read access: estimator + reviewer + admin
+- Write access: estimator + admin only
+- Project switch requires save-or-discard gate
+
+RULE 4: AUTO-SAVE & DIRTY STATE
+
+- Frontend tracks isDirty flag on any data mutation
+- Save button visible when dirty, with timestamp of last save
+- Project switch blocked until save/discard confirmed
+- In production: auto-save every 60s when dirty
+
+RULE 5: PRODUCT LIBRARY IS READ-ONLY SHARED
+
+- Product library (master items, default costs) is shared across all projects
+- Pulling from library creates a COPY as a new line item under current estimate
+- Editing a line item never affects the library or other projects
+
+RULE 6: VENDOR QUOTES ARE PROJECT-SCOPED
+
+- Same vendor quoting same product on 2 projects = 2 separate quote records
+- Quote IDs are unique per estimate, never shared across projects
+- Vendor profile data (contact info, lead times) lives in a separate
+  shared vendor_profiles table — but quote pricing is always project-specific
+
+═══ ANALYTICS QUERIES ═══
+→ Win rate by region, market, estimator, GC
+→ Average markup (OH&P, escalation) by market/region
+→ Vendor pricing trends by manufacturer + product over time
+→ Bid-to-award conversion by scope mix
+→ Estimator workload + throughput (bids/month, avg turnaround)
+→ Category mix analysis (which scopes appear most, which drive highest value)
+→ Freight as % of material by vendor
+→ Lump sum vs per-item pricing frequency
+→ Scope section completion time tracking
+→ Backup documentation compliance rate
+*/

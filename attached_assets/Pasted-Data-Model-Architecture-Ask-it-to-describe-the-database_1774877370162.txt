@@ -1,0 +1,24 @@
+Data Model & Architecture
+Ask it to describe the database schema it plans to use for the estimating module — specifically the relationship between the estimates table, estimate_quotes, estimate_line_items, estimate_category_config, and how they connect to the existing proposal_log table via PV number. If it doesn’t mention estimate_id as a foreign key on every child table, it’s missing the project isolation model.
+Ask it what happens when a user saves an estimate — which tables get written, in what order, and how it handles the grand total syncing back to the Proposal Log’s proposal_total field.
+Proposal Log Integration
+Ask it to explain the data flow when an estimator opens a project from the Proposal Log — which fields auto-populate, where they come from, and whether the estimating module creates a new estimate record or loads an existing one.
+Ask it how the activeScopes field works — that the scope sections identified for a project drive which category tabs appear in the line item entry screen, and that this is stored as a JSON array on the estimate record.
+Vendor Quote Structure
+Ask it to describe the two pricing modes (per_item and lump_sum) and how lump sum quotes work alongside per-item quotes within the same category. Make sure it knows a single category can have multiple vendor quotes, some lump sum and some per-item, and that line items get assigned to specific quotes.
+Ask it about the taxIncluded flag on vendor quotes — confirm it understands this is for accounting visibility at payment time, not for changing the tax calculation in the estimate.
+Calculation Engine
+Ask it to walk through the calculation order: Material → Escalation (% on material, applied before OH&P) → add Freight → Subtotal → OH&P on subtotal → Tax on base material only → Bond on subtotal → Grand Total. Make sure it knows escalation is overridable at three levels: global default, per-category, and per-item.
+Ask it how override impact reporting works — when a category OH&P or escalation is overridden, the system should show the dollar difference vs. the default rate.
+Line Item Features
+Ask it how the backup documentation gate works — every line item has a hasBackup flag, and a scope section cannot be marked complete if any items are missing backup or missing pricing.
+Ask it about the 3-dot menu (horizontal dots) on each line item — it should contain Edit Escalation, Add Qualification, Attach Backup, and Remove Item. Qualifications appear as an inline editable sub-line below the item and carry through to the proposal letter.
+AI Features
+Ask it to describe the AI Quote Parser flow — paste text, send to Claude Sonnet API, parse vendor name, freight, tax status, pricing mode, and line items, review/edit results, then accept to create the quote record and line items in one action.
+Ask it about the RFQ email generator — select line items, pick manufacturers, generate email with project details and item list, open as draft in estimator’s Outlook via mailto (or Microsoft Graph API in production).
+Project Isolation
+Ask it what prevents cross-project data contamination — one project loaded per session, every API query scoped to estimate_id, save-or-discard gate on project switch, dirty state tracking on all mutations.
+Progress Tracking
+Ask it how bid progress percentage is calculated — weighted stages (Intake 10%, Line Items 50%, Markups 15%, Output 25%), with Line Items scored on items entered, items priced, backups attached, and scope completion. Plus checklists at every stage including addenda acknowledgment and document filing.
+Proposal Output
+Ask it to confirm the proposal is itemized by category with line-level detail, qualification sub-lines appear under affected items, unit pricing is toggleable (off by default), and the grand total syncs back to the Proposal Log on submission.
