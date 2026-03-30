@@ -81,38 +81,58 @@ interface BcOpportunity {
 
 interface FetchResult {
   opportunities: BcOpportunity[];
+  totalAvailable: number;
   error?: string;
 }
 
 async function fetchBcOpportunities(accessToken: string, since?: Date): Promise<FetchResult> {
-  let url = `${BC_API_BASE}/opportunities?limit=50`;
-
-  if (since) {
-    url += `&filter[updatedAt]=${since.toISOString()}`;
-  }
+  const PAGE_SIZE = 100;
+  const MAX_PAGES = 3;
+  const allResults: BcOpportunity[] = [];
+  let totalAvailable = 0;
+  let offset = 0;
 
   try {
-    const res = await fetch(url, {
-      headers: { Authorization: `Bearer ${accessToken}` },
-    });
+    for (let page = 0; page < MAX_PAGES; page++) {
+      let url = `${BC_API_BASE}/opportunities?limit=${PAGE_SIZE}&offset=${offset}`;
 
-    if (!res.ok) {
-      const errText = await res.text();
-      console.error("[BC Sync] API error:", res.status, errText);
-      return { opportunities: [], error: `BuildingConnected API returned ${res.status}` };
+      if (since) {
+        url += `&filter[updatedAt]=${since.toISOString()}`;
+      }
+
+      const res = await fetch(url, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+
+      if (!res.ok) {
+        const errText = await res.text();
+        console.error("[BC Sync] API error:", res.status, errText);
+        return { opportunities: [], totalAvailable: 0, error: `BuildingConnected API returned ${res.status}` };
+      }
+
+      const data = await res.json() as { results?: BcOpportunity[]; pagination?: { total?: number } };
+      const results = data.results || [];
+
+      if (data.pagination?.total) {
+        totalAvailable = data.pagination.total;
+      }
+
+      if (page === 0 && results.length > 0) {
+        console.log(`[BC Sync] First API response sample: projectName="${results[0].projectName}", id="${results[0].id}", gcCompanyName="${results[0].gcCompanyName}"`);
+      }
+
+      allResults.push(...results);
+
+      if (results.length < PAGE_SIZE) break;
+      offset += PAGE_SIZE;
     }
 
-    const data = await res.json() as { results?: BcOpportunity[] };
-    const results = data.results || [];
+    if (totalAvailable === 0) totalAvailable = allResults.length;
 
-    if (results.length > 0) {
-      console.log(`[BC Sync] First API response sample: projectName="${results[0].projectName}", id="${results[0].id}", gcCompanyName="${results[0].gcCompanyName}"`);
-    }
-
-    return { opportunities: results };
+    return { opportunities: allResults, totalAvailable };
   } catch (err) {
     console.error("[BC Sync] Fetch error:", err);
-    return { opportunities: [], error: "Failed to connect to BuildingConnected API" };
+    return { opportunities: [], totalAvailable: 0, error: "Failed to connect to BuildingConnected API" };
   }
 }
 
@@ -234,7 +254,7 @@ export function registerBcSyncRoutes(app: Express) {
         since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
       }
 
-      const { opportunities: allOpps, error } = await fetchBcOpportunities(accessToken, since);
+      const { opportunities: allOpps, totalAvailable, error } = await fetchBcOpportunities(accessToken, since);
       if (error) {
         return res.status(502).json({ message: error });
       }
@@ -352,6 +372,8 @@ export function registerBcSyncRoutes(app: Express) {
 
       res.json({
         totalFound: allOpps.length,
+        totalAvailable,
+        moreExist: totalAvailable > allOpps.length,
         afterFilter: filteredOpps.length,
         newEntries: createCount,
         mergeEntries: mergeCount,
@@ -361,6 +383,7 @@ export function registerBcSyncRoutes(app: Express) {
         wasCapped,
         cappedAt: wasCapped ? MAX_SYNC_ENTRIES : null,
         lastSyncAt: syncState?.lastSyncAt || null,
+        sinceDateUsed: since?.toISOString() || null,
       });
     } catch (err) {
       console.error("[BC Sync] Preview error:", err);
@@ -376,7 +399,7 @@ export function registerBcSyncRoutes(app: Express) {
       const [user] = await db.select().from(users).where(eq(users.id, userId));
       if (!isAdmin(user)) return res.status(403).json({ message: "Admin access required" });
 
-      const { opportunityIds } = req.body as { opportunityIds?: string[] };
+      const { opportunityIds, sinceDateUsed } = req.body as { opportunityIds?: string[]; sinceDateUsed?: string };
       if (!opportunityIds?.length) {
         return res.status(400).json({ message: "No opportunities selected" });
       }
@@ -390,7 +413,19 @@ export function registerBcSyncRoutes(app: Express) {
         return res.status(400).json({ message: "No BuildingConnected connection" });
       }
 
-      const { opportunities: allOpps, error } = await fetchBcOpportunities(accessToken);
+      let since: Date | undefined;
+      if (sinceDateUsed) {
+        since = new Date(sinceDateUsed);
+      } else {
+        const [syncState] = await db.select().from(bcSyncState).limit(1);
+        if (syncState?.lastSyncAt) {
+          since = new Date(syncState.lastSyncAt);
+        } else {
+          since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+        }
+      }
+
+      const { opportunities: allOpps, error } = await fetchBcOpportunities(accessToken, since);
       if (error) {
         return res.status(502).json({ message: error });
       }

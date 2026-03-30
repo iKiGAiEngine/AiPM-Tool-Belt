@@ -24,6 +24,8 @@ interface PreviewEntry {
 
 interface SyncPreviewResponse {
   totalFound: number;
+  totalAvailable: number;
+  moreExist: boolean;
   afterFilter: number;
   newEntries: number;
   mergeEntries: number;
@@ -33,6 +35,7 @@ interface SyncPreviewResponse {
   wasCapped: boolean;
   cappedAt: number | null;
   lastSyncAt: string | null;
+  sinceDateUsed: string | null;
 }
 
 interface BCSyncPreviewProps {
@@ -55,11 +58,17 @@ export function BCSyncPreview({ onClose }: BCSyncPreviewProps) {
       const res = await apiRequest("POST", "/api/bc/sync/preview");
       return res.json();
     },
+    staleTime: 0,
+    gcTime: 30000,
+    refetchOnMount: "always",
   });
 
   const confirmMutation = useMutation({
     mutationFn: async (opportunityIds: string[]) => {
-      const res = await apiRequest("POST", "/api/bc/sync/confirm", { opportunityIds });
+      const res = await apiRequest("POST", "/api/bc/sync/confirm", {
+        opportunityIds,
+        sinceDateUsed: preview?.sinceDateUsed || null,
+      });
       return res.json();
     },
     onSuccess: (data) => {
@@ -143,6 +152,11 @@ export function BCSyncPreview({ onClose }: BCSyncPreviewProps) {
             {preview?.wasCapped && (
               <div className="text-xs mt-1 text-amber-500">
                 Results capped at {preview.cappedAt} entries. Run sync again for more.
+              </div>
+            )}
+            {preview?.moreExist && (
+              <div className="text-xs mt-1 text-amber-500">
+                {preview.totalAvailable} total opportunities exist on BC ({preview.totalFound} fetched). Run sync again after confirming to process remaining.
               </div>
             )}
           </div>
