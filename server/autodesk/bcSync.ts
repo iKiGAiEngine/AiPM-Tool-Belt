@@ -5,8 +5,13 @@ import { eq } from "drizzle-orm";
 import { getValidToken, hasValidConnection } from "./tokenManager";
 import { createNotification, createNotificationForAdmins } from "../notificationRoutes";
 import { guessMarket } from "../proposalLogService";
-import { generateProjectId } from "../scopeDictionaryStorage";
+import { generateProjectId, createProject } from "../scopeDictionaryStorage";
 import { sendDraftNotificationEmail } from "../emailService";
+import { getActiveFolderTemplate, getActiveEstimateTemplate, getFolderTemplateFileBuffer, getEstimateTemplateFileBuffer } from "../templateStorage";
+import fs from "fs";
+import path from "path";
+import JSZip from "jszip";
+import ExcelJS from "exceljs";
 
 const BC_GC_API_BASE = "https://developer.api.autodesk.com/construction/buildingconnected/v2";
 const BC_SUB_API_BASE = "https://developer.api.autodesk.com/buildingconnected/v2/bid-board";
@@ -689,10 +694,10 @@ export function registerBcSyncRoutes(app: Express) {
       }
 
       let since: Date | undefined;
+      const [syncState] = await db.select().from(bcSyncState).limit(1);
       if (sinceDateUsed) {
         since = new Date(sinceDateUsed);
       } else {
-        const [syncState] = await db.select().from(bcSyncState).limit(1);
         if (syncState?.lastSyncAt) {
           since = new Date(syncState.lastSyncAt);
         } else {
@@ -700,12 +705,23 @@ export function registerBcSyncRoutes(app: Express) {
         }
       }
 
-      const { opportunities: allOpps, error } = await fetchBcOpportunities(accessToken, since);
+      const isFirstSync = !syncState?.lastSyncAt;
+      const { opportunities: allOpps, error } = await fetchBcOpportunities(accessToken, since, isFirstSync);
       if (error) {
         return res.status(502).json({ message: error });
       }
 
-      const selectedOpps = allOpps.filter(opp => opportunityIds.includes(opp.id));
+      let selectedOpps = allOpps.filter(opp => opportunityIds.includes(opp.id));
+
+      if (selectedOpps.length === 0 && opportunityIds.length > 0) {
+        console.log(`[BC Sync] Confirm: date-filtered fetch matched 0 of ${opportunityIds.length} selected IDs, retrying without date filter...`);
+        const { opportunities: unfilteredOpps, error: retryError } = await fetchBcOpportunities(accessToken, undefined, true);
+        if (!retryError) {
+          selectedOpps = unfilteredOpps.filter(opp => opportunityIds.includes(opp.id));
+          console.log(`[BC Sync] Confirm: unfiltered retry matched ${selectedOpps.length} of ${opportunityIds.length} selected IDs`);
+        }
+      }
+
       const filteredOpps = filterByGcAllowlist(selectedOpps);
 
       const created: number[] = [];
@@ -954,6 +970,190 @@ export function registerBcSyncRoutes(app: Express) {
     }
   });
 
+  app.post("/api/bc/drafts/:id/approve-and-create", async (req: Request, res: Response) => {
+    try {
+      const userId = (req.session as any)?.userId;
+      if (!userId) return res.status(401).json({ message: "Not authenticated" });
+
+      const [user] = await db.select().from(users).where(eq(users.id, userId));
+      if (!isAdmin(user)) return res.status(403).json({ message: "Admin access required" });
+
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) return res.status(400).json({ message: "Invalid ID" });
+
+      const [entry] = await db.select().from(proposalLogEntries).where(eq(proposalLogEntries.id, id));
+      if (!entry) return res.status(404).json({ message: "Entry not found" });
+      if (!entry.isDraft) return res.status(400).json({ message: "Entry is not a draft" });
+      if (entry.deletedAt) return res.status(400).json({ message: "Entry has been deleted" });
+
+      const { projectName, region, dueDate, nbsEstimator, gcEstimateLead, primaryMarket, notes } = req.body || {};
+
+      const finalProjectName = (projectName || entry.projectName || "").slice(0, 500);
+      const finalRegion = (region || entry.region || "").replace(/[^A-Za-z0-9]/g, "").slice(0, 10);
+      const finalDueDate = dueDate || entry.dueDate || "";
+      const finalNbsEstimator = nbsEstimator !== undefined ? nbsEstimator : entry.nbsEstimator;
+      const finalGcEstimateLead = gcEstimateLead !== undefined ? gcEstimateLead : entry.gcEstimateLead;
+      const finalPrimaryMarket = primaryMarket || entry.primaryMarket || guessMarket(finalProjectName);
+
+      if (!finalProjectName) {
+        return res.status(400).json({ message: "Project name is required" });
+      }
+      if (!finalRegion) {
+        return res.status(400).json({ message: "Region code is required" });
+      }
+
+      const [recheck] = await db.select().from(proposalLogEntries).where(eq(proposalLogEntries.id, id));
+      if (!recheck || !recheck.isDraft) {
+        return res.status(409).json({ message: "Draft was already processed" });
+      }
+
+      const estimateNumber = await generateProjectId();
+      const safeName = finalProjectName.replace(/[\/\\?%*:|"<>]/g, "-").replace(/\s+/g, " ").trim();
+      const regionCode = finalRegion.toUpperCase();
+      const folderName = `${regionCode} - ${safeName}`;
+      const projectsDir = path.join(process.cwd(), "projects");
+      const projectDir = path.join(projectsDir, folderName);
+
+      if (!fs.existsSync(projectsDir)) {
+        fs.mkdirSync(projectsDir, { recursive: true });
+      }
+      if (!fs.existsSync(projectDir)) {
+        fs.mkdirSync(projectDir, { recursive: true });
+      }
+
+      const activeFolderTemplate = await getActiveFolderTemplate();
+      const folderZipBuffer = activeFolderTemplate ? await getFolderTemplateFileBuffer(activeFolderTemplate) : null;
+      if (activeFolderTemplate && folderZipBuffer) {
+        const zip = await JSZip.loadAsync(folderZipBuffer);
+        for (const [relativePath, zipEntry] of Object.entries(zip.files)) {
+          const parts = relativePath.split("/");
+          if (parts[0] === "0000_Standard Folders" || parts[0] === "0000_Standard Folder") {
+            parts.shift();
+          }
+          const outputPath = parts.join("/");
+          if (!outputPath) continue;
+          if (zipEntry.dir) {
+            const dirPath = path.join(projectDir, outputPath);
+            if (!fs.existsSync(dirPath)) fs.mkdirSync(dirPath, { recursive: true });
+          } else {
+            const fileDir = path.dirname(path.join(projectDir, outputPath));
+            if (!fs.existsSync(fileDir)) fs.mkdirSync(fileDir, { recursive: true });
+            const content = await zipEntry.async("nodebuffer");
+            fs.writeFileSync(path.join(projectDir, outputPath), content);
+          }
+        }
+      }
+
+      const requiredSubfolders = [
+        "Estimate Folder/Bid Documents/Plans",
+        "Estimate Folder/Bid Documents/Specs",
+        "Estimate Folder/Vendors",
+        "Estimate Folder/Estimate",
+      ];
+      for (const sub of requiredSubfolders) {
+        const subPath = path.join(projectDir, sub);
+        if (!fs.existsSync(subPath)) fs.mkdirSync(subPath, { recursive: true });
+      }
+
+      const activeEstimateTemplate = await getActiveEstimateTemplate();
+      const estimateBuffer = activeEstimateTemplate ? await getEstimateTemplateFileBuffer(activeEstimateTemplate) : null;
+      if (activeEstimateTemplate && estimateBuffer) {
+        try {
+          const workbook = new ExcelJS.Workbook();
+          await workbook.xlsx.load(estimateBuffer);
+
+          const projectData: Record<string, string> = {
+            projectId: estimateNumber,
+            projectName: safeName,
+            regionCode,
+            dueDate: finalDueDate,
+          };
+
+          let stampedCount = 0;
+          for (const mapping of (activeEstimateTemplate.stampMappings || [])) {
+            const value = projectData[mapping.fieldName];
+            if (value === undefined) continue;
+            const match = mapping.cellRef.match(/^(.+)!([A-Z]+\d+)$/);
+            if (!match) continue;
+            const [, sheetName, cellAddr] = match;
+            const sheet = workbook.getWorksheet(sheetName);
+            if (sheet) {
+              sheet.getCell(cellAddr).value = value;
+              stampedCount++;
+            }
+          }
+
+          const dueParts = finalDueDate.split("-");
+          const formattedDueDate = dueParts.length >= 3 ? `${dueParts[1]}.${dueParts[2]}.${dueParts[0].slice(2)}` : "TBD";
+          const ext = path.extname(activeEstimateTemplate.originalFilename || activeEstimateTemplate.filePath) || ".xlsx";
+          const estimateFilename = `${safeName} - NBS Estimate - ${formattedDueDate}${ext}`;
+          const estimatePath = path.join(projectDir, "Estimate Folder", "Estimate", estimateFilename);
+
+          if (ext === ".xlsm") {
+            fs.writeFileSync(estimatePath, estimateBuffer);
+          } else {
+            await workbook.xlsx.writeFile(estimatePath);
+          }
+          console.log(`[BC ApproveCreate] Estimate stamped: ${estimateFilename} (${stampedCount} fields)`);
+        } catch (err) {
+          console.error("[BC ApproveCreate] Failed to stamp estimate:", err);
+        }
+      }
+
+      const project = await createProject({
+        projectId: estimateNumber,
+        projectName: safeName,
+        regionCode,
+        dueDate: finalDueDate,
+        status: "created",
+        folderPath: projectDir,
+        isTest: false,
+      });
+
+      const approverName = user!.displayName || user!.email;
+
+      const [updated] = await db.update(proposalLogEntries).set({
+        isDraft: false,
+        estimateNumber,
+        estimateStatus: "Estimating",
+        projectName: finalProjectName,
+        region: finalRegion,
+        dueDate: finalDueDate,
+        nbsEstimator: finalNbsEstimator,
+        gcEstimateLead: finalGcEstimateLead,
+        primaryMarket: finalPrimaryMarket,
+        notes: notes || entry.notes,
+        projectDbId: project.id,
+        filePath: projectDir,
+        draftApprovedBy: approverName,
+        draftApprovedAt: new Date(),
+        bcUpdateFlag: false,
+      }).where(eq(proposalLogEntries.id, id)).returning();
+
+      await createNotificationForAdmins({
+        type: "draft_approved",
+        title: "Draft Approved & Project Created",
+        message: `"${finalProjectName}" approved by ${approverName} — project ${estimateNumber} created with folder.`,
+        metadata: { entryId: id, estimateNumber, projectDbId: project.id, approvedBy: approverName },
+      });
+
+      res.json({
+        entry: updated,
+        project: {
+          id: project.id,
+          projectId: estimateNumber,
+          projectName: safeName,
+          regionCode,
+          folderPath: projectDir,
+        },
+        downloadUrl: `/api/projects/${project.id}/download-folder`,
+      });
+    } catch (err) {
+      console.error("[BC Sync] Approve-and-create error:", err);
+      res.status(500).json({ message: "Failed to approve draft and create project" });
+    }
+  });
+
   app.post("/api/bc/drafts/:id/reject", async (req: Request, res: Response) => {
     try {
       const userId = (req.session as any)?.userId;
@@ -1012,7 +1212,7 @@ export function registerBcSyncRoutes(app: Express) {
       if (!entry) return res.status(404).json({ message: "Entry not found" });
       if (!entry.isDraft) return res.status(400).json({ message: "Entry is not a draft" });
 
-      const { projectName, region, dueDate, nbsEstimator, gcEstimateLead, primaryMarket } = req.body;
+      const { projectName, region, dueDate, nbsEstimator, gcEstimateLead, primaryMarket, notes } = req.body;
 
       const updates: Record<string, unknown> = {};
       if (projectName !== undefined) updates.projectName = projectName;
@@ -1021,6 +1221,7 @@ export function registerBcSyncRoutes(app: Express) {
       if (nbsEstimator !== undefined) updates.nbsEstimator = nbsEstimator;
       if (gcEstimateLead !== undefined) updates.gcEstimateLead = gcEstimateLead;
       if (primaryMarket !== undefined) updates.primaryMarket = primaryMarket;
+      if (notes !== undefined) updates.notes = notes;
 
       if (Object.keys(updates).length === 0) {
         return res.status(400).json({ message: "No fields to update" });

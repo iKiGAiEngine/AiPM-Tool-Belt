@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect } from "react";
 import { Link } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { ArrowLeft, Search, ChevronUp, ChevronDown, FileSpreadsheet, FileText, FlaskConical, Archive, Link2, CheckCircle2, RefreshCw, Check, X, FileEdit, Pencil } from "lucide-react";
+import { ArrowLeft, Search, ChevronUp, ChevronDown, FileSpreadsheet, FileText, FlaskConical, Archive, Link2, CheckCircle2, RefreshCw, Check, X, FileEdit, Pencil, Download, FolderOpen, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -39,6 +39,7 @@ interface ProposalLogEntry {
   bcOpportunityIds: string | null;
   scopeList: string | null;
   draftApprovedBy: string | null;
+  notes: string | null;
   draftApprovedAt: string | null;
   deletedAt: string | null;
   createdAt: string;
@@ -55,9 +56,10 @@ export default function ProjectLogPage() {
   const [sortDir, setSortDir] = useState<SortDir>("desc");
   const [showBcSync, setShowBcSync] = useState(false);
   const [editingDraft, setEditingDraft] = useState<ProposalLogEntry | null>(null);
-  const [editForm, setEditForm] = useState({ projectName: "", region: "", dueDate: "", nbsEstimator: "", gcEstimateLead: "", primaryMarket: "" });
+  const [editForm, setEditForm] = useState({ projectName: "", region: "", dueDate: "", nbsEstimator: "", gcEstimateLead: "", primaryMarket: "", notes: "" });
   const [rejectingDraftId, setRejectingDraftId] = useState<number | null>(null);
   const [rejectReason, setRejectReason] = useState("");
+  const [approveResult, setApproveResult] = useState<{ projectId: string; downloadUrl: string; projectName: string } | null>(null);
   const { isTestMode } = useTestMode();
   const { toast } = useToast();
   const { isAdmin } = useAuth();
@@ -142,8 +144,29 @@ export default function ProjectLogPage() {
     },
   });
 
+  const approveAndCreateMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: number; data: Record<string, string> }) => {
+      const res = await apiRequest("POST", `/api/bc/drafts/${id}/approve-and-create`, data);
+      return res.json();
+    },
+    onSuccess: (result) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/proposal-log/all-entries"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/notifications"] });
+      setApproveResult({
+        projectId: result.project.projectId,
+        downloadUrl: result.downloadUrl,
+        projectName: result.project.projectName,
+      });
+      toast({ title: "Project created", description: `Project ${result.project.projectId} created with folder structure.` });
+    },
+    onError: () => {
+      toast({ title: "Error", description: "Failed to create project from draft.", variant: "destructive" });
+    },
+  });
+
   const openEditDraft = (entry: ProposalLogEntry) => {
     setEditingDraft(entry);
+    setApproveResult(null);
     setEditForm({
       projectName: entry.projectName || "",
       region: entry.region || "",
@@ -151,6 +174,7 @@ export default function ProjectLogPage() {
       nbsEstimator: entry.nbsEstimator || "",
       gcEstimateLead: entry.gcEstimateLead || "",
       primaryMarket: entry.primaryMarket || "",
+      notes: entry.notes || "",
     });
   };
 
@@ -583,24 +607,14 @@ export default function ProjectLogPage() {
                                   <Button
                                     variant="ghost"
                                     size="sm"
-                                    className="h-7 w-7 p-0 text-green-500 hover:text-green-600 hover:bg-green-500/10"
-                                    onClick={() => approveDraftMutation.mutate(entry.id)}
-                                    disabled={approveDraftMutation.isPending}
-                                    title="Approve draft"
-                                    data-testid={`button-approve-${entry.id}`}
-                                  >
-                                    <Check className="h-4 w-4" />
-                                  </Button>
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    className="h-7 w-7 p-0"
+                                    className="h-7 px-2 text-xs gap-1"
                                     style={{ color: "var(--gold)" }}
                                     onClick={() => openEditDraft(entry)}
-                                    title="Edit draft"
-                                    data-testid={`button-edit-draft-${entry.id}`}
+                                    title="Review & approve draft"
+                                    data-testid={`button-approve-${entry.id}`}
                                   >
-                                    <Pencil className="h-4 w-4" />
+                                    <Pencil className="h-3.5 w-3.5" />
+                                    Review
                                   </Button>
                                   <Button
                                     variant="ghost"
@@ -633,97 +647,201 @@ export default function ProjectLogPage() {
       )}
 
       {editingDraft && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setEditingDraft(null)}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => { if (!approveAndCreateMutation.isPending) { setEditingDraft(null); setApproveResult(null); } }}>
           <div
-            className="relative w-full max-w-md rounded-xl overflow-hidden shadow-2xl"
+            className="relative w-full max-w-lg rounded-xl overflow-hidden shadow-2xl"
             style={{ background: "var(--bg-card)", border: "1px solid var(--border-ds)" }}
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between p-4" style={{ borderBottom: "1px solid var(--border-ds)" }}>
-              <h3 className="text-sm font-heading font-semibold" style={{ color: "var(--text)" }}>Edit Draft</h3>
-              <button onClick={() => setEditingDraft(null)} className="p-1 rounded hover:bg-white/10" data-testid="button-close-edit-draft">
+              <div>
+                <h3 className="text-sm font-heading font-semibold" style={{ color: "var(--text)" }}>Review Draft</h3>
+                <p className="text-[11px] mt-0.5" style={{ color: "var(--text-dim)" }}>Edit fields then approve to create a project folder</p>
+              </div>
+              <button onClick={() => { if (!approveAndCreateMutation.isPending) { setEditingDraft(null); setApproveResult(null); } }} className="p-1 rounded hover:bg-white/10" data-testid="button-close-edit-draft">
                 <X className="h-4 w-4" style={{ color: "var(--text-dim)" }} />
               </button>
             </div>
-            <div className="p-4 space-y-3">
-              <div>
-                <label className="text-xs font-medium mb-1 block" style={{ color: "var(--text-dim)" }}>Project Name</label>
-                <Input
-                  value={editForm.projectName}
-                  onChange={(e) => setEditForm(f => ({ ...f, projectName: e.target.value }))}
-                  className="text-sm"
-                  data-testid="input-edit-project-name"
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-xs font-medium mb-1 block" style={{ color: "var(--text-dim)" }}>Region</label>
-                  <Input
-                    value={editForm.region}
-                    onChange={(e) => setEditForm(f => ({ ...f, region: e.target.value }))}
-                    className="text-sm"
-                    data-testid="input-edit-region"
-                  />
+
+            {approveResult ? (
+              <div className="p-6 text-center space-y-4">
+                <div className="mx-auto w-12 h-12 rounded-full flex items-center justify-center" style={{ background: "var(--gold)", color: "var(--bg)" }}>
+                  <FolderOpen className="w-6 h-6" />
                 </div>
                 <div>
-                  <label className="text-xs font-medium mb-1 block" style={{ color: "var(--text-dim)" }}>Due Date</label>
-                  <Input
-                    type="date"
-                    value={editForm.dueDate}
-                    onChange={(e) => setEditForm(f => ({ ...f, dueDate: e.target.value }))}
-                    className="text-sm"
-                    data-testid="input-edit-due-date"
-                  />
+                  <h4 className="text-sm font-heading font-semibold" style={{ color: "var(--text)" }}>Project Created</h4>
+                  <p className="text-xs mt-1" style={{ color: "var(--text-dim)" }}>
+                    {approveResult.projectName} — Estimate #{approveResult.projectId}
+                  </p>
+                </div>
+                <div className="flex items-center justify-center gap-3">
+                  <Button
+                    size="sm"
+                    onClick={() => {
+                      window.open(approveResult.downloadUrl, "_blank");
+                    }}
+                    style={{ background: "linear-gradient(135deg, var(--gold), var(--gold-dim))", color: "var(--bg)" }}
+                    data-testid="button-download-project-folder"
+                  >
+                    <Download className="w-4 h-4 mr-2" />
+                    Download Folder
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => { setEditingDraft(null); setApproveResult(null); }}
+                    data-testid="button-close-approve-result"
+                  >
+                    Close
+                  </Button>
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-xs font-medium mb-1 block" style={{ color: "var(--text-dim)" }}>Estimator</label>
-                  <Input
-                    value={editForm.nbsEstimator}
-                    onChange={(e) => setEditForm(f => ({ ...f, nbsEstimator: e.target.value }))}
-                    className="text-sm"
-                    data-testid="input-edit-estimator"
-                  />
+            ) : (
+              <>
+                <div className="p-4 space-y-3 max-h-[60vh] overflow-y-auto">
+                  {editingDraft.bcLink && (
+                    <div className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs" style={{ background: "var(--bg-input)", color: "var(--text-dim)" }}>
+                      <Link2 className="w-3.5 h-3.5 text-blue-500 flex-shrink-0" />
+                      <a href={editingDraft.bcLink} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline truncate">
+                        {editingDraft.bcLink}
+                      </a>
+                    </div>
+                  )}
+                  <div>
+                    <label className="text-xs font-medium mb-1 block" style={{ color: "var(--text-dim)" }}>Project Name</label>
+                    <Input
+                      value={editForm.projectName}
+                      onChange={(e) => setEditForm(f => ({ ...f, projectName: e.target.value }))}
+                      className="text-sm"
+                      data-testid="input-edit-project-name"
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-xs font-medium mb-1 block" style={{ color: "var(--text-dim)" }}>Region Code</label>
+                      <Input
+                        value={editForm.region}
+                        onChange={(e) => setEditForm(f => ({ ...f, region: e.target.value }))}
+                        placeholder="e.g. SAN, LAX, DEN"
+                        className="text-sm"
+                        data-testid="input-edit-region"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs font-medium mb-1 block" style={{ color: "var(--text-dim)" }}>Due Date</label>
+                      <Input
+                        type="date"
+                        value={editForm.dueDate}
+                        onChange={(e) => setEditForm(f => ({ ...f, dueDate: e.target.value }))}
+                        className="text-sm"
+                        data-testid="input-edit-due-date"
+                      />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-xs font-medium mb-1 block" style={{ color: "var(--text-dim)" }}>NBS Estimator</label>
+                      <Input
+                        value={editForm.nbsEstimator}
+                        onChange={(e) => setEditForm(f => ({ ...f, nbsEstimator: e.target.value }))}
+                        className="text-sm"
+                        data-testid="input-edit-estimator"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs font-medium mb-1 block" style={{ color: "var(--text-dim)" }}>GC Lead</label>
+                      <Input
+                        value={editForm.gcEstimateLead}
+                        onChange={(e) => setEditForm(f => ({ ...f, gcEstimateLead: e.target.value }))}
+                        className="text-sm"
+                        data-testid="input-edit-gc-lead"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium mb-1 block" style={{ color: "var(--text-dim)" }}>Market</label>
+                    <Input
+                      value={editForm.primaryMarket}
+                      onChange={(e) => setEditForm(f => ({ ...f, primaryMarket: e.target.value }))}
+                      className="text-sm"
+                      data-testid="input-edit-market"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium mb-1 block" style={{ color: "var(--text-dim)" }}>Notes (optional)</label>
+                    <Textarea
+                      value={editForm.notes}
+                      onChange={(e) => setEditForm(f => ({ ...f, notes: e.target.value }))}
+                      placeholder="Any notes for this project..."
+                      className="text-sm min-h-[60px]"
+                      data-testid="input-edit-notes"
+                    />
+                  </div>
+                  {(() => {
+                    const scopes = parseScopeList(editingDraft.scopeList);
+                    if (scopes.length === 0) return null;
+                    return (
+                      <div>
+                        <label className="text-xs font-medium mb-1.5 block" style={{ color: "var(--text-dim)" }}>Scopes from BC</label>
+                        <div className="flex gap-1.5 flex-wrap">
+                          {scopes.map((scope, i) => (
+                            <span key={i} className="text-[10px] px-2 py-1 rounded" style={{ background: "var(--bg-input)", color: "var(--text)" }}>
+                              {scope}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })()}
+                  <div className="rounded-lg px-3 py-2 text-[11px]" style={{ background: "var(--bg-input)", color: "var(--text-dim)" }}>
+                    Folder will be created as: <strong style={{ color: "var(--text)" }}>{(editForm.region || "???").toUpperCase()} - {editForm.projectName || "???"}</strong>
+                  </div>
                 </div>
-                <div>
-                  <label className="text-xs font-medium mb-1 block" style={{ color: "var(--text-dim)" }}>GC Lead</label>
-                  <Input
-                    value={editForm.gcEstimateLead}
-                    onChange={(e) => setEditForm(f => ({ ...f, gcEstimateLead: e.target.value }))}
-                    className="text-sm"
-                    data-testid="input-edit-gc-lead"
-                  />
+                <div className="flex items-center justify-between gap-2 p-4" style={{ borderTop: "1px solid var(--border-ds)" }}>
+                  <Button variant="outline" size="sm" onClick={() => { setEditingDraft(null); setApproveResult(null); }} data-testid="button-cancel-edit-draft">
+                    Cancel
+                  </Button>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        if (editingDraft) {
+                          editDraftMutation.mutate({ id: editingDraft.id, data: editForm });
+                        }
+                      }}
+                      disabled={editDraftMutation.isPending || approveAndCreateMutation.isPending}
+                      data-testid="button-save-edit-draft"
+                    >
+                      Save Changes
+                    </Button>
+                    <Button
+                      size="sm"
+                      onClick={() => {
+                        if (editingDraft) {
+                          approveAndCreateMutation.mutate({ id: editingDraft.id, data: editForm });
+                        }
+                      }}
+                      disabled={approveAndCreateMutation.isPending || !editForm.projectName || !editForm.region}
+                      style={{ background: "linear-gradient(135deg, var(--gold), var(--gold-dim))", color: "var(--bg)" }}
+                      data-testid="button-approve-and-create"
+                    >
+                      {approveAndCreateMutation.isPending ? (
+                        <>
+                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                          Creating...
+                        </>
+                      ) : (
+                        <>
+                          <FolderOpen className="w-4 h-4 mr-2" />
+                          Approve & Create Project
+                        </>
+                      )}
+                    </Button>
+                  </div>
                 </div>
-              </div>
-              <div>
-                <label className="text-xs font-medium mb-1 block" style={{ color: "var(--text-dim)" }}>Market</label>
-                <Input
-                  value={editForm.primaryMarket}
-                  onChange={(e) => setEditForm(f => ({ ...f, primaryMarket: e.target.value }))}
-                  className="text-sm"
-                  data-testid="input-edit-market"
-                />
-              </div>
-            </div>
-            <div className="flex items-center justify-end gap-2 p-4" style={{ borderTop: "1px solid var(--border-ds)" }}>
-              <Button variant="outline" size="sm" onClick={() => setEditingDraft(null)} data-testid="button-cancel-edit-draft">
-                Cancel
-              </Button>
-              <Button
-                size="sm"
-                onClick={() => {
-                  if (editingDraft) {
-                    editDraftMutation.mutate({ id: editingDraft.id, data: editForm });
-                  }
-                }}
-                disabled={editDraftMutation.isPending}
-                style={{ background: "linear-gradient(135deg, var(--gold), var(--gold-dim))", color: "var(--bg)" }}
-                data-testid="button-save-edit-draft"
-              >
-                Save Changes
-              </Button>
-            </div>
+              </>
+            )}
           </div>
         </div>
       )}
