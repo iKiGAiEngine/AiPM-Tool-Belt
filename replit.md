@@ -45,9 +45,10 @@ All data is persistently stored in PostgreSQL, managed by Drizzle ORM. Key table
 - **Domain Restriction**: Login and user creation are restricted to allowed email domains.
 - **Role-Based Access**: Features are gated by `isAdmin` checks for admin-only functionalities.
 - **Session Management**: PostgreSQL-backed sessions with 7-day secure cookies.
-- **Admin Dashboard**: Manages users, roles, and provides an audit log viewer.
+- **Admin Dashboard**: Manages users, roles, and provides an audit log viewer. Includes Data Backup & Recovery section.
 - **Audit Logging**: All authentication and admin actions are logged to an `audit_logs` table.
 - **Rate Limiting**: In-memory rate limiting for OTP requests.
+- **Data Backup & Recovery**: Admin-only full database backup (multi-sheet Excel export of all critical tables: proposal log, users, projects, scopes, regions, vendors, products, notifications, audit logs, BC sync log). One-click download button on Admin Dashboard. Restore section validates uploaded backup files with table selection and preview. Routes in `server/backupRestore.ts`.
 
 ### Project Export
 The system supports downloading project folders as ZIP files, generating ZIP archives with spec extract PDFs and plan pages, and creating bookmarked or per-scope PDFs.

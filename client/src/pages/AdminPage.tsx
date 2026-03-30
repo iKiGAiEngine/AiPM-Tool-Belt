@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef, useCallback } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -36,6 +36,12 @@ import {
   ScrollText,
   Plus,
   Pencil,
+  Download,
+  Upload,
+  Database,
+  AlertTriangle,
+  CheckCircle,
+  HardDrive,
 } from "lucide-react";
 import { Link } from "wouter";
 import { queryClient, apiRequest } from "@/lib/queryClient";
@@ -379,6 +385,8 @@ export default function AdminPage() {
         </Card>
       </div>
 
+      <BackupRestoreSection />
+
       {formOpen && (
         <UserFormDialog
           open={formOpen}
@@ -389,6 +397,282 @@ export default function AdminPage() {
           editUser={editingUser}
         />
       )}
+    </div>
+  );
+}
+
+function BackupRestoreSection() {
+  const { toast } = useToast();
+  const [downloading, setDownloading] = useState(false);
+  const [restoreFile, setRestoreFile] = useState<File | null>(null);
+  const [selectedTables, setSelectedTables] = useState<string[]>([]);
+  const [previewResult, setPreviewResult] = useState<any>(null);
+  const [previewing, setPreviewing] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const { data: backupInfo, isLoading: infoLoading } = useQuery<{
+    tables: { key: string; label: string; rowCount: number; restorable: boolean }[];
+    totalRows: number;
+  }>({
+    queryKey: ["/api/admin/backup/info"],
+  });
+
+  const handleDownload = useCallback(async () => {
+    setDownloading(true);
+    try {
+      const resp = await fetch("/api/admin/backup/download", { credentials: "include" });
+      if (!resp.ok) throw new Error("Download failed");
+      const blob = await resp.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      const disposition = resp.headers.get("Content-Disposition");
+      const filename = disposition?.match(/filename="(.+)"/)?.[1] || "aipm-backup.xlsx";
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      toast({ title: "Backup downloaded", description: "Full database backup saved to your device." });
+    } catch (err) {
+      toast({ title: "Download failed", description: (err as Error).message, variant: "destructive" });
+    } finally {
+      setDownloading(false);
+    }
+  }, [toast]);
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setRestoreFile(file);
+      setPreviewResult(null);
+      setSelectedTables([]);
+    }
+  };
+
+  const handlePreview = async () => {
+    if (!restoreFile || selectedTables.length === 0) return;
+    setPreviewing(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", restoreFile);
+      formData.append("tables", JSON.stringify(selectedTables));
+      const resp = await fetch("/api/admin/backup/restore", {
+        method: "POST",
+        body: formData,
+        credentials: "include",
+      });
+      const data = await resp.json();
+      if (!resp.ok) throw new Error(data.message);
+      setPreviewResult(data);
+    } catch (err) {
+      toast({ title: "Preview failed", description: (err as Error).message, variant: "destructive" });
+    } finally {
+      setPreviewing(false);
+    }
+  };
+
+  const toggleTable = (key: string) => {
+    setSelectedTables(prev =>
+      prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key]
+    );
+    setPreviewResult(null);
+  };
+
+  const restorableTables = backupInfo?.tables.filter(t => t.restorable) || [];
+
+  return (
+    <div className="max-w-5xl mx-auto px-6 pb-8">
+      <Card className="card-accent-bar mt-6">
+        <div className="flex items-center gap-3 p-4 border-b">
+          <HardDrive className="w-5 h-5" style={{ color: "var(--gold)" }} />
+          <h2 className="text-lg font-heading font-semibold text-foreground" data-testid="text-backup-title">
+            Data Backup & Recovery
+          </h2>
+        </div>
+
+        <div className="p-4 space-y-6">
+          <div className="rounded-lg border border-border bg-card p-4">
+            <div className="flex items-center justify-between flex-wrap gap-4">
+              <div>
+                <h3 className="font-medium text-foreground flex items-center gap-2" data-testid="text-download-header">
+                  <Database className="w-4 h-4" style={{ color: "var(--gold)" }} />
+                  Download Full Backup
+                </h3>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Exports all critical tables as a multi-sheet Excel workbook. Includes proposal log, users, projects, scopes, regions, vendors, products, notifications, and audit logs.
+                </p>
+                {backupInfo && (
+                  <p className="text-xs text-muted-foreground mt-2" data-testid="text-backup-stats">
+                    {backupInfo.tables.length} tables · {backupInfo.totalRows.toLocaleString()} total rows
+                  </p>
+                )}
+              </div>
+              <Button
+                onClick={handleDownload}
+                disabled={downloading}
+                className="bg-gradient-to-r from-[var(--gold)] to-[var(--gold-light)] text-black font-medium shrink-0"
+                data-testid="button-download-backup"
+              >
+                {downloading ? (
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                ) : (
+                  <Download className="w-4 h-4 mr-2" />
+                )}
+                {downloading ? "Generating..." : "Download Backup"}
+              </Button>
+            </div>
+
+            {infoLoading ? (
+              <div className="mt-4 flex items-center gap-2 text-sm text-muted-foreground">
+                <Loader2 className="w-3 h-3 animate-spin" /> Loading table info...
+              </div>
+            ) : backupInfo ? (
+              <div className="mt-4 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
+                {backupInfo.tables.map(t => (
+                  <div
+                    key={t.key}
+                    className="flex items-center justify-between text-xs px-3 py-2 rounded-md border border-border bg-background"
+                    data-testid={`text-table-info-${t.key}`}
+                  >
+                    <span className="text-foreground font-medium truncate">{t.label}</span>
+                    <Badge variant="secondary" className="ml-2 shrink-0 text-[10px]">
+                      {t.rowCount}
+                    </Badge>
+                  </div>
+                ))}
+              </div>
+            ) : null}
+          </div>
+
+          <div className="rounded-lg border border-border bg-card p-4">
+            <h3 className="font-medium text-foreground flex items-center gap-2" data-testid="text-restore-header">
+              <Upload className="w-4 h-4" style={{ color: "var(--gold)" }} />
+              Restore from Backup
+            </h3>
+            <p className="text-sm text-muted-foreground mt-1">
+              Upload a previously downloaded backup file to preview and validate its contents.
+            </p>
+
+            <div className="mt-4 flex items-center gap-3">
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".xlsx"
+                onChange={handleFileSelect}
+                className="hidden"
+                data-testid="input-restore-file"
+              />
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => fileInputRef.current?.click()}
+                data-testid="button-select-backup-file"
+              >
+                <Upload className="w-3.5 h-3.5 mr-1.5" />
+                {restoreFile ? "Change File" : "Select Backup File"}
+              </Button>
+              {restoreFile && (
+                <span className="text-sm text-foreground" data-testid="text-selected-file">
+                  {restoreFile.name}
+                  <span className="text-muted-foreground ml-2">
+                    ({(restoreFile.size / 1024).toFixed(1)} KB)
+                  </span>
+                </span>
+              )}
+            </div>
+
+            {restoreFile && (
+              <div className="mt-4 space-y-3">
+                <Label className="text-sm font-medium">Select tables to validate:</Label>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                  {restorableTables.map(t => (
+                    <label
+                      key={t.key}
+                      className={`flex items-center gap-2 text-sm px-3 py-2 rounded-md border cursor-pointer transition-colors ${
+                        selectedTables.includes(t.key)
+                          ? "border-[var(--gold)] bg-[var(--gold)]/10"
+                          : "border-border bg-background hover:border-muted-foreground/30"
+                      }`}
+                      data-testid={`checkbox-restore-${t.key}`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={selectedTables.includes(t.key)}
+                        onChange={() => toggleTable(t.key)}
+                        className="accent-[var(--gold)]"
+                      />
+                      <span className="text-foreground">{t.label}</span>
+                    </label>
+                  ))}
+                </div>
+
+                <div className="flex items-center gap-2 pt-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={handlePreview}
+                    disabled={previewing || selectedTables.length === 0}
+                    data-testid="button-preview-restore"
+                  >
+                    {previewing ? (
+                      <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
+                    ) : (
+                      <CheckCircle className="w-3.5 h-3.5 mr-1.5" />
+                    )}
+                    Validate Backup
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {previewResult && (
+              <div className="mt-4 rounded-md border border-border p-4 bg-background">
+                <div className="flex items-center gap-2 mb-3">
+                  <CheckCircle className="w-4 h-4 text-green-500" />
+                  <span className="font-medium text-foreground text-sm" data-testid="text-preview-status">
+                    {previewResult.message}
+                  </span>
+                </div>
+                <p className="text-xs text-muted-foreground mb-3" data-testid="text-backup-date">
+                  Backup date: {previewResult.backupDate}
+                </p>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Table</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead className="text-right">Rows</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {previewResult.results?.map((r: any, i: number) => (
+                      <TableRow key={i}>
+                        <TableCell className="font-medium" data-testid={`text-restore-table-${i}`}>
+                          {r.table}
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant={r.rowCount > 0 ? "default" : "secondary"} className="text-[10px]">
+                            {r.status}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-right">{r.rowCount}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+
+                <div className="mt-3 flex items-start gap-2 p-3 rounded-md bg-amber-500/10 border border-amber-500/20">
+                  <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
+                  <p className="text-xs text-foreground">
+                    This backup file has been validated and is intact. For data recovery, contact your system administrator with this file. Direct database restore is restricted to prevent accidental data loss.
+                  </p>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      </Card>
     </div>
   );
 }
