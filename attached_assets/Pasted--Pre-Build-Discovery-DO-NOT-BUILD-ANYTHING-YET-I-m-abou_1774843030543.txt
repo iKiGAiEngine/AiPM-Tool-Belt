@@ -1,0 +1,39 @@
+# Pre-Build Discovery — DO NOT BUILD ANYTHING YET
+
+I’m about to add a BuildingConnected API integration to this app. Before we build anything, I need you to inspect the current codebase and answer these questions. Just report back — no code changes.
+
+## 1. Database Schema
+
+- List ALL tables and their columns (name, type, constraints)
+- Specifically show me the full schema for the Proposal Log table (whatever it’s called — might be `proposals`, `proposal_log`, `estimates`, etc.)
+- Show me the users/auth table schema
+- How is Drizzle configured? Are there migration files in a `/drizzle` or `/migrations` folder, or is the schema pushed directly with `drizzle-kit push`?
+
+## 2. Backend Routes
+
+- List ALL Express routes (method + path) currently registered
+- Which file(s) define the routes? (e.g., `server/routes.ts`, `server/index.ts`, etc.)
+- How is authentication middleware set up? (session-based? JWT? cookies?)
+- Is there any existing OneDrive integration? If so, which routes handle it and how does file storage work (auto-create folders? where do files go?)
+
+## 3. Frontend Structure
+
+- Where does the Proposal Log page/component live? (file path)
+- What state management is used? (React Query? Context? Redux? Local state?)
+- How does the frontend call the backend? (fetch? axios? tRPC? React Query hooks?)
+- Is there a shared layout or navigation component where I could add a notification bell icon?
+
+## 4. Environment & Config
+
+- List all current environment variables / Replit Secrets (just the KEY names, not the values)
+- What port does the Express server run on?
+- Are there any existing third-party API integrations besides OneDrive? (e.g., Anthropic/Claude API, SendGrid, Slack, etc.)
+
+## 5. Proposal Log Specifics
+
+- What are the current status options for a proposal? (e.g., “Estimating”, “Submitted”, “Won”, “Lost”)
+- How are new proposals currently created? (form? import? both?)
+- Is there any existing duplicate detection logic?
+- What fields are required vs optional when creating a new proposal?
+
+Just give me the answers — I’ll come back with the build instructions after I review.

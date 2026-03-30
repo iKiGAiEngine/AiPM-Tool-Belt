@@ -1,0 +1,522 @@
+# BuildingConnected → AiPM Proposal Log Integration — FINAL BUILD SPEC
+
+## CRITICAL RULES
+
+- DO NOT modify any existing tables — only ADD new columns and new tables
+- DO NOT modify the standalone proposal-log.html tool — only add BC features to the React admin side and backend routes
+- Follow the existing patterns: Drizzle schema in `shared/schema.ts`, routes in `server/` folder, push with `npm run db:push`
+- Use the existing auth middleware (`requireAuth`, `requireAdmin`) for all new routes
+- Use the existing `apiRequest` pattern from `client/src/lib/queryClient.ts` for frontend API calls
+- Use TanStack React Query for all new frontend data fetching
+
+-----
+
+## EXISTING CODEBASE REFERENCE (do not re-inspect, this is confirmed)
+
+- **Schema file**: `shared/schema.ts`
+- **Main routes**: `server/routes.ts` (proposal log routes are here)
+- **Auth middleware**: `requireAuth` and `requireAdmin` in auth setup
+- **Frontend layout**: `client/src/components/Header.tsx` (global nav — add notification bell here)
+- **Proposal Log React page**: `client/src/pages/ProjectLogPage.tsx`
+- **Proposal Log HTML tool**: `public/tools/proposal-log.html` (DO NOT TOUCH)
+- **API helper**: `client/src/lib/queryClient.ts` → `apiRequest()`
+- **DB push command**: `npm run db:push`
+- **Server port**: 5000
+- **Session auth**: express-session with connect-pg-simple, cookie `connect.sid`
+- **Email**: SendGrid already configured for OTP and bid assignment
+- **Google Sheets**: Already has bidirectional sync with Proposal Log
+- **File storage**: Local filesystem `uploads/projects/` + binary in DB for templates
+- **No OneDrive integration exists**
+
+### Current `proposal_log_entries` columns:
+
+id, projectName, estimateNumber, region, primaryMarket, inviteDate, dueDate, nbsEstimator, gcEstimateLead, proposalTotal, estimateStatus, owner, filePath, screenshotPath, projectDbId, anticipatedStart, anticipatedFinish, notes, bcLink, isTest, syncedToLocal, deletedAt, createdAt
+
+### Current statuses:
+
+Estimating, Revising, Submitted, Awarded, Lost - Not Competitive, Lost - Pulled, Lost - No Bid, Lost - Other, Declined
+
+### Current duplicate detection:
+
+Checks for matching `projectName` during project creation
+
+### Current users:
+
+All NBS estimators (Gene Trabert, Gonzalo Martinez, etc.) plus Haley Kruse and Kenny Ruester have accounts. Session-based auth with express-session + connect-pg-simple.
+
+-----
+
+## BUILD ORDER: 4 PARTS
+
+-----
+
+## PART 1: Autodesk OAuth Flow
+
+### 1A: New database table — `aps_tokens`
+
+Add to `shared/schema.ts`:
+
+```
+aps_tokens:
+  id: serial PRIMARY KEY
+  userId: integer NOT NULL (FK to users.id — the AiPM user who authorized)
+  accessToken: text NOT NULL
+  refreshToken: text NOT NULL
+  expiresAt: timestamp NOT NULL
+  scope: varchar(500)
+  createdAt: timestamp NOT NULL default now()
+  updatedAt: timestamp NOT NULL default now()
+```
+
+### 1B: New route file — `server/autodesk/auth.ts`
+
+Create these routes:
+
+**`GET /api/autodesk/login`** (requires auth)
+
+- Builds the Autodesk OAuth2 authorization URL:
+  - Base: `https://developer.api.autodesk.com/authentication/v2/authorize`
+  - Params: `response_type=code`, `client_id` from env `APS_CLIENT_ID`, `redirect_uri=https://aipmapp.com/auth/autodesk/callback`, `scope=data:read`
+- Redirects the user’s browser to that URL
+
+**`GET /auth/autodesk/callback`** (NOTE: this path is NOT under /api — it’s the exact callback URL registered in APS. Make sure this route does NOT require auth middleware since the user is returning from an external redirect and the session needs to be read from the cookie.)
+
+- Receives `code` query param from Autodesk
+- Exchanges the code for tokens: `POST https://developer.api.autodesk.com/authentication/v2/token`
+  - Body: `grant_type=authorization_code`, `code`, `redirect_uri=https://aipmapp.com/auth/autodesk/callback`, `client_id`, `client_secret`
+  - Content-Type: `application/x-www-form-urlencoded`
+- Stores `access_token`, `refresh_token`, `expires_at` in `aps_tokens` table linked to the session user
+- Redirects to `/project-log?bc=connected` with a success indicator
+
+**`GET /api/autodesk/status`** (requires auth)
+
+- Returns `{ connected: true/false }` based on whether the current user has a valid (non-expired or refreshable) token in `aps_tokens`
+
+### 1C: Token refresh helper — `server/autodesk/tokenManager.ts`
+
+Create a helper function `getValidToken(userId)`:
+
+- Looks up the user’s token in `aps_tokens`
+- If `expiresAt` is in the future → return the access token
+- If expired → call `POST https://developer.api.autodesk.com/authentication/v2/token` with `grant_type=refresh_token`, `refresh_token`, `client_id`, `client_secret`
+  - Content-Type: `application/x-www-form-urlencoded`
+- Update the stored token with new values
+- Return the fresh access token
+- If refresh fails → return null (user needs to re-authorize)
+
+### 1D: Frontend — “Connect to BuildingConnected” button
+
+In `client/src/pages/ProjectLogPage.tsx` (or a new settings section):
+
+- Add a button “Connect to BuildingConnected”
+- On click → `window.location.href = '/api/autodesk/login'`
+- Use a React Query hook to check `/api/autodesk/status` and show either:
+  - Green dot + “BC Connected” if connected
+  - Orange button “Connect to BuildingConnected” if not
+- If the URL has `?bc=connected` query param, show a success toast: “BuildingConnected connected successfully!”
+
+**STOP HERE AND TEST PART 1.** Make sure the OAuth flow works end-to-end before building Parts 2-4. Test by:
+
+1. Clicking the connect button
+1. Logging into Autodesk when the redirect appears
+1. Being redirected back to AiPM with the success indicator
+1. Confirming a token row exists in `aps_tokens` table
+1. Confirming `/api/autodesk/status` returns `{ connected: true }`
+
+-----
+
+## PART 2: BC Sync Engine
+
+### 2A: New database tables
+
+Add to `shared/schema.ts`:
+
+**`bc_sync_log`** — tracks every BC opportunity we’ve seen:
+
+```
+  id: serial PRIMARY KEY
+  bcOpportunityId: varchar(100) NOT NULL UNIQUE
+  bcProjectId: varchar(100) nullable (the shared project ID that links bid packages)
+  proposalLogEntryId: integer nullable (FK to proposal_log_entries.id)
+  scopeDescription: text nullable (bid package title / trade description)
+  rawData: jsonb nullable (full API response for this opportunity)
+  bcUpdatedAt: varchar(50) nullable (the updatedAt value from BC, for change detection)
+  syncedAt: timestamp NOT NULL default now()
+  updatedAt: timestamp NOT NULL default now()
+```
+
+**`bc_sync_state`** — tracks the last sync timestamp:
+
+```
+  id: serial PRIMARY KEY
+  lastSyncAt: varchar(50) nullable (ISO timestamp of last successful sync)
+  updatedAt: timestamp NOT NULL default now()
+```
+
+**`notifications`** — new notification system:
+
+```
+  id: serial PRIMARY KEY
+  userId: integer nullable (FK to users.id — null means visible to all users)
+  type: varchar(50) NOT NULL (draft_created, draft_scope_updated, draft_bc_updated, draft_approved, draft_rejected)
+  title: varchar(500) NOT NULL
+  message: text NOT NULL
+  metadata: jsonb nullable (extra data like project name, entry ID, what changed)
+  isRead: boolean NOT NULL default false
+  createdAt: timestamp NOT NULL default now()
+```
+
+### 2B: New columns on `proposal_log_entries`
+
+ADD these columns (do not remove or rename any existing columns):
+
+```
+  isDraft: boolean default false
+  bcProjectId: varchar(100) nullable
+  bcOpportunityIds: text nullable (JSON stringified array of BC opportunity IDs)
+  scopeList: text nullable (JSON stringified array of scope descriptions, e.g. ["Toilet Accessories", "Lockers"])
+  draftApprovedBy: varchar(200) nullable
+  draftApprovedAt: timestamp nullable
+  bcUpdateFlag: boolean default false
+  bcChangeLog: text nullable (JSON stringified array of change records: [{field, oldValue, newValue, changedAt}])
+```
+
+### 2C: New route file — `server/autodesk/bcSync.ts`
+
+Create a TWO-STEP sync flow: preview first, then confirm.
+
+-----
+
+**`POST /api/bc/sync/preview`** (requires admin)
+
+This is the preview/dry-run. It runs all the logic but writes NOTHING to the database. Returns what WOULD happen.
+
+```
+Step 1: Get a valid APS token using getValidToken()
+  - If no valid token → return error { success: false, error: "Not connected to BuildingConnected. Please reconnect." }
+
+Step 2: Determine the sync time window
+  - Query bc_sync_state for lastSyncAt
+  - If lastSyncAt is null (FIRST SYNC): set the filter to 7 DAYS AGO only.
+    Use: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
+    This prevents a flood of historical invites on the first sync.
+  - If lastSyncAt exists: use it normally to only get opportunities updated since last sync.
+
+Step 3: Call the BC API
+  - URL: GET https://developer.api.autodesk.com/construction/buildingconnected/v2/opportunities
+  - Header: Authorization: Bearer {access_token}
+  - Query params: filter[updatedAt] with the timestamp from Step 2
+  - Handle pagination: if the response includes a "next" link or pagination cursor, follow it until all pages are fetched
+  - Collect ALL opportunities into an array
+
+Step 4: Process each opportunity through the filter gates (READ ONLY — no database writes)
+
+  Initialize these arrays:
+    toCreate = []
+    toMerge = []
+    toUpdate = []
+    skippedCount = 0
+
+  FOR EACH opportunity:
+
+    --- GATE 1: GC FILTER ---
+    - Look at the opportunity's client/company object for the GC name
+    - The field path in the BC API response is likely: opportunity.client.name or opportunity.company.name
+    - Check if the GC name exactly equals a value in the allowlist:
+      const GC_ALLOWLIST = ["Swinerton Builders"];
+    - If NOT on the allowlist → increment skippedCount, continue to next opportunity
+
+    --- GATE 2: DUPLICATE CHECK ---
+    - Query bc_sync_log for this opportunity's unique ID
+    - IF found AND the BC updatedAt matches what we stored → already processed, increment skippedCount, continue
+    - IF found AND the BC updatedAt is NEWER → this is an UPDATE, add to toUpdate array with change details
+    - IF not found → this is NEW (continue to Gate 3)
+
+    --- GATE 3: PROJECT GROUPING ---
+    - Extract the BC project ID from the opportunity data
+      (The field path is likely: opportunity.project.id or opportunity.projectId)
+    - Query proposal_log_entries for any row where bcProjectId matches this project ID
+    - Also check the toCreate array for any pending create with the same BC project ID
+    - IF a match is found in DB or toCreate → this is a MERGE, add to toMerge array
+    - IF no match → this is a NEW DRAFT, add to toCreate array
+
+    --- SAFETY CAP ---
+    - If toCreate.length reaches 50 → stop processing further opportunities
+    - Add a warning flag: capReached = true
+
+Step 5: Return the preview response (NO database writes):
+  {
+    success: true,
+    preview: {
+      toCreate: [
+        { projectName, gcName, dueDate, scope, location, bcOpportunityId, bcProjectId, rawData }
+      ],
+      toMerge: [
+        { projectName, existingScope: [...], newScope, bcOpportunityId, existingEntryId }
+      ],
+      toUpdate: [
+        { projectName, changes: [{field, from, to}], bcOpportunityId, existingEntryId }
+      ]
+    },
+    summary: {
+      toCreate: toCreate.length,
+      toMerge: toMerge.length,
+      toUpdate: toUpdate.length,
+      skipped: skippedCount,
+      capReached: capReached || false,
+      capWarning: capReached ? "Reached maximum of 50 new drafts. Run sync again for remaining." : null
+    }
+  }
+```
+
+-----
+
+**`POST /api/bc/sync/confirm`** (requires admin)
+
+This actually writes to the database. It re-fetches and re-processes (or accepts the preview data) to ensure consistency.
+
+```
+Step 1: Re-run the same fetch and filter logic from the preview (or re-use cached preview if within a short time window)
+
+Step 2: For each item in toCreate — CREATE NEW DRAFT:
+  - Create a new proposal_log_entries row:
+    - projectName: from BC opportunity (likely opportunity.name or opportunity.project.name)
+    - gcEstimateLead: from BC opportunity client contact name
+    - dueDate: from BC opportunity due date (format to match existing format in the table — inspect what format existing rows use, likely MM/DD/YY or YYYY-MM-DD)
+    - region: parse from BC project location/address using this mapping:
+        "Colorado" or "Denver" → "Colorado (DEN)"
+        "Atlanta" or "Georgia" → "Atlanta (ATL)"
+        "San Francisco" or "Sacramento" or "Northern Cal" → "Nor Cal (SFO)"
+        "Los Angeles" or "Southern Cal" or "Orange County" → "SPD (LAX)"
+        "Seattle" or "Washington" → "Washington (SEA)"
+        "Portland" or "Oregon" → "Portland (PDX)"
+        "Austin" or "Texas" → "Austin (AUS)"
+        If no match → leave null for manual assignment
+    - estimateStatus: "Draft" (ADD "Draft" as a new valid status in the system)
+    - isDraft: true
+    - inviteDate: BC opportunity created/received timestamp (formatted to match existing date format)
+    - bcProjectId: the BC project ID
+    - bcOpportunityIds: JSON.stringify([this opportunity ID])
+    - scopeList: JSON.stringify([bid package title or trade description from this opportunity])
+    - bcLink: the BC opportunity URL if available in the API response
+    - notes: "Auto-created from BuildingConnected sync"
+    - DO NOT set estimateNumber yet — that gets assigned when the draft is approved
+  - Insert a bc_sync_log record linking this opportunity ID to the new proposal log entry
+  - Create a notification (type: "draft_created"):
+    Title: "New BC Invite: [projectName]"
+    Message: "Swinerton Builders — [projectName]. Due: [dueDate]. Scope: [scope]. Review in Proposal Log."
+    userId: null (visible to all users)
+  - Send a SendGrid email to Haley (follow the same pattern used for bid assignment emails):
+    Subject: "AiPM: New Bid Invite — [projectName]"
+    Body: same info as notification + link to Proposal Log
+
+Step 3: For each item in toMerge — MERGE SCOPE:
+  - Find the existing proposal_log_entries row by bcProjectId
+  - Parse the existing scopeList JSON array
+  - Append the new bid package title/trade description
+  - Update scopeList with the new JSON array
+  - Parse the existing bcOpportunityIds JSON array
+  - Append this opportunity ID
+  - Update bcOpportunityIds
+  - If the new invite has an EARLIER due date than stored → update dueDate
+  - Insert a bc_sync_log record linking this opportunity to the existing entry
+  - Create a notification (type: "draft_scope_updated"):
+    Title: "Scope Updated: [projectName]"
+    Message: "New scope added: [new scope]. Full scope: [all scopes comma-separated]."
+    userId: null
+  - If nbsEstimator is set on the row, also create a notification for that estimator's user ID
+  - Send a SendGrid email to Haley
+
+Step 4: For each item in toUpdate — UPDATE EXISTING:
+  - Find the bc_sync_log record for this opportunity
+  - Compare new data with stored rawData to identify changes
+  - Key fields to check: due date, project name, location, scope description
+  - For each changed field:
+    - Update the corresponding proposal_log_entries column
+    - Parse existing bcChangeLog (or initialize as empty array)
+    - Append: {field, oldValue, newValue, changedAt: new Date().toISOString()}
+    - Update bcChangeLog
+  - Set bcUpdateFlag = true
+  - Update bc_sync_log with new rawData and bcUpdatedAt
+  - Create a notification (type: "draft_bc_updated"):
+    Title: "Invite Updated: [projectName]"
+    Message: "[field] changed from [old] to [new] by Swinerton."
+    userId: null
+  - If nbsEstimator is set, also notify that estimator
+  - Send a SendGrid email to Haley
+
+Step 5: Update bc_sync_state with current timestamp as lastSyncAt
+
+Step 6: Return summary:
+  { success: true, created: X, merged: X, updated: X, skipped: X }
+```
+
+-----
+
+**`GET /api/bc/sync-status`** (requires auth)
+
+- Returns { lastSyncAt, isConnected } for display in the UI
+
+-----
+
+### 2D: CRITICAL — First sync debugging
+
+On the VERY FIRST sync preview call, before processing any opportunities:
+
+- Log the FULL raw API response of the FIRST opportunity to the server console using console.log(“BC RAW OPPORTUNITY:”, JSON.stringify(opportunity, null, 2))
+- This lets us verify the exact field paths for: GC name, project ID, project name, due date, location, scope/trade description, contact name, files
+- If the field paths I specified above don’t match the actual response, adjust the code accordingly and leave a code comment noting the actual paths used
+
+-----
+
+## PART 3: Draft Review UI
+
+### 3A: Update `ProjectLogPage.tsx`
+
+Add a “Drafts” section to the existing React Proposal Log page:
+
+- Add a tab bar or filter toggle at the top: **“All Entries” | “Drafts (3)”** — where 3 is the live count of isDraft=true rows
+- When “Drafts” is selected, show only proposal_log_entries where isDraft = true and deletedAt is null
+- Draft rows should have:
+  - A yellow/amber **“DRAFT”** badge next to the project name or status
+  - If bcUpdateFlag is true, show an orange **“UPDATED”** badge. Clicking it shows an expandable panel with the change log (bcChangeLog parsed and displayed as a timeline: “Due date changed from 03/20 to 04/01 on Mar 28, 2026”)
+  - The scopeList displayed as comma-separated pills/tags (e.g. “Toilet Accessories” | “Lockers” | “Wall Protection”)
+  - The number of merged BC invites: “3 bid packages”
+  - Three action buttons (only visible to users with admin role):
+    - **Approve** (green button):
+      - Calls `PATCH /api/proposal-log/entry/:id` with:
+        `{ isDraft: false, estimateStatus: "Estimating", draftApprovedBy: currentUser.displayName, draftApprovedAt: new Date().toISOString(), bcUpdateFlag: false }`
+      - On success, trigger estimate number assignment following the existing auto-numbering logic (look at how estimateNumber is assigned in the current project creation flow and replicate it)
+      - Create a notification (type: “draft_approved”): “Draft approved: [projectName] is now live in the Proposal Log.”
+    - **Edit** (blue button): Opens an edit form/modal pre-filled with all draft data, allowing field changes before approval. Save edits with the existing PATCH endpoint.
+    - **Reject** (red button):
+      - Prompts for a rejection reason (simple text input modal)
+      - Calls `PATCH /api/proposal-log/entry/:id` with:
+        `{ estimateStatus: "Declined", isDraft: false, notes: "Rejected from BC draft: [reason entered by user]" }`
+      - Create a notification (type: “draft_rejected”): “[projectName] draft rejected: [reason]”
+
+### 3B: “Sync from BC” button with preview flow
+
+Add to the Proposal Log page header area (visible to admin role only):
+
+- Button: **“Sync from BC”** with a refresh/sync icon
+- Next to it: show the BC connection status (green dot “BC Connected” or orange “Connect BC” link)
+- Next to it: show “Last synced: 2 hours ago” from `/api/bc/sync-status`
+
+**When “Sync from BC” is clicked:**
+
+1. Show a loading spinner on the button. Call `POST /api/bc/sync/preview`
+1. When preview returns, show a **modal dialog** with:
+- Header: “BuildingConnected Sync Preview”
+- Summary line: “Found X Swinerton invites to process (Y non-Swinerton skipped)”
+- If capReached is true, show a warning: “Showing first 50 new invites. Run sync again for more.”
+- If everything is 0: show “Everything is up to date. No new Swinerton invites found.” with just a Close button.
+- **Table of actions** (only if there are items to process):
+  
+  |Action     |Project Name        |Scope                  |Due Date  |
+  |-----------|--------------------|-----------------------|----------|
+  |✨ New Draft|Apple Campus Phase 2|Toilet Accessories     |04/15/2026|
+  |🔄 Add Scope|Google Bay View     |+ Wall Protection      |—         |
+  |⚠️ Update   |Meta MPK Phase 3    |Due date: 03/20 → 04/01|—         |
+- Two buttons at the bottom:
+  - **“Confirm & Sync” (green)** → calls `POST /api/bc/sync/confirm` → shows success toast with summary → closes modal → refetches the proposal log data
+  - **“Cancel” (gray)** → closes modal, nothing is written
+1. If the preview call returns an error (e.g., “Not connected to BuildingConnected”), show the error message and a “Connect BC” button.
+
+### 3C: BC Connection indicator
+
+In the Proposal Log page header:
+
+- Use React Query to poll `/api/autodesk/status` (cache for 5 minutes, no need to poll frequently)
+- If connected: small green dot + “BC Connected”
+- If not connected: orange dot + clickable “Connect BC” that goes to `/api/autodesk/login`
+
+-----
+
+## PART 4: Notification System
+
+### 4A: Backend routes — `server/notificationRoutes.ts`
+
+**`GET /api/notifications`** (requires auth)
+
+- Returns notifications where userId = current user’s ID OR userId IS NULL
+- Ordered by createdAt DESC
+- Limit to last 50
+- Include `unreadCount` (count of isRead = false) in the response:
+  `{ notifications: [...], unreadCount: 7 }`
+
+**`PATCH /api/notifications/:id/read`** (requires auth)
+
+- Marks a single notification as read (set isRead = true)
+- Only allow marking notifications that belong to the current user (userId matches or userId is null)
+
+**`POST /api/notifications/mark-all-read`** (requires auth)
+
+- Marks all notifications for current user as read (where userId = current user OR userId IS NULL)
+
+### 4B: Frontend — Notification bell in Header.tsx
+
+In `client/src/components/Header.tsx`:
+
+- Add a bell icon to the header nav bar (use any icon library already in the project, or a simple SVG bell)
+- Position it near the existing header controls
+- Show a small red circle badge with the unread count if unreadCount > 0
+- On click: toggle a dropdown panel that shows recent notifications:
+  - Each notification shows: title (bold), message (truncated to 2 lines), relative timestamp (“2 hours ago”)
+  - Unread notifications have a subtle highlight or blue dot
+  - Clicking a notification marks it as read and navigates to `/project-log` (with the Drafts tab active if it’s a draft-related notification)
+  - “Mark all as read” link at the top of the dropdown
+- Use React Query to fetch `/api/notifications` — refetch every 30 seconds for near-real-time updates:
+  `useQuery({ queryKey: ['notifications'], queryFn: ..., refetchInterval: 30000 })`
+
+### 4C: SendGrid email integration
+
+For email notifications, follow the EXACT same pattern used in the existing bid assignment email feature:
+
+- Look at how the bid assignment email is sent (search for SendGrid usage in the codebase)
+- Use the same SendGrid configuration, API key, and sender address
+- Haley’s email: look up the user with role ‘admin’ from the users table (or specifically match “Haley” or the known email)
+- Send emails for these events only: draft_created, draft_scope_updated, draft_bc_updated
+- Email format:
+  - Subject: “AiPM: [notification title]”
+  - Body: Plain text with the notification message + a link: “Review in AiPM: https://aipmapp.com/project-log”
+
+-----
+
+## FILE ORGANIZATION
+
+Create these new files:
+
+```
+server/autodesk/auth.ts              — OAuth routes (login, callback, status)
+server/autodesk/tokenManager.ts      — Token refresh helper
+server/autodesk/bcSync.ts            — Sync engine (preview + confirm routes)
+server/notificationRoutes.ts         — Notification CRUD routes
+client/src/components/NotificationBell.tsx    — Bell icon + dropdown component
+client/src/components/BCSyncPreview.tsx       — Sync preview modal component
+client/src/components/DraftReviewPanel.tsx    — Draft row actions (approve/edit/reject)
+```
+
+Register ALL new route files in the main server setup file (wherever the other route files like `projectRoutes.ts`, `authRoutes.ts`, `adminRoutes.ts` are imported and mounted). Make sure:
+
+- `/auth/autodesk/callback` is registered WITHOUT the requireAuth middleware (user is returning from external redirect)
+- All `/api/autodesk/*` routes use requireAuth
+- All `/api/bc/*` routes use requireAdmin
+- All `/api/notifications` routes use requireAuth
+
+-----
+
+## TESTING CHECKLIST
+
+After building all 4 parts, test in this order:
+
+1. **OAuth**: Click “Connect to BuildingConnected” → complete Autodesk login → verify redirected back to AiPM → verify “BC Connected” shows → verify token row in aps_tokens table
+1. **First Sync Preview**: Click “Sync from BC” → verify the preview modal appears → check the server console for the raw BC opportunity log → verify field paths are correct → verify only Swinerton invites appear in the preview
+1. **First Sync Confirm**: Click “Confirm & Sync” → verify draft rows appear in the Drafts tab → verify they have DRAFT badge → verify scopeList shows correctly
+1. **GC Filter**: Confirm the skipped count includes non-Swinerton invites — they should never appear as drafts
+1. **Merge**: If multiple bid packages exist for the same BC project, verify they merge into one row with combined scopeList
+1. **Draft Approve**: Click Approve on a draft → verify it moves to “All Entries” with status “Estimating” → verify estimate number is assigned
+1. **Draft Reject**: Click Reject → enter reason → verify it shows as “Declined” with reason in notes
+1. **Notifications**: Verify bell icon shows unread count → click to see notifications → verify they match sync actions → verify emails arrive
+1. **Duplicate Prevention**: Run sync again immediately → verify no duplicate rows are created → preview should show “Everything is up to date”
+1. **Safety Cap**: If more than 50 new Swinerton invites exist, verify only 50 are shown in preview with the cap warning message
