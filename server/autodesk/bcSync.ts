@@ -85,7 +85,7 @@ interface FetchResult {
   error?: string;
 }
 
-async function fetchBcOpportunities(accessToken: string, since?: Date): Promise<FetchResult> {
+async function fetchBcOpportunities(accessToken: string, since?: Date, isFirstSync: boolean = false): Promise<FetchResult> {
   const PAGE_SIZE = 100;
   const MAX_PAGES = 3;
   const allResults: BcOpportunity[] = [];
@@ -117,8 +117,8 @@ async function fetchBcOpportunities(accessToken: string, since?: Date): Promise<
         totalAvailable = data.pagination.total;
       }
 
-      if (page === 0 && results.length > 0) {
-        console.log(`[BC Sync] First API response sample: projectName="${results[0].projectName}", id="${results[0].id}", gcCompanyName="${results[0].gcCompanyName}"`);
+      if (page === 0 && results.length > 0 && isFirstSync) {
+        console.log(`[BC Sync] First sync raw opportunity sample:`, JSON.stringify(results[0], null, 2));
       }
 
       allResults.push(...results);
@@ -254,7 +254,8 @@ export function registerBcSyncRoutes(app: Express) {
         since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
       }
 
-      const { opportunities: allOpps, totalAvailable, error } = await fetchBcOpportunities(accessToken, since);
+      const isFirstSync = !syncState?.lastSyncAt;
+      const { opportunities: allOpps, totalAvailable, error } = await fetchBcOpportunities(accessToken, since, isFirstSync);
       if (error) {
         return res.status(502).json({ message: error });
       }
@@ -587,21 +588,18 @@ export function registerBcSyncRoutes(app: Express) {
         }
       }
 
-      const totalProcessed = created.length + merged.length + updated.length;
-      if (totalProcessed > 0) {
-        const [existingState] = await db.select().from(bcSyncState).limit(1);
-        if (existingState) {
-          await db.update(bcSyncState).set({
-            lastSyncAt: new Date(),
-            syncedBy: userId,
-            updatedAt: new Date(),
-          }).where(eq(bcSyncState.id, existingState.id));
-        } else {
-          await db.insert(bcSyncState).values({
-            lastSyncAt: new Date(),
-            syncedBy: userId,
-          });
-        }
+      const [existingSyncState] = await db.select().from(bcSyncState).limit(1);
+      if (existingSyncState) {
+        await db.update(bcSyncState).set({
+          lastSyncAt: new Date(),
+          syncedBy: userId,
+          updatedAt: new Date(),
+        }).where(eq(bcSyncState.id, existingSyncState.id));
+      } else {
+        await db.insert(bcSyncState).values({
+          lastSyncAt: new Date(),
+          syncedBy: userId,
+        });
       }
 
       res.json({
