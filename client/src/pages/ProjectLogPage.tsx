@@ -100,20 +100,6 @@ export default function ProjectLogPage() {
     placeholderData: (prev) => prev,
   });
 
-  const approveDraftMutation = useMutation({
-    mutationFn: async (id: number) => {
-      await apiRequest("POST", `/api/bc/drafts/${id}/approve`);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/proposal-log/all-entries"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/notifications"] });
-      toast({ title: "Draft approved", description: "The draft has been approved and is now active." });
-    },
-    onError: () => {
-      toast({ title: "Error", description: "Failed to approve draft.", variant: "destructive" });
-    },
-  });
-
   const rejectDraftMutation = useMutation({
     mutationFn: async ({ id, reason }: { id: number; reason: string }) => {
       await apiRequest("POST", `/api/bc/drafts/${id}/reject`, { reason });
