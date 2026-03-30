@@ -798,9 +798,28 @@ export default function ProjectLogPage() {
                   </div>
                 </div>
                 <div className="flex items-center justify-between gap-2 p-4" style={{ borderTop: "1px solid var(--border-ds)" }}>
-                  <Button variant="outline" size="sm" onClick={() => { setEditingDraft(null); setApproveResult(null); }} data-testid="button-cancel-edit-draft">
-                    Cancel
-                  </Button>
+                  <div className="flex items-center gap-2">
+                    <Button variant="outline" size="sm" onClick={() => { setEditingDraft(null); setApproveResult(null); }} data-testid="button-cancel-edit-draft">
+                      Cancel
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="text-red-500 border-red-500/30 hover:bg-red-500/10"
+                      onClick={() => {
+                        if (editingDraft) {
+                          setEditingDraft(null);
+                          setRejectingDraftId(editingDraft.id);
+                          setRejectReason("");
+                        }
+                      }}
+                      disabled={approveAndCreateMutation.isPending}
+                      data-testid="button-reject-from-review"
+                    >
+                      <X className="w-3.5 h-3.5 mr-1" />
+                      Reject
+                    </Button>
+                  </div>
                   <div className="flex items-center gap-2">
                     <Button
                       variant="outline"
