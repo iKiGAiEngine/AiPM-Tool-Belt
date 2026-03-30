@@ -93,64 +93,108 @@ interface FetchResult {
   error?: string;
 }
 
+function deepGet(obj: Record<string, any>, ...paths: string[]): string {
+  for (const path of paths) {
+    const parts = path.split(".");
+    let val: any = obj;
+    for (const p of parts) {
+      if (val == null || typeof val !== "object") { val = undefined; break; }
+      val = val[p];
+    }
+    if (val != null && val !== "") return String(val);
+  }
+  return "";
+}
+
 function normalizeOpportunity(raw: Record<string, any>): BcOpportunity {
-  const addr = raw.address || raw.location || {};
-  const invitedBy = raw.invitedBy || {};
-  const project = raw.project || {};
+  const attrs = raw.attributes || {};
+  const src = { ...raw, ...attrs };
+
+  const addr = src.address || src.location || {};
+  const invitedBy = src.invitedBy || {};
+  const project = src.project || {};
+  const client = src.client || {};
+  const company = src.company || {};
+  const owner = src.owner || {};
 
   const city = addr.city || "";
   const state = addr.state || "";
   const street = addr.street || addr.formattedAddress || "";
   const formattedAddress = [street, city, state].filter(Boolean).join(", ");
 
-  const gcCompanyName =
-    raw.gcCompanyName ||
-    invitedBy.companyName ||
-    invitedBy.name ||
-    "";
+  const gcCompanyName = deepGet(raw,
+    "gcCompanyName",
+    "invitedBy.companyName",
+    "invitedBy.name",
+    "client.name",
+    "client.companyName",
+    "company.name",
+    "company.companyName",
+    "owner.name",
+    "owner.companyName",
+    "ownerCompanyName",
+    "attributes.gcCompanyName",
+    "attributes.invitedBy.companyName",
+    "attributes.client.name",
+  );
 
-  const gcContactName =
-    raw.gcContactName ||
-    invitedBy.contactName ||
-    "";
+  const gcContactName = deepGet(raw,
+    "gcContactName",
+    "invitedBy.contactName",
+    "client.contactName",
+    "owner.contactName",
+    "attributes.gcContactName",
+    "attributes.invitedBy.contactName",
+  );
 
-  const gcContactEmail =
-    raw.gcContactEmail ||
-    invitedBy.email ||
-    "";
+  const gcContactEmail = deepGet(raw,
+    "gcContactEmail",
+    "invitedBy.email",
+    "client.email",
+    "owner.email",
+    "attributes.gcContactEmail",
+    "attributes.invitedBy.email",
+  );
 
-  const projectName =
-    raw.name ||
-    raw.projectName ||
-    project.name ||
-    "";
+  const projectName = deepGet(raw,
+    "name",
+    "projectName",
+    "project.name",
+    "attributes.name",
+    "attributes.projectName",
+  );
 
-  const projectId =
-    raw.projectId ||
-    project.id ||
-    "";
+  const projectId = deepGet(raw,
+    "projectId",
+    "project.id",
+    "attributes.projectId",
+  );
 
-  const bidDueDate =
-    raw.bidsDueAt ||
-    raw.bidDueDate ||
-    raw.dueDate ||
-    raw.bidDate ||
-    "";
+  const bidDueDate = deepGet(raw,
+    "bidsDueAt",
+    "bidDueDate",
+    "dueDate",
+    "bidDate",
+    "attributes.bidsDueAt",
+    "attributes.dueDate",
+  );
 
-  const invitedDate =
-    raw.invitedAt ||
-    raw.invitedDate ||
-    raw.createdAt ||
-    "";
+  const invitedDate = deepGet(raw,
+    "invitedAt",
+    "invitedDate",
+    "createdAt",
+    "attributes.invitedAt",
+    "attributes.createdAt",
+  );
 
+  const rawScopes = src.trades || src.scopes || raw.trades || raw.scopes;
   let scopes: string[] = [];
-  const rawScopes = raw.trades || raw.scopes;
   if (Array.isArray(rawScopes)) {
     scopes = rawScopes.map((s: unknown) => typeof s === "string" ? s : String(s));
   } else if (typeof rawScopes === "string") {
     scopes = [rawScopes];
-  } else if (typeof raw.scope === "string" && raw.scope) {
-    scopes = [raw.scope];
+  } else if (typeof (src.scope || raw.scope) === "string" && (src.scope || raw.scope)) {
+    scopes = [src.scope || raw.scope];
   }
 
   return {
@@ -164,8 +208,8 @@ function normalizeOpportunity(raw: Record<string, any>): BcOpportunity {
     gcContactName,
     gcContactEmail,
     scopes,
-    status: raw.status || "",
-    updatedAt: raw.updatedAt || "",
+    status: raw.status || src.status || "",
+    updatedAt: raw.updatedAt || src.updatedAt || "",
   };
 }
 
@@ -193,7 +237,9 @@ async function fetchBcOpportunities(accessToken: string, since?: Date, isFirstSy
         }
       }
 
-      console.log(`[BC Sync] Fetching page ${page + 1}: ${url.replace(/Bearer\s+\S+/, "Bearer ***")}`);
+      if (isFirstSync || page === 0) {
+        console.log(`[BC Sync] Fetching page ${page + 1}: ${url.replace(/Bearer\s+\S+/, "Bearer ***")}`);
+      }
 
       const res = await fetch(url, {
         headers: { Authorization: `Bearer ${accessToken}` },
@@ -216,7 +262,7 @@ async function fetchBcOpportunities(accessToken: string, since?: Date, isFirstSy
         totalAvailable = pagination.total;
       }
 
-      if (page === 0) {
+      if (isFirstSync && page === 0) {
         console.log(`[BC Sync] API response keys: ${Object.keys(data).join(", ")}`);
         console.log(`[BC Sync] Pagination: ${JSON.stringify(pagination)}`);
         console.log(`[BC Sync] Raw results count: ${rawResults.length}, totalAvailable: ${totalAvailable}`);
