@@ -46,14 +46,14 @@ function getClientIP(req: Request): string {
 }
 
 export const QUICK_LOGIN_USERS: Record<string, { email: string; role: "admin" | "user"; initials: string; displayName: string }> = {
-  hk: { email: "hkkruse@nationalbuildingspecialties.com", role: "admin", initials: "HK", displayName: "Haley Kruse" },
-  gm: { email: "gm@nationalbuildingspecialties.com", role: "user", initials: "GM", displayName: "Gonzalo Martinez" },
-  gt: { email: "gene.trabert@nationalbuildingspecialties.com", role: "user", initials: "GT", displayName: "Gene Trabert" },
-  kr: { email: "kenny.ruester@nationalbuildingspecialties.com", role: "user", initials: "KR", displayName: "Kenny Ruester" },
-  ck: { email: "christina.keith@nationalbuildingspecialties.com", role: "user", initials: "CK", displayName: "Christina Keith" },
-  hc: { email: "hallyn.crozier@nationalbuildingspecialties.com", role: "user", initials: "HC", displayName: "Hallyn Crozier" },
-  mm: { email: "melissa.magallanes@nationalbuildingspecialties.com", role: "user", initials: "MM", displayName: "Melissa Magallanes" },
-  jw: { email: "joey.white@nationalbuildingspecialties.com", role: "user", initials: "JW", displayName: "Joey White" },
+  hk: { email: "Haley.Kruse@nationalbuildingspecialties.com", role: "admin", initials: "HK", displayName: "Haley Kruse" },
+  gm: { email: "Gonzalo.Martinez@nationalbuildingspecialties.com", role: "user", initials: "GM", displayName: "Gonzalo Martinez" },
+  gt: { email: "Gene.Trabert@nationalbuildingspecialties.com", role: "user", initials: "GT", displayName: "Gene Trabert" },
+  kr: { email: "Kenny.Ruester@nationalbuildingspecialties.com", role: "user", initials: "KR", displayName: "Kenny Ruester" },
+  ck: { email: "Christina.Keith@nationalbuildingspecialties.com", role: "user", initials: "CK", displayName: "Christina Keith" },
+  hc: { email: "Hallyn.Crozier@nationalbuildingspecialties.com", role: "user", initials: "HC", displayName: "Hallyn Crozier" },
+  mm: { email: "Melissa.Magallanes@nationalbuildingspecialties.com", role: "user", initials: "MM", displayName: "Melissa Magallanes" },
+  jw: { email: "Joey.White@nationalbuildingspecialties.com", role: "user", initials: "JW", displayName: "Joey White" },
 };
 
 export function registerAuthRoutes(app: Express) {

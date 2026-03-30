@@ -194,7 +194,7 @@ export async function sendDraftNotificationEmail(
   dueDate: string,
   gcLead: string
 ): Promise<void> {
-  const ADMIN_EMAIL = process.env.ADMIN_NOTIFICATION_EMAIL || "hkkruse@nationalbuildingspecialties.com";
+  const ADMIN_EMAIL = process.env.ADMIN_NOTIFICATION_EMAIL || "Haley.Kruse@nationalbuildingspecialties.com";
 
   const titles: Record<string, string> = {
     draft_created: "New BC Draft Imported",
