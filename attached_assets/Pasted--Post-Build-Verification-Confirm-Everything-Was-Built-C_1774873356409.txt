@@ -1,0 +1,78 @@
+# Post-Build Verification — Confirm Everything Was Built Correctly
+
+Before I test anything, I need you to verify the build. Answer each question below with specifics — file paths, code snippets, or confirmation. Do NOT fix anything yet — just report.
+
+-----
+
+## PART 1: OAuth Flow
+
+1. What file contains the `/api/autodesk/login` route? Show me the exact redirect URL it builds.
+1. What file contains the `/auth/autodesk/callback` route? Does it use `requireAuth` middleware? (It should NOT — the user is returning from an external redirect.)
+1. Show me the `aps_tokens` table schema as it exists in `shared/schema.ts` right now. Does it have: userId, accessToken, refreshToken, expiresAt?
+1. Where is the token refresh logic? Show me the function signature and what happens when a refresh fails.
+1. Where is the “Connect to BuildingConnected” button in the frontend? What component file? What does it look like when BC is already connected vs not connected?
+1. After successful OAuth callback, where does the user get redirected to?
+
+-----
+
+## PART 2: Sync Engine
+
+1. Show me the `bc_sync_log` table schema as it exists in `shared/schema.ts`. Does it have: bcOpportunityId (unique), bcProjectId, proposalLogEntryId, rawData, bcUpdatedAt?
+1. Show me the `bc_sync_state` table schema. Does it have lastSyncAt?
+1. Show me the NEW columns added to `proposal_log_entries`. List each one with its type. Confirm NONE of the existing columns were modified or removed.
+1. What is the GC allowlist? Show me the exact code. Is it easy to add more GCs later without changing logic?
+1. Show me the first-sync time window logic. Does it limit to 7 days ago when lastSyncAt is null? Show the exact code.
+1. Show me the 50-draft safety cap logic. What happens when the cap is reached? Does it stop processing and return a warning?
+1. Is the sync a two-step flow (preview then confirm)? Show me both route paths and their HTTP methods.
+1. In the preview route — does it write ANYTHING to the database? (It should not.)
+1. In the confirm route — walk me through what happens for each of these scenarios:
+   a. Brand new opportunity from Swinerton (no matching project) — what gets created?
+   b. Second bid package for an existing project (same BC project ID) — what gets merged?
+   c. Updated opportunity (same opportunity ID, newer updatedAt) — what gets updated?
+1. Show me the region mapping logic. What strings does it check for and what region codes does it assign?
+1. What status is assigned to new draft rows? Is “Draft” added as a valid status?
+1. Is estimateNumber left blank on draft creation? (It should be — only assigned on approval.)
+1. Show me the first-sync console.log debugging line. Does it log the full raw BC API response for the first opportunity?
+
+-----
+
+## PART 3: Draft Review UI
+
+1. Where is the Drafts tab/filter in the frontend? What component file?
+1. How are draft rows visually distinguished from live rows? (Should have a DRAFT badge.)
+1. Show me the Approve button logic. When clicked, what fields get updated? Does it:
+- Set isDraft to false?
+- Set estimateStatus to “Estimating”?
+- Set draftApprovedBy and draftApprovedAt?
+- Clear bcUpdateFlag?
+- Assign an estimateNumber?
+1. Show me the Reject button logic. Does it prompt for a reason? What fields get updated?
+1. Show me the Edit button logic. Does it open a pre-filled form?
+1. Where is the “Sync from BC” button? Is it admin-only?
+1. Walk me through the full sync UI flow: What happens when I click “Sync from BC”? Do I see a preview modal? What does the modal show? What are the two buttons (Confirm & Cancel)?
+1. If the preview returns 0 items to process, what does the UI show?
+1. If bcUpdateFlag is true on a draft row, how is the “Updated” indicator displayed? Can I see the change log?
+
+-----
+
+## PART 4: Notifications
+
+1. Show me the `notifications` table schema. Does it have: userId (nullable), type, title, message, metadata (jsonb), isRead?
+1. What routes exist for notifications? List method + path for each.
+1. Where is the notification bell in the frontend? What component file? Is it in `Header.tsx`?
+1. Does the bell show an unread count badge?
+1. How often does the frontend poll for new notifications? (Should be every 30 seconds.)
+1. When a new draft is created by the sync, is a notification created? Show me where in the code.
+1. When a new draft is created, is a SendGrid email sent to Haley? Show me where in the code. Does it follow the same pattern as the existing bid assignment emails?
+
+-----
+
+## PART 5: Safety & Integration
+
+1. Was the standalone `public/tools/proposal-log.html` modified in ANY way? (It should NOT have been touched.)
+1. Were any EXISTING columns on `proposal_log_entries` modified or removed? (They should not have been.)
+1. Were any EXISTING routes modified? If so, which ones and why?
+1. Where are the new route files registered/mounted? Show me the import and mount lines.
+1. Does the Google Sheets sync still work? Could the new isDraft column cause any issues with the existing Sheet sync logic? (Drafts should probably be excluded from Sheet sync.)
+1. List ALL new files that were created, with their paths.
+1. List ALL existing files that were modified, with a one-line summary of what changed in each.
