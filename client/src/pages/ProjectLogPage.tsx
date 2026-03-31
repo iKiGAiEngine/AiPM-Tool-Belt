@@ -370,7 +370,7 @@ export default function ProjectLogPage() {
       .join("\n");
 
     const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-    saveAs(blob, `project_log_${new Date().toISOString().split("T")[0]}.csv`);
+    saveAs(blob, `change_log_${new Date().toISOString().split("T")[0]}.csv`);
   };
 
   const exportToXLSX = () => {
@@ -397,10 +397,10 @@ export default function ProjectLogPage() {
     ws["!cols"] = colWidths;
 
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Project Log");
+    XLSX.utils.book_append_sheet(wb, ws, "Change Log");
     const wbout = XLSX.write(wb, { bookType: "xlsx", type: "array" });
     const blob = new Blob([wbout], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
-    saveAs(blob, `project_log_${new Date().toISOString().split("T")[0]}.xlsx`);
+    saveAs(blob, `change_log_${new Date().toISOString().split("T")[0]}.xlsx`);
   };
 
   const fmtDate = (d: string | null) => {
@@ -429,7 +429,7 @@ export default function ProjectLogPage() {
             </Button>
           </Link>
           <div className="flex-1">
-            <h1 className="text-2xl font-heading font-semibold" style={{ color: "var(--text)" }}>Project Log</h1>
+            <h1 className="text-2xl font-heading font-semibold" style={{ color: "var(--text)" }}>Change Log</h1>
             <p className="text-sm" style={{ color: "var(--text-dim)" }}>Immutable audit trail of all proposal log entries</p>
           </div>
           <div className="flex items-center gap-2">

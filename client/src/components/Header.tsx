@@ -28,7 +28,7 @@ const toolRoutes: ToolRoute[] = [
   { path: "/schedule-converter", label: "Schedule Converter", icon: TableProperties },
   { path: "/spec-extractor", label: "Spec Extractor", icon: ClipboardList },
   { path: "/settings", label: "Settings", icon: Settings },
-  { path: "/project-log", label: "Project Log", icon: ClipboardList },
+  { path: "/project-log", label: "Change Log", icon: ClipboardList },
   { path: "/admin", label: "Admin", icon: Shield },
 ];
 

@@ -35,7 +35,7 @@ export default function CentralSettingsPage() {
         <Link href="/project-log">
           <Button variant="outline" className="gap-2" data-testid="button-project-log">
             <ClipboardList className="w-4 h-4" />
-            Project Log
+            Change Log
           </Button>
         </Link>
       </div>
