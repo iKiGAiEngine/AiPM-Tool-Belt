@@ -431,9 +431,16 @@ function getLocationStr(opp: BcOpportunity): string {
 
 function mapOpportunityToEntry(opp: BcOpportunity) {
   const locationStr = getLocationStr(opp);
-  const region = guessRegionFromLocation(locationStr);
+  let region = guessRegionFromLocation(locationStr);
+  if (!region && opp.gcCompanyName) {
+    const officeSuffix = opp.gcCompanyName.split(/[-–—]/).pop()?.trim() || "";
+    if (officeSuffix) {
+      region = guessRegionFromLocation(officeSuffix);
+    }
+  }
   const projectName = opp.projectName || "Untitled BC Project";
-  const primaryMarket = guessMarket(projectName, "");
+  const scopeContext = (opp.scopes || []).join(" ");
+  const primaryMarket = guessMarket(projectName, scopeContext);
 
   let dueDate = "";
   if (opp.bidDueDate) {
@@ -455,7 +462,8 @@ function mapOpportunityToEntry(opp: BcOpportunity) {
     primaryMarket,
     dueDate,
     inviteDate,
-    gcEstimateLead: opp.gcContactName || opp.gcCompanyName || "",
+    gcEstimateLead: opp.gcContactName || "",
+    owner: opp.gcCompanyName || "",
     bcLink,
     bcProjectId: opp.projectId || "",
     bcOpportunityIds: JSON.stringify([opp.id]),
@@ -477,6 +485,7 @@ interface PreviewItem {
   inviteDate: string;
   gcEstimateLead: string;
   gcCompanyName: string;
+  primaryMarket: string;
   location: string;
   bcLink: string;
   existingEntryId?: number;
@@ -565,15 +574,17 @@ export function registerBcSyncRoutes(app: Express) {
             const changes = detectFieldChanges(existingEntry, opp);
             if (changes.length > 0) {
               updateCount++;
+              const updMapped = mapOpportunityToEntry(opp);
               preview.push({
                 opportunityId: opp.id,
                 action: "update",
                 projectName: opp.projectName || existingEntry.projectName,
-                region: existingEntry.region || "",
-                dueDate: mapOpportunityToEntry(opp).dueDate,
-                inviteDate: mapOpportunityToEntry(opp).inviteDate,
-                gcEstimateLead: opp.gcContactName || opp.gcCompanyName || "",
+                region: existingEntry.region || updMapped.region,
+                dueDate: updMapped.dueDate,
+                inviteDate: updMapped.inviteDate,
+                gcEstimateLead: opp.gcContactName || "",
                 gcCompanyName: opp.gcCompanyName || "",
+                primaryMarket: existingEntry.primaryMarket || updMapped.primaryMarket,
                 location: getLocationStr(opp),
                 bcLink: existingEntry.bcLink || "",
                 existingEntryId: existingEntry.id,
@@ -587,15 +598,17 @@ export function registerBcSyncRoutes(app: Express) {
         if (!existingLog && opp.projectId && entriesByBcProjectId.has(opp.projectId)) {
           const existingEntry = entriesByBcProjectId.get(opp.projectId)!;
           mergeCount++;
+          const mrgMapped = mapOpportunityToEntry(opp);
           preview.push({
             opportunityId: opp.id,
             action: "merge",
             projectName: existingEntry.projectName,
-            region: existingEntry.region || "",
-            dueDate: mapOpportunityToEntry(opp).dueDate || existingEntry.dueDate || "",
-            inviteDate: mapOpportunityToEntry(opp).inviteDate,
-            gcEstimateLead: opp.gcContactName || opp.gcCompanyName || "",
+            region: existingEntry.region || mrgMapped.region,
+            dueDate: mrgMapped.dueDate || existingEntry.dueDate || "",
+            inviteDate: mrgMapped.inviteDate,
+            gcEstimateLead: opp.gcContactName || "",
             gcCompanyName: opp.gcCompanyName || "",
+            primaryMarket: existingEntry.primaryMarket || mrgMapped.primaryMarket,
             location: getLocationStr(opp),
             bcLink: existingEntry.bcLink || "",
             existingEntryId: existingEntry.id,
@@ -617,6 +630,7 @@ export function registerBcSyncRoutes(app: Express) {
             inviteDate: existing.inviteDate,
             gcEstimateLead: existing.gcEstimateLead,
             gcCompanyName: existing.gcCompanyName,
+            primaryMarket: existing.primaryMarket,
             location: getLocationStr(opp),
             bcLink: existing.bcLink,
             scopeChanges: opp.scopes || [],
@@ -636,6 +650,7 @@ export function registerBcSyncRoutes(app: Express) {
             inviteDate: mapped.inviteDate,
             gcEstimateLead: mapped.gcEstimateLead,
             gcCompanyName: opp.gcCompanyName || "",
+            primaryMarket: mapped.primaryMarket,
             location: getLocationStr(opp),
             bcLink: mapped.bcLink,
             scopeChanges: opp.scopes || [],
