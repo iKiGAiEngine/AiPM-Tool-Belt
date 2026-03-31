@@ -913,6 +913,7 @@ export const proposalLogEntries = pgTable("proposal_log_entries", {
   bcProjectId: varchar("bc_project_id", { length: 100 }),
   bcOpportunityIds: text("bc_opportunity_ids"),
   scopeList: text("scope_list"),
+  nbsSelectedScopes: text("nbs_selected_scopes"),
   draftApprovedBy: varchar("draft_approved_by", { length: 200 }),
   draftApprovedAt: timestamp("draft_approved_at"),
   bcUpdateFlag: boolean("bc_update_flag").default(false),

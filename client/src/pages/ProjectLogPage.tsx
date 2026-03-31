@@ -1,7 +1,7 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { Link } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { ArrowLeft, Search, ChevronUp, ChevronDown, FileSpreadsheet, FileText, FlaskConical, Archive, Link2, CheckCircle2, RefreshCw, Check, X, FileEdit, Pencil, Download, FolderOpen, Loader2 } from "lucide-react";
+import { ArrowLeft, Search, ChevronUp, ChevronDown, FileSpreadsheet, FileText, FlaskConical, Archive, Link2, CheckCircle2, RefreshCw, Check, X, FileEdit, Pencil, Download, FolderOpen, Loader2, MessageSquare, ListChecks } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -38,6 +38,7 @@ interface ProposalLogEntry {
   bcProjectId: string | null;
   bcOpportunityIds: string | null;
   scopeList: string | null;
+  nbsSelectedScopes: string | null;
   draftApprovedBy: string | null;
   notes: string | null;
   draftApprovedAt: string | null;
@@ -60,6 +61,15 @@ export default function ProjectLogPage() {
   const [rejectingDraftId, setRejectingDraftId] = useState<number | null>(null);
   const [rejectReason, setRejectReason] = useState("");
   const [approveResult, setApproveResult] = useState<{ projectId: string; downloadUrl: string; projectName: string } | null>(null);
+  const [scopePopupEntryId, setScopePopupEntryId] = useState<number | null>(null);
+  const [notesPopupEntryId, setNotesPopupEntryId] = useState<number | null>(null);
+  const [notesPopupText, setNotesPopupText] = useState("");
+  const [noBidNotesEntryId, setNoBidNotesEntryId] = useState<number | null>(null);
+  const [noBidNotesText, setNoBidNotesText] = useState("");
+  const [noBidPendingStatus, setNoBidPendingStatus] = useState<string>("");
+  const [draftScopes, setDraftScopes] = useState<string[]>([]);
+  const scopePopupRef = useRef<HTMLDivElement>(null);
+  const notesPopupRef = useRef<HTMLDivElement>(null);
   const { isTestMode } = useTestMode();
   const { toast } = useToast();
   const { isAdmin } = useAuth();
@@ -150,6 +160,106 @@ export default function ProjectLogPage() {
     },
   });
 
+  const NBS_SCOPES = [
+    "Toilet Accessories", "Toilet Compartments", "FEC", "Wall Protection",
+    "Appliances", "Lockers", "Visual Displays", "Bike Racks",
+    "Wire Mesh Partitions", "Cubicle Curtains", "Med Equipment", "Expansion Joints",
+    "Shelving", "Equipment", "Window Shades", "Entrance Mats",
+    "Mailbox", "Flagpole", "Knox Box", "Site Furnishing",
+  ];
+
+  const inlineUpdateMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: number; data: Record<string, string> }) => {
+      await apiRequest("PATCH", `/api/proposal-log/entry/${id}`, data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/proposal-log/all-entries"] });
+    },
+    onError: () => {
+      toast({ title: "Error", description: "Failed to update entry.", variant: "destructive" });
+    },
+  });
+
+  const toggleDraftScope = (scope: string) => {
+    setDraftScopes(prev =>
+      prev.includes(scope) ? prev.filter(s => s !== scope) : [...prev, scope]
+    );
+  };
+
+  const commitScopes = (entryId: number) => {
+    inlineUpdateMutation.mutate({ id: entryId, data: { nbsSelectedScopes: JSON.stringify(draftScopes) } });
+    setScopePopupEntryId(null);
+  };
+
+  const openScopePopup = (entry: ProposalLogEntry) => {
+    setScopePopupEntryId(entry.id);
+    setDraftScopes(parseNbsScopes(entry.nbsSelectedScopes));
+  };
+
+  const parseNbsScopes = (raw: string | null): string[] => {
+    if (!raw) return [];
+    try { return JSON.parse(raw); } catch { return []; }
+  };
+
+  const saveNotes = (entryId: number, text: string) => {
+    inlineUpdateMutation.mutate({ id: entryId, data: { notes: text } });
+    setNotesPopupEntryId(null);
+  };
+
+  const handleStatusChange = (entryId: number, newStatus: string) => {
+    if (newStatus === "No Bid" || newStatus === "Lost") {
+      setNoBidNotesEntryId(entryId);
+      setNoBidPendingStatus(newStatus);
+      setNoBidNotesText("");
+    } else {
+      inlineUpdateMutation.mutate({ id: entryId, data: { estimateStatus: newStatus } });
+    }
+  };
+
+  const confirmNoBidNotes = () => {
+    if (noBidNotesEntryId !== null) {
+      inlineUpdateMutation.mutate({
+        id: noBidNotesEntryId,
+        data: { estimateStatus: noBidPendingStatus, notes: noBidNotesText },
+      });
+      setNoBidNotesEntryId(null);
+      setNoBidNotesText("");
+      setNoBidPendingStatus("");
+    }
+  };
+
+  const skipNoBidNotes = () => {
+    if (noBidNotesEntryId !== null) {
+      inlineUpdateMutation.mutate({
+        id: noBidNotesEntryId,
+        data: { estimateStatus: noBidPendingStatus },
+      });
+      setNoBidNotesEntryId(null);
+      setNoBidNotesText("");
+      setNoBidPendingStatus("");
+    }
+  };
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (scopePopupRef.current && !scopePopupRef.current.contains(e.target as Node)) {
+        if (scopePopupEntryId !== null) commitScopes(scopePopupEntryId);
+      }
+      if (notesPopupRef.current && !notesPopupRef.current.contains(e.target as Node)) {
+        if (notesPopupEntryId !== null) {
+          const entry = entries.find(en => en.id === notesPopupEntryId);
+          if (entry && notesPopupText !== (entry.notes || "")) {
+            saveNotes(notesPopupEntryId, notesPopupText);
+          } else {
+            setNotesPopupEntryId(null);
+          }
+        }
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [notesPopupEntryId, notesPopupText, entries, scopePopupEntryId, draftScopes]);
+
   const openEditDraft = (entry: ProposalLogEntry) => {
     setEditingDraft(entry);
     setApproveResult(null);
@@ -239,7 +349,7 @@ export default function ProjectLogPage() {
   const deletedCount = visibleEntries.filter(e => !!e.deletedAt).length;
 
   const exportToCSV = () => {
-    const headers = ["Project Name", "Region", "Due Date", "Status", "Estimator", "GC Lead", "Market", "BC Link", "Created", "Deleted"];
+    const headers = ["Project Name", "Region", "Due Date", "Status", "Estimator", "GC Lead", "NBS Scopes", "Notes", "Market", "BC Link", "Created", "Deleted"];
     const rows = filteredEntries.map(e => [
       e.projectName,
       e.region || "",
@@ -247,6 +357,8 @@ export default function ProjectLogPage() {
       e.deletedAt ? "DELETED" : e.isDraft ? "DRAFT" : (e.estimateStatus || ""),
       e.nbsEstimator || "",
       e.gcEstimateLead || "",
+      parseNbsScopes(e.nbsSelectedScopes).join(", "),
+      e.notes || "",
       e.primaryMarket || "",
       e.bcLink || "",
       e.createdAt ? new Date(e.createdAt).toLocaleString() : "",
@@ -262,7 +374,7 @@ export default function ProjectLogPage() {
   };
 
   const exportToXLSX = () => {
-    const headers = ["Project Name", "Region", "Due Date", "Status", "Estimator", "GC Lead", "Market", "BC Link", "Created", "Deleted"];
+    const headers = ["Project Name", "Region", "Due Date", "Status", "Estimator", "GC Lead", "NBS Scopes", "Notes", "Market", "BC Link", "Created", "Deleted"];
     const rows = filteredEntries.map(e => [
       e.projectName,
       e.region || "",
@@ -270,6 +382,8 @@ export default function ProjectLogPage() {
       e.deletedAt ? "DELETED" : e.isDraft ? "DRAFT" : (e.estimateStatus || ""),
       e.nbsEstimator || "",
       e.gcEstimateLead || "",
+      parseNbsScopes(e.nbsSelectedScopes).join(", "),
+      e.notes || "",
       e.primaryMarket || "",
       e.bcLink || "",
       e.createdAt ? new Date(e.createdAt).toLocaleString() : "",
@@ -450,6 +564,8 @@ export default function ProjectLogPage() {
                         <span className="flex items-center gap-1">Estimator <SortIcon field="nbsEstimator" /></span>
                       </th>
                       <th className="text-left py-3 px-3 font-medium" style={{ color: "var(--text-dim)" }}>GC Lead</th>
+                      <th className="text-left py-3 px-3 font-medium" style={{ color: "var(--text-dim)" }} data-testid="th-nbs-scopes">NBS Scopes</th>
+                      <th className="text-left py-3 px-3 font-medium" style={{ color: "var(--text-dim)" }} data-testid="th-notes">Notes</th>
                       <th className="text-left py-3 px-3 font-medium" style={{ color: "var(--text-dim)" }} data-testid="th-bc-link">BC Link</th>
                       <th
                         className="text-left py-3 px-3 font-medium cursor-pointer select-none"
@@ -547,16 +663,27 @@ export default function ProjectLogPage() {
                                 Draft
                               </Badge>
                             ) : (
-                              <Badge
-                                variant={
-                                  entry.estimateStatus === "Awarded" ? "default" :
-                                  entry.estimateStatus?.includes("Lost") ? "destructive" : "outline"
-                                }
-                                className="text-xs"
-                                data-testid={`text-status-${entry.id}`}
+                              <Select
+                                value={entry.estimateStatus || "Estimating"}
+                                onValueChange={(val) => handleStatusChange(entry.id, val)}
                               >
-                                {entry.estimateStatus || "Estimating"}
-                              </Badge>
+                                <SelectTrigger
+                                  className="h-7 text-xs border-none px-2 py-0 w-auto min-w-[100px]"
+                                  style={{
+                                    background: "transparent",
+                                    color: entry.estimateStatus === "Awarded" || entry.estimateStatus === "Won" ? "var(--gold)" :
+                                      entry.estimateStatus?.includes("Lost") || entry.estimateStatus === "No Bid" ? "var(--error, #ef4444)" : "var(--text)",
+                                  }}
+                                  data-testid={`select-status-${entry.id}`}
+                                >
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {["Estimating", "Submitted", "Revising", "Won", "Awarded", "Lost", "No Bid", "Undecided", "Declined"].map((s) => (
+                                    <SelectItem key={s} value={s} data-testid={`option-status-${s.toLowerCase().replace(/\s/g, "-")}`}>{s}</SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
                             )}
                           </td>
                           <td className="py-3 px-3 text-sm" style={{ color: "var(--text)" }} data-testid={`text-estimator-${entry.id}`}>
@@ -564,6 +691,141 @@ export default function ProjectLogPage() {
                           </td>
                           <td className="py-3 px-3 text-xs" style={{ color: "var(--text-dim)" }}>
                             {entry.gcEstimateLead || "\u2014"}
+                          </td>
+                          <td className="py-3 px-3 relative">
+                            {(() => {
+                              const selected = parseNbsScopes(entry.nbsSelectedScopes);
+                              return (
+                                <div>
+                                  <button
+                                    className="flex items-center gap-1 text-xs px-2 py-1 rounded hover:bg-white/10 transition-colors"
+                                    style={{ color: selected.length > 0 ? "var(--gold)" : "var(--text-dim)" }}
+                                    onClick={(e) => { e.stopPropagation(); if (scopePopupEntryId === entry.id) { commitScopes(entry.id); } else { openScopePopup(entry); } }}
+                                    data-testid={`button-scopes-${entry.id}`}
+                                  >
+                                    <ListChecks className="w-3.5 h-3.5" />
+                                    {selected.length > 0 ? `${selected.length} selected` : "Select"}
+                                  </button>
+                                  {selected.length > 0 && (
+                                    <div className="flex gap-0.5 mt-0.5 flex-wrap max-w-[180px]">
+                                      {selected.slice(0, 3).map((s, i) => (
+                                        <span key={i} className="text-[9px] px-1 py-0.5 rounded" style={{ background: "var(--gold)", color: "var(--bg)", opacity: 0.85 }}>{s}</span>
+                                      ))}
+                                      {selected.length > 3 && <span className="text-[9px] px-1" style={{ color: "var(--text-dim)" }}>+{selected.length - 3}</span>}
+                                    </div>
+                                  )}
+                                  {scopePopupEntryId === entry.id && (
+                                    <div
+                                      ref={scopePopupRef}
+                                      className="absolute z-50 top-full left-0 mt-1 w-56 rounded-lg shadow-xl overflow-hidden"
+                                      style={{ background: "var(--bg-card)", border: "1px solid var(--border-ds)" }}
+                                      onClick={(e) => e.stopPropagation()}
+                                    >
+                                      <div className="p-2 text-xs font-medium" style={{ color: "var(--text-dim)", borderBottom: "1px solid var(--border-ds)" }}>
+                                        Select NBS Scopes
+                                      </div>
+                                      <div className="max-h-60 overflow-y-auto p-1">
+                                        {NBS_SCOPES.map((scope) => {
+                                          const isChecked = draftScopes.includes(scope);
+                                          return (
+                                            <button
+                                              key={scope}
+                                              className="flex items-center gap-2 w-full text-left px-2 py-1.5 text-xs rounded hover:bg-white/5 transition-colors"
+                                              style={{ color: isChecked ? "var(--gold)" : "var(--text)" }}
+                                              onClick={() => toggleDraftScope(scope)}
+                                              data-testid={`scope-option-${scope.toLowerCase().replace(/\s/g, "-")}-${entry.id}`}
+                                            >
+                                              <div
+                                                className="w-4 h-4 rounded border flex items-center justify-center flex-shrink-0"
+                                                style={{
+                                                  borderColor: isChecked ? "var(--gold)" : "var(--border-ds)",
+                                                  background: isChecked ? "var(--gold)" : "transparent",
+                                                }}
+                                              >
+                                                {isChecked && <Check className="w-3 h-3" style={{ color: "var(--bg)" }} />}
+                                              </div>
+                                              {scope}
+                                            </button>
+                                          );
+                                        })}
+                                      </div>
+                                      <div className="p-2 flex justify-end" style={{ borderTop: "1px solid var(--border-ds)" }}>
+                                        <button
+                                          className="text-[10px] px-2 py-1 rounded"
+                                          style={{ background: "var(--gold)", color: "var(--bg)" }}
+                                          onClick={() => commitScopes(entry.id)}
+                                          data-testid={`button-done-scopes-${entry.id}`}
+                                        >
+                                          Done
+                                        </button>
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })()}
+                          </td>
+                          <td className="py-3 px-3 relative">
+                            <button
+                              className="flex items-center gap-1 text-xs px-2 py-1 rounded hover:bg-white/10 transition-colors"
+                              style={{ color: entry.notes ? "var(--text)" : "var(--text-dim)" }}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (notesPopupEntryId === entry.id) {
+                                  saveNotes(entry.id, notesPopupText);
+                                } else {
+                                  setNotesPopupEntryId(entry.id);
+                                  setNotesPopupText(entry.notes || "");
+                                }
+                              }}
+                              data-testid={`button-notes-${entry.id}`}
+                            >
+                              <MessageSquare className="w-3.5 h-3.5" />
+                              {entry.notes ? (
+                                <span className="max-w-[120px] truncate">{entry.notes}</span>
+                              ) : (
+                                "Add"
+                              )}
+                            </button>
+                            {notesPopupEntryId === entry.id && (
+                              <div
+                                ref={notesPopupRef}
+                                className="absolute z-50 top-full left-0 mt-1 w-64 rounded-lg shadow-xl overflow-hidden"
+                                style={{ background: "var(--bg-card)", border: "1px solid var(--border-ds)" }}
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                <div className="p-2 text-xs font-medium" style={{ color: "var(--text-dim)", borderBottom: "1px solid var(--border-ds)" }}>
+                                  Notes
+                                </div>
+                                <div className="p-2">
+                                  <Textarea
+                                    value={notesPopupText}
+                                    onChange={(e) => setNotesPopupText(e.target.value)}
+                                    placeholder="Add notes..."
+                                    className="text-xs min-h-[80px]"
+                                    autoFocus
+                                    data-testid={`textarea-notes-${entry.id}`}
+                                  />
+                                </div>
+                                <div className="p-2 flex justify-end gap-1" style={{ borderTop: "1px solid var(--border-ds)" }}>
+                                  <button
+                                    className="text-[10px] px-2 py-1 rounded"
+                                    style={{ color: "var(--text-dim)" }}
+                                    onClick={() => { setNotesPopupEntryId(null); }}
+                                  >
+                                    Cancel
+                                  </button>
+                                  <button
+                                    className="text-[10px] px-2 py-1 rounded"
+                                    style={{ background: "var(--gold)", color: "var(--bg)" }}
+                                    onClick={() => saveNotes(entry.id, notesPopupText)}
+                                    data-testid={`button-save-notes-${entry.id}`}
+                                  >
+                                    Save
+                                  </button>
+                                </div>
+                              </div>
+                            )}
                           </td>
                           <td className="py-3 px-3 text-xs" data-testid={`text-bc-link-${entry.id}`}>
                             {entry.bcLink && /^https?:\/\//i.test(entry.bcLink) ? (
@@ -862,6 +1124,52 @@ export default function ProjectLogPage() {
                 </div>
               </>
             )}
+          </div>
+        </div>
+      )}
+
+      {noBidNotesEntryId !== null && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => { setNoBidNotesEntryId(null); }}>
+          <div
+            className="relative w-full max-w-sm rounded-xl overflow-hidden shadow-2xl"
+            style={{ background: "var(--bg-card)", border: "1px solid var(--border-ds)" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between p-4" style={{ borderBottom: "1px solid var(--border-ds)" }}>
+              <div>
+                <h3 className="text-sm font-heading font-semibold" style={{ color: "var(--text)" }}>
+                  {noBidPendingStatus || "No Bid"} — Add Notes
+                </h3>
+                <p className="text-[11px] mt-0.5" style={{ color: "var(--text-dim)" }}>Please note why this bid was {noBidPendingStatus === "No Bid" ? "declined" : "lost"}</p>
+              </div>
+              <button onClick={() => setNoBidNotesEntryId(null)} className="p-1 rounded hover:bg-white/10" data-testid="button-close-nobid-notes">
+                <X className="h-4 w-4" style={{ color: "var(--text-dim)" }} />
+              </button>
+            </div>
+            <div className="p-4">
+              <Textarea
+                value={noBidNotesText}
+                onChange={(e) => setNoBidNotesText(e.target.value)}
+                placeholder="Enter reason..."
+                className="text-sm min-h-[80px]"
+                autoFocus
+                data-testid="input-nobid-notes"
+              />
+            </div>
+            <div className="flex items-center justify-end gap-2 p-4" style={{ borderTop: "1px solid var(--border-ds)" }}>
+              <Button variant="outline" size="sm" onClick={skipNoBidNotes} data-testid="button-skip-nobid-notes">
+                Skip
+              </Button>
+              <Button
+                size="sm"
+                onClick={confirmNoBidNotes}
+                style={{ background: "linear-gradient(135deg, var(--gold), var(--gold-dim))", color: "var(--bg)" }}
+                disabled={!noBidNotesText.trim()}
+                data-testid="button-save-nobid-notes"
+              >
+                Save Notes
+              </Button>
+            </div>
           </div>
         </div>
       )}
