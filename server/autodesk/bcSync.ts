@@ -106,6 +106,8 @@ interface BcOpportunity {
   };
   bidDueDate?: string;
   invitedDate?: string;
+  expectedStart?: string;
+  expectedFinish?: string;
   gcCompanyName?: string;
   gcContactName?: string;
   gcContactEmail?: string;
@@ -230,6 +232,31 @@ export function normalizeOpportunity(raw: Record<string, any>): BcOpportunity {
     "attributes.createdAt",
   );
 
+  const expectedStart = deepGet(raw,
+    "expectedStart",
+    "expectedStartDate",
+    "startDate",
+    "constructionStartDate",
+    "attributes.expectedStart",
+    "attributes.expectedStartDate",
+    "attributes.startDate",
+    "project.expectedStart",
+    "project.startDate",
+  );
+
+  const expectedFinish = deepGet(raw,
+    "expectedFinish",
+    "expectedEndDate",
+    "expectedFinishDate",
+    "endDate",
+    "constructionEndDate",
+    "attributes.expectedFinish",
+    "attributes.expectedEndDate",
+    "attributes.endDate",
+    "project.expectedFinish",
+    "project.endDate",
+  );
+
   const rawScopes = src.trades || src.scopes || raw.trades || raw.scopes;
   let scopes: string[] = [];
   if (Array.isArray(rawScopes)) {
@@ -251,6 +278,8 @@ export function normalizeOpportunity(raw: Record<string, any>): BcOpportunity {
     location: { city, state, formattedAddress },
     bidDueDate,
     invitedDate,
+    expectedStart,
+    expectedFinish,
     gcCompanyName,
     gcContactName,
     gcContactEmail,
@@ -459,6 +488,16 @@ function mapOpportunityToEntry(opp: BcOpportunity) {
     inviteDate = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
   }
 
+  const formatDateField = (val?: string): string => {
+    if (!val) return "";
+    const d = new Date(val);
+    if (isNaN(d.getTime())) return "";
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  };
+
+  const anticipatedStart = formatDateField(opp.expectedStart);
+  const anticipatedFinish = formatDateField(opp.expectedFinish);
+
   const bcLink = opp.id ? `https://app.buildingconnected.com/opportunities/${opp.id}` : "";
 
   return {
@@ -467,6 +506,8 @@ function mapOpportunityToEntry(opp: BcOpportunity) {
     primaryMarket,
     dueDate,
     inviteDate,
+    anticipatedStart,
+    anticipatedFinish,
     gcEstimateLead: opp.gcContactName || "",
     owner: opp.gcCompanyName || "",
     bcLink,
