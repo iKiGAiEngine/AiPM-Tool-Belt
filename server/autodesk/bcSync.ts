@@ -439,8 +439,13 @@ function mapOpportunityToEntry(opp: BcOpportunity) {
     }
   }
   const projectName = opp.projectName || "Untitled BC Project";
-  const scopeContext = (opp.scopes || []).join(" ");
-  const primaryMarket = guessMarket(projectName, scopeContext);
+  const marketContext = [
+    (opp.scopes || []).join(" "),
+    locationStr,
+    opp.gcCompanyName || "",
+    opp.location?.formattedAddress || "",
+  ].filter(Boolean).join(" ");
+  const primaryMarket = guessMarket(projectName, marketContext);
 
   let dueDate = "";
   if (opp.bidDueDate) {
