@@ -390,9 +390,9 @@ async function fetchBcOpportunities(accessToken: string, since?: Date, isFirstSy
         return result;
       }
 
-      if (isFirstSync && since) {
-        console.log(`[BC Sync] ${endpoint.label} returned 0 with date filter, trying without filter...`);
-        const noFilterResult = await fetchFromEndpoint(endpoint, accessToken, undefined, isFirstSync);
+      if (since) {
+        console.log(`[BC Sync] ${endpoint.label} returned 0 with date filter, retrying without filter...`);
+        const noFilterResult = await fetchFromEndpoint(endpoint, accessToken, undefined, true);
         if (!noFilterResult.error && noFilterResult.opportunities.length > 0) {
           console.log(`[BC Sync] ${endpoint.label} returned ${noFilterResult.opportunities.length} without filter`);
           return noFilterResult;
