@@ -2651,7 +2651,7 @@ function closeNoBidModal(withReason) {
 }
 
 async function syncFieldToServer(entry, field, value) {
-  const syncableFields = ['nbsEstimator','estimateStatus','proposalTotal','gcEstimateLead','anticipatedStart','anticipatedFinish','estimateNumber','notes','dueDate','bcLink','nbsSelectedScopes','finalReviewer','swinertonProject','region','primaryMarket','inviteDate'];
+  const syncableFields = ['nbsEstimator','estimateStatus','proposalTotal','gcEstimateLead','anticipatedStart','anticipatedFinish','estimateNumber','notes','dueDate','bcLink','nbsSelectedScopes','finalReviewer','swinertonProject','region','primaryMarket','inviteDate','filePath'];
   if (!syncableFields.includes(field)) return;
   if (!entry._serverDbId) { console.warn('Cannot sync field: entry has no _serverDbId'); return; }
   try {
