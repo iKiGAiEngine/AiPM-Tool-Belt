@@ -29,6 +29,7 @@ import {
   createProjectScope,
   updateProjectScopeSelection,
   deleteProject,
+  getActiveRegions,
 } from "./scopeDictionaryStorage";
 import { storage } from "./storage";
 import { runExtraction, extractPages, findAccessorySections, isSignageSection } from "./specExtractorEngine";
@@ -365,6 +366,12 @@ export function registerProjectRoutes(app: Express) {
 
         if (!projectName || !regionCode || !dueDate) {
           return res.status(400).json({ message: "Project name, region code, and due date are required" });
+        }
+
+        const activeRegionsForValidation = await getActiveRegions();
+        const validRegionEntry = activeRegionsForValidation.find(r => r.code.toUpperCase() === regionCode.toUpperCase());
+        if (!validRegionEntry) {
+          return res.status(400).json({ message: `Region "${regionCode}" is not a recognized active region. Please select a valid region from Settings.` });
         }
 
         const files = req.files as { [fieldname: string]: Express.Multer.File[] };
@@ -730,8 +737,8 @@ export function registerProjectRoutes(app: Express) {
             ownerInitials = user?.initials || "";
           }
 
-          const activeRegions = await getAllRegions();
-          const matchedRegion = activeRegions.find(r => r.code === regionCode.toUpperCase() && r.isActive);
+          const activeRegions = await getActiveRegions();
+          const matchedRegion = activeRegions.find(r => r.code === regionCode.toUpperCase());
           let regionLabel = matchedRegion?.name ? `${matchedRegion.name} (${regionCode.toUpperCase()})` : "";
 
           const rawScreenshotText = req.body.screenshotRawText || "";
