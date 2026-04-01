@@ -1454,7 +1454,7 @@ function buildRows() {
               ${pills ? '<div class="nbs-scope-pills">'+pills+'</div>' : ''}
             </div>`;
           } else {
-            val = scopes.length ? scopes.map(s=>`<span class="nbs-scope-pill">${s}</span>`).join('') : '\u2014';
+            val = scopes.length ? `${scopes.length} selected` : '\u2014';
           }
           break;
         }
