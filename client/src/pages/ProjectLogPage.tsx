@@ -90,10 +90,7 @@ export default function ProjectLogPage() {
   });
 
   const regionDisplayOptions = useMemo(() => {
-    return dbRegions.map(r => {
-      if (r.code === "EXT") return `EXT - External`;
-      return `${r.code} - ${r.name}`;
-    });
+    return dbRegions.map(r => `${r.code} - ${r.name}`);
   }, [dbRegions]);
 
   const { data: syncStatus } = useQuery<{ lastSyncAt: string | null }>({
@@ -282,11 +279,13 @@ export default function ProjectLogPage() {
     const oldMatch = raw.match(/^(.+?)\s*\(([A-Z]{2,5})\)$/);
     if (oldMatch) {
       const code = oldMatch[2];
-      return code === "EXT" ? "EXT - External" : `${code} - ${oldMatch[1].trim()}`;
+      const r = dbRegions.find(rg => rg.code.toUpperCase() === code);
+      if (r) return `${r.code} - ${r.name}`;
+      return `${code} - ${oldMatch[1].trim()}`;
     }
     if (/^[A-Z]{2,5}$/.test(raw.trim())) {
       const r = dbRegions.find(rg => rg.code.toUpperCase() === raw.trim().toUpperCase());
-      if (r) return r.code === "EXT" ? "EXT - External" : `${r.code} - ${r.name}`;
+      if (r) return `${r.code} - ${r.name}`;
     }
     if (/^[A-Z]{2,5}\s*-\s*.+/.test(raw)) return raw;
     return raw;

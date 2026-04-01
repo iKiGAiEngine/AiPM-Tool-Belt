@@ -8,9 +8,6 @@ export interface RegionMatchResult {
 }
 
 export function formatRegionDisplay(region: Region): string {
-  if (region.code === "EXT") {
-    return `EXT - External`;
-  }
   return `${region.code} - ${region.name}`;
 }
 

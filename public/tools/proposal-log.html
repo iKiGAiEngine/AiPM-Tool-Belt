@@ -1074,10 +1074,7 @@ async function loadRegionsFromServer() {
     if (!resp.ok) throw new Error('Failed to fetch regions');
     const rdata = await resp.json();
     REGIONS_RAW = rdata;
-    REGIONS = rdata.map(r => {
-      if (r.code === 'EXT') return 'EXT - External';
-      return `${r.code} - ${r.name}`;
-    });
+    REGIONS = rdata.map(r => `${r.code} - ${r.name}`);
   } catch (e) {
     console.error('Failed to load regions:', e);
     REGIONS = [];
@@ -1089,8 +1086,9 @@ function normalizeRegion(val) {
   if (REGIONS.includes(val)) return val;
   const up = val.toUpperCase().trim();
   for (const r of REGIONS_RAW) {
-    if (up === r.code.toUpperCase()) {
-      return r.code === 'EXT' ? 'EXT - External' : `${r.code} - ${r.name}`;
+    const display = `${r.code} - ${r.name}`;
+    if (up === r.code.toUpperCase() || up === display.toUpperCase()) {
+      return display;
     }
   }
   const m = val.match(/\(([^)]+)\)/);
@@ -1098,9 +1096,13 @@ function normalizeRegion(val) {
     const code = m[1].toUpperCase();
     for (const r of REGIONS_RAW) {
       if (code === r.code.toUpperCase()) {
-        return r.code === 'EXT' ? 'EXT - External' : `${r.code} - ${r.name}`;
+        return `${r.code} - ${r.name}`;
       }
     }
+  }
+  if (val === 'EXT - External') {
+    const extR = REGIONS_RAW.find(r => r.code === 'EXT');
+    if (extR) return `EXT - ${extR.name}`;
   }
   return val;
 }
