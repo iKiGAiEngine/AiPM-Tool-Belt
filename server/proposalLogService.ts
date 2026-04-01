@@ -39,37 +39,6 @@ export function guessMarket(projectName: string, rawText?: string): string {
   return bestMatch;
 }
 
-const REGION_KEYWORD_MAP: Record<string, string[]> = {
-  "Atlanta (ATL)": ["atlanta", "georgia", "ga"],
-  "Austin (AUS)": ["austin", "texas", "tx", "san antonio"],
-  "Colorado (DEN)": ["colorado", "denver", "co"],
-  "Dallas (DFW)": ["dallas", "fort worth", "dfw"],
-  "Hawaii (HNL)": ["hawaii", "honolulu", "hi", "maui", "oahu"],
-  "Idaho (PDX)": ["idaho", "boise", "id"],
-  "N Carolina (CLT)": ["north carolina", "charlotte", "raleigh", "nc"],
-  "New York (LGA)": ["new york", "ny", "manhattan", "brooklyn", "queens"],
-  "Nor Cal (SFO)": ["san francisco", "oakland", "san jose", "sacramento", "bay area", "northern california"],
-  "OCLA (LAX)": ["los angeles", "la", "orange county", "anaheim", "oc"],
-  "Portland (PDX)": ["portland", "oregon", "or"],
-  "S Carolina (CLT)": ["south carolina", "charleston", "sc"],
-  "SD (SAN)": ["san diego"],
-  "Washington (SEA)": ["seattle", "washington", "wa", "tacoma", "bellevue"],
-  "Spokane & Boise (GEG)": ["spokane", "boise"],
-};
-
-export function guessRegion(location: string, projectName: string): string {
-  const combined = `${location} ${projectName}`.toLowerCase();
-
-  for (const [region, keywords] of Object.entries(REGION_KEYWORD_MAP)) {
-    for (const kw of keywords) {
-      if (combined.includes(kw)) {
-        return region;
-      }
-    }
-  }
-
-  return "";
-}
 
 export async function createProposalLogEntry(data: {
   projectName: string;

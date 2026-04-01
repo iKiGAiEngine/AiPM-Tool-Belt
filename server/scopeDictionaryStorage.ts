@@ -105,6 +105,7 @@ export async function createRegion(data: InsertRegionInput): Promise<Region> {
   const result = await db.insert(regions).values({
     code: data.code.toUpperCase(),
     name: data.name,
+    aliases: data.aliases ?? null,
     isActive: data.isActive ?? true,
   }).returning();
   return result[0];
