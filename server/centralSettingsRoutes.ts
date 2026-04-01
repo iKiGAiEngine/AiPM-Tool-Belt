@@ -17,7 +17,8 @@ import {
   deleteProduct,
   searchProducts,
 } from "./centralSettingsStorage";
-import { getAllScopeDictionaries, createScopeDictionary, getAllRegions, createRegion } from "./scopeDictionaryStorage";
+import { getAllScopeDictionaries, createScopeDictionary, getAllRegions, getActiveRegions, createRegion, updateRegion } from "./scopeDictionaryStorage";
+import ExcelJS from "exceljs";
 
 export function registerCentralSettingsRoutes(app: Express) {
   // =====================================================
@@ -358,29 +359,70 @@ export function registerCentralSettingsRoutes(app: Express) {
         return res.status(400).json({ message: "No rows provided" });
       }
       const existing = await getAllRegions();
-      const existingCodes = new Set(existing.map(r => r.code.toUpperCase().trim()));
-      let imported = 0, skipped = 0;
+      const existingMap = new Map(existing.map(r => [r.code.toUpperCase().trim(), r]));
+      let imported = 0, skipped = 0, updated = 0;
       const errors: string[] = [];
       for (const row of rows) {
         const code = (row.code || "").toString().trim().toUpperCase();
         if (!code) { skipped++; continue; }
-        if (existingCodes.has(code)) { skipped++; continue; }
+        const parseAliases = (val: any): string[] | null => {
+          if (!val) return null;
+          const str = val.toString().trim();
+          if (!str) return null;
+          return str.split(",").map((s: string) => s.trim().toLowerCase()).filter(Boolean);
+        };
+        const name = (row.name || "").toString().trim() || null;
+        const aliases = parseAliases(row.aliases);
+        const selfPerformEstimator = (row.selfPerformEstimator || "").toString().trim() || null;
         try {
-          await createRegion({
-            code,
-            name: (row.name || "").toString().trim() || null,
-            isActive: true,
-          });
-          existingCodes.add(code);
-          imported++;
+          if (existingMap.has(code)) {
+            const existingRegion = existingMap.get(code)!;
+            await updateRegion(existingRegion.id, { code, name, aliases, selfPerformEstimator, isActive: true });
+            updated++;
+          } else {
+            const newRegion = await createRegion({ code, name, aliases, selfPerformEstimator, isActive: true });
+            existingMap.set(code, newRegion);
+            imported++;
+          }
         } catch (e: any) {
           errors.push(`Row "${code}": ${e.message}`);
         }
       }
-      res.json({ imported, skipped, errors, total: rows.length });
+      res.json({ imported, skipped: skipped + updated, errors, total: rows.length });
     } catch (error) {
       console.error("Bulk import regions error:", error);
       res.status(500).json({ message: "Failed to import regions" });
+    }
+  });
+
+  app.get("/api/regions/export", async (req: Request, res: Response) => {
+    try {
+      const allRegionsList = await getAllRegions();
+      const workbook = new ExcelJS.Workbook();
+      const ws = workbook.addWorksheet("Regions");
+      ws.columns = [
+        { header: "Code", key: "code", width: 12 },
+        { header: "Name", key: "name", width: 30 },
+        { header: "Aliases", key: "aliases", width: 40 },
+        { header: "Self Perform Estimator", key: "selfPerformEstimator", width: 25 },
+      ];
+      const headerRow = ws.getRow(1);
+      headerRow.font = { bold: true };
+      for (const region of allRegionsList) {
+        ws.addRow({
+          code: region.code,
+          name: region.name || "",
+          aliases: (region.aliases || []).join(", "),
+          selfPerformEstimator: region.selfPerformEstimator || "",
+        });
+      }
+      res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+      res.setHeader("Content-Disposition", "attachment; filename=regions-export.xlsx");
+      await workbook.xlsx.write(res);
+      res.end();
+    } catch (error) {
+      console.error("Error exporting regions:", error);
+      res.status(500).json({ message: "Failed to export regions" });
     }
   });
 }

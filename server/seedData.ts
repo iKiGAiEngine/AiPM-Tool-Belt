@@ -5,14 +5,25 @@ import { count, sql } from "drizzle-orm";
 async function ensureRegionAliasesColumn(): Promise<void> {
   try {
     await db.execute(sql`ALTER TABLE regions ADD COLUMN IF NOT EXISTS aliases text[]`);
+    await db.execute(sql`ALTER TABLE regions ADD COLUMN IF NOT EXISTS self_perform_estimator varchar(200)`);
   } catch (e: any) {
     console.log("[Migration] aliases column check:", e.message);
+  }
+}
+
+async function ensureProposalLogExtraColumns(): Promise<void> {
+  try {
+    await db.execute(sql`ALTER TABLE proposal_log_entries ADD COLUMN IF NOT EXISTS final_reviewer varchar(200)`);
+    await db.execute(sql`ALTER TABLE proposal_log_entries ADD COLUMN IF NOT EXISTS swinerton_project varchar(10)`);
+  } catch (e: any) {
+    console.log("[Migration] proposal log extra columns check:", e.message);
   }
 }
 
 export async function seedDefaultData(): Promise<void> {
   try {
     await ensureRegionAliasesColumn();
+    await ensureProposalLogExtraColumns();
     const [regionCount] = await db.select({ value: count() }).from(regions);
     if (regionCount.value === 0) {
       const defaultRegions = [

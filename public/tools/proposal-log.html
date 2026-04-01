@@ -372,7 +372,6 @@ td:last-child{border-right:none;}
 .s-nobid{background:rgba(138,138,154,.12);color:var(--text-dim);border:1px solid rgba(138,138,154,.25);}
 .s-undecided{background:rgba(255,165,0,.12);color:#FFA500;border:1px solid rgba(255,165,0,.3);}
 .swin-yes{background:rgba(61,170,106,.12);color:var(--win);border:1px solid rgba(61,170,106,.25);border-radius:4px;padding:2px 6px;font-size:10px;font-family:'Rajdhani',sans-serif;font-weight:600;}
-.region-warn{color:#e67e22;font-size:11px;font-weight:600;font-family:'Rajdhani',sans-serif;}
 .swin-no{background:rgba(138,138,154,.1);color:var(--text-dim);border:1px solid rgba(138,138,154,.2);border-radius:4px;padding:2px 6px;font-size:10px;font-family:'Rajdhani',sans-serif;font-weight:600;}
 .val-cell{font-family:'Rajdhani',sans-serif;font-size:16px;font-weight:600;}
 .date-dim{color:var(--text-dim);font-size:11px;}
@@ -1355,8 +1354,21 @@ function buildRows() {
           }
           break;
         }
-        case 'swinertonProject': val=p.swinertonProject==='Y'?'<span class="swin-yes">Y</span>':p.swinertonProject==='N'?'<span class="swin-no">N</span>':'\u2014'; break;
-        case 'inviteDate': val=`<span class="date-dim">${fmtD(p[key])}</span>`; break;
+        case 'swinertonProject':
+          if(mode==='estimator' && can('editRow')) {
+            const swDisplay=p.swinertonProject==='Y'?'<span class="swin-yes">Y</span>':p.swinertonProject==='N'?'<span class="swin-no">N</span>':'\u2014';
+            val=`<div class="inline-edit-wrap" onclick="startInlineEdit(event,${oi},'swinertonProject')">
+              ${swDisplay}
+              <span class="inline-edit-hint">\u270f</span></div>`;
+          } else { val=p.swinertonProject==='Y'?'<span class="swin-yes">Y</span>':p.swinertonProject==='N'?'<span class="swin-no">N</span>':'\u2014'; }
+          break;
+        case 'inviteDate':
+          if(mode==='estimator' && can('editRow')) {
+            val=`<div class="inline-edit-wrap" onclick="startInlineEdit(event,${oi},'inviteDate')">
+              <span class="date-dim">${fmtD(p[key])}</span>
+              <span class="inline-edit-hint">\u270f</span></div>`;
+          } else { val=`<span class="date-dim">${fmtD(p[key])}</span>`; }
+          break;
         case 'dueDate':
           if(mode==='estimator' && can('editRow')) {
             val=`<div class="inline-edit-wrap" onclick="startInlineEdit(event,${oi},'dueDate')">
@@ -1400,17 +1412,13 @@ function buildRows() {
             </div>`;
           } else { val=p.notes||'\u2014'; }
           break;
-        case 'region': {
-          const regionVal = p.region || '';
-          if (!regionVal) {
-            val = '<span class="region-warn" title="Region not assigned — please select one">\u26a0 Unassigned</span>';
-          } else if (REGIONS.length > 0 && !REGIONS.includes(regionVal)) {
-            val = `<span class="region-warn" title="Unknown region — not in settings">\u26a0 ${regionVal}</span>`;
-          } else {
-            val = regionVal;
-          }
+        case 'region':
+          if(mode==='estimator' && can('editRow')) {
+            val=`<div class="inline-edit-wrap" onclick="startInlineEdit(event,${oi},'region')">
+              <span>${p.region||'\u2014'}</span>
+              <span class="inline-edit-hint">\u270f</span></div>`;
+          } else { val=p.region||'\u2014'; }
           break;
-        }
         case 'bcLink':
           if(p.bcLink && /^https?:\/\//i.test(p.bcLink)){
             const safeUrl=p.bcLink.replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
@@ -1436,6 +1444,27 @@ function buildRows() {
               <span>${p.estimateNumber||'\u2014'}</span>
               <span class="inline-edit-hint" style="font-size:8px">\u270f</span></div>`;
           } else { val=p.estimateNumber||'\u2014'; }
+          break;
+        case 'gcEstimateLead':
+          if(mode==='estimator' && can('editRow')) {
+            val=`<div class="inline-edit-wrap" onclick="startInlineEdit(event,${oi},'gcEstimateLead')">
+              <span>${p.gcEstimateLead||'\u2014'}</span>
+              <span class="inline-edit-hint">\u270f</span></div>`;
+          } else { val=p.gcEstimateLead||'\u2014'; }
+          break;
+        case 'finalReviewer':
+          if(mode==='estimator' && can('editRow')) {
+            val=`<div class="inline-edit-wrap" onclick="startInlineEdit(event,${oi},'finalReviewer')">
+              <span>${p.finalReviewer||'\u2014'}</span>
+              <span class="inline-edit-hint">\u270f</span></div>`;
+          } else { val=p.finalReviewer||'\u2014'; }
+          break;
+        case 'primaryMarket':
+          if(mode==='estimator' && can('editRow')) {
+            val=`<div class="inline-edit-wrap" onclick="startInlineEdit(event,${oi},'primaryMarket')">
+              <span>${p.primaryMarket||'\u2014'}</span>
+              <span class="inline-edit-hint">\u270f</span></div>`;
+          } else { val=p.primaryMarket||'\u2014'; }
           break;
         case '_screenshot': val=p._screenshotId?`<button class="btn-row" onclick="viewScreenshot('${p._screenshotId}')" title="View source screenshot" style="font-size:16px">&#128247;</button>`:'\u2014'; break;
         default: val=p[key]||'\u2014';
@@ -2316,7 +2345,7 @@ let ESTIMATORS=[
     sel.innerHTML='<option value="">\u2014 Select \u2014</option>'+ESTIMATORS.map(e=>`<option value="${e.code}">${e.label}</option>`).join('');
   }
 })();
-const INLINE_FIELDS={proposalTotal:'number',estimateStatus:'select-status',nbsEstimator:'select-estimator',anticipatedStart:'month',anticipatedFinish:'month',dueDate:'date',notes:'text',bcLink:'text'};
+const INLINE_FIELDS={proposalTotal:'number',estimateStatus:'select-status',nbsEstimator:'select-estimator',anticipatedStart:'month',anticipatedFinish:'month',dueDate:'date',notes:'text',bcLink:'text',gcEstimateLead:'text',finalReviewer:'text',swinertonProject:'select-yn',region:'select-region',primaryMarket:'select-market',inviteDate:'date'};
 let activeInlineEdit=null;
 
 function startInlineEdit(e,oi,field){
@@ -2363,6 +2392,30 @@ function startInlineEdit(e,oi,field){
   } else if(type==='date'){
     td.innerHTML=`<div class="inline-editor-pop">
       <input class="inline-date" id="inline-inp" type="date" value="${p[field]||''}" onkeydown="inlineKeydown(event,${oi},'${field}')" onclick="event.stopPropagation()">
+      <div class="inline-actions">
+        <button class="inline-save" onclick="commitInlineEdit(${oi},'${field}')" title="Save">\u2713</button>
+        <button class="inline-cancel" onclick="cancelInlineEdit()" title="Cancel">\u2715</button>
+      </div></div>`;
+  } else if(type==='select-yn'){
+    const opts=['','Y','N'].map(s=>`<option value="${s}"${p[field]===s?' selected':''}>${s||'\u2014 Select \u2014'}</option>`).join('');
+    td.innerHTML=`<div class="inline-editor-pop">
+      <select class="inline-select" id="inline-inp" onkeydown="inlineKeydown(event,${oi},'${field}')" onclick="event.stopPropagation()">${opts}</select>
+      <div class="inline-actions">
+        <button class="inline-save" onclick="commitInlineEdit(${oi},'${field}')" title="Save">\u2713</button>
+        <button class="inline-cancel" onclick="cancelInlineEdit()" title="Cancel">\u2715</button>
+      </div></div>`;
+  } else if(type==='select-region'){
+    const opts=[`<option value="">\u2014 Select \u2014</option>`,...REGIONS.map(r=>`<option value="${r}"${p[field]===r?' selected':''}>${r}</option>`)].join('');
+    td.innerHTML=`<div class="inline-editor-pop">
+      <select class="inline-select" id="inline-inp" style="min-width:160px" onkeydown="inlineKeydown(event,${oi},'${field}')" onclick="event.stopPropagation()">${opts}</select>
+      <div class="inline-actions">
+        <button class="inline-save" onclick="commitInlineEdit(${oi},'${field}')" title="Save">\u2713</button>
+        <button class="inline-cancel" onclick="cancelInlineEdit()" title="Cancel">\u2715</button>
+      </div></div>`;
+  } else if(type==='select-market'){
+    const opts=[`<option value="">\u2014 Select \u2014</option>`,...MARKETS.map(m=>`<option value="${m}"${p[field]===m?' selected':''}>${m}</option>`)].join('');
+    td.innerHTML=`<div class="inline-editor-pop">
+      <select class="inline-select" id="inline-inp" style="min-width:160px" onkeydown="inlineKeydown(event,${oi},'${field}')" onclick="event.stopPropagation()">${opts}</select>
       <div class="inline-actions">
         <button class="inline-save" onclick="commitInlineEdit(${oi},'${field}')" title="Save">\u2713</button>
         <button class="inline-cancel" onclick="cancelInlineEdit()" title="Cancel">\u2715</button>
@@ -2417,6 +2470,13 @@ function commitInlineEdit(oi,field){
     } else {
       editTd.innerHTML=`<div class="inline-edit-wrap" onclick="startInlineEdit(event,${oi},'bcLink')"><span>\u2014</span><span class="inline-edit-hint">\u270f</span></div>`;
     }
+  } else if(field==='swinertonProject'){
+    const swD=v==='Y'?'<span class="swin-yes">Y</span>':v==='N'?'<span class="swin-no">N</span>':'\u2014';
+    editTd.innerHTML=`<div class="inline-edit-wrap" onclick="startInlineEdit(event,${oi},'swinertonProject')">${swD}<span class="inline-edit-hint">\u270f</span></div>`;
+  } else if(field==='inviteDate'){
+    editTd.innerHTML=`<div class="inline-edit-wrap" onclick="startInlineEdit(event,${oi},'inviteDate')"><span class="date-dim">${fmtD(v)}</span><span class="inline-edit-hint">\u270f</span></div>`;
+  } else if(field==='region'||field==='primaryMarket'||field==='gcEstimateLead'||field==='finalReviewer'){
+    editTd.innerHTML=`<div class="inline-edit-wrap" onclick="startInlineEdit(event,${oi},'${field}')"><span>${v||'\u2014'}</span><span class="inline-edit-hint">\u270f</span></div>`;
   }
   syncFieldToServer(data[oi], field, v);
 }
@@ -2561,7 +2621,7 @@ function closeNoBidModal(withReason) {
 }
 
 async function syncFieldToServer(entry, field, value) {
-  const syncableFields = ['nbsEstimator','estimateStatus','proposalTotal','gcEstimateLead','anticipatedStart','anticipatedFinish','estimateNumber','notes','dueDate','bcLink','nbsSelectedScopes'];
+  const syncableFields = ['nbsEstimator','estimateStatus','proposalTotal','gcEstimateLead','anticipatedStart','anticipatedFinish','estimateNumber','notes','dueDate','bcLink','nbsSelectedScopes','finalReviewer','swinertonProject','region','primaryMarket','inviteDate'];
   if (!syncableFields.includes(field)) return;
   if (!entry._serverDbId) { console.warn('Cannot sync field: entry has no _serverDbId'); return; }
   try {
@@ -2969,6 +3029,8 @@ function serverEntryToLocal(e, existingLocal) {
     notes: e.notes || base.notes || '',
     nbsSelectedScopes: e.nbsSelectedScopes || base.nbsSelectedScopes || '[]',
     bcLink: e.bcLink || base.bcLink || '',
+    finalReviewer: e.finalReviewer || base.finalReviewer || '',
+    swinertonProject: e.swinertonProject || base.swinertonProject || '',
     owner: e.owner || '',
     filePath: e.filePath || '',
     _screenshotId: e.estimateNumber || '',

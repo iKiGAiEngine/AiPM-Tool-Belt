@@ -189,6 +189,11 @@ export async function updateProposalLogEntryById(id: number, updates: Partial<{
   dueDate: string;
   bcLink: string;
   nbsSelectedScopes: string;
+  finalReviewer: string;
+  swinertonProject: string;
+  region: string;
+  primaryMarket: string;
+  inviteDate: string;
 }>) {
   const cleanUpdates: Record<string, any> = {};
   if (updates.nbsEstimator !== undefined) cleanUpdates.nbsEstimator = updates.nbsEstimator;
@@ -202,6 +207,11 @@ export async function updateProposalLogEntryById(id: number, updates: Partial<{
   if (updates.dueDate !== undefined) cleanUpdates.dueDate = updates.dueDate;
   if (updates.bcLink !== undefined) cleanUpdates.bcLink = updates.bcLink;
   if (updates.nbsSelectedScopes !== undefined) cleanUpdates.nbsSelectedScopes = updates.nbsSelectedScopes;
+  if (updates.finalReviewer !== undefined) cleanUpdates.finalReviewer = updates.finalReviewer;
+  if (updates.swinertonProject !== undefined) cleanUpdates.swinertonProject = updates.swinertonProject;
+  if (updates.region !== undefined) cleanUpdates.region = updates.region;
+  if (updates.primaryMarket !== undefined) cleanUpdates.primaryMarket = updates.primaryMarket;
+  if (updates.inviteDate !== undefined) cleanUpdates.inviteDate = updates.inviteDate;
 
   if (Object.keys(cleanUpdates).length === 0) return null;
 

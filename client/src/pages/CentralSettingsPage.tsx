@@ -1341,10 +1341,13 @@ function RegionSection() {
                 className="flex items-center justify-between p-3 rounded-lg border bg-card"
                 data-testid={`region-row-${region.id}`}
               >
-                <div className="flex items-center gap-2 min-w-0">
+                <div className="flex items-center gap-2 min-w-0 flex-wrap">
                   <span className="font-mono font-medium">{region.code}</span>
                   {region.name && (
                     <span className="text-sm text-muted-foreground">{region.name}</span>
+                  )}
+                  {region.selfPerformEstimator && (
+                    <span className="text-xs text-muted-foreground/70" title={`SP Estimator: ${region.selfPerformEstimator}`}>· {region.selfPerformEstimator}</span>
                   )}
                   {region.aliases && region.aliases.length > 0 && (
                     <span className="text-xs text-muted-foreground/60" title={region.aliases.join(", ")}>({region.aliases.length} aliases)</span>
@@ -1436,10 +1439,12 @@ function RegionSection() {
         title="Regions"
         importEndpoint="/api/regions/bulk-import"
         invalidateKey="/api/regions"
-        templateUrl="/templates/regions-import-template.xlsx"
+        templateUrl="/api/regions/export"
         columns={[
           { key: "code", label: "Code", required: true },
           { key: "name", label: "Name" },
+          { key: "aliases", label: "Aliases" },
+          { key: "selfPerformEstimator", label: "Self Perform Estimator" },
         ]}
       />
     </Card>
@@ -1450,7 +1455,7 @@ interface RegionEditDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   region: Region;
-  onSave: (data: { code: string; name: string; aliases: string[] }) => void;
+  onSave: (data: { code: string; name: string; aliases: string[]; selfPerformEstimator: string | null }) => void;
   isPending: boolean;
 }
 
@@ -1458,6 +1463,7 @@ function RegionEditDialog({ open, onOpenChange, region, onSave, isPending }: Reg
   const [code, setCode] = useState(region.code);
   const [name, setName] = useState(region.name ?? "");
   const [aliasesStr, setAliasesStr] = useState((region.aliases || []).join(", "));
+  const [selfPerformEstimator, setSelfPerformEstimator] = useState(region.selfPerformEstimator ?? "");
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -1486,6 +1492,17 @@ function RegionEditDialog({ open, onOpenChange, region, onSave, isPending }: Reg
             />
           </div>
           <div className="space-y-2">
+            <Label htmlFor="editSelfPerformEstimator">Self Perform Estimator</Label>
+            <Input
+              id="editSelfPerformEstimator"
+              value={selfPerformEstimator}
+              onChange={(e) => setSelfPerformEstimator(e.target.value)}
+              placeholder="e.g. John Smith"
+              data-testid="input-edit-region-self-perform-estimator"
+            />
+            <p className="text-xs text-muted-foreground">Self perform estimator contact for this region</p>
+          </div>
+          <div className="space-y-2">
             <Label htmlFor="editAliases">Aliases (comma-separated)</Label>
             <Textarea
               id="editAliases"
@@ -1501,7 +1518,7 @@ function RegionEditDialog({ open, onOpenChange, region, onSave, isPending }: Reg
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
           <Button
-            onClick={() => onSave({ code, name, aliases: aliasesStr.split(",").map(s => s.trim().toLowerCase()).filter(Boolean) })}
+            onClick={() => onSave({ code, name, aliases: aliasesStr.split(",").map(s => s.trim().toLowerCase()).filter(Boolean), selfPerformEstimator: selfPerformEstimator.trim() || null })}
             disabled={!code || isPending}
             data-testid="button-save-edit-region"
           >

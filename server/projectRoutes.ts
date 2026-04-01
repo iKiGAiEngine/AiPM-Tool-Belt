@@ -1700,7 +1700,7 @@ export function registerProjectRoutes(app: Express) {
       const id = parseInt(req.params.id);
       if (isNaN(id)) return res.status(400).json({ message: "Valid numeric id required" });
 
-      const allowedFields = ["nbsEstimator", "estimateStatus", "proposalTotal", "gcEstimateLead", "anticipatedStart", "anticipatedFinish", "dueDate", "notes", "bcLink", "nbsSelectedScopes"];
+      const allowedFields = ["nbsEstimator", "estimateStatus", "proposalTotal", "gcEstimateLead", "anticipatedStart", "anticipatedFinish", "dueDate", "notes", "bcLink", "nbsSelectedScopes", "finalReviewer", "swinertonProject", "region", "primaryMarket", "inviteDate"];
       const updates: Record<string, string> = {};
       for (const field of allowedFields) {
         if (req.body[field] !== undefined) {

@@ -450,6 +450,7 @@ export const regions = pgTable("regions", {
   code: varchar("code", { length: 20 }).notNull(),
   name: varchar("name", { length: 200 }),
   aliases: text("aliases").array(),
+  selfPerformEstimator: varchar("self_perform_estimator", { length: 200 }),
   isActive: boolean("is_active").notNull().default(true),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
@@ -919,6 +920,8 @@ export const proposalLogEntries = pgTable("proposal_log_entries", {
   draftApprovedAt: timestamp("draft_approved_at"),
   bcUpdateFlag: boolean("bc_update_flag").default(false),
   bcChangeLog: text("bc_change_log"),
+  finalReviewer: varchar("final_reviewer", { length: 200 }),
+  swinertonProject: varchar("swinerton_project", { length: 10 }),
   deletedAt: timestamp("deleted_at"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
