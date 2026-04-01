@@ -449,6 +449,7 @@ export const regions = pgTable("regions", {
   id: serial("id").primaryKey(),
   code: varchar("code", { length: 20 }).notNull(),
   name: varchar("name", { length: 200 }),
+  aliases: text("aliases").array(),
   isActive: boolean("is_active").notNull().default(true),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });

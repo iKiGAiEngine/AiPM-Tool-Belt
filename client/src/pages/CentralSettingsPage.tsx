@@ -1341,10 +1341,13 @@ function RegionSection() {
                 className="flex items-center justify-between p-3 rounded-lg border bg-card"
                 data-testid={`region-row-${region.id}`}
               >
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 min-w-0">
                   <span className="font-mono font-medium">{region.code}</span>
                   {region.name && (
                     <span className="text-sm text-muted-foreground">{region.name}</span>
+                  )}
+                  {region.aliases && region.aliases.length > 0 && (
+                    <span className="text-xs text-muted-foreground/60" title={region.aliases.join(", ")}>({region.aliases.length} aliases)</span>
                   )}
                 </div>
                 <div className="flex items-center gap-1">
@@ -1447,13 +1450,14 @@ interface RegionEditDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   region: Region;
-  onSave: (data: { code: string; name: string }) => void;
+  onSave: (data: { code: string; name: string; aliases: string[] }) => void;
   isPending: boolean;
 }
 
 function RegionEditDialog({ open, onOpenChange, region, onSave, isPending }: RegionEditDialogProps) {
   const [code, setCode] = useState(region.code);
   const [name, setName] = useState(region.name ?? "");
+  const [aliasesStr, setAliasesStr] = useState((region.aliases || []).join(", "));
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -1481,11 +1485,23 @@ function RegionEditDialog({ open, onOpenChange, region, onSave, isPending }: Reg
               data-testid="input-edit-region-name"
             />
           </div>
+          <div className="space-y-2">
+            <Label htmlFor="editAliases">Aliases (comma-separated)</Label>
+            <Textarea
+              id="editAliases"
+              value={aliasesStr}
+              onChange={(e) => setAliasesStr(e.target.value)}
+              placeholder="e.g. denver, colorado, arvada"
+              rows={3}
+              data-testid="input-edit-region-aliases"
+            />
+            <p className="text-xs text-muted-foreground">Keywords used for auto-matching locations to this region</p>
+          </div>
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
           <Button
-            onClick={() => onSave({ code, name })}
+            onClick={() => onSave({ code, name, aliases: aliasesStr.split(",").map(s => s.trim().toLowerCase()).filter(Boolean) })}
             disabled={!code || isPending}
             data-testid="button-save-edit-region"
           >

@@ -114,6 +114,7 @@ export async function updateRegion(id: number, data: Partial<InsertRegionInput>)
   const updateData: Record<string, unknown> = {};
   if (data.code !== undefined) updateData.code = data.code.toUpperCase();
   if (data.name !== undefined) updateData.name = data.name;
+  if (data.aliases !== undefined) updateData.aliases = data.aliases;
   if (data.isActive !== undefined) updateData.isActive = data.isActive;
 
   const result = await db
