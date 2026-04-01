@@ -17,7 +17,7 @@ import {
   deleteProduct,
   searchProducts,
 } from "./centralSettingsStorage";
-import { getAllScopeDictionaries, createScopeDictionary, getAllRegions, getActiveRegions, createRegion, updateRegion } from "./scopeDictionaryStorage";
+import { getAllScopeDictionaries, createScopeDictionary, getAllRegions, createRegion, updateRegion } from "./scopeDictionaryStorage";
 import ExcelJS from "exceljs";
 
 export function registerCentralSettingsRoutes(app: Express) {
@@ -388,7 +388,7 @@ export function registerCentralSettingsRoutes(app: Express) {
           errors.push(`Row "${code}": ${e.message}`);
         }
       }
-      res.json({ imported, skipped: skipped + updated, errors, total: rows.length });
+      res.json({ imported, skipped, updated, errors, total: rows.length });
     } catch (error) {
       console.error("Bulk import regions error:", error);
       res.status(500).json({ message: "Failed to import regions" });
