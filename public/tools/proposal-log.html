@@ -1463,7 +1463,7 @@ function buildRows() {
         case 'filePath': val=p.filePath?`<span class="link-cell"><a href="${p.filePath}" target="_blank">&#128194; Open</a></span>`:'\u2014'; break;
         case 'estimateNumber':
           if(mode==='estimator' && currentUser && currentUser.role==='admin') {
-            val=`<div class="inline-edit-wrap" onclick="startEstNumEdit(event,${oi})">
+            val=`<div class="inline-edit-wrap" onclick="startInlineEdit(event,${oi},'estimateNumber')">
               <span>${p.estimateNumber||'\u2014'}</span>
               <span class="inline-edit-hint" style="font-size:8px">\u270f</span></div>`;
           } else { val=p.estimateNumber||'\u2014'; }
@@ -2368,8 +2368,8 @@ let ESTIMATORS=[
     sel.innerHTML='<option value="">\u2014 Select \u2014</option>'+ESTIMATORS.map(e=>`<option value="${e.code}">${e.label}</option>`).join('');
   }
 })();
-const INLINE_FIELDS={proposalTotal:'number',estimateStatus:'select-status',nbsEstimator:'select-estimator',anticipatedStart:'month',anticipatedFinish:'month',dueDate:'date',notes:'textarea',bcLink:'text',gcEstimateLead:'text',finalReviewer:'text',swinertonProject:'select-yn',region:'select-region',primaryMarket:'select-market',inviteDate:'date'};
-const FIELD_LABELS={proposalTotal:'Proposal Total',estimateStatus:'Status',nbsEstimator:'NBS Estimator',anticipatedStart:'Est. Start',anticipatedFinish:'Est. End',dueDate:'Due Date',notes:'Notes',bcLink:'BC Link',gcEstimateLead:'GC Estimate Lead',finalReviewer:'Final Reviewer',swinertonProject:'Swinerton?',region:'Region',primaryMarket:'Primary Market',inviteDate:'Invite Date'};
+const INLINE_FIELDS={proposalTotal:'number',estimateStatus:'select-status',nbsEstimator:'select-estimator',anticipatedStart:'month',anticipatedFinish:'month',dueDate:'date',notes:'textarea',bcLink:'text',gcEstimateLead:'text',finalReviewer:'text',swinertonProject:'select-yn',region:'select-region',primaryMarket:'select-market',inviteDate:'date',estimateNumber:'text'};
+const FIELD_LABELS={proposalTotal:'Proposal Total',estimateStatus:'Status',nbsEstimator:'NBS Estimator',anticipatedStart:'Est. Start',anticipatedFinish:'Est. End',dueDate:'Due Date',notes:'Notes',bcLink:'BC Link',gcEstimateLead:'GC Estimate Lead',finalReviewer:'Final Reviewer',swinertonProject:'Swinerton?',region:'Region',primaryMarket:'Primary Market',inviteDate:'Invite Date',estimateNumber:'Estimate #'};
 let editPopupState=null;
 
 function startInlineEdit(e,oi,field){
@@ -2451,6 +2451,13 @@ function commitEditPopup(){
   }
   if(field==='proposalTotal') v=v.replace(/[^0-9.]/g,'');
   if(field==='anticipatedStart'||field==='anticipatedFinish') v=v?v+'-01':'';
+
+  if(field==='estimateNumber' && v){
+    if(data.some((d,i)=>i!==oi&&d.estimateNumber===v)){
+      alert('That estimate number is already in use by another project. Each estimate number must be unique.');
+      return;
+    }
+  }
 
   const oldVal=data[oi][field];
   const oldStatusNorm=(oldVal==='Lost - Note Why in Comments'?'Lost':oldVal);
@@ -2635,28 +2642,7 @@ async function acknowledgeEntryById(entryId) {
     renderNewlyAssigned();
   } catch (e) { console.warn('Failed to acknowledge:', e); }
 }
-function startEstNumEdit(e, oi) {
-  e.stopPropagation();
-  const p = data[oi]; if(!p) return;
-  const confirmed = confirm(
-    'WARNING: Estimate numbers are permanent identifiers.\n\n' +
-    'Current: ' + (p.estimateNumber || '(none)') + '\n' +
-    'Project: ' + (p.projectName || '') + '\n\n' +
-    'Are you sure you want to change this estimate number?'
-  );
-  if (!confirmed) return;
-  const newVal = prompt('Enter new estimate number:', p.estimateNumber || '');
-  if (newVal === null || newVal.trim() === '' || newVal.trim() === p.estimateNumber) return;
-  const trimmed = newVal.trim();
-  if (data.some((d, i) => i !== oi && d.estimateNumber === trimmed)) {
-    alert('That estimate number is already in use by another project. Each estimate number must be unique.');
-    return;
-  }
-  data[oi].estimateNumber = trimmed;
-  save(); render();
-  syncFieldToServer(data[oi], 'estimateNumber', trimmed);
-  showToast('Estimate number updated to ' + trimmed);
-}
+function startEstNumEdit(e, oi) { startInlineEdit(e, oi, 'estimateNumber'); }
 function cancelInlineEdit(){
   closeEditPopupUI();
 }
