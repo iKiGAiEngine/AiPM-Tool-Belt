@@ -42,6 +42,7 @@ import { planParserStorage } from "./planparser/storage";
 import { getActiveFolderTemplate, getActiveEstimateTemplate, getFolderTemplateFileBuffer, getEstimateTemplateFileBuffer } from "./templateStorage";
 import ExcelJS from "exceljs";
 import { extractProjectDetailsFromScreenshot } from "./screenshotExtractor";
+import { matchRegionWithFallback, formatRegionDisplay } from "./regionMatcher";
 import { guessMarket, guessRegion, createProposalLogEntry, bulkCreateProposalLogEntries, getUnsyncedEntries, markEntriesSynced, getActiveProposalLogEntries, getAllProposalLogEntries, updateProposalLogEntryById, deleteProposalLogEntry, deleteProposalLogEntries, getAcknowledgedEntryIds, acknowledgeEntry, unacknowledgeEntry, clearAcknowledgementsForEntry } from "./proposalLogService";
 import { getSheetUrl, syncProposalLogToSheet, pullRepairAndPush, isGoogleSheetConfigured } from "./googleSheetSync";
 import { users, proposalLogEntries } from "@shared/schema";
@@ -113,66 +114,10 @@ export function registerProjectRoutes(app: Express) {
       const result = await extractProjectDetailsFromScreenshot(req.file.buffer);
       console.log(`[ScreenshotExtractor] Extracted: name="${result.projectName}", date="${result.dueDate}", location="${result.location}", client="${result.clientName}", clientLoc="${result.clientLocation}", invite="${result.inviteDate}", start="${result.expectedStart}", finish="${result.expectedFinish}", gcContact="${result.gcContactName}", gcEmail="${result.gcContactEmail}"`);
 
-      const regions = await getAllRegions();
-      let matchedRegionCode: string | null = null;
-
-      const CITY_TO_REGION_CODE: Record<string, string> = {
-        "ocla": "LAX", "los angeles": "LAX", "la": "LAX", "orange county": "LAX",
-        "portland": "PDX", "oregon": "PDX",
-        "seattle": "SEA", "washington": "SEA", "tacoma": "SEA", "bellevue": "SEA",
-        "charlotte": "CLT", "n carolina": "CLT", "north carolina": "CLT", "s carolina": "CLT", "south carolina": "CLT",
-        "atlanta": "ATL", "georgia": "ATL",
-        "austin": "AUS", "san antonio": "AUS",
-        "denver": "DEN", "colorado": "DEN",
-        "dallas": "DFW", "fort worth": "DFW",
-        "hawaii": "HNL", "honolulu": "HNL",
-        "new york": "LGA", "manhattan": "LGA",
-        "san francisco": "SFO", "nor cal": "SFO", "bay area": "SFO", "oakland": "SFO", "sacramento": "SFO",
-        "san diego": "SAN", "sd": "SAN",
-        "spokane": "GEG", "boise": "GEG",
-        "idaho": "PDX",
-        "special projects": "LAX", "fs": "LAX", "spd": "LAX", "tm": "LAX",
-      };
-
-      const clientLoc = (result.clientLocation || "").trim().toLowerCase();
-      if (clientLoc) {
-        if (CITY_TO_REGION_CODE[clientLoc]) {
-          matchedRegionCode = CITY_TO_REGION_CODE[clientLoc];
-        } else {
-          for (const region of regions) {
-            const regionNameLower = (region.name || "").toLowerCase();
-            const regionCodeLower = region.code.toLowerCase();
-            if (clientLoc === regionNameLower || clientLoc === regionCodeLower) {
-              matchedRegionCode = region.code;
-              break;
-            }
-          }
-          if (!matchedRegionCode) {
-            for (const [alias, code] of Object.entries(CITY_TO_REGION_CODE)) {
-              if (clientLoc.includes(alias) || alias.includes(clientLoc)) {
-                matchedRegionCode = code;
-                break;
-              }
-            }
-          }
-        }
-      }
-
-      if (!matchedRegionCode && result.location) {
-        const locLower = result.location.toLowerCase();
-        for (const region of regions) {
-          const regionNameLower = (region.name || "").toLowerCase();
-          const regionCodeLower = region.code.toLowerCase();
-          if (
-            locLower.includes(regionNameLower) ||
-            locLower.includes(regionCodeLower) ||
-            regionNameLower.includes(locLower.split(",")[0]?.trim() || "")
-          ) {
-            matchedRegionCode = region.code;
-            break;
-          }
-        }
-      }
+      const clientLoc = (result.clientLocation || "").trim();
+      const projectLoc = (result.location || "").trim();
+      const regionMatch = await matchRegionWithFallback(clientLoc, projectLoc);
+      const matchedRegionCode = regionMatch.confident ? regionMatch.code : null;
 
       const primaryMarket = guessMarket(result.projectName || "", result.rawText);
 
@@ -787,14 +732,18 @@ export function registerProjectRoutes(app: Express) {
 
           const regions = await getAllRegions();
           const matchedRegion = regions.find(r => r.code === regionCode.toUpperCase());
-          let regionLabel = matchedRegion?.name ? `${matchedRegion.name} (${regionCode.toUpperCase()})` : regionCode.toUpperCase();
+          let regionLabel = matchedRegion?.name ? `${matchedRegion.name} (${regionCode.toUpperCase()})` : "";
 
           const rawScreenshotText = req.body.screenshotRawText || "";
           const frontendMarket = req.body.primaryMarket || "";
           const bestMarket = frontendMarket || guessMarket(safeName, rawScreenshotText);
-          const bestRegion = guessRegion(req.body.screenshotLocation || "", safeName);
-          if (!regionLabel && bestRegion) {
-            regionLabel = bestRegion;
+          if (!regionLabel) {
+            const fallbackMatch = await matchRegionWithFallback(req.body.screenshotLocation || "", safeName);
+            if (fallbackMatch.confident) {
+              regionLabel = fallbackMatch.displayLabel;
+            } else if (regionCode) {
+              regionLabel = regionCode.toUpperCase();
+            }
           }
 
           const frontendInviteDate = req.body.inviteDate || "";

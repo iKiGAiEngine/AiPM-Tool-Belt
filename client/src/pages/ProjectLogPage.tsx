@@ -79,6 +79,23 @@ export default function ProjectLogPage() {
     staleTime: 5 * 60 * 1000,
   });
 
+  const { data: dbRegions = [] } = useQuery<{ id: number; code: string; name: string | null; isActive: boolean }[]>({
+    queryKey: ["/api/regions", "active"],
+    queryFn: async () => {
+      const res = await fetch("/api/regions?active=true", { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to load regions");
+      return res.json();
+    },
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const regionDisplayOptions = useMemo(() => {
+    return dbRegions.map(r => {
+      if (r.code === "EXT") return `${r.name} - External`;
+      return `${r.name} (${r.code})`;
+    });
+  }, [dbRegions]);
+
   const { data: syncStatus } = useQuery<{ lastSyncAt: string | null }>({
     queryKey: ["/api/bc/sync-status"],
     staleTime: 60 * 1000,
@@ -968,14 +985,21 @@ export default function ProjectLogPage() {
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className="text-xs font-medium mb-1 block" style={{ color: "var(--text-dim)" }}>Region Code</label>
-                      <Input
+                      <label className="text-xs font-medium mb-1 block" style={{ color: !editForm.region ? "#e67e22" : "var(--text-dim)" }}>
+                        Region {!editForm.region && <span style={{ color: "#e67e22" }}>⚠ Please select</span>}
+                      </label>
+                      <select
                         value={editForm.region}
                         onChange={(e) => setEditForm(f => ({ ...f, region: e.target.value }))}
-                        placeholder="e.g. SAN, LAX, DEN"
-                        className="text-sm"
-                        data-testid="input-edit-region"
-                      />
+                        className="w-full rounded-md border px-3 py-2 text-sm"
+                        style={{ background: "var(--bg-input)", color: "var(--text)", borderColor: !editForm.region ? "#e67e22" : "var(--border)" }}
+                        data-testid="select-edit-region"
+                      >
+                        <option value="">— Select Region —</option>
+                        {regionDisplayOptions.map(r => (
+                          <option key={r} value={r}>{r}</option>
+                        ))}
+                      </select>
                     </div>
                     <div>
                       <label className="text-xs font-medium mb-1 block" style={{ color: "var(--text-dim)" }}>Due Date</label>

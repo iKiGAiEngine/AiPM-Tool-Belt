@@ -372,6 +372,7 @@ td:last-child{border-right:none;}
 .s-nobid{background:rgba(138,138,154,.12);color:var(--text-dim);border:1px solid rgba(138,138,154,.25);}
 .s-undecided{background:rgba(255,165,0,.12);color:#FFA500;border:1px solid rgba(255,165,0,.3);}
 .swin-yes{background:rgba(61,170,106,.12);color:var(--win);border:1px solid rgba(61,170,106,.25);border-radius:4px;padding:2px 6px;font-size:10px;font-family:'Rajdhani',sans-serif;font-weight:600;}
+.region-warn{color:#e67e22;font-size:11px;font-weight:600;font-family:'Rajdhani',sans-serif;}
 .swin-no{background:rgba(138,138,154,.1);color:var(--text-dim);border:1px solid rgba(138,138,154,.2);border-radius:4px;padding:2px 6px;font-size:10px;font-family:'Rajdhani',sans-serif;font-weight:600;}
 .val-cell{font-family:'Rajdhani',sans-serif;font-size:16px;font-weight:600;}
 .date-dim{color:var(--text-dim);font-size:11px;}
@@ -893,16 +894,6 @@ td.inline-editing>.inline-editor-pop{position:absolute;left:-2px;top:50%;transfo
         <div class="form-group"><label class="fl">Region</label>
           <select class="fi" id="f-region-input">
             <option value="">&mdash; Select &mdash;</option>
-            <option>Atlanta (ATL)</option><option>Austin (AUS)</option><option>Colorado (DEN)</option>
-            <option>Dallas (DFW)</option><option>Hawaii (HNL)</option><option>Idaho (PDX)</option>
-            <option>N Carolina (CLT)</option><option>New York (LGA)</option><option>Nor Cal (SFO)</option>
-            <option>OCLA (LAX)</option><option>Portland (PDX)</option><option>S Carolina (CLT)</option>
-            <option>FS (LAX)</option><option>SD (SAN)</option><option>SPD (LAX)</option>
-            <option>TM (LAX)</option><option>Washington (SEA)</option><option>PCL - External</option>
-            <option>Spokane &amp; Boise (GEG)</option><option>Hensel Phelps - External</option>
-            <option>McCarthy - External</option><option>CBU - External</option>
-            <option>Bristol Industries - External</option><option>BN Builders - External</option>
-            <option>Jacobs - External</option>
           </select>
         </div>
         <div class="form-group"><label class="fl">Primary Market</label>
@@ -1062,7 +1053,21 @@ window.addEventListener('storage', function(e) {
   }
 });
 
-const REGIONS = ['Atlanta (ATL)','Austin (AUS)','Colorado (DEN)','Dallas (DFW)','Hawaii (HNL)','Idaho (PDX)','N Carolina (CLT)','New York (LGA)','Nor Cal (SFO)','OCLA (LAX)','Portland (PDX)','S Carolina (CLT)','FS (LAX)','SD (SAN)','SPD (LAX)','TM (LAX)','Washington (SEA)','PCL - External','Spokane & Boise (GEG)','Hensel Phelps - External','McCarthy - External','CBU - External','Bristol Industries - External','BN Builders - External','Jacobs - External'];
+let REGIONS = [];
+async function loadRegionsFromServer() {
+  try {
+    const resp = await fetch('/api/regions?active=true');
+    if (!resp.ok) throw new Error('Failed to fetch regions');
+    const data = await resp.json();
+    REGIONS = data.map(r => {
+      if (r.code === 'EXT') return `${r.name} - External`;
+      return `${r.name} (${r.code})`;
+    });
+  } catch (e) {
+    console.error('Failed to load regions:', e);
+    REGIONS = [];
+  }
+}
 const MARKETS = ['Aviation','Education','Entertainment','Healthcare','Hospitality','Residential','Retail','Office','Parking Structure','Public Facility','Special Projects'];
 const STATUSES = ['Estimating','Revising','Submitted','Awarded','Won','Lost','No Bid','Undecided','Declined','Lost - Note Why in Comments'];
 
@@ -1395,6 +1400,17 @@ function buildRows() {
             </div>`;
           } else { val=p.notes||'\u2014'; }
           break;
+        case 'region': {
+          const regionVal = p.region || '';
+          if (!regionVal) {
+            val = '<span class="region-warn" title="Region not assigned — please select one">\u26a0 Unassigned</span>';
+          } else if (REGIONS.length > 0 && !REGIONS.includes(regionVal)) {
+            val = `<span class="region-warn" title="Unknown region — not in settings">\u26a0 ${regionVal}</span>`;
+          } else {
+            val = regionVal;
+          }
+          break;
+        }
         case 'bcLink':
           if(p.bcLink && /^https?:\/\//i.test(p.bcLink)){
             const safeUrl=p.bcLink.replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
@@ -2622,11 +2638,11 @@ function cancelInlineEdit(){
   td.classList.remove('inline-editing'); td.innerHTML=originalHTML; activeInlineEdit=null;
 }
 
-const KNOWN_REGIONS=['Atlanta (ATL)','Austin (AUS)','Colorado (DEN)','Dallas (DFW)','Hawaii (HNL)','Idaho (PDX)','N Carolina (CLT)','New York (LGA)','Nor Cal (SFO)','OCLA (LAX)','Portland (PDX)','S Carolina (CLT)','FS (LAX)','SD (SAN)','SPD (LAX)','TM (LAX)','Washington (SEA)','PCL - External','Spokane & Boise (GEG)','Hensel Phelps - External','McCarthy - External','CBU - External','Bristol Industries - External','BN Builders - External','Jacobs - External'];
+function getKnownRegions() { return REGIONS; }
 const STATUS_MAP={'pending':'Submitted','submitted':'Submitted','bidding':'Estimating','estimating':'Estimating','in progress':'Estimating','revising':'Revising','revision':'Revising','lost':'Lost - Note Why in Comments','loss':'Lost - Note Why in Comments','win':'Awarded','won':'Awarded','awarded':'Awarded'};
 let importRows=[];
 
-function parseRegion(raw){if(!raw)return'';const s=raw.toString().trim();if(KNOWN_REGIONS.includes(s))return s;for(const r of KNOWN_REGIONS){if(s.startsWith(r))return r;}for(const r of KNOWN_REGIONS){const c=r.match(/\(([^)]+)\)/)?.[1];if(c&&s.includes('('+c+')'))return r;if(!c&&s.includes(r))return r;}return'';}
+function parseRegion(raw){if(!raw)return'';const s=raw.toString().trim();const KR=getKnownRegions();if(KR.includes(s))return s;for(const r of KR){if(s.startsWith(r))return r;}for(const r of KR){const c=r.match(/\(([^)]+)\)/)?.[1];if(c&&s.includes('('+c+')'))return r;if(!c&&s.includes(r))return r;}return'';}
 function parseScopeDate(raw){if(!raw)return'';const s=raw.toString().trim();if(!s||s==='-'||s.toLowerCase()==='n/a'||s==='?')return'';const m=s.match(/^(\d{1,2})\/(\d{2})$/);if(m)return`20${m[2]}-${m[1].padStart(2,'0')}-01`;if(s.match(/^\d{4}-\d{2}-\d{2}$/))return s;return'';}
 function parseBidDate(raw){if(!raw)return'';const s=raw.toString().trim();let m=s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2})$/);if(m)return`20${m[3]}-${m[1].padStart(2,'0')}-${m[2].padStart(2,'0')}`;m=s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);if(m)return`${m[3]}-${m[1].padStart(2,'0')}-${m[2].padStart(2,'0')}`;if(!isNaN(s)&&Number(s)>40000){const d=new Date((Number(s)-25569)*86400000);return`${d.getUTCFullYear()}-${String(d.getUTCMonth()+1).padStart(2,'0')}-${String(d.getUTCDate()).padStart(2,'0')}`;}return'';}
 function parseDollar(raw){if(!raw&&raw!==0)return'';return raw.toString().replace(/[$,\s]/g,'').trim()||'';}
@@ -3011,6 +3027,14 @@ async function loadFromServer() {
 }
 
 async function initApp() {
+  await loadRegionsFromServer();
+  const regionCol = COL_DEFS.find(c => c.key === 'region');
+  if (regionCol) regionCol.opts = REGIONS;
+  const regionInput = document.getElementById('f-region-input');
+  if (regionInput) {
+    regionInput.innerHTML = '<option value="">&mdash; Select &mdash;</option>' + REGIONS.map(r => `<option>${r}</option>`).join('');
+  }
+
   document.getElementById('search').addEventListener('input', () => buildRows());
   ['f-region','f-status','f-market','f-swinerton','f-from','f-to']
     .forEach(id => document.getElementById(id).addEventListener('change', () => buildRows()));

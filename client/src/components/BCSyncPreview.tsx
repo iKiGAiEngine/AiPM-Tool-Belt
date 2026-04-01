@@ -20,6 +20,7 @@ interface PreviewEntry {
   existingEntryId?: number;
   scopeChanges?: string[];
   fieldChanges?: string[];
+  regionNotConfident?: boolean;
 }
 
 interface SyncPreviewResponse {
@@ -227,7 +228,10 @@ export function BCSyncPreview({ onClose }: BCSyncPreviewProps) {
                         {entry.region ? (
                           <Badge variant="secondary" className="text-xs">{entry.region}</Badge>
                         ) : (
-                          <span style={{ color: "var(--text-dim)" }}>\u2014</span>
+                          <span style={{ color: "#e67e22", fontSize: "11px" }}>⚠ No region</span>
+                        )}
+                        {entry.regionNotConfident && entry.region && (
+                          <span style={{ color: "#e67e22", fontSize: "10px", marginLeft: 4 }} title="Region needs review">⚠</span>
                         )}
                       </td>
                       <td className="py-2 px-2 text-xs" style={{ color: "var(--text-dim)" }}>{fmtDate(entry.dueDate)}</td>

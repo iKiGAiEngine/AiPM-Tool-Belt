@@ -8,6 +8,7 @@ import { guessMarket } from "../proposalLogService";
 import { generateProjectId, createProject } from "../scopeDictionaryStorage";
 import { sendDraftNotificationEmail } from "../emailService";
 import { getActiveFolderTemplate, getActiveEstimateTemplate, getFolderTemplateFileBuffer, getEstimateTemplateFileBuffer } from "../templateStorage";
+import { matchRegionWithFallback } from "../regionMatcher";
 import fs from "fs";
 import path from "path";
 import JSZip from "jszip";
@@ -20,79 +21,11 @@ const GC_ALLOWLIST = [
   "swinerton",
 ];
 
-const REGION_MAP: Record<string, string> = {
-  "colorado": "DEN",
-  "denver": "DEN",
-  "arvada": "DEN",
-  "atlanta": "ATL",
-  "georgia": "ATL",
-  "foley": "ATL",
-  "greenville": "CLT",
-  "norcal": "SFO",
-  "nor cal": "SFO",
-  "san francisco": "SFO",
-  "bay area": "SFO",
-  "sacramento": "SFO",
-  "oakland": "SFO",
-  "fairfield": "SFO",
-  "cameron park": "SFO",
-  "fresno": "SFO",
-  "san jose": "SFO",
-  "special projects": "LAX",
-  "spd": "LAX",
-  "la": "LAX",
-  "los angeles": "LAX",
-  "ocla": "LAX",
-  "orange county": "LAX",
-  "santa ana": "LAX",
-  "irvine": "LAX",
-  "washington": "SEA",
-  "seattle": "SEA",
-  "tacoma": "SEA",
-  "bellevue": "SEA",
-  "portland": "PDX",
-  "oregon": "PDX",
-  "austin": "AUS",
-  "san antonio": "AUS",
-  "dallas": "DFW",
-  "fort worth": "DFW",
-  "charlotte": "CLT",
-  "san diego": "SAN",
-  "colton": "LAX",
-  "inglewood": "LAX",
-  "riverside": "LAX",
-  "ontario": "LAX",
-  "pasadena": "LAX",
-  "long beach": "LAX",
-  "anaheim": "LAX",
-  "glendale": "LAX",
-  "burbank": "LAX",
-  "temecula": "LAX",
-  "fontana": "LAX",
-  "rancho cucamonga": "LAX",
-  "pomona": "LAX",
-  "san bernardino": "LAX",
-  "eugene": "PDX",
-  "salem": "PDX",
-  "bend": "PDX",
-  "hawaii": "HNL",
-  "honolulu": "HNL",
-  "spokane": "GEG",
-  "boise": "GEG",
-  "new york": "LGA",
-  "ca": "LAX",
-  "az": "LAX",
-};
-
 const MAX_SYNC_ENTRIES = 50;
 
-export function guessRegionFromLocation(location: string): string {
-  const loc = (location || "").toLowerCase();
-  for (const [key, code] of Object.entries(REGION_MAP)) {
-    const re = new RegExp(`(?:^|[\\s,/\\-])${key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?:$|[\\s,/\\-])`, "i");
-    if (re.test(` ${loc} `)) return code;
-  }
-  return "";
+export async function guessRegionFromLocation(location: string): Promise<string> {
+  const result = await matchRegionWithFallback(location, "");
+  return result.code;
 }
 
 interface BcOpportunity {
@@ -458,15 +391,10 @@ function getLocationStr(opp: BcOpportunity): string {
   return parts.join(", ") || opp.location?.formattedAddress || "";
 }
 
-function mapOpportunityToEntry(opp: BcOpportunity) {
+async function mapOpportunityToEntry(opp: BcOpportunity) {
   const locationStr = getLocationStr(opp);
-  let region = guessRegionFromLocation(locationStr);
-  if (!region && opp.gcCompanyName) {
-    const officeSuffix = opp.gcCompanyName.split(/[-–—]/).pop()?.trim() || "";
-    if (officeSuffix) {
-      region = guessRegionFromLocation(officeSuffix);
-    }
-  }
+  const officeSuffix = opp.gcCompanyName ? (opp.gcCompanyName.split(/[-–—]/).pop()?.trim() || "") : "";
+  const regionResult = await matchRegionWithFallback(locationStr, officeSuffix);
   const projectName = opp.projectName || "Untitled BC Project";
   const marketContext = [
     (opp.scopes || []).join(" "),
@@ -502,7 +430,8 @@ function mapOpportunityToEntry(opp: BcOpportunity) {
 
   return {
     projectName,
-    region,
+    region: regionResult.code ? regionResult.displayLabel : "",
+    regionNotConfident: !regionResult.confident,
     primaryMarket,
     dueDate,
     inviteDate,
@@ -527,6 +456,7 @@ interface PreviewItem {
   action: SyncAction;
   projectName: string;
   region: string;
+  regionNotConfident?: boolean;
   dueDate: string;
   inviteDate: string;
   gcEstimateLead: string;
@@ -543,9 +473,9 @@ function isAdmin(user: { role: string } | null | undefined): boolean {
   return user?.role === "admin";
 }
 
-function detectFieldChanges(existing: typeof proposalLogEntries.$inferSelect, opp: BcOpportunity): string[] {
+async function detectFieldChanges(existing: typeof proposalLogEntries.$inferSelect, opp: BcOpportunity): Promise<string[]> {
   const changes: string[] = [];
-  const mapped = mapOpportunityToEntry(opp);
+  const mapped = await mapOpportunityToEntry(opp);
 
   if (existing.dueDate !== mapped.dueDate && mapped.dueDate) {
     changes.push(`dueDate: ${existing.dueDate || "none"} → ${mapped.dueDate}`);
@@ -617,10 +547,10 @@ export function registerBcSyncRoutes(app: Express) {
         if (existingLog && existingLog.entryId) {
           const existingEntry = entriesById.get(existingLog.entryId);
           if (existingEntry) {
-            const changes = detectFieldChanges(existingEntry, opp);
+            const changes = await detectFieldChanges(existingEntry, opp);
             if (changes.length > 0) {
               updateCount++;
-              const updMapped = mapOpportunityToEntry(opp);
+              const updMapped = await mapOpportunityToEntry(opp);
               preview.push({
                 opportunityId: opp.id,
                 action: "update",
@@ -644,7 +574,7 @@ export function registerBcSyncRoutes(app: Express) {
         if (!existingLog && opp.projectId && entriesByBcProjectId.has(opp.projectId)) {
           const existingEntry = entriesByBcProjectId.get(opp.projectId)!;
           mergeCount++;
-          const mrgMapped = mapOpportunityToEntry(opp);
+          const mrgMapped = await mapOpportunityToEntry(opp);
           preview.push({
             opportunityId: opp.id,
             action: "merge",
@@ -686,12 +616,13 @@ export function registerBcSyncRoutes(app: Express) {
 
         if (!existingLog) {
           createCount++;
-          const mapped = mapOpportunityToEntry(opp);
+          const mapped = await mapOpportunityToEntry(opp);
           const item: PreviewItem = {
             opportunityId: opp.id,
             action: "create",
             projectName: mapped.projectName,
             region: mapped.region,
+            regionNotConfident: mapped.regionNotConfident,
             dueDate: mapped.dueDate,
             inviteDate: mapped.inviteDate,
             gcEstimateLead: mapped.gcEstimateLead,
@@ -807,13 +738,13 @@ export function registerBcSyncRoutes(app: Express) {
         if (existingLog && existingLog.entryId) {
           const existingEntry = entriesById.get(existingLog.entryId);
           if (existingEntry) {
-            const changes = detectFieldChanges(existingEntry, opp);
+            const changes = await detectFieldChanges(existingEntry, opp);
             if (changes.length > 0) {
               const existingChangeLog: string[] = existingEntry.bcChangeLog ? JSON.parse(existingEntry.bcChangeLog) : [];
               const newLogEntry = `${new Date().toISOString()}: ${changes.join("; ")}`;
               existingChangeLog.push(newLogEntry);
 
-              const mapped = mapOpportunityToEntry(opp);
+              const mapped = await mapOpportunityToEntry(opp);
               const mergedScopes = new Set([
                 ...(existingEntry.scopeList ? JSON.parse(existingEntry.scopeList) as string[] : []),
                 ...(opp.scopes || []),
@@ -898,7 +829,7 @@ export function registerBcSyncRoutes(app: Express) {
 
         if (!existingLog) {
           try {
-            const entryData = mapOpportunityToEntry(opp);
+            const { regionNotConfident: _rnc, ...entryData } = await mapOpportunityToEntry(opp);
 
             const [entry] = await db.insert(proposalLogEntries).values({
               ...entryData,
@@ -1050,7 +981,10 @@ export function registerBcSyncRoutes(app: Express) {
       const { projectName, region, dueDate, nbsEstimator, gcEstimateLead, owner, primaryMarket, notes, scopeList } = req.body || {};
 
       const finalProjectName = (projectName || entry.projectName || "").slice(0, 500);
-      const finalRegion = (region || entry.region || "").replace(/[^A-Za-z0-9]/g, "").slice(0, 10);
+      let rawRegion = region || entry.region || "";
+      const codeMatch = rawRegion.match(/\(([A-Z]{2,5})\)/);
+      const extMatch = rawRegion.match(/- External$/i);
+      const finalRegion = codeMatch ? codeMatch[1] : extMatch ? "EXT" : rawRegion.replace(/[^A-Za-z0-9]/g, "").slice(0, 10);
       const finalDueDate = dueDate || entry.dueDate || "";
       const finalNbsEstimator = nbsEstimator !== undefined ? nbsEstimator : entry.nbsEstimator;
       const finalGcEstimateLead = gcEstimateLead !== undefined ? gcEstimateLead : entry.gcEstimateLead;
