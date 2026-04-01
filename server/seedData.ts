@@ -1,9 +1,18 @@
 import { db } from "./db";
 import { regions, scopeDictionaries, vendors, div10Products } from "@shared/schema";
-import { count } from "drizzle-orm";
+import { count, sql } from "drizzle-orm";
+
+async function ensureRegionAliasesColumn(): Promise<void> {
+  try {
+    await db.execute(sql`ALTER TABLE regions ADD COLUMN IF NOT EXISTS aliases text[]`);
+  } catch (e: any) {
+    console.log("[Migration] aliases column check:", e.message);
+  }
+}
 
 export async function seedDefaultData(): Promise<void> {
   try {
+    await ensureRegionAliasesColumn();
     const [regionCount] = await db.select({ value: count() }).from(regions);
     if (regionCount.value === 0) {
       const defaultRegions = [
