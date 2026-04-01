@@ -9,9 +9,9 @@ export interface RegionMatchResult {
 
 export function formatRegionDisplay(region: Region): string {
   if (region.code === "EXT") {
-    return `${region.name} - External`;
+    return `EXT - External`;
   }
-  return `${region.name} (${region.code})`;
+  return `${region.code} - ${region.name}`;
 }
 
 export async function matchRegionFromLocation(locationStr: string): Promise<RegionMatchResult> {

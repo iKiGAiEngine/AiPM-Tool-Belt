@@ -429,20 +429,24 @@ th.col-drop-after::after{content:'';position:absolute;right:0;top:0;bottom:0;wid
 .inline-edit-wrap{position:relative;display:inline-flex;align-items:center;gap:4px;width:100%;cursor:pointer;}
 .inline-edit-wrap:hover .inline-edit-hint{opacity:1;}
 .inline-edit-hint{opacity:0;font-size:9px;color:var(--gold-dim);transition:opacity .15s;flex-shrink:0;user-select:none;}
-td.inline-editing{padding:0 !important;position:relative;overflow:visible !important;}
-td.inline-editing>.inline-editor-pop{position:absolute;left:-2px;top:50%;transform:translateY(-50%);display:flex;align-items:center;gap:4px;background:var(--bg4);border:2px solid var(--gold-dim);border-radius:5px;padding:4px 8px;z-index:100;box-shadow:0 4px 16px rgba(0,0,0,.4);white-space:nowrap;}
-.inline-input{background:var(--bg3);border:1px solid var(--border);color:var(--text);padding:4px 8px;border-radius:4px;font-size:13px;font-family:'DM Sans',sans-serif;outline:none;width:120px;box-sizing:border-box;}
-.inline-input:focus{border-color:var(--gold-dim);box-shadow:0 0 0 2px rgba(201,168,76,.2);}
-.inline-select{background:var(--bg4);border:1px solid var(--gold-dim);color:var(--text);padding:3px 6px;border-radius:4px;font-size:11px;font-family:'DM Sans',sans-serif;outline:none;cursor:pointer;}
-.inline-date{background:var(--bg4);border:1px solid var(--gold-dim);color:var(--text);padding:3px 6px;border-radius:4px;font-size:11px;font-family:'DM Sans',sans-serif;outline:none;color-scheme:var(--inline-date-scheme);}
-.inline-actions{display:flex;gap:2px;flex-shrink:0;}
-.inline-save{background:rgba(61,170,106,.2);border:1px solid rgba(61,170,106,.4);color:var(--win);width:20px;height:20px;border-radius:3px;cursor:pointer;font-size:10px;display:flex;align-items:center;justify-content:center;}
-.inline-cancel{background:rgba(192,57,43,.15);border:1px solid rgba(192,57,43,.3);color:var(--loss);width:20px;height:20px;border-radius:3px;cursor:pointer;font-size:10px;display:flex;align-items:center;justify-content:center;}
-
-/* ── STATUS DROPDOWN ────────────────────────────────── */
-.status-dropdown{background:var(--bg3);border:1px solid var(--border);color:var(--text);padding:4px 6px;border-radius:5px;font-size:11px;font-family:'DM Sans',sans-serif;outline:none;cursor:pointer;width:100%;transition:border-color .2s;}
-.status-dropdown:hover{border-color:var(--gold-dim);}
-.status-dropdown:focus{border-color:var(--gold);box-shadow:0 0 0 2px rgba(201,168,76,.15);}
+/* ── UNIFIED EDIT POPUP ─────────────────────────────── */
+#edit-popup-overlay{display:none;position:fixed;inset:0;z-index:500;}
+#edit-popup{position:fixed;z-index:501;background:var(--bg2);border:1px solid var(--gold-dim);border-radius:8px;box-shadow:0 8px 32px rgba(0,0,0,.5);width:260px;max-height:420px;overflow:hidden;display:none;flex-direction:column;}
+#edit-popup .ep-header{padding:10px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;}
+#edit-popup .ep-title{font-family:'Rajdhani',sans-serif;font-size:11px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:var(--gold);}
+#edit-popup .ep-subtitle{font-size:10px;color:var(--text-dim);}
+#edit-popup .ep-body{flex:1;overflow-y:auto;padding:6px 0;}
+#edit-popup .ep-body input[type="text"],#edit-popup .ep-body input[type="number"],#edit-popup .ep-body input[type="date"],#edit-popup .ep-body input[type="month"]{width:100%;background:var(--bg3);border:1px solid var(--border);color:var(--text);padding:8px 14px;font-size:13px;font-family:'DM Sans',sans-serif;outline:none;box-sizing:border-box;border-radius:0;color-scheme:var(--inline-date-scheme);}
+#edit-popup .ep-body input:focus{border-color:var(--gold-dim);background:var(--bg4);}
+#edit-popup .ep-body textarea{width:100%;min-height:100px;background:var(--bg3);border:none;color:var(--text);padding:10px 14px;font-size:12px;font-family:'DM Sans',sans-serif;outline:none;resize:vertical;box-sizing:border-box;}
+#edit-popup .ep-body textarea:focus{background:var(--bg4);}
+#edit-popup .ep-item{display:flex;align-items:center;gap:8px;padding:5px 14px;cursor:pointer;transition:background .1s;font-size:12px;}
+#edit-popup .ep-item:hover{background:rgba(201,168,76,.06);}
+#edit-popup .ep-item.ep-selected{background:rgba(201,168,76,.12);}
+#edit-popup .ep-item .ep-radio{width:14px;height:14px;border-radius:50%;border:2px solid var(--border);display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:border-color .15s;}
+#edit-popup .ep-item.ep-selected .ep-radio{border-color:var(--gold);}
+#edit-popup .ep-item.ep-selected .ep-radio::after{content:'';width:8px;height:8px;border-radius:50%;background:var(--gold);}
+#edit-popup .ep-footer{padding:8px 14px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;}
 .loss-summary-mini{font-size:9px;color:var(--text-dim);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 
 /* ── NBS SCOPES POPUP ──────────────────────────────── */
@@ -462,16 +466,10 @@ td.inline-editing>.inline-editor-pop{position:absolute;left:-2px;top:50%;transfo
 #scope-popup .sp-item input{accent-color:var(--gold);width:14px;height:14px;cursor:pointer;}
 #scope-popup .sp-footer{padding:8px 14px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;}
 
-/* ── NOTES POPUP ───────────────────────────────────── */
+/* ── NOTES CELL ───────────────────────────────────── */
 .notes-cell{cursor:pointer;padding:2px 0;}
 .notes-trigger{font-size:11px;color:var(--text-dim);transition:color .15s;}
 .notes-cell:hover .notes-trigger{color:var(--gold);}
-#notes-popup-overlay{display:none;position:fixed;inset:0;z-index:500;}
-#notes-popup{position:fixed;z-index:501;background:var(--bg2);border:1px solid var(--gold-dim);border-radius:8px;box-shadow:0 8px 32px rgba(0,0,0,.5);width:300px;display:flex;flex-direction:column;}
-#notes-popup .np-header{padding:10px 14px;border-bottom:1px solid var(--border);font-family:'Rajdhani',sans-serif;font-size:11px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:var(--gold);}
-#notes-popup textarea{width:100%;min-height:100px;background:var(--bg3);border:none;color:var(--text);padding:12px 14px;font-size:12px;font-family:'DM Sans',sans-serif;outline:none;resize:vertical;box-sizing:border-box;}
-#notes-popup textarea:focus{background:var(--bg4);}
-#notes-popup .np-footer{padding:8px 14px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:6px;}
 
 /* ── NO BID / LOST MODAL ───────────────────────────── */
 #nobid-modal-overlay{display:none;position:fixed;inset:0;background:var(--overlay-bg);z-index:600;align-items:center;justify-content:center;}
@@ -847,14 +845,16 @@ td.inline-editing>.inline-editor-pop{position:absolute;left:-2px;top:50%;transfo
   </div>
 </div>
 
-<!-- NOTES POPUP -->
-<div id="notes-popup-overlay" onclick="closeNotesPopup(true)"></div>
-<div id="notes-popup" style="display:none">
-  <div class="np-header">Notes</div>
-  <textarea id="notes-textarea" placeholder="Add notes..."></textarea>
-  <div class="np-footer">
-    <button class="btn-secondary" onclick="closeNotesPopup(false)" style="padding:4px 12px;font-size:11px">Cancel</button>
-    <button class="btn-primary" onclick="closeNotesPopup(true)" style="padding:4px 12px;font-size:11px">Save</button>
+<!-- UNIFIED EDIT POPUP -->
+<div id="edit-popup-overlay" onclick="commitEditPopup()"></div>
+<div id="edit-popup" style="display:none">
+  <div class="ep-header">
+    <span class="ep-title" id="ep-title"></span>
+    <span class="ep-subtitle" id="ep-subtitle"></span>
+  </div>
+  <div class="ep-body" id="ep-body"></div>
+  <div class="ep-footer">
+    <button class="btn-primary" onclick="commitEditPopup()" style="padding:5px 16px;font-size:11px">Done</button>
   </div>
 </div>
 
@@ -1053,19 +1053,42 @@ window.addEventListener('storage', function(e) {
 });
 
 let REGIONS = [];
+let REGIONS_RAW = [];
 async function loadRegionsFromServer() {
   try {
     const resp = await fetch('/api/regions?active=true');
     if (!resp.ok) throw new Error('Failed to fetch regions');
-    const data = await resp.json();
-    REGIONS = data.map(r => {
-      if (r.code === 'EXT') return `${r.name} - External`;
-      return `${r.name} (${r.code})`;
+    const rdata = await resp.json();
+    REGIONS_RAW = rdata;
+    REGIONS = rdata.map(r => {
+      if (r.code === 'EXT') return 'EXT - External';
+      return `${r.code} - ${r.name}`;
     });
   } catch (e) {
     console.error('Failed to load regions:', e);
     REGIONS = [];
+    REGIONS_RAW = [];
   }
+}
+function normalizeRegion(val) {
+  if (!val) return '';
+  if (REGIONS.includes(val)) return val;
+  const up = val.toUpperCase().trim();
+  for (const r of REGIONS_RAW) {
+    if (up === r.code.toUpperCase()) {
+      return r.code === 'EXT' ? 'EXT - External' : `${r.code} - ${r.name}`;
+    }
+  }
+  const m = val.match(/\(([^)]+)\)/);
+  if (m) {
+    const code = m[1].toUpperCase();
+    for (const r of REGIONS_RAW) {
+      if (code === r.code.toUpperCase()) {
+        return r.code === 'EXT' ? 'EXT - External' : `${r.code} - ${r.name}`;
+      }
+    }
+  }
+  return val;
 }
 const MARKETS = ['Aviation','Education','Entertainment','Healthcare','Hospitality','Residential','Retail','Office','Parking Structure','Public Facility','Special Projects'];
 const STATUSES = ['Estimating','Revising','Submitted','Awarded','Won','Lost','No Bid','Undecided','Declined','Lost - Note Why in Comments'];
@@ -1331,10 +1354,10 @@ function buildRows() {
           break;
         case 'estimateStatus': {
           if(mode==='estimator' && can('editRow')) {
-            const STATUS_OPTS = ['Estimating','Submitted','Revising','Won','Awarded','Lost','No Bid','Undecided','Declined'];
             const curStatus = p.estimateStatus === 'Lost - Note Why in Comments' ? 'Lost' : (p.estimateStatus || 'Estimating');
-            const opts = STATUS_OPTS.map(s=>`<option value="${s}"${curStatus===s?' selected':''}>${s}</option>`).join('');
-            val=`<select class="status-dropdown" data-oi="${oi}" onchange="onStatusDropdownChange(this,${oi})">${opts}</select>`;
+            val=`<div class="inline-edit-wrap" onclick="startInlineEdit(event,${oi},'estimateStatus')">
+              ${statusBadge(p.estimateStatus)}
+              <span class="inline-edit-hint">\u270f</span></div>`;
             if(p.estimateStatus === 'Lost - Note Why in Comments' || curStatus === 'Lost') {
               const who = p.lossWho || '';
               const why = p.lossReason || '';
@@ -1407,7 +1430,7 @@ function buildRows() {
         case 'notes':
           if(mode==='estimator' && can('editRow')) {
             const notePreview = p.notes ? p.notes.substring(0,40) + (p.notes.length>40?'...':'') : '';
-            val=`<div class="notes-cell" onclick="openNotesPopup(event,${oi})">
+            val=`<div class="notes-cell" onclick="startInlineEdit(event,${oi},'notes')">
               <span class="notes-trigger">\ud83d\udcac ${notePreview || 'Add'}</span>
             </div>`;
           } else { val=p.notes||'\u2014'; }
@@ -2345,140 +2368,114 @@ let ESTIMATORS=[
     sel.innerHTML='<option value="">\u2014 Select \u2014</option>'+ESTIMATORS.map(e=>`<option value="${e.code}">${e.label}</option>`).join('');
   }
 })();
-const INLINE_FIELDS={proposalTotal:'number',estimateStatus:'select-status',nbsEstimator:'select-estimator',anticipatedStart:'month',anticipatedFinish:'month',dueDate:'date',notes:'text',bcLink:'text',gcEstimateLead:'text',finalReviewer:'text',swinertonProject:'select-yn',region:'select-region',primaryMarket:'select-market',inviteDate:'date'};
-let activeInlineEdit=null;
+const INLINE_FIELDS={proposalTotal:'number',estimateStatus:'select-status',nbsEstimator:'select-estimator',anticipatedStart:'month',anticipatedFinish:'month',dueDate:'date',notes:'textarea',bcLink:'text',gcEstimateLead:'text',finalReviewer:'text',swinertonProject:'select-yn',region:'select-region',primaryMarket:'select-market',inviteDate:'date'};
+const FIELD_LABELS={proposalTotal:'Proposal Total',estimateStatus:'Status',nbsEstimator:'NBS Estimator',anticipatedStart:'Est. Start',anticipatedFinish:'Est. End',dueDate:'Due Date',notes:'Notes',bcLink:'BC Link',gcEstimateLead:'GC Estimate Lead',finalReviewer:'Final Reviewer',swinertonProject:'Swinerton?',region:'Region',primaryMarket:'Primary Market',inviteDate:'Invite Date'};
+let editPopupState=null;
 
 function startInlineEdit(e,oi,field){
   e.stopPropagation();
-  if(activeInlineEdit)cancelInlineEdit();
+  openEditPopup(e,oi,field);
+}
+
+function openEditPopup(e,oi,field){
+  if(editPopupState)closeEditPopupUI();
   const p=data[oi]; if(!p)return;
-  const td=e.currentTarget.closest('td'); if(!td)return;
-  activeInlineEdit={oi,field,td,originalHTML:td.innerHTML};
-  td.classList.add('inline-editing');
   const type=INLINE_FIELDS[field];
+  editPopupState={oi,field,type};
+  const popup=document.getElementById('edit-popup');
+  const overlay=document.getElementById('edit-popup-overlay');
+  document.getElementById('ep-title').textContent=FIELD_LABELS[field]||field;
+  const body=document.getElementById('ep-body');
+  const subtitle=document.getElementById('ep-subtitle');
+  subtitle.textContent='';
+
   if(type==='number'){
-    td.innerHTML=`<div class="inline-editor-pop">
-      <span style="font-size:12px;color:var(--text-dim)">$</span>
-      <input class="inline-input" id="inline-inp" type="number" value="${p[field]||''}" min="0" step="1" placeholder="0"
-        onkeydown="inlineKeydown(event,${oi},'${field}')" onclick="event.stopPropagation()">
-      <div class="inline-actions">
-        <button class="inline-save" onclick="commitInlineEdit(${oi},'${field}')" title="Save">\u2713</button>
-        <button class="inline-cancel" onclick="cancelInlineEdit()" title="Cancel">\u2715</button>
-      </div></div>`;
-  } else if(type==='select-status'){
-    const opts=['Estimating','Revising','Submitted','Awarded'].map(s=>`<option value="${s}"${p[field]===s?' selected':''}>${s}</option>`).join('');
-    td.innerHTML=`<div class="inline-editor-pop">
-      <select class="inline-select" id="inline-inp" onkeydown="inlineKeydown(event,${oi},'${field}')" onclick="event.stopPropagation()">${opts}</select>
-      <div class="inline-actions">
-        <button class="inline-save" onclick="commitInlineEdit(${oi},'${field}')" title="Save">\u2713</button>
-        <button class="inline-cancel" onclick="cancelInlineEdit()" title="Cancel">\u2715</button>
-      </div></div>`;
-  } else if(type==='select-estimator'){
-    const opts=[`<option value="">\u2014 Select \u2014</option>`,...ESTIMATORS.map(est=>`<option value="${est.code}"${p[field]===est.code?' selected':''}>${est.label}</option>`)].join('');
-    td.innerHTML=`<div class="inline-editor-pop">
-      <select class="inline-select" id="inline-inp" style="min-width:150px" onkeydown="inlineKeydown(event,${oi},'${field}')" onclick="event.stopPropagation()">${opts}</select>
-      <div class="inline-actions">
-        <button class="inline-save" onclick="commitInlineEdit(${oi},'${field}')" title="Save">\u2713</button>
-        <button class="inline-cancel" onclick="cancelInlineEdit()" title="Cancel">\u2715</button>
-      </div></div>`;
+    body.innerHTML=`<input type="number" id="ep-input" value="${p[field]||''}" min="0" step="1" placeholder="$ 0" onclick="event.stopPropagation()" onkeydown="epKeydown(event)">`;
+  } else if(type==='text'){
+    body.innerHTML=`<input type="text" id="ep-input" value="${(p[field]||'').replace(/"/g,'&quot;')}" placeholder="" onclick="event.stopPropagation()" onkeydown="epKeydown(event)">`;
+  } else if(type==='textarea'){
+    body.innerHTML=`<textarea id="ep-input" placeholder="Add notes..." onclick="event.stopPropagation()"></textarea>`;
+    body.querySelector('#ep-input').value=p[field]||'';
+  } else if(type==='date'){
+    body.innerHTML=`<input type="date" id="ep-input" value="${p[field]||''}" onclick="event.stopPropagation()" onkeydown="epKeydown(event)">`;
   } else if(type==='month'){
     const cur=p[field]?p[field].slice(0,7):'';
-    td.innerHTML=`<div class="inline-editor-pop">
-      <input class="inline-date" id="inline-inp" type="month" value="${cur}" onkeydown="inlineKeydown(event,${oi},'${field}')" onclick="event.stopPropagation()">
-      <div class="inline-actions">
-        <button class="inline-save" onclick="commitInlineEdit(${oi},'${field}')" title="Save">\u2713</button>
-        <button class="inline-cancel" onclick="cancelInlineEdit()" title="Cancel">\u2715</button>
-      </div></div>`;
-  } else if(type==='date'){
-    td.innerHTML=`<div class="inline-editor-pop">
-      <input class="inline-date" id="inline-inp" type="date" value="${p[field]||''}" onkeydown="inlineKeydown(event,${oi},'${field}')" onclick="event.stopPropagation()">
-      <div class="inline-actions">
-        <button class="inline-save" onclick="commitInlineEdit(${oi},'${field}')" title="Save">\u2713</button>
-        <button class="inline-cancel" onclick="cancelInlineEdit()" title="Cancel">\u2715</button>
-      </div></div>`;
+    body.innerHTML=`<input type="month" id="ep-input" value="${cur}" onclick="event.stopPropagation()" onkeydown="epKeydown(event)">`;
+  } else if(type==='select-status'){
+    const STATUS_OPTS=['Estimating','Submitted','Revising','Won','Awarded','Lost','No Bid','Undecided','Declined'];
+    const cur=p.estimateStatus==='Lost - Note Why in Comments'?'Lost':(p[field]||'Estimating');
+    body.innerHTML=STATUS_OPTS.map(s=>`<div class="ep-item${cur===s?' ep-selected':''}" onclick="epSelectItem(this,'${s}')" data-value="${s}"><span class="ep-radio"></span>${s}</div>`).join('');
+  } else if(type==='select-estimator'){
+    const cur=p[field]||'';
+    body.innerHTML=[{code:'',label:'\u2014 None \u2014'},...ESTIMATORS].map(est=>`<div class="ep-item${cur===est.code?' ep-selected':''}" onclick="epSelectItem(this,'${est.code.replace(/'/g,"\\'")}')" data-value="${est.code}"><span class="ep-radio"></span>${est.label}</div>`).join('');
   } else if(type==='select-yn'){
-    const opts=['','Y','N'].map(s=>`<option value="${s}"${p[field]===s?' selected':''}>${s||'\u2014 Select \u2014'}</option>`).join('');
-    td.innerHTML=`<div class="inline-editor-pop">
-      <select class="inline-select" id="inline-inp" onkeydown="inlineKeydown(event,${oi},'${field}')" onclick="event.stopPropagation()">${opts}</select>
-      <div class="inline-actions">
-        <button class="inline-save" onclick="commitInlineEdit(${oi},'${field}')" title="Save">\u2713</button>
-        <button class="inline-cancel" onclick="cancelInlineEdit()" title="Cancel">\u2715</button>
-      </div></div>`;
+    const cur=p[field]||'';
+    body.innerHTML=[{v:'',l:'\u2014 None \u2014'},{v:'Y',l:'Yes'},{v:'N',l:'No'}].map(o=>`<div class="ep-item${cur===o.v?' ep-selected':''}" onclick="epSelectItem(this,'${o.v}')" data-value="${o.v}"><span class="ep-radio"></span>${o.l}</div>`).join('');
   } else if(type==='select-region'){
-    const opts=[`<option value="">\u2014 Select \u2014</option>`,...REGIONS.map(r=>`<option value="${r}"${p[field]===r?' selected':''}>${r}</option>`)].join('');
-    td.innerHTML=`<div class="inline-editor-pop">
-      <select class="inline-select" id="inline-inp" style="min-width:160px" onkeydown="inlineKeydown(event,${oi},'${field}')" onclick="event.stopPropagation()">${opts}</select>
-      <div class="inline-actions">
-        <button class="inline-save" onclick="commitInlineEdit(${oi},'${field}')" title="Save">\u2713</button>
-        <button class="inline-cancel" onclick="cancelInlineEdit()" title="Cancel">\u2715</button>
-      </div></div>`;
+    const cur=p[field]||'';
+    body.innerHTML=[{v:'',l:'\u2014 None \u2014'},...REGIONS.map(r=>({v:r,l:r}))].map(o=>`<div class="ep-item${cur===o.v?' ep-selected':''}" onclick="epSelectItem(this,'${o.v.replace(/'/g,"\\'")}')" data-value="${o.v}"><span class="ep-radio"></span>${o.l}</div>`).join('');
   } else if(type==='select-market'){
-    const opts=[`<option value="">\u2014 Select \u2014</option>`,...MARKETS.map(m=>`<option value="${m}"${p[field]===m?' selected':''}>${m}</option>`)].join('');
-    td.innerHTML=`<div class="inline-editor-pop">
-      <select class="inline-select" id="inline-inp" style="min-width:160px" onkeydown="inlineKeydown(event,${oi},'${field}')" onclick="event.stopPropagation()">${opts}</select>
-      <div class="inline-actions">
-        <button class="inline-save" onclick="commitInlineEdit(${oi},'${field}')" title="Save">\u2713</button>
-        <button class="inline-cancel" onclick="cancelInlineEdit()" title="Cancel">\u2715</button>
-      </div></div>`;
-  } else if(type==='text'){
-    td.innerHTML=`<div class="inline-editor-pop">
-      <input class="inline-input" id="inline-inp" type="text" value="${(p[field]||'').replace(/"/g,'&quot;')}" placeholder="" style="min-width:140px"
-        onkeydown="inlineKeydown(event,${oi},'${field}')" onclick="event.stopPropagation()">
-      <div class="inline-actions">
-        <button class="inline-save" onclick="commitInlineEdit(${oi},'${field}')" title="Save">\u2713</button>
-        <button class="inline-cancel" onclick="cancelInlineEdit()" title="Cancel">\u2715</button>
-      </div></div>`;
+    const cur=p[field]||'';
+    body.innerHTML=[{v:'',l:'\u2014 None \u2014'},...MARKETS.map(m=>({v:m,l:m}))].map(o=>`<div class="ep-item${cur===o.v?' ep-selected':''}" onclick="epSelectItem(this,'${o.v.replace(/'/g,"\\'")}')" data-value="${o.v}"><span class="ep-radio"></span>${o.l}</div>`).join('');
   }
-  setTimeout(()=>{const i=document.getElementById('inline-inp');if(i){i.focus();if(i.select)i.select();}},30);
-  setTimeout(()=>document.addEventListener('click',inlineClickAway,{once:true}),50);
+
+  const rect=(e.currentTarget||e.target).getBoundingClientRect();
+  popup.style.display='flex';
+  popup.style.left=Math.min(rect.left, window.innerWidth-280)+'px';
+  popup.style.top=Math.min(rect.bottom+4, window.innerHeight-440)+'px';
+  overlay.style.display='block';
+  setTimeout(()=>{const inp=document.getElementById('ep-input');if(inp){inp.focus();if(inp.select)inp.select();}},30);
 }
-function inlineKeydown(e,oi,field){
-  if(e.key==='Enter'||e.key==='Tab'){e.preventDefault();commitInlineEdit(oi,field);}
-  if(e.key==='Escape')cancelInlineEdit();
+
+function epSelectItem(el,val){
+  el.closest('.ep-body').querySelectorAll('.ep-item').forEach(i=>i.classList.remove('ep-selected'));
+  el.classList.add('ep-selected');
+  el.dataset.value=val;
 }
-function inlineClickAway(e){if(activeInlineEdit&&!activeInlineEdit.td.contains(e.target))commitInlineEdit(activeInlineEdit.oi,activeInlineEdit.field);}
-function commitInlineEdit(oi,field){
-  if(!activeInlineEdit)return;
-  document.removeEventListener('click',inlineClickAway);
-  const inp=document.getElementById('inline-inp');
-  if(!inp){cancelInlineEdit();return;}
-  let v=inp.value.trim();
-  if(field==='proposalTotal'){
-    v=v.replace(/[^0-9.]/g,'');
-  } else if(field==='anticipatedStart'||field==='anticipatedFinish'){
-    v=v?v+'-01':'';
+
+function epKeydown(e){
+  if(e.key==='Enter'&&e.target.tagName!=='TEXTAREA'){e.preventDefault();commitEditPopup();}
+  if(e.key==='Escape')closeEditPopupUI();
+}
+
+function commitEditPopup(){
+  if(!editPopupState)return;
+  const{oi,field,type}=editPopupState;
+  let v='';
+  if(type==='select-status'||type==='select-estimator'||type==='select-yn'||type==='select-region'||type==='select-market'){
+    const sel=document.querySelector('#ep-body .ep-item.ep-selected');
+    v=sel?sel.dataset.value:'';
+  } else {
+    const inp=document.getElementById('ep-input');
+    v=inp?inp.value.trim():'';
   }
-  const editTd = activeInlineEdit.td;
-  editTd.classList.remove('inline-editing');
-  data[oi][field]=v; activeInlineEdit=null; save();
-  if(field==='proposalTotal'){
-    editTd.innerHTML=`<div class="inline-edit-wrap" onclick="startInlineEdit(event,${oi},'proposalTotal')"><span class="val-cell">${fmt$(v)}</span><span class="inline-edit-hint">\u270f</span></div>`;
-  } else if(field==='anticipatedStart'||field==='anticipatedFinish'){
-    editTd.innerHTML=`<div class="inline-edit-wrap" onclick="startInlineEdit(event,${oi},'${field}')"><span class="val-cell">${fmtMY(v)}</span><span class="inline-edit-hint">\u270f</span></div>`;
-  } else if(field==='estimateStatus'){
-    editTd.innerHTML=statusBadge(v);
-  } else if(field==='nbsEstimator'){
-    editTd.innerHTML=`<div class="inline-edit-wrap" onclick="startInlineEdit(event,${oi},'nbsEstimator')"><span class="val-cell">${v||'\u2014'}</span><span class="inline-edit-hint">\u270f</span></div>`;
-  } else if(field==='notes'){
-    editTd.innerHTML=`<div class="inline-edit-wrap" onclick="startInlineEdit(event,${oi},'notes')"><span class="val-cell">${v||'\u2014'}</span><span class="inline-edit-hint">\u270f</span></div>`;
-  } else if(field==='dueDate'){
-    editTd.innerHTML=`<div class="inline-edit-wrap" onclick="startInlineEdit(event,${oi},'dueDate')"><span class="date-dim">${fmtD(v)}</span><span class="inline-edit-hint">\u270f</span></div>`;
-  } else if(field==='bcLink'){
-    if(v && /^https?:\/\//i.test(v)){
-      const sv=v.replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
-      editTd.innerHTML=`<div class="inline-edit-wrap" onclick="startInlineEdit(event,${oi},'bcLink')"><span class="link-cell"><a href="${sv}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()" title="${sv}">&#128279; Open</a></span><span class="inline-edit-hint">\u270f</span></div>`;
-    } else {
-      editTd.innerHTML=`<div class="inline-edit-wrap" onclick="startInlineEdit(event,${oi},'bcLink')"><span>\u2014</span><span class="inline-edit-hint">\u270f</span></div>`;
-    }
-  } else if(field==='swinertonProject'){
-    const swD=v==='Y'?'<span class="swin-yes">Y</span>':v==='N'?'<span class="swin-no">N</span>':'\u2014';
-    editTd.innerHTML=`<div class="inline-edit-wrap" onclick="startInlineEdit(event,${oi},'swinertonProject')">${swD}<span class="inline-edit-hint">\u270f</span></div>`;
-  } else if(field==='inviteDate'){
-    editTd.innerHTML=`<div class="inline-edit-wrap" onclick="startInlineEdit(event,${oi},'inviteDate')"><span class="date-dim">${fmtD(v)}</span><span class="inline-edit-hint">\u270f</span></div>`;
-  } else if(field==='region'||field==='primaryMarket'||field==='gcEstimateLead'||field==='finalReviewer'){
-    editTd.innerHTML=`<div class="inline-edit-wrap" onclick="startInlineEdit(event,${oi},'${field}')"><span>${v||'\u2014'}</span><span class="inline-edit-hint">\u270f</span></div>`;
+  if(field==='proposalTotal') v=v.replace(/[^0-9.]/g,'');
+  if(field==='anticipatedStart'||field==='anticipatedFinish') v=v?v+'-01':'';
+
+  const oldVal=data[oi][field];
+  const oldStatusNorm=(oldVal==='Lost - Note Why in Comments'?'Lost':oldVal);
+  if(field==='estimateStatus' && (v==='No Bid'||v==='Lost') && oldStatusNorm!==v){
+    noBidPendingOi=oi;
+    noBidPendingStatus=v;
+    document.getElementById('nobid-modal-title').textContent=v+' Reason';
+    document.getElementById('nobid-status-label').textContent=v;
+    document.getElementById('nobid-reason').value='';
+    document.getElementById('nobid-modal-overlay').classList.add('open');
+    closeEditPopupUI();
+    return;
   }
-  syncFieldToServer(data[oi], field, v);
+
+  data[oi][field]=v;
+  save();
+  syncFieldToServer(data[oi],field,v);
+  closeEditPopupUI();
+  buildRows();
+}
+
+function closeEditPopupUI(){
+  document.getElementById('edit-popup').style.display='none';
+  document.getElementById('edit-popup-overlay').style.display='none';
+  editPopupState=null;
 }
 const NBS_SCOPES = ['Toilet Accessories','Toilet Compartments','FEC','Wall Protection','Appliances','Lockers','Visual Displays','Bike Racks','Wire Mesh Partitions','Cubicle Curtains','Med Equipment','Expansion Joints','Shelving','Equipment','Window Shades','Entrance Mats','Mailbox','Flagpole','Knox Box','Site Furnishing'];
 let scopePopupOi = null;
@@ -2535,39 +2532,8 @@ function closeScopePopupUI() {
   scopeDraft = [];
 }
 
-let notesPopupOi = null;
-let notesOriginal = '';
-
-function openNotesPopup(e, oi) {
-  e.stopPropagation();
-  const p = data[oi]; if(!p) return;
-  notesPopupOi = oi;
-  notesOriginal = p.notes || '';
-  document.getElementById('notes-textarea').value = notesOriginal;
-  const rect = e.currentTarget.getBoundingClientRect();
-  const popup = document.getElementById('notes-popup');
-  popup.style.display = 'flex';
-  popup.style.left = Math.min(rect.left, window.innerWidth - 320) + 'px';
-  popup.style.top = Math.min(rect.bottom + 4, window.innerHeight - 200) + 'px';
-  document.getElementById('notes-popup-overlay').style.display = 'block';
-  setTimeout(() => document.getElementById('notes-textarea').focus(), 30);
-}
-
-function closeNotesPopup(doSave) {
-  if(notesPopupOi === null) return;
-  if(doSave) {
-    const val = document.getElementById('notes-textarea').value.trim();
-    if(val !== notesOriginal) {
-      data[notesPopupOi].notes = val;
-      save();
-      syncFieldToServer(data[notesPopupOi], 'notes', val);
-      buildRows();
-    }
-  }
-  document.getElementById('notes-popup').style.display = 'none';
-  document.getElementById('notes-popup-overlay').style.display = 'none';
-  notesPopupOi = null;
-}
+function openNotesPopup(e, oi) { startInlineEdit(e, oi, 'notes'); }
+function closeNotesPopup() {}
 
 let noBidPendingOi = null;
 let noBidPendingStatus = '';
@@ -2692,17 +2658,14 @@ function startEstNumEdit(e, oi) {
   showToast('Estimate number updated to ' + trimmed);
 }
 function cancelInlineEdit(){
-  document.removeEventListener('click',inlineClickAway);
-  if(!activeInlineEdit)return;
-  const{td,originalHTML}=activeInlineEdit;
-  td.classList.remove('inline-editing'); td.innerHTML=originalHTML; activeInlineEdit=null;
+  closeEditPopupUI();
 }
 
 function getKnownRegions() { return REGIONS; }
 const STATUS_MAP={'pending':'Submitted','submitted':'Submitted','bidding':'Estimating','estimating':'Estimating','in progress':'Estimating','revising':'Revising','revision':'Revising','lost':'Lost - Note Why in Comments','loss':'Lost - Note Why in Comments','win':'Awarded','won':'Awarded','awarded':'Awarded'};
 let importRows=[];
 
-function parseRegion(raw){if(!raw)return'';const s=raw.toString().trim();const KR=getKnownRegions();if(KR.includes(s))return s;for(const r of KR){if(s.startsWith(r))return r;}for(const r of KR){const c=r.match(/\(([^)]+)\)/)?.[1];if(c&&s.includes('('+c+')'))return r;if(!c&&s.includes(r))return r;}return'';}
+function parseRegion(raw){if(!raw)return'';const s=raw.toString().trim();const KR=getKnownRegions();if(KR.includes(s))return s;const n=normalizeRegion(s);if(n&&KR.includes(n))return n;for(const r of KR){const code=r.split(' - ')[0];if(code&&s.toUpperCase().includes(code))return r;}for(const r of KR){if(s.startsWith(r))return r;}return'';}
 function parseScopeDate(raw){if(!raw)return'';const s=raw.toString().trim();if(!s||s==='-'||s.toLowerCase()==='n/a'||s==='?')return'';const m=s.match(/^(\d{1,2})\/(\d{2})$/);if(m)return`20${m[2]}-${m[1].padStart(2,'0')}-01`;if(s.match(/^\d{4}-\d{2}-\d{2}$/))return s;return'';}
 function parseBidDate(raw){if(!raw)return'';const s=raw.toString().trim();let m=s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2})$/);if(m)return`20${m[3]}-${m[1].padStart(2,'0')}-${m[2].padStart(2,'0')}`;m=s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);if(m)return`${m[3]}-${m[1].padStart(2,'0')}-${m[2].padStart(2,'0')}`;if(!isNaN(s)&&Number(s)>40000){const d=new Date((Number(s)-25569)*86400000);return`${d.getUTCFullYear()}-${String(d.getUTCMonth()+1).padStart(2,'0')}-${String(d.getUTCDate()).padStart(2,'0')}`;}return'';}
 function parseDollar(raw){if(!raw&&raw!==0)return'';return raw.toString().replace(/[$,\s]/g,'').trim()||'';}
@@ -3016,7 +2979,7 @@ function serverEntryToLocal(e, existingLocal) {
   return Object.assign({}, base, {
     projectName: e.projectName || '',
     estimateNumber: e.estimateNumber || '',
-    region: e.region || '',
+    region: normalizeRegion(e.region || ''),
     primaryMarket: e.primaryMarket || '',
     inviteDate: e.inviteDate || '',
     dueDate: e.dueDate || '',
@@ -3111,6 +3074,7 @@ async function initApp() {
   } else if (!serverLoaded && data.length > 0) {
     showBanner('Server sync unavailable — showing locally cached data.', 'warning');
   }
+  for(const p of data){if(p.region)p.region=normalizeRegion(p.region);}
   await fetchAcknowledgements();
   render();
   checkGoogleSheet();
