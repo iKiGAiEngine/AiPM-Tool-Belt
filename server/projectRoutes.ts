@@ -739,7 +739,7 @@ export function registerProjectRoutes(app: Express) {
 
           const activeRegions = await getActiveRegions();
           const matchedRegion = activeRegions.find(r => r.code === regionCode.toUpperCase());
-          let regionLabel = matchedRegion?.name ? `${matchedRegion.name} (${regionCode.toUpperCase()})` : "";
+          let regionLabel = matchedRegion ? (matchedRegion.name ? `${matchedRegion.name} (${regionCode.toUpperCase()})` : regionCode.toUpperCase()) : "";
 
           const rawScreenshotText = req.body.screenshotRawText || "";
           const frontendMarket = req.body.primaryMarket || "";
