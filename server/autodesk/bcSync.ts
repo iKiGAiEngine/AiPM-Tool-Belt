@@ -982,9 +982,10 @@ export function registerBcSyncRoutes(app: Express) {
 
       const finalProjectName = (projectName || entry.projectName || "").slice(0, 500);
       let rawRegion = region || entry.region || "";
+      const newMatch = rawRegion.match(/^([A-Z]{2,5})\s*-\s*/);
       const codeMatch = rawRegion.match(/\(([A-Z]{2,5})\)/);
       const extMatch = rawRegion.match(/- External$/i);
-      const finalRegion = codeMatch ? codeMatch[1] : extMatch ? "EXT" : rawRegion.replace(/[^A-Za-z0-9]/g, "").slice(0, 10);
+      const finalRegion = newMatch ? newMatch[1] : codeMatch ? codeMatch[1] : extMatch ? "EXT" : rawRegion.replace(/[^A-Za-z0-9]/g, "").slice(0, 10);
       const finalDueDate = dueDate || entry.dueDate || "";
       const finalNbsEstimator = nbsEstimator !== undefined ? nbsEstimator : entry.nbsEstimator;
       const finalGcEstimateLead = gcEstimateLead !== undefined ? gcEstimateLead : entry.gcEstimateLead;

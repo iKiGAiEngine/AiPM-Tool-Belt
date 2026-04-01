@@ -91,8 +91,8 @@ export default function ProjectLogPage() {
 
   const regionDisplayOptions = useMemo(() => {
     return dbRegions.map(r => {
-      if (r.code === "EXT") return `${r.name} - External`;
-      return `${r.name} (${r.code})`;
+      if (r.code === "EXT") return `EXT - External`;
+      return `${r.code} - ${r.name}`;
     });
   }, [dbRegions]);
 
@@ -277,12 +277,27 @@ export default function ProjectLogPage() {
     return () => document.removeEventListener("mousedown", handler);
   }, [notesPopupEntryId, notesPopupText, entries, scopePopupEntryId, draftScopes]);
 
+  const normalizeRegionForDropdown = (raw: string) => {
+    if (!raw) return "";
+    const oldMatch = raw.match(/^(.+?)\s*\(([A-Z]{2,5})\)$/);
+    if (oldMatch) {
+      const code = oldMatch[2];
+      return code === "EXT" ? "EXT - External" : `${code} - ${oldMatch[1].trim()}`;
+    }
+    if (/^[A-Z]{2,5}$/.test(raw.trim())) {
+      const r = dbRegions.find(rg => rg.code.toUpperCase() === raw.trim().toUpperCase());
+      if (r) return r.code === "EXT" ? "EXT - External" : `${r.code} - ${r.name}`;
+    }
+    if (/^[A-Z]{2,5}\s*-\s*.+/.test(raw)) return raw;
+    return raw;
+  };
+
   const openEditDraft = (entry: ProposalLogEntry) => {
     setEditingDraft(entry);
     setApproveResult(null);
     setEditForm({
       projectName: entry.projectName || "",
-      region: entry.region || "",
+      region: normalizeRegionForDropdown(entry.region || ""),
       dueDate: entry.dueDate || "",
       nbsEstimator: entry.nbsEstimator || "",
       gcEstimateLead: entry.gcEstimateLead || "",

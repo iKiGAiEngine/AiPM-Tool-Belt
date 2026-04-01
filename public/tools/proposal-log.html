@@ -277,8 +277,10 @@ input[type="date"].df::-webkit-calendar-picker-indicator{filter:var(--date-picke
 .loss-summary-who{font-family:'Rajdhani',sans-serif;font-size:10px;font-weight:700;white-space:nowrap;}
 .loss-summary-why{font-size:9px;color:var(--text-dim);white-space:nowrap;}
 
-.toolbar{display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap;flex-shrink:0;}
-.toolbar-filters{display:flex;gap:7px;flex:1;flex-wrap:wrap;align-items:center;}
+.toolbar{display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:nowrap;flex-shrink:0;}
+.toolbar-filters{display:flex;gap:7px;flex:1;flex-wrap:nowrap;align-items:center;min-width:0;}
+.more-menu{display:none;position:absolute;top:100%;right:0;z-index:200;background:var(--bg2);border:1px solid var(--border);border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.35);padding:8px;min-width:220px;flex-direction:column;gap:5px;margin-top:4px;}
+.more-menu.open{display:flex;}
 .search-wrap{position:relative;min-width:170px;}
 .search-wrap input{width:100%;background:var(--bg3);border:1px solid var(--border);color:var(--text);padding:7px 10px 7px 30px;border-radius:5px;font-size:14px;font-family:'DM Sans',sans-serif;outline:none;transition:border-color .2s;}
 .search-wrap input:focus{border-color:var(--gold-dim);}
@@ -357,6 +359,12 @@ tbody tr:last-child{border-bottom:none;}
 tbody tr:hover{background:var(--bg3);}
 td{padding:10px 10px;font-size:14px;vertical-align:middle;border-right:1px solid var(--td-border);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 td:last-child{border-right:none;}
+.row-check-col{position:sticky;left:0;z-index:5;background:var(--bg2);}
+thead .row-check-col{background:var(--bg3);z-index:11;}
+.col-frozen{position:sticky;z-index:5;background:var(--bg2);border-right:2px solid var(--border) !important;}
+thead .col-frozen{background:var(--bg3);z-index:11;}
+.col-filter-row .col-frozen{background:var(--bg4);z-index:11;}
+tbody tr:hover .col-frozen{background:var(--bg3);}
 
 .proj-name{font-weight:500;}
 .badge{display:inline-flex;align-items:center;gap:3px;padding:2px 7px;border-radius:20px;font-size:10px;font-weight:600;font-family:'Rajdhani',sans-serif;letter-spacing:.5px;text-transform:uppercase;white-space:nowrap;}
@@ -453,7 +461,7 @@ th.col-drop-after::after{content:'';position:absolute;right:0;top:0;bottom:0;wid
 .nbs-scope-cell{cursor:pointer;padding:2px 0;}
 .nbs-scope-trigger{font-size:11px;color:var(--text-dim);transition:color .15s;display:inline-flex;align-items:center;gap:4px;}
 .nbs-scope-cell:hover .nbs-scope-trigger{color:var(--gold);}
-.nbs-scope-pills{display:flex;flex-wrap:wrap;gap:3px;margin-top:4px;}
+.nbs-scope-pills{display:none;}
 .nbs-scope-pill{font-family:'Rajdhani',sans-serif;font-size:9px;font-weight:600;background:rgba(201,168,76,.15);color:var(--gold);border:1px solid rgba(201,168,76,.25);border-radius:3px;padding:0 5px;white-space:nowrap;line-height:16px;}
 #scope-popup-overlay{display:none;position:fixed;inset:0;z-index:500;}
 #scope-popup{position:fixed;z-index:501;background:var(--bg2);border:1px solid var(--gold-dim);border-radius:8px;box-shadow:0 8px 32px rgba(0,0,0,.5);width:260px;max-height:420px;overflow:hidden;display:flex;flex-direction:column;}
@@ -730,24 +738,30 @@ th.col-drop-after::after{content:'';position:absolute;right:0;top:0;bottom:0;wid
         <div class="search-wrap"><span class="search-icon">&#128269;</span><input type="text" id="search" placeholder="Search all columns..."></div>
         <select class="fs" id="f-region"><option value="">All Regions</option></select>
         <select class="fs" id="f-status"><option value="">All Statuses</option></select>
-        <select class="fs" id="f-market"><option value="">All Markets</option></select>
-        <select class="fs" id="f-swinerton"><option value="">Swinerton?</option><option value="Y">Yes</option><option value="N">No</option></select>
-        <div class="date-row">
-          <span>Due</span>
-          <input type="date" class="fd" id="f-from">
-          <span>&mdash;</span>
-          <input type="date" class="fd" id="f-to">
-        </div>
       </div>
-      <button class="btn-icon-sm" onclick="openColPanel()" title="Manage Columns">&#9881; Columns</button>
-      <button class="btn-icon-sm" id="btn-import" onclick="openImportModal()">&#11014; Import Excel</button>
-      <a class="btn-icon-sm" id="btn-gsheet" href="#" target="_blank" title="Open Google Sheet mirror" style="display:none;text-decoration:none;color:var(--text)" data-testid="link-google-sheet">
-        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:3px"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="3" x2="9" y2="21"/></svg>
-        Sheet
-      </a>
-      <button class="btn-icon-sm" id="btn-force-sync" onclick="forceSync()" title="Push app data to Google Sheet" style="display:none" data-testid="button-force-sync">&#8635; Push to Sheet</button>
-      <button class="btn-icon-sm" id="btn-import-sheet" onclick="importFromSheet()" title="Pull changes from Google Sheet into app" style="display:none" data-testid="button-import-sheet">&#11015; Pull from Sheet</button>
-      <button class="btn-primary" id="btn-add" onclick="openModal()">+ Add Proposal</button>
+      <div class="toolbar-actions-wrap" style="position:relative;display:flex;align-items:center;gap:6px;">
+        <button class="btn-icon-sm" id="btn-more-toggle" onclick="toggleMoreMenu()" title="More options">&#9776; More</button>
+        <div class="more-menu" id="more-menu">
+          <select class="fs" id="f-market" style="width:100%"><option value="">All Markets</option></select>
+          <select class="fs" id="f-swinerton" style="width:100%"><option value="">Swinerton?</option><option value="Y">Yes</option><option value="N">No</option></select>
+          <div class="date-row" style="width:100%">
+            <span>Due</span>
+            <input type="date" class="fd" id="f-from" style="flex:1">
+            <span>&mdash;</span>
+            <input type="date" class="fd" id="f-to" style="flex:1">
+          </div>
+          <hr style="border:none;border-top:1px solid var(--border);margin:4px 0;">
+          <button class="btn-icon-sm" onclick="openColPanel();toggleMoreMenu()" title="Manage Columns" style="width:100%;text-align:left">&#9881; Columns</button>
+          <button class="btn-icon-sm" id="btn-import" onclick="openImportModal();toggleMoreMenu()" style="width:100%;text-align:left">&#11014; Import Excel</button>
+          <a class="btn-icon-sm" id="btn-gsheet" href="#" target="_blank" title="Open Google Sheet mirror" style="display:none;text-decoration:none;color:var(--text);width:100%;text-align:left" data-testid="link-google-sheet">
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:3px"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="3" x2="9" y2="21"/></svg>
+            Sheet
+          </a>
+          <button class="btn-icon-sm" id="btn-force-sync" onclick="forceSync()" title="Push app data to Google Sheet" style="display:none;width:100%;text-align:left" data-testid="button-force-sync">&#8635; Push to Sheet</button>
+          <button class="btn-icon-sm" id="btn-import-sheet" onclick="importFromSheet()" title="Pull changes from Google Sheet into app" style="display:none;width:100%;text-align:left" data-testid="button-import-sheet">&#11015; Pull from Sheet</button>
+        </div>
+        <button class="btn-primary" id="btn-add" onclick="openModal()">+ Add Proposal</button>
+      </div>
     </div>
     <div class="select-bar" id="select-bar" style="display:none">
       <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:11px">
@@ -1113,6 +1127,7 @@ const COL_DEFS = [
   {key:'bcLink',         label:'BC Link',             w:100, filter:'none'},
   {key:'owner',          label:'Owner',               w:110, filter:'text'},
   {key:'filePath',       label:'File Path',           w:90,  filter:'none'},
+  {key:'_spEstimator',   label:'SP Estimator',         w:120, filter:'text'},
   {key:'_screenshot',    label:'Source',              w:70,  filter:'none'},
   {key:'_actions',       label:'',                    w:70,  filter:'none'},
 ];
@@ -1147,6 +1162,9 @@ const saveLayout = () => localStorage.setItem('nbs_layout', JSON.stringify(layou
   });
   layout.order = layout.order.filter(k => COL_DEFS.some(d => d.key === k));
   if (layout.visible['estimateNumber'] !== false) { layout.visible['estimateNumber'] = false; changed = true; }
+  const pnIdx = layout.order.indexOf('projectName');
+  if(pnIdx > 0) { layout.order.splice(pnIdx, 1); layout.order.unshift('projectName'); changed = true; }
+  if(layout.visible['projectName'] === false) { layout.visible['projectName'] = true; changed = true; }
   if (changed) saveLayout();
 })();
 let colFilters = { estimateStatus: 'Estimating' };
@@ -1201,7 +1219,14 @@ function getFiltered() {
     if(ft && p.dueDate && p.dueDate>ft) return false;
     for(const [key,val] of Object.entries(colFilters)) {
       if(!val) continue;
-      const pv = (p[key]||'').toLowerCase();
+      let pv;
+      if(key==='_spEstimator') {
+        const rc=(p.region||'').match(/^([A-Z]{2,5})\s*-/);
+        const ro=rc?REGIONS_RAW.find(r=>r.code===rc[1]):REGIONS_RAW.find(r=>p.region&&(r.code===p.region||`${r.code} - ${r.name}`===p.region));
+        pv=((ro&&ro.selfPerformEstimator)||'').toLowerCase();
+      } else {
+        pv=(p[key]||'').toLowerCase();
+      }
       if(!pv.includes(val.toLowerCase())) return false;
     }
     return true;
@@ -1258,13 +1283,16 @@ function buildHeaders() {
     th.style.width = w+'px';
     th.style.minWidth = w+'px';
     if(key===sk) th.classList.add('sorted');
+    if(key==='projectName') { th.classList.add('col-frozen'); th.style.left='36px'; }
 
     if(!isSpecial) {
-      const grip = document.createElement('div');
-      grip.className='col-drag'; grip.title='Drag to reorder'; grip.textContent='\u2807';
-      grip.draggable=true;
-      grip.addEventListener('dragstart', e=>onColDragStart(e,key));
-      th.appendChild(grip);
+      if(key!=='projectName') {
+        const grip = document.createElement('div');
+        grip.className='col-drag'; grip.title='Drag to reorder'; grip.textContent='\u2807';
+        grip.draggable=true;
+        grip.addEventListener('dragstart', e=>onColDragStart(e,key));
+        th.appendChild(grip);
+      }
 
       const inner = document.createElement('div');
       inner.className='th-inner';
@@ -1277,9 +1305,11 @@ function buildHeaders() {
       rz.addEventListener('mousedown', e=>onResizeStart(e,key,th));
       th.appendChild(rz);
 
-      th.addEventListener('dragover', e=>{e.preventDefault(); highlightDrop(th,e);});
-      th.addEventListener('dragleave', ()=>clearDropHighlight(th));
-      th.addEventListener('drop', e=>onColDrop(e,key));
+      if(key!=='projectName') {
+        th.addEventListener('dragover', e=>{e.preventDefault(); highlightDrop(th,e);});
+        th.addEventListener('dragleave', ()=>clearDropHighlight(th));
+        th.addEventListener('drop', e=>onColDrop(e,key));
+      }
     } else if(key==='_screenshot') {
       th.innerHTML='<div class="th-inner" style="cursor:default;font-size:11px">Source</div>';
     }
@@ -1288,6 +1318,7 @@ function buildHeaders() {
 
     const ftd = document.createElement('th');
     ftd.style.width=w+'px'; ftd.style.minWidth=w+'px';
+    if(key==='projectName') { ftd.classList.add('col-frozen'); ftd.style.left='36px'; }
     if(!isSpecial && def.filter!=='none') {
       if(def.filter==='select') {
         const sel=document.createElement('select');
@@ -1489,11 +1520,19 @@ function buildRows() {
               <span class="inline-edit-hint">\u270f</span></div>`;
           } else { val=p.primaryMarket||'\u2014'; }
           break;
-        case '_screenshot': val=p._screenshotId?`<button class="btn-row" onclick="viewScreenshot('${p._screenshotId}')" title="View source screenshot" style="font-size:16px">&#128247;</button>`:'\u2014'; break;
+        case '_spEstimator': {
+          const regCode = (p.region||'').match(/^([A-Z]{2,5})\s*-/);
+          const rObj = regCode ? REGIONS_RAW.find(r=>r.code===regCode[1]) : REGIONS_RAW.find(r=>p.region&&(r.code===p.region||`${r.code} - ${r.name}`===p.region));
+          val = rObj && rObj.selfPerformEstimator ? rObj.selfPerformEstimator : '\u2014';
+          break;
+        }
+        case '_screenshot': val=p._screenshotId?`<button class="btn-row" onclick="viewScreenshot('${p._screenshotId}')" title="View source screenshot" style="font-size:16px">&#128247;</button>`:''; break;
         default: val=p[key]||'\u2014';
       }
       const sortedCls = key===sk ? ' col-sorted' : '';
-      return `<td class="${sortedCls}" style="max-width:${w}px" title="${(p[key]||'').toString().replace(/"/g,'')}">${val}</td>`;
+      const frozenCls = key==='projectName' ? ' col-frozen' : '';
+      const frozenStyle = key==='projectName' ? ';left:36px' : '';
+      return `<td class="${sortedCls}${frozenCls}" style="max-width:${w}px${frozenStyle}" title="${(p[key]||'').toString().replace(/"/g,'')}">${val}</td>`;
     });
     const isSelected = selectedIndices.has(oi);
     const checkCell = mode==='estimator'
@@ -1583,12 +1622,13 @@ function renderColPanel() {
   layout.order.forEach(key=>{
     if(key==='_actions' || key==='_screenshot') return;
     const def=getColDef(key); if(!def) return;
+    const isFrozen = key==='projectName';
     const item=document.createElement('div');
-    item.className='col-item'; item.dataset.key=key; item.draggable=true;
+    item.className='col-item'; item.dataset.key=key; item.draggable=!isFrozen;
     item.innerHTML=`
-      <input type="checkbox" class="col-check" ${layout.visible[key]!==false?'checked':''}>
-      <span class="col-item-name">${def.label}</span>
-      <span class="col-drag-icon">\u2807</span>`;
+      <input type="checkbox" class="col-check" ${layout.visible[key]!==false?'checked':''} ${isFrozen?'disabled':''}> 
+      <span class="col-item-name">${def.label}${isFrozen?' \ud83d\udd12':''}</span>
+      <span class="col-drag-icon">${isFrozen?'':'\u2807'}</span>`;
     item.querySelector('.col-check').addEventListener('change',e=>{
       layout.visible[key]=e.target.checked;
       saveLayout(); buildHeaders(); buildRows();
@@ -1731,10 +1771,18 @@ async function del(i){
   data.splice(i,1);save();render();
 }
 
+function getComputedVal(p,k) {
+  if(k==='_spEstimator') {
+    const rc=(p.region||'').match(/^([A-Z]{2,5})\s*-/);
+    const ro=rc?REGIONS_RAW.find(r=>r.code===rc[1]):REGIONS_RAW.find(r=>p.region&&(r.code===p.region||`${r.code} - ${r.name}`===p.region));
+    return (ro&&ro.selfPerformEstimator)||'';
+  }
+  return p[k]||'';
+}
 function exportCSV(){
   const visKeys=getVisibleCols().filter(k=>k!=='_actions'&&k!=='_screenshot');
   const h=visKeys.map(k=>getColDef(k)?.label||k);
-  const rows=data.map(p=>visKeys.map(k=>`"${(p[k]||'').toString().replace(/"/g,'""')}"`).join(','));
+  const rows=data.map(p=>visKeys.map(k=>`"${getComputedVal(p,k).toString().replace(/"/g,'""')}"`).join(','));
   const a=document.createElement('a');
   a.href=URL.createObjectURL(new Blob([[h.join(','),...rows].join('\n')],{type:'text/csv'}));
   a.download='NBS_Proposals.csv';a.click();
@@ -2643,6 +2691,24 @@ async function acknowledgeEntryById(entryId) {
   } catch (e) { console.warn('Failed to acknowledge:', e); }
 }
 function startEstNumEdit(e, oi) { startInlineEdit(e, oi, 'estimateNumber'); }
+function toggleMoreMenu() {
+  const m=document.getElementById('more-menu');
+  if(m.classList.contains('open')) {
+    m.classList.remove('open');
+    document.removeEventListener('click',closeMoreMenuOutside);
+  } else {
+    m.classList.add('open');
+    setTimeout(()=>document.addEventListener('click',closeMoreMenuOutside),0);
+  }
+}
+function closeMoreMenuOutside(e) {
+  const m=document.getElementById('more-menu');
+  const btn=document.getElementById('btn-more-toggle');
+  if(m && !m.contains(e.target) && e.target!==btn && !btn.contains(e.target)) {
+    m.classList.remove('open');
+    document.removeEventListener('click',closeMoreMenuOutside);
+  }
+}
 function cancelInlineEdit(){
   closeEditPopupUI();
 }
