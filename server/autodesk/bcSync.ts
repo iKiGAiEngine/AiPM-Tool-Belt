@@ -5,7 +5,7 @@ import { eq } from "drizzle-orm";
 import { getValidToken, hasValidConnection } from "./tokenManager";
 import { createNotification, createNotificationForAdmins } from "../notificationRoutes";
 import { guessMarket } from "../proposalLogService";
-import { generateProjectId, createProject } from "../scopeDictionaryStorage";
+import { generateProjectId, createProject, getActiveRegions } from "../scopeDictionaryStorage";
 import { sendDraftNotificationEmail } from "../emailService";
 import { getActiveFolderTemplate, getActiveEstimateTemplate, getFolderTemplateFileBuffer, getEstimateTemplateFileBuffer } from "../templateStorage";
 import { matchRegionWithFallback } from "../regionMatcher";
@@ -997,6 +997,12 @@ export function registerBcSyncRoutes(app: Express) {
       }
       if (!finalRegion) {
         return res.status(400).json({ message: "Region code is required" });
+      }
+
+      const dbRegions = await getActiveRegions();
+      const validRegion = dbRegions.find(r => r.code.toUpperCase() === finalRegion.toUpperCase());
+      if (!validRegion) {
+        return res.status(400).json({ message: `Region "${finalRegion}" is not a recognized active region. Please select a valid region.` });
       }
 
       const [recheck] = await db.select().from(proposalLogEntries).where(eq(proposalLogEntries.id, id));

@@ -42,7 +42,7 @@ import { planParserStorage } from "./planparser/storage";
 import { getActiveFolderTemplate, getActiveEstimateTemplate, getFolderTemplateFileBuffer, getEstimateTemplateFileBuffer } from "./templateStorage";
 import ExcelJS from "exceljs";
 import { extractProjectDetailsFromScreenshot } from "./screenshotExtractor";
-import { matchRegionWithFallback, formatRegionDisplay } from "./regionMatcher";
+import { matchRegionWithFallback } from "./regionMatcher";
 import { guessMarket, createProposalLogEntry, bulkCreateProposalLogEntries, getUnsyncedEntries, markEntriesSynced, getActiveProposalLogEntries, getAllProposalLogEntries, updateProposalLogEntryById, deleteProposalLogEntry, deleteProposalLogEntries, getAcknowledgedEntryIds, acknowledgeEntry, unacknowledgeEntry, clearAcknowledgementsForEntry } from "./proposalLogService";
 import { getSheetUrl, syncProposalLogToSheet, pullRepairAndPush, isGoogleSheetConfigured } from "./googleSheetSync";
 import { users, proposalLogEntries } from "@shared/schema";
@@ -730,8 +730,8 @@ export function registerProjectRoutes(app: Express) {
             ownerInitials = user?.initials || "";
           }
 
-          const regions = await getAllRegions();
-          const matchedRegion = regions.find(r => r.code === regionCode.toUpperCase());
+          const activeRegions = await getAllRegions();
+          const matchedRegion = activeRegions.find(r => r.code === regionCode.toUpperCase() && r.isActive);
           let regionLabel = matchedRegion?.name ? `${matchedRegion.name} (${regionCode.toUpperCase()})` : "";
 
           const rawScreenshotText = req.body.screenshotRawText || "";
@@ -741,8 +741,6 @@ export function registerProjectRoutes(app: Express) {
             const fallbackMatch = await matchRegionWithFallback(req.body.screenshotLocation || "", safeName);
             if (fallbackMatch.confident) {
               regionLabel = fallbackMatch.displayLabel;
-            } else if (regionCode) {
-              regionLabel = regionCode.toUpperCase();
             }
           }
 
