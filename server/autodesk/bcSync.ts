@@ -43,6 +43,7 @@ interface BcOpportunity {
   expectedStart?: string;
   expectedFinish?: string;
   gcCompanyName?: string;
+  gcOfficeHint?: string;
   gcContactName?: string;
   gcContactEmail?: string;
   scopes?: string[];
@@ -105,6 +106,19 @@ export function normalizeOpportunity(raw: Record<string, any>): BcOpportunity {
     "attributes.gcCompanyName",
     "attributes.invitedBy.companyName",
     "attributes.client.name",
+  );
+
+  const gcOfficeHint = deepGet(raw,
+    "invitedBy.companyName",
+    "invitedBy.name",
+    "client.company.officeName",
+    "client.officeName",
+    "client.office.name",
+    "client.office.city",
+    "invitedBy.office.city",
+    "invitedBy.office.name",
+    "attributes.invitedBy.companyName",
+    "attributes.invitedBy.name",
   );
 
   const leadFirst = deepGet(raw, "client.lead.firstName");
@@ -215,6 +229,7 @@ export function normalizeOpportunity(raw: Record<string, any>): BcOpportunity {
     expectedStart,
     expectedFinish,
     gcCompanyName,
+    gcOfficeHint,
     gcContactName,
     gcContactEmail,
     scopes,
@@ -317,7 +332,7 @@ async function fetchFromEndpoint(
         if (first.address) console.log(`[BC Sync] [${endpoint.label}] address keys: ${Object.keys(first.address).join(", ")}`);
         if (first.location) console.log(`[BC Sync] [${endpoint.label}] location keys: ${Object.keys(first.location).join(", ")}`);
         const norm = normalizeOpportunity(first);
-        console.log(`[BC Sync] [${endpoint.label}] Normalized: name="${norm.projectName}", gc="${norm.gcCompanyName}", city="${norm.location?.city}", state="${norm.location?.state}"`);
+        console.log(`[BC Sync] [${endpoint.label}] Normalized: name="${norm.projectName}", gc="${norm.gcCompanyName}", officeHint="${norm.gcOfficeHint}", city="${norm.location?.city}", state="${norm.location?.state}"`);
       } else {
         console.log(`[BC Sync] [${endpoint.label}] Empty results. Sample: ${JSON.stringify(data).slice(0, 500)}`);
       }
@@ -392,10 +407,37 @@ function getLocationStr(opp: BcOpportunity): string {
   return parts.join(", ") || opp.location?.formattedAddress || "";
 }
 
+const GENERIC_COMPANY_WORDS = new Set([
+  "builders", "builder", "construction", "constructors", "contractor", "contractors",
+  "group", "inc", "llc", "ltd", "co", "corp", "company", "enterprises",
+  "general", "services", "solutions", "partners", "associates",
+]);
+
+function extractOfficeCity(name: string | undefined): string {
+  if (!name) return "";
+  const segments = name.split(/[-–—]/);
+  if (segments.length < 2) return "";
+  const candidate = segments[segments.length - 1].trim();
+  if (!candidate || GENERIC_COMPANY_WORDS.has(candidate.toLowerCase())) return "";
+  return candidate;
+}
+
 async function mapOpportunityToEntry(opp: BcOpportunity) {
   const locationStr = getLocationStr(opp);
-  const officeSuffix = opp.gcCompanyName ? (opp.gcCompanyName.split(/[-–—]/).pop()?.trim() || "") : "";
-  const regionResult = await matchRegionWithFallback(locationStr, officeSuffix);
+
+  const officeSuffix = extractOfficeCity(opp.gcCompanyName);
+  const officeHintCity = extractOfficeCity(opp.gcOfficeHint);
+
+  let regionResult = await matchRegionWithFallback(locationStr, officeSuffix || officeHintCity);
+
+  if (!regionResult.confident && officeHintCity && officeHintCity !== officeSuffix) {
+    const hintResult = await matchRegionWithFallback("", officeHintCity);
+    if (hintResult.confident) {
+      regionResult = hintResult;
+    }
+  }
+
+  console.log(`[BC Sync] Region match for "${opp.projectName}": locationStr="${locationStr}" officeSuffix="${officeSuffix}" officeHintCity="${officeHintCity}" → region="${regionResult.code}" confident=${regionResult.confident}`);
   const projectName = opp.projectName || "Untitled BC Project";
   const marketContext = [
     (opp.scopes || []).join(" "),
