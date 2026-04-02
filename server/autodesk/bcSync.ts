@@ -428,13 +428,20 @@ async function mapOpportunityToEntry(opp: BcOpportunity) {
   const officeSuffix = extractOfficeCity(opp.gcCompanyName);
   const officeHintCity = extractOfficeCity(opp.gcOfficeHint);
 
-  let regionResult = await matchRegionWithFallback(locationStr, officeSuffix || officeHintCity);
+  // Try office hint FIRST — it's the most specific signal for subregion disambiguation
+  // (e.g. "Target Markets" uniquely identifies TM even when the project city is shared by all LA subregions)
+  let regionResult = await matchRegionWithFallback(officeHintCity, officeSuffix);
 
-  if (!regionResult.confident && officeHintCity && officeHintCity !== officeSuffix) {
-    const hintResult = await matchRegionWithFallback("", officeHintCity);
-    if (hintResult.confident) {
-      regionResult = hintResult;
-    }
+  // If office hint didn't resolve confidently, try the project location
+  if (!regionResult.confident) {
+    const locResult = await matchRegionWithFallback(locationStr, officeSuffix || officeHintCity);
+    if (locResult.confident) regionResult = locResult;
+  }
+
+  // Final pass: project location alone
+  if (!regionResult.confident && locationStr) {
+    const locOnly = await matchRegionWithFallback(locationStr, "");
+    if (locOnly.confident) regionResult = locOnly;
   }
 
   console.log(`[BC Sync] Region match for "${opp.projectName}": locationStr="${locationStr}" officeSuffix="${officeSuffix}" officeHintCity="${officeHintCity}" → region="${regionResult.code}" confident=${regionResult.confident}`);
