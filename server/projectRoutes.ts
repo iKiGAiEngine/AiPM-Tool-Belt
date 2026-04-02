@@ -1793,11 +1793,12 @@ export function registerProjectRoutes(app: Express) {
         const [u] = await db.select().from(users).where(eq(users.id, userId));
         if (u) changedByName = u.initials || u.displayName || u.email;
       }
-      const trackableFields = ["nbsEstimator", "estimateStatus", "proposalTotal", "gcEstimateLead", "selfPerformEstimator", "anticipatedStart", "anticipatedFinish", "dueDate", "notes", "bcLink", "nbsSelectedScopes", "finalReviewer", "swinertonProject", "region", "primaryMarket", "inviteDate", "estimateNumber", "filePath"];
+      const trackableFields = ["nbsEstimator", "estimateStatus", "proposalTotal", "gcEstimateLead", "selfPerformEstimator", "anticipatedStart", "anticipatedFinish", "dueDate", "notes", "bcLink", "nbsSelectedScopes", "finalReviewer", "swinertonProject", "region", "primaryMarket", "inviteDate", "estimateNumber", "filePath"] as const;
       const changeRows: { entryId: number; fieldName: string; oldValue: string | null; newValue: string | null; changedBy: string }[] = [];
+      const existingRecord = existingEntry as Record<string, unknown>;
       for (const field of trackableFields) {
         if (updates[field] !== undefined) {
-          const oldVal = (existingEntry as any)[field];
+          const oldVal = existingRecord[field];
           const newVal = updates[field];
           const oldStr = oldVal == null ? "" : String(oldVal);
           const newStr = newVal == null ? "" : String(newVal);
@@ -2077,7 +2078,7 @@ export function registerProjectRoutes(app: Express) {
 
   app.get("/api/proposal-log/change-history", async (req: Request, res: Response) => {
     try {
-      const { entryId, fieldName, changedBy, fromDate, toDate, limit: limitStr, offset: offsetStr } = req.query;
+      const { entryId, fieldName, changedBy, fromDate, toDate, projectName, limit: limitStr, offset: offsetStr } = req.query;
 
       const parsedEntryId = entryId ? parseInt(entryId as string) : null;
       if (entryId && (isNaN(parsedEntryId!) || parsedEntryId! < 1)) {
@@ -2089,6 +2090,8 @@ export function registerProjectRoutes(app: Express) {
       if (lim > 500) lim = 500;
       let off = parseInt(offsetStr as string) || 0;
       if (off < 0) off = 0;
+
+      const { and, ilike } = await import("drizzle-orm");
 
       let query = db.select({
         id: proposalChangeLog.id,
@@ -2106,15 +2109,15 @@ export function registerProjectRoutes(app: Express) {
         .orderBy(sql`${proposalChangeLog.changedAt} DESC`)
         .$dynamic();
 
-      const conditions: any[] = [];
+      const conditions: ReturnType<typeof eq>[] = [];
       if (parsedEntryId) conditions.push(eq(proposalChangeLog.entryId, parsedEntryId));
       if (fieldName) conditions.push(eq(proposalChangeLog.fieldName, fieldName as string));
       if (changedBy) conditions.push(eq(proposalChangeLog.changedBy, changedBy as string));
-      if (fromDate) conditions.push(sql`${proposalChangeLog.changedAt} >= ${fromDate}::timestamp`);
-      if (toDate) conditions.push(sql`${proposalChangeLog.changedAt} <= ${toDate}::timestamp`);
+      if (fromDate) conditions.push(sql`${proposalChangeLog.changedAt} >= ${fromDate}::timestamp` as ReturnType<typeof eq>);
+      if (toDate) conditions.push(sql`${proposalChangeLog.changedAt} <= ${toDate}::timestamp` as ReturnType<typeof eq>);
+      if (projectName) conditions.push(ilike(proposalLogEntries.projectName, `%${projectName}%`) as ReturnType<typeof eq>);
 
       if (conditions.length > 0) {
-        const { and } = await import("drizzle-orm");
         query = query.where(and(...conditions));
       }
 

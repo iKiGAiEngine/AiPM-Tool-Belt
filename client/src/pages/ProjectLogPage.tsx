@@ -75,6 +75,10 @@ export default function ProjectLogPage() {
   const { isAdmin } = useAuth();
 
   const [changeHistorySearch, setChangeHistorySearch] = useState("");
+  const [changeFieldFilter, setChangeFieldFilter] = useState("");
+  const [changeUserFilter, setChangeUserFilter] = useState("");
+  const [changeDateFrom, setChangeDateFrom] = useState("");
+  const [changeDateTo, setChangeDateTo] = useState("");
 
   interface ChangeLogRecord {
     id: number;
@@ -88,11 +92,38 @@ export default function ProjectLogPage() {
     estimateNumber: string | null;
   }
 
+  const changeQueryParams = useMemo(() => {
+    const params = new URLSearchParams();
+    if (changeFieldFilter) params.set("fieldName", changeFieldFilter);
+    if (changeUserFilter) params.set("changedBy", changeUserFilter);
+    if (changeDateFrom) params.set("fromDate", changeDateFrom);
+    if (changeDateTo) params.set("toDate", changeDateTo + "T23:59:59");
+    return params.toString();
+  }, [changeFieldFilter, changeUserFilter, changeDateFrom, changeDateTo]);
+
   const { data: changeHistory = [], isLoading: isLoadingChanges, isError: isChangesError } = useQuery<ChangeLogRecord[]>({
-    queryKey: ["/api/proposal-log/change-history"],
+    queryKey: ["/api/proposal-log/change-history", changeQueryParams],
+    queryFn: async () => {
+      const url = `/api/proposal-log/change-history${changeQueryParams ? `?${changeQueryParams}` : ""}`;
+      const res = await fetch(url, { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to load change history");
+      return res.json();
+    },
     enabled: viewTab === "changes",
     staleTime: 30 * 1000,
   });
+
+  const uniqueChangedByUsers = useMemo(() => {
+    const users = new Set<string>();
+    changeHistory.forEach(c => { if (c.changedBy) users.add(c.changedBy); });
+    return Array.from(users).sort();
+  }, [changeHistory]);
+
+  const uniqueFieldNames = useMemo(() => {
+    const fields = new Set<string>();
+    changeHistory.forEach(c => { if (c.fieldName) fields.add(c.fieldName); });
+    return Array.from(fields).sort();
+  }, [changeHistory]);
 
   const filteredChangeHistory = useMemo(() => {
     if (!changeHistorySearch.trim()) return changeHistory;
@@ -580,18 +611,74 @@ export default function ProjectLogPage() {
           <div className="px-6 pb-6">
             {viewTab === "changes" ? (
               <div>
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="relative flex-1 min-w-[200px]">
+                <div className="flex items-center gap-3 mb-3 flex-wrap">
+                  <div className="relative flex-1 min-w-[180px]">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: "var(--text-dim)" }} />
                     <Input
-                      placeholder="Search changes by project, field, user..."
+                      placeholder="Search changes..."
                       value={changeHistorySearch}
                       onChange={(e) => setChangeHistorySearch(e.target.value)}
-                      className="pl-10"
+                      className="pl-10 text-xs h-8"
                       style={{ background: "var(--bg-input)", borderColor: "var(--border-ds)", color: "var(--text)" }}
                       data-testid="input-search-changes"
                     />
                   </div>
+                  <select
+                    value={changeFieldFilter}
+                    onChange={(e) => setChangeFieldFilter(e.target.value)}
+                    className="text-xs h-8 rounded-md px-2 border"
+                    style={{ background: "var(--bg-input)", borderColor: "var(--border-ds)", color: "var(--text)" }}
+                    data-testid="select-field-filter"
+                  >
+                    <option value="">All Fields</option>
+                    {uniqueFieldNames.map(f => (
+                      <option key={f} value={f}>{f.replace(/([A-Z])/g, " $1").replace(/^./, s => s.toUpperCase()).trim()}</option>
+                    ))}
+                  </select>
+                  <select
+                    value={changeUserFilter}
+                    onChange={(e) => setChangeUserFilter(e.target.value)}
+                    className="text-xs h-8 rounded-md px-2 border"
+                    style={{ background: "var(--bg-input)", borderColor: "var(--border-ds)", color: "var(--text)" }}
+                    data-testid="select-user-filter"
+                  >
+                    <option value="">All Users</option>
+                    {uniqueChangedByUsers.map(u => (
+                      <option key={u} value={u}>{u}</option>
+                    ))}
+                  </select>
+                  <div className="flex items-center gap-1">
+                    <span className="text-[10px]" style={{ color: "var(--text-dim)" }}>From</span>
+                    <input
+                      type="date"
+                      value={changeDateFrom}
+                      onChange={(e) => setChangeDateFrom(e.target.value)}
+                      className="text-xs h-8 rounded-md px-2 border"
+                      style={{ background: "var(--bg-input)", borderColor: "var(--border-ds)", color: "var(--text)" }}
+                      data-testid="input-date-from"
+                    />
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <span className="text-[10px]" style={{ color: "var(--text-dim)" }}>To</span>
+                    <input
+                      type="date"
+                      value={changeDateTo}
+                      onChange={(e) => setChangeDateTo(e.target.value)}
+                      className="text-xs h-8 rounded-md px-2 border"
+                      style={{ background: "var(--bg-input)", borderColor: "var(--border-ds)", color: "var(--text)" }}
+                      data-testid="input-date-to"
+                    />
+                  </div>
+                  {(changeFieldFilter || changeUserFilter || changeDateFrom || changeDateTo) && (
+                    <button
+                      onClick={() => { setChangeFieldFilter(""); setChangeUserFilter(""); setChangeDateFrom(""); setChangeDateTo(""); }}
+                      className="text-[10px] px-2 h-8 rounded-md border hover:opacity-80"
+                      style={{ borderColor: "var(--border-ds)", color: "var(--text-dim)" }}
+                      data-testid="button-clear-filters"
+                    >
+                      Clear Filters
+                    </button>
+                  )}
                   <Badge variant="secondary" className="text-xs">
                     {filteredChangeHistory.length} change{filteredChangeHistory.length !== 1 ? "s" : ""}
                   </Badge>
