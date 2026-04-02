@@ -904,7 +904,7 @@ th.col-drop-after::after{content:'';position:absolute;right:0;top:0;bottom:0;wid
       </div>
       <div class="form-row">
         <div class="form-group"><label class="fl">Region</label>
-          <select class="fi" id="f-region-input" onchange="onModalRegionChange(this.value)">
+          <select class="fi" id="f-region-input">
             <option value="">&mdash; Select &mdash;</option>
           </select>
         </div>
@@ -1732,7 +1732,6 @@ function openModal(idx=null) {
 function closeModal(){document.getElementById('modal').classList.remove('open');editIdx=null;}
 function outsideClose(e){if(e.target===document.getElementById('modal'))closeModal();}
 
-function onModalRegionChange(regionVal){}
 function saveProposal(){
   const name=document.getElementById('f-projectName').value.trim();
   if(!name){alert('Project name is required.');return;}
