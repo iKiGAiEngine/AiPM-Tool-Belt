@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect, useRef } from "react";
 import { Link } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { ArrowLeft, Search, ChevronUp, ChevronDown, FileSpreadsheet, FileText, FlaskConical, Archive, Link2, CheckCircle2, RefreshCw, Check, X, FileEdit, Pencil, Download, FolderOpen, Loader2, MessageSquare, ListChecks } from "lucide-react";
+import { ArrowLeft, Search, ChevronUp, ChevronDown, FileSpreadsheet, FileText, FlaskConical, Archive, Link2, CheckCircle2, RefreshCw, Check, X, FileEdit, Pencil, Download, FolderOpen, Loader2, MessageSquare, ListChecks, History } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -48,7 +48,7 @@ interface ProposalLogEntry {
 
 type SortField = "projectName" | "region" | "dueDate" | "estimateStatus" | "nbsEstimator" | "createdAt";
 type SortDir = "asc" | "desc";
-type ViewTab = "all" | "active" | "drafts" | "deleted";
+type ViewTab = "all" | "active" | "drafts" | "deleted" | "changes";
 
 export default function ProjectLogPage() {
   const [searchQuery, setSearchQuery] = useState("");
@@ -73,6 +73,38 @@ export default function ProjectLogPage() {
   const { isTestMode } = useTestMode();
   const { toast } = useToast();
   const { isAdmin } = useAuth();
+
+  const [changeHistorySearch, setChangeHistorySearch] = useState("");
+
+  interface ChangeLogRecord {
+    id: number;
+    entryId: number;
+    fieldName: string;
+    oldValue: string | null;
+    newValue: string | null;
+    changedBy: string | null;
+    changedAt: string;
+    projectName: string;
+    estimateNumber: string | null;
+  }
+
+  const { data: changeHistory = [], isLoading: isLoadingChanges, isError: isChangesError } = useQuery<ChangeLogRecord[]>({
+    queryKey: ["/api/proposal-log/change-history"],
+    enabled: viewTab === "changes",
+    staleTime: 30 * 1000,
+  });
+
+  const filteredChangeHistory = useMemo(() => {
+    if (!changeHistorySearch.trim()) return changeHistory;
+    const q = changeHistorySearch.toLowerCase();
+    return changeHistory.filter(c =>
+      (c.projectName || "").toLowerCase().includes(q) ||
+      (c.fieldName || "").toLowerCase().includes(q) ||
+      (c.changedBy || "").toLowerCase().includes(q) ||
+      (c.oldValue || "").toLowerCase().includes(q) ||
+      (c.newValue || "").toLowerCase().includes(q)
+    );
+  }, [changeHistory, changeHistorySearch]);
 
   const { data: bcStatus } = useQuery<{ connected: boolean }>({
     queryKey: ["/api/autodesk/status"],
@@ -518,6 +550,7 @@ export default function ProjectLogPage() {
                   { key: "active" as ViewTab, label: "Active", count: activeCount },
                   { key: "drafts" as ViewTab, label: "Drafts", count: draftCount },
                   { key: "deleted" as ViewTab, label: "Deleted", count: deletedCount },
+                  { key: "changes" as ViewTab, label: "Changes", count: null },
                 ]).map(tab => (
                   <button
                     key={tab.key}
@@ -530,7 +563,7 @@ export default function ProjectLogPage() {
                     }}
                     data-testid={`tab-${tab.key}`}
                   >
-                    {tab.label} ({tab.count})
+                    {tab.label}{tab.count !== null ? ` (${tab.count})` : ""}
                   </button>
                 ))}
               </div>
@@ -545,7 +578,89 @@ export default function ProjectLogPage() {
             )}
           </div>
           <div className="px-6 pb-6">
-            {isLoading && entries.length === 0 ? (
+            {viewTab === "changes" ? (
+              <div>
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="relative flex-1 min-w-[200px]">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: "var(--text-dim)" }} />
+                    <Input
+                      placeholder="Search changes by project, field, user..."
+                      value={changeHistorySearch}
+                      onChange={(e) => setChangeHistorySearch(e.target.value)}
+                      className="pl-10"
+                      style={{ background: "var(--bg-input)", borderColor: "var(--border-ds)", color: "var(--text)" }}
+                      data-testid="input-search-changes"
+                    />
+                  </div>
+                  <Badge variant="secondary" className="text-xs">
+                    {filteredChangeHistory.length} change{filteredChangeHistory.length !== 1 ? "s" : ""}
+                  </Badge>
+                </div>
+                {isLoadingChanges ? (
+                  <p className="text-sm py-8 text-center" style={{ color: "var(--text-dim)" }}>Loading change history...</p>
+                ) : isChangesError ? (
+                  <div className="text-center py-12">
+                    <History className="w-10 h-10 mx-auto mb-3" style={{ color: "var(--text-dim)", opacity: 0.4 }} />
+                    <p className="text-sm" style={{ color: "rgb(239,68,68)" }}>Failed to load change history.</p>
+                    <p className="text-xs mt-1" style={{ color: "var(--text-dim)" }}>Please try again later.</p>
+                  </div>
+                ) : filteredChangeHistory.length === 0 ? (
+                  <div className="text-center py-12">
+                    <History className="w-10 h-10 mx-auto mb-3" style={{ color: "var(--text-dim)", opacity: 0.4 }} />
+                    <p className="text-sm" style={{ color: "var(--text-dim)" }}>No changes recorded yet.</p>
+                    <p className="text-xs mt-1" style={{ color: "var(--text-dim)", opacity: 0.7 }}>Field-level changes will appear here as edits are made in the Proposal Log.</p>
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm" style={{ color: "var(--text)" }} data-testid="table-change-history">
+                      <thead>
+                        <tr style={{ borderBottom: "1px solid var(--border-ds)" }}>
+                          <th className="text-left py-3 px-3 font-medium" style={{ color: "var(--text-dim)" }}>Date</th>
+                          <th className="text-left py-3 px-3 font-medium" style={{ color: "var(--text-dim)" }}>Project</th>
+                          <th className="text-left py-3 px-3 font-medium" style={{ color: "var(--text-dim)" }}>Field</th>
+                          <th className="text-left py-3 px-3 font-medium" style={{ color: "var(--text-dim)" }}>Old Value</th>
+                          <th className="text-left py-3 px-3 font-medium" style={{ color: "var(--text-dim)" }}>New Value</th>
+                          <th className="text-left py-3 px-3 font-medium" style={{ color: "var(--text-dim)" }}>Changed By</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {filteredChangeHistory.map((ch) => (
+                          <tr key={ch.id} style={{ borderBottom: "1px solid var(--border-ds)" }} data-testid={`row-change-${ch.id}`}>
+                            <td className="py-2.5 px-3 text-xs whitespace-nowrap" style={{ color: "var(--text-dim)" }}>
+                              {new Date(ch.changedAt).toLocaleString()}
+                            </td>
+                            <td className="py-2.5 px-3">
+                              <span className="text-xs font-medium" style={{ color: "var(--text)" }}>{ch.projectName}</span>
+                              {ch.estimateNumber && (
+                                <span className="text-[10px] ml-1.5" style={{ color: "var(--text-dim)" }}>#{ch.estimateNumber}</span>
+                              )}
+                            </td>
+                            <td className="py-2.5 px-3">
+                              <Badge variant="outline" className="text-[10px]" data-testid={`badge-field-${ch.id}`}>
+                                {ch.fieldName.replace(/([A-Z])/g, " $1").replace(/^./, s => s.toUpperCase()).trim()}
+                              </Badge>
+                            </td>
+                            <td className="py-2.5 px-3">
+                              <span className="text-xs px-1.5 py-0.5 rounded" style={{ background: "rgba(239,68,68,0.1)", color: "var(--text-dim)", textDecoration: ch.oldValue ? "line-through" : "none" }}>
+                                {ch.oldValue || "\u2014"}
+                              </span>
+                            </td>
+                            <td className="py-2.5 px-3">
+                              <span className="text-xs px-1.5 py-0.5 rounded" style={{ background: "rgba(34,197,94,0.1)", color: "var(--text)" }}>
+                                {ch.newValue || "\u2014"}
+                              </span>
+                            </td>
+                            <td className="py-2.5 px-3 text-xs" style={{ color: "var(--text-dim)" }}>
+                              {ch.changedBy || "\u2014"}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            ) : isLoading && entries.length === 0 ? (
               <p className="text-sm py-8 text-center" style={{ color: "var(--text-dim)" }}>Loading project log...</p>
             ) : filteredEntries.length === 0 ? (
               <p className="text-sm py-8 text-center" style={{ color: "var(--text-dim)" }}>No entries found.</p>

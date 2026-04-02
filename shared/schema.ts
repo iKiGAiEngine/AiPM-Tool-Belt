@@ -994,3 +994,16 @@ export const bcSyncState = pgTable("bc_sync_state", {
 });
 
 export type BcSyncState = typeof bcSyncState.$inferSelect;
+
+export const proposalChangeLog = pgTable("proposal_change_log", {
+  id: serial("id").primaryKey(),
+  entryId: integer("entry_id").notNull().references(() => proposalLogEntries.id),
+  fieldName: varchar("field_name", { length: 100 }).notNull(),
+  oldValue: text("old_value"),
+  newValue: text("new_value"),
+  changedBy: varchar("changed_by", { length: 200 }),
+  changedAt: timestamp("changed_at").notNull().defaultNow(),
+});
+
+export type ProposalChangeLog = typeof proposalChangeLog.$inferSelect;
+export type InsertProposalChangeLog = typeof proposalChangeLog.$inferInsert;

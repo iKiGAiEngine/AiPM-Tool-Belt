@@ -45,8 +45,8 @@ import { extractProjectDetailsFromScreenshot } from "./screenshotExtractor";
 import { matchRegionWithFallback } from "./regionMatcher";
 import { guessMarket, createProposalLogEntry, bulkCreateProposalLogEntries, getUnsyncedEntries, markEntriesSynced, getActiveProposalLogEntries, getAllProposalLogEntries, updateProposalLogEntryById, deleteProposalLogEntry, deleteProposalLogEntries, getAcknowledgedEntryIds, acknowledgeEntry, unacknowledgeEntry, clearAcknowledgementsForEntry } from "./proposalLogService";
 import { getSheetUrl, syncProposalLogToSheet, pullRepairAndPush, isGoogleSheetConfigured } from "./googleSheetSync";
-import { users, proposalLogEntries, regions } from "@shared/schema";
-import { eq } from "drizzle-orm";
+import { users, proposalLogEntries, regions, proposalChangeLog } from "@shared/schema";
+import { eq, sql } from "drizzle-orm";
 import { db } from "./db";
 import { sendBidAssignmentEmail, getBidAssignmentTemplate, saveBidAssignmentTemplate } from "./emailService";
 import { QUICK_LOGIN_USERS } from "./authRoutes";
@@ -1737,19 +1737,20 @@ export function registerProjectRoutes(app: Express) {
         return res.status(400).json({ message: "No valid fields to update" });
       }
 
+      const [existingEntry] = await db.select().from(proposalLogEntries).where(eq(proposalLogEntries.id, id));
+      if (!existingEntry) {
+        return res.status(404).json({ message: "Entry not found" });
+      }
+
       let oldEstimator: string | null = null;
       if (updates.nbsEstimator !== undefined) {
-        const [existingEntry] = await db.select().from(proposalLogEntries).where(eq(proposalLogEntries.id, id));
-        if (existingEntry) {
-          oldEstimator = existingEntry.nbsEstimator;
-        }
+        oldEstimator = existingEntry.nbsEstimator;
         await clearAcknowledgementsForEntry(id);
       }
 
       if (updates.region !== undefined && updates.selfPerformEstimator === undefined) {
         try {
-          const [existingForRegion] = await db.select().from(proposalLogEntries).where(eq(proposalLogEntries.id, id));
-          const oldRegion = (existingForRegion?.region || "").trim();
+          const oldRegion = (existingEntry.region || "").trim();
           const newRegion = (updates.region || "").trim();
           if (newRegion !== oldRegion) {
             const rm = newRegion.match(/^([A-Z]{2,5})\s*-\s*(.+)$/);
@@ -1786,9 +1787,37 @@ export function registerProjectRoutes(app: Express) {
         }
       }
 
+      const userId = (req.session as any)?.userId;
+      let changedByName = "Unknown";
+      if (userId) {
+        const [u] = await db.select().from(users).where(eq(users.id, userId));
+        if (u) changedByName = u.initials || u.displayName || u.email;
+      }
+      const trackableFields = ["nbsEstimator", "estimateStatus", "proposalTotal", "gcEstimateLead", "selfPerformEstimator", "anticipatedStart", "anticipatedFinish", "dueDate", "notes", "bcLink", "nbsSelectedScopes", "finalReviewer", "swinertonProject", "region", "primaryMarket", "inviteDate", "estimateNumber", "filePath"];
+      const changeRows: { entryId: number; fieldName: string; oldValue: string | null; newValue: string | null; changedBy: string }[] = [];
+      for (const field of trackableFields) {
+        if (updates[field] !== undefined) {
+          const oldVal = (existingEntry as any)[field];
+          const newVal = updates[field];
+          const oldStr = oldVal == null ? "" : String(oldVal);
+          const newStr = newVal == null ? "" : String(newVal);
+          if (oldStr !== newStr) {
+            changeRows.push({ entryId: id, fieldName: field, oldValue: oldStr || null, newValue: newStr || null, changedBy: changedByName });
+          }
+        }
+      }
+
       const updated = await updateProposalLogEntryById(id, updates);
       if (!updated) {
         return res.status(404).json({ message: "Entry not found" });
+      }
+
+      if (changeRows.length > 0) {
+        try {
+          await db.insert(proposalChangeLog).values(changeRows);
+        } catch (err) {
+          console.error("[ChangeLog] Failed to record changes (non-fatal):", err);
+        }
       }
 
       if (updates.selfPerformEstimator !== undefined && updates.selfPerformEstimator && updated.region) {
@@ -2043,6 +2072,59 @@ export function registerProjectRoutes(app: Express) {
     } catch (error) {
       console.error("Failed to get email template:", error);
       res.status(500).json({ message: "Failed to get email template" });
+    }
+  });
+
+  app.get("/api/proposal-log/change-history", async (req: Request, res: Response) => {
+    try {
+      const { entryId, fieldName, changedBy, fromDate, toDate, limit: limitStr, offset: offsetStr } = req.query;
+
+      const parsedEntryId = entryId ? parseInt(entryId as string) : null;
+      if (entryId && (isNaN(parsedEntryId!) || parsedEntryId! < 1)) {
+        return res.status(400).json({ message: "Invalid entryId" });
+      }
+
+      let lim = parseInt(limitStr as string) || 200;
+      if (lim < 1) lim = 1;
+      if (lim > 500) lim = 500;
+      let off = parseInt(offsetStr as string) || 0;
+      if (off < 0) off = 0;
+
+      let query = db.select({
+        id: proposalChangeLog.id,
+        entryId: proposalChangeLog.entryId,
+        fieldName: proposalChangeLog.fieldName,
+        oldValue: proposalChangeLog.oldValue,
+        newValue: proposalChangeLog.newValue,
+        changedBy: proposalChangeLog.changedBy,
+        changedAt: proposalChangeLog.changedAt,
+        projectName: proposalLogEntries.projectName,
+        estimateNumber: proposalLogEntries.estimateNumber,
+      })
+        .from(proposalChangeLog)
+        .innerJoin(proposalLogEntries, eq(proposalChangeLog.entryId, proposalLogEntries.id))
+        .orderBy(sql`${proposalChangeLog.changedAt} DESC`)
+        .$dynamic();
+
+      const conditions: any[] = [];
+      if (parsedEntryId) conditions.push(eq(proposalChangeLog.entryId, parsedEntryId));
+      if (fieldName) conditions.push(eq(proposalChangeLog.fieldName, fieldName as string));
+      if (changedBy) conditions.push(eq(proposalChangeLog.changedBy, changedBy as string));
+      if (fromDate) conditions.push(sql`${proposalChangeLog.changedAt} >= ${fromDate}::timestamp`);
+      if (toDate) conditions.push(sql`${proposalChangeLog.changedAt} <= ${toDate}::timestamp`);
+
+      if (conditions.length > 0) {
+        const { and } = await import("drizzle-orm");
+        query = query.where(and(...conditions));
+      }
+
+      query = query.limit(lim).offset(off);
+
+      const rows = await query;
+      res.json(rows);
+    } catch (error) {
+      console.error("Failed to fetch change history:", error);
+      res.status(500).json({ message: "Failed to fetch change history" });
     }
   });
 

@@ -12,6 +12,22 @@ async function ensureRegionAliasesColumn(): Promise<void> {
   }
 }
 
+async function ensureProposalChangeLogTable(): Promise<void> {
+  try {
+    await db.execute(sql`CREATE TABLE IF NOT EXISTS proposal_change_log (
+      id SERIAL PRIMARY KEY,
+      entry_id INTEGER NOT NULL REFERENCES proposal_log_entries(id),
+      field_name VARCHAR(100) NOT NULL,
+      old_value TEXT,
+      new_value TEXT,
+      changed_by VARCHAR(200),
+      changed_at TIMESTAMP NOT NULL DEFAULT NOW()
+    )`);
+  } catch (e: any) {
+    console.log("[Migration] proposal_change_log table check:", e.message);
+  }
+}
+
 async function ensureProposalLogExtraColumns(): Promise<void> {
   try {
     await db.execute(sql`ALTER TABLE proposal_log_entries ADD COLUMN IF NOT EXISTS final_reviewer varchar(200)`);
@@ -25,6 +41,7 @@ export async function seedDefaultData(): Promise<void> {
   try {
     await ensureRegionAliasesColumn();
     await ensureProposalLogExtraColumns();
+    await ensureProposalChangeLogTable();
     const [regionCount] = await db.select({ value: count() }).from(regions);
     if (regionCount.value === 0) {
       const defaultRegions = [
