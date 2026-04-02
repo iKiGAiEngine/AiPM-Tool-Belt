@@ -759,6 +759,9 @@ th.col-drop-after::after{content:'';position:absolute;right:0;top:0;bottom:0;wid
           </a>
           <button class="btn-icon-sm" id="btn-force-sync" onclick="forceSync()" title="Push app data to Google Sheet" style="display:none;width:100%;text-align:left" data-testid="button-force-sync">&#8635; Push to Sheet</button>
           <button class="btn-icon-sm" id="btn-import-sheet" onclick="importFromSheet()" title="Pull changes from Google Sheet into app" style="display:none;width:100%;text-align:left" data-testid="button-import-sheet">&#11015; Pull from Sheet</button>
+          <hr style="border:none;border-top:1px solid var(--border);margin:4px 0;">
+          <button class="btn-icon-sm" onclick="exportCSV();toggleMoreMenu()" style="width:100%;text-align:left" data-testid="button-export-csv">&#11015; Export CSV</button>
+          <button class="btn-icon-sm" onclick="resetColLayout();toggleMoreMenu()" style="width:100%;text-align:left" data-testid="button-reset-columns">&#8634; Reset Columns</button>
         </div>
         <button class="btn-primary" id="btn-add" onclick="openModal()">+ Add Proposal</button>
       </div>
@@ -781,11 +784,7 @@ th.col-drop-after::after{content:'';position:absolute;right:0;top:0;bottom:0;wid
         <tbody id="tbody"></tbody>
       </table>
     </div>
-    <div class="export-bar">
-      <button class="btn-secondary" onclick="resetColLayout()">&#8634; Reset Columns</button>
-      <button class="btn-secondary" style="color:var(--loss);border-color:rgba(192,57,43,.3)" onclick="clearAllData()">&#128465; Clear All Data</button>
-      <button class="btn-secondary" onclick="exportCSV()">&#11015; Export CSV</button>
-    </div>
+    <div class="export-bar"></div>
   </div>
 </main>
 
