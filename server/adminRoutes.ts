@@ -174,12 +174,21 @@ export function registerAdminRoutes(app: Express) {
   app.patch("/api/admin/users/:id/profile", requireAdmin, async (req: Request, res: Response) => {
     try {
       const userId = parseInt(req.params.id);
-      const { displayName, initials, email, dashboardScope, dashboardLayout, assignedRegion } = req.body;
+      const { displayName, initials, email, role, dashboardScope, dashboardLayout, assignedRegion } = req.body;
       const actorId = (req.session as any)?.userId;
 
       const updateFields: Record<string, any> = {};
       if (displayName !== undefined) updateFields.displayName = displayName || null;
       if (initials !== undefined) updateFields.initials = initials || null;
+      if (role !== undefined) {
+        if (!["user", "admin"].includes(role)) {
+          return res.status(400).json({ message: "Invalid role" });
+        }
+        if (actorId === userId && role !== "admin") {
+          return res.status(400).json({ message: "You cannot demote yourself" });
+        }
+        updateFields.role = role;
+      }
       if (dashboardScope !== undefined) updateFields.dashboardScope = dashboardScope || "my_projects";
       if (dashboardLayout !== undefined) updateFields.dashboardLayout = dashboardLayout || "estimator";
       if (assignedRegion !== undefined) updateFields.assignedRegion = assignedRegion || null;

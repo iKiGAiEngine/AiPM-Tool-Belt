@@ -86,7 +86,7 @@ function UserFormDialog({
   const updateMutation = useMutation({
     mutationFn: async () => {
       await apiRequest("PATCH", `/api/admin/users/${editUser!.id}/profile`, {
-        email, displayName, initials, dashboardScope, dashboardLayout,
+        email, displayName, initials, role, dashboardScope, dashboardLayout,
       });
     },
     onSuccess: () => {
@@ -151,20 +151,18 @@ function UserFormDialog({
             />
             <p className="text-xs text-muted-foreground">Used as estimator code in Proposal Log</p>
           </div>
-          {!isEditing && (
-            <div className="space-y-2">
-              <Label htmlFor="form-role">Role</Label>
-              <Select value={role} onValueChange={setRole}>
-                <SelectTrigger id="form-role" data-testid="select-form-role">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="admin">Admin</SelectItem>
-                  <SelectItem value="user">User</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          )}
+          <div className="space-y-2">
+            <Label htmlFor="form-role">Role</Label>
+            <Select value={role} onValueChange={setRole}>
+              <SelectTrigger id="form-role" data-testid="select-form-role">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="admin">Admin</SelectItem>
+                <SelectItem value="user">User</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
           <div className="space-y-2">
             <Label htmlFor="form-dashboard-scope">Dashboard Scope</Label>
             <Select value={dashboardScope} onValueChange={setDashboardScope}>
