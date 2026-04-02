@@ -46,7 +46,7 @@ import { extractProjectDetailsFromScreenshot } from "./screenshotExtractor";
 import { matchRegionWithFallback } from "./regionMatcher";
 import { guessMarket, createProposalLogEntry, bulkCreateProposalLogEntries, getUnsyncedEntries, markEntriesSynced, getActiveProposalLogEntries, getAllProposalLogEntries, updateProposalLogEntryById, deleteProposalLogEntry, deleteProposalLogEntries, getAcknowledgedEntryIds, acknowledgeEntry, unacknowledgeEntry, clearAcknowledgementsForEntry } from "./proposalLogService";
 import { getSheetUrl, syncProposalLogToSheet, pullRepairAndPush, isGoogleSheetConfigured } from "./googleSheetSync";
-import { users, proposalLogEntries } from "@shared/schema";
+import { users, proposalLogEntries, regions } from "@shared/schema";
 import { eq } from "drizzle-orm";
 import { db } from "./db";
 import { sendBidAssignmentEmail, getBidAssignmentTemplate, saveBidAssignmentTemplate } from "./emailService";
@@ -1745,6 +1745,35 @@ export function registerProjectRoutes(app: Express) {
       const updated = await updateProposalLogEntryById(id, updates);
       if (!updated) {
         return res.status(404).json({ message: "Entry not found" });
+      }
+
+      if (updates.selfPerformEstimator !== undefined && updated.region) {
+        try {
+          const regionStr = (updated.region || "").trim();
+          const rm = regionStr.match(/^([A-Z]{2,5})\s*-\s*(.+)$/);
+          let regionCode = "";
+          let regionName = "";
+          if (rm) {
+            regionCode = rm[1];
+            regionName = rm[2];
+          } else if (/^[A-Z]{2,5}$/.test(regionStr)) {
+            regionCode = regionStr;
+          }
+          if (regionCode) {
+            const matchingRegions = await db.select().from(regions)
+              .where(eq(regions.code, regionCode));
+            const target = regionName
+              ? (matchingRegions.find(r => r.name === regionName) || matchingRegions[0])
+              : matchingRegions[0];
+            if (target) {
+              await db.update(regions)
+                .set({ selfPerformEstimator: updates.selfPerformEstimator })
+                .where(eq(regions.id, target.id));
+            }
+          }
+        } catch (err) {
+          console.error("[SP Estimator] Failed to sync back to region:", err);
+        }
       }
 
       if (updates.nbsEstimator !== undefined) {

@@ -1129,7 +1129,7 @@ const COL_DEFS = [
   {key:'bcLink',         label:'BC Link',             w:100, filter:'none'},
   {key:'owner',          label:'Owner',               w:110, filter:'text'},
   {key:'filePath',       label:'File Path',           w:90,  filter:'none'},
-  {key:'_spEstimator',   label:'SP Estimator',         w:120, filter:'text'},
+  {key:'selfPerformEstimator', label:'SP Estimator',    w:120, filter:'text'},
   {key:'_screenshot',    label:'Source',              w:70,  filter:'none'},
   {key:'_actions',       label:'',                    w:70,  filter:'none'},
 ];
@@ -1221,15 +1221,7 @@ function getFiltered() {
     if(ft && p.dueDate && p.dueDate>ft) return false;
     for(const [key,val] of Object.entries(colFilters)) {
       if(!val) continue;
-      let pv;
-      if(key==='_spEstimator') {
-        const rc=(p.region||'').match(/^([A-Z]{2,5})\s*-\s*(.+)$/);
-        let ro = rc ? REGIONS_RAW.find(r=>r.code===rc[1]&&r.name===rc[2]) : null;
-        if(!ro && rc) ro = REGIONS_RAW.find(r=>r.code===rc[1]&&r.selfPerformEstimator);
-        pv=((ro&&ro.selfPerformEstimator)||'').toLowerCase();
-      } else {
-        pv=(p[key]||'').toLowerCase();
-      }
+      let pv=(p[key]||'').toLowerCase();
       if(!pv.includes(val.toLowerCase())) return false;
     }
     return true;
@@ -1532,20 +1524,13 @@ function buildRows() {
               <span class="inline-edit-hint">\u270f</span></div>`;
           } else { val=p.primaryMarket||'\u2014'; }
           break;
-        case '_spEstimator': {
-          const regCode = (p.region||'').match(/^([A-Z]{2,5})\s*-\s*(.+)$/);
-          let spVal = '\u2014';
-          if (regCode) {
-            const rObj = REGIONS_RAW.find(r => r.code === regCode[1] && r.name === regCode[2]);
-            if (rObj && rObj.selfPerformEstimator) spVal = rObj.selfPerformEstimator;
-            else {
-              const fallback = REGIONS_RAW.find(r => r.code === regCode[1] && r.selfPerformEstimator);
-              if (fallback) spVal = fallback.selfPerformEstimator;
-            }
-          }
-          val = spVal;
+        case 'selfPerformEstimator':
+          if(mode==='estimator' && can('editRow')) {
+            val=`<div class="inline-edit-wrap" onclick="startInlineEdit(event,${oi},'selfPerformEstimator')">
+              <span>${p.selfPerformEstimator||'\u2014'}</span>
+              <span class="inline-edit-hint">\u270f</span></div>`;
+          } else { val=p.selfPerformEstimator||'\u2014'; }
           break;
-        }
         case '_screenshot': val=p._screenshotId?`<button class="btn-row" onclick="viewScreenshot('${p._screenshotId}')" title="View source screenshot" style="font-size:16px">&#128247;</button>`:''; break;
         default: val=p[key]||'\u2014';
       }
@@ -1792,12 +1777,6 @@ async function del(i){
 }
 
 function getComputedVal(p,k) {
-  if(k==='_spEstimator') {
-    const rc=(p.region||'').match(/^([A-Z]{2,5})\s*-\s*(.+)$/);
-    let ro = rc ? REGIONS_RAW.find(r=>r.code===rc[1]&&r.name===rc[2]) : null;
-    if(!ro && rc) ro = REGIONS_RAW.find(r=>r.code===rc[1]&&r.selfPerformEstimator);
-    return (ro&&ro.selfPerformEstimator)||'';
-  }
   return p[k]||'';
 }
 function exportCSV(){
@@ -2437,8 +2416,8 @@ let ESTIMATORS=[
     sel.innerHTML='<option value="">\u2014 Select \u2014</option>'+ESTIMATORS.map(e=>`<option value="${e.code}">${e.label}</option>`).join('');
   }
 })();
-const INLINE_FIELDS={proposalTotal:'number',estimateStatus:'select-status',nbsEstimator:'select-estimator',anticipatedStart:'month',anticipatedFinish:'month',dueDate:'date',notes:'textarea',bcLink:'text',gcEstimateLead:'text',finalReviewer:'text',swinertonProject:'select-yn',region:'select-region',primaryMarket:'select-market',inviteDate:'date',estimateNumber:'text',filePath:'text'};
-const FIELD_LABELS={proposalTotal:'Proposal Total',estimateStatus:'Status',nbsEstimator:'NBS Estimator',anticipatedStart:'Est. Start',anticipatedFinish:'Est. End',dueDate:'Due Date',notes:'Notes',bcLink:'BC Link',gcEstimateLead:'GC Estimate Lead',finalReviewer:'Final Reviewer',swinertonProject:'Swinerton?',region:'Region',primaryMarket:'Primary Market',inviteDate:'Invite Date',estimateNumber:'Estimate #',filePath:'File Path'};
+const INLINE_FIELDS={proposalTotal:'number',estimateStatus:'select-status',nbsEstimator:'select-estimator',anticipatedStart:'month',anticipatedFinish:'month',dueDate:'date',notes:'textarea',bcLink:'text',gcEstimateLead:'text',selfPerformEstimator:'text',finalReviewer:'text',swinertonProject:'select-yn',region:'select-region',primaryMarket:'select-market',inviteDate:'date',estimateNumber:'text',filePath:'text'};
+const FIELD_LABELS={proposalTotal:'Proposal Total',estimateStatus:'Status',nbsEstimator:'NBS Estimator',anticipatedStart:'Est. Start',anticipatedFinish:'Est. End',dueDate:'Due Date',notes:'Notes',bcLink:'BC Link',gcEstimateLead:'GC Estimate Lead',selfPerformEstimator:'SP Estimator',finalReviewer:'Final Reviewer',swinertonProject:'Swinerton?',region:'Region',primaryMarket:'Primary Market',inviteDate:'Invite Date',estimateNumber:'Estimate #',filePath:'File Path'};
 let editPopupState=null;
 
 function startInlineEdit(e,oi,field){
@@ -2663,7 +2642,7 @@ function closeNoBidModal(withReason) {
 }
 
 async function syncFieldToServer(entry, field, value) {
-  const syncableFields = ['nbsEstimator','estimateStatus','proposalTotal','gcEstimateLead','anticipatedStart','anticipatedFinish','estimateNumber','notes','dueDate','bcLink','nbsSelectedScopes','finalReviewer','swinertonProject','region','primaryMarket','inviteDate','filePath'];
+  const syncableFields = ['nbsEstimator','estimateStatus','proposalTotal','gcEstimateLead','selfPerformEstimator','anticipatedStart','anticipatedFinish','estimateNumber','notes','dueDate','bcLink','nbsSelectedScopes','finalReviewer','swinertonProject','region','primaryMarket','inviteDate','filePath'];
   if (!syncableFields.includes(field)) return;
   if (!entry._serverDbId) { console.warn('Cannot sync field: entry has no _serverDbId'); return; }
   try {
@@ -3044,6 +3023,20 @@ function viewScreenshot(estNum) {
   overlay.style.display = 'flex';
 }
 
+function lookupSpEstimator(region) {
+  if (!region || !REGIONS_RAW.length) return '';
+  const m = (region||'').match(/^([A-Z]{2,5})\s*-\s*(.+)$/);
+  if (m) {
+    const ro = REGIONS_RAW.find(r => r.code === m[1] && r.name === m[2]);
+    if (ro && ro.selfPerformEstimator) return ro.selfPerformEstimator;
+    const fallback = REGIONS_RAW.find(r => r.code === m[1] && r.selfPerformEstimator);
+    if (fallback) return fallback.selfPerformEstimator;
+  }
+  const code = region.trim().toUpperCase();
+  const codeMatch = REGIONS_RAW.find(r => r.code === code && r.selfPerformEstimator);
+  return codeMatch ? codeMatch.selfPerformEstimator : '';
+}
+
 function serverEntryToLocal(e, existingLocal) {
   const base = existingLocal || {
     lossWho: '', lossReason: '', lossDetail: '', lossCompetitor: '', lossNotes: '',
@@ -3058,6 +3051,7 @@ function serverEntryToLocal(e, existingLocal) {
     dueDate: e.dueDate || '',
     nbsEstimator: e.nbsEstimator || base.nbsEstimator || '',
     gcEstimateLead: e.gcEstimateLead || base.gcEstimateLead || '',
+    selfPerformEstimator: e.selfPerformEstimator || base.selfPerformEstimator || lookupSpEstimator(e.region) || '',
     proposalTotal: e.proposalTotal || base.proposalTotal || '',
     estimateStatus: e.estimateStatus || 'Estimating',
     anticipatedStart: e.anticipatedStart || base.anticipatedStart || '',

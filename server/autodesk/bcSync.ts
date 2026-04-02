@@ -428,6 +428,23 @@ async function mapOpportunityToEntry(opp: BcOpportunity) {
 
   const bcLink = opp.id ? `https://app.buildingconnected.com/opportunities/${opp.id}` : "";
 
+  let selfPerformEstimator = "";
+  if (regionResult.code) {
+    try {
+      const allRegions = await getActiveRegions();
+      const regionDisplayLabel = regionResult.displayLabel || "";
+      const rm = regionDisplayLabel.match(/^([A-Z]{2,5})\s*-\s*(.+)$/);
+      if (rm) {
+        const matchedReg = allRegions.find(r => r.code === rm[1] && r.name === rm[2]);
+        if (matchedReg?.selfPerformEstimator) selfPerformEstimator = matchedReg.selfPerformEstimator;
+      }
+      if (!selfPerformEstimator) {
+        const fallbackReg = allRegions.find(r => r.code === regionResult.code && r.selfPerformEstimator);
+        if (fallbackReg?.selfPerformEstimator) selfPerformEstimator = fallbackReg.selfPerformEstimator;
+      }
+    } catch (_) {}
+  }
+
   return {
     projectName,
     region: regionResult.code ? regionResult.displayLabel : "",
@@ -438,6 +455,7 @@ async function mapOpportunityToEntry(opp: BcOpportunity) {
     anticipatedStart,
     anticipatedFinish,
     gcEstimateLead: opp.gcContactName || "",
+    selfPerformEstimator,
     owner: opp.gcCompanyName || "",
     bcLink,
     bcProjectId: opp.projectId || "",
