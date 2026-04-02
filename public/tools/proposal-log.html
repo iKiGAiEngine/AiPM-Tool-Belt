@@ -1741,7 +1741,7 @@ function saveProposal(){
   if(Number(formVals.proposalTotal)>0 && formVals.estimateStatus==='Estimating'){
     formVals.estimateStatus='Submitted';
   }
-  if(!formVals.selfPerformEstimator && formVals.region){
+  if(!formVals.selfPerformEstimator && formVals.region && editIdx===null){
     formVals.selfPerformEstimator = lookupSpEstimator(formVals.region);
   }
   if(editIdx!==null){
@@ -2689,6 +2689,16 @@ async function syncFieldToServer(entry, field, value) {
       credentials: 'include',
       body: JSON.stringify({ [field]: value })
     });
+    if (resp.ok && field === 'selfPerformEstimator') {
+      try {
+        const regResp = await fetch('/api/regions', { credentials: 'include' });
+        if (regResp.ok) {
+          const allRegs = await regResp.json();
+          REGIONS_RAW.length = 0;
+          allRegs.forEach(r => REGIONS_RAW.push(r));
+        }
+      } catch (_) {}
+    }
     if (resp.ok && field === 'proposalTotal') {
       const result = await resp.json();
       if (result.entry && result.entry.estimateStatus) {
