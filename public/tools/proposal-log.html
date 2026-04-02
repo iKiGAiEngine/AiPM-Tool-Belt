@@ -644,7 +644,7 @@ th.col-drop-after::after{content:'';position:absolute;right:0;top:0;bottom:0;wid
 <main>
   <!-- DASHBOARD -->
   <div class="view" id="view-dash">
-    <div class="dash-filters">
+    <div class="dash-filters" id="dash-filter-wrap">
       <span class="dash-filters-label">Filter Dashboard</span>
       <div class="dash-filter-sep"></div>
       <select class="df" id="df-region"><option value="">All Regions</option></select>
@@ -657,8 +657,8 @@ th.col-drop-after::after{content:'';position:absolute;right:0;top:0;bottom:0;wid
       <input type="date" class="df" id="df-to">
       <span class="dash-filter-clear" onclick="clearDashFilters()">Clear filters</span>
     </div>
-    <div class="kpi-row" id="dash-kpis"></div>
-    <div class="dash-row2">
+    <div id="dash-kpi-wrap"><div class="kpi-row" id="dash-kpis"></div></div>
+    <div class="dash-row2" id="dash-row-funnel-wrap">
       <div class="dp" style="animation-delay:.06s">
         <div class="dp-title">Pipeline Funnel</div>
         <div class="dp-sub">Value & count by stage</div>
@@ -675,7 +675,7 @@ th.col-drop-after::after{content:'';position:absolute;right:0;top:0;bottom:0;wid
         <div id="dash-loss-intel" style="height:168px;overflow-y:auto"></div>
       </div>
     </div>
-    <div class="dash-row3">
+    <div class="dash-row3" id="dash-row-region-market-gc-wrap">
       <div class="dp" style="animation-delay:.18s">
         <div class="dp-title">Pipeline by Region</div>
         <div class="dp-sub">Total proposal value per region</div>
@@ -686,7 +686,7 @@ th.col-drop-after::after{content:'';position:absolute;right:0;top:0;bottom:0;wid
         <div class="dp-sub">Submitted vs. Awarded by market</div>
         <div class="dp-chart" style="height:190px"><canvas id="chart-market"></canvas></div>
       </div>
-      <div class="dp" style="animation-delay:.26s">
+      <div class="dp" style="animation-delay:.26s" id="dash-gc-panel">
         <div class="dp-title">Top GC / Clients</div>
         <div class="dp-sub">By total proposal value</div>
         <div id="dash-gcs"></div>
@@ -699,8 +699,8 @@ th.col-drop-after::after{content:'';position:absolute;right:0;top:0;bottom:0;wid
         <div class="newly-assigned-list" id="dash-newly-assigned"></div>
       </div>
     </div>
-    <div class="dash-row4">
-      <div class="dp" style="animation-delay:.3s">
+    <div class="dash-row4" id="dash-row-workload-due-followup-wrap">
+      <div class="dp" style="animation-delay:.3s" id="dash-workload-panel">
         <div class="dp-title">Estimator Workload</div>
         <div class="dp-sub">Active bids per estimator</div>
         <div id="dash-workload"></div>
@@ -716,7 +716,7 @@ th.col-drop-after::after{content:'';position:absolute;right:0;top:0;bottom:0;wid
         <div class="followup-list" id="dash-followup"></div>
       </div>
     </div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:8px">
+    <div id="dash-loss-sections-wrap" style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:8px">
       <div class="dp" style="animation-delay:.42s">
         <div class="dp-title">Loss Breakdown</div>
         <div class="dp-sub">Why NBS lost &mdash; by reason frequency and value</div>
@@ -1865,21 +1865,162 @@ async function importFromSheet(){
   }
 }
 
-function getDashFiltered() {
-  const dr = document.getElementById('df-region')?.value || '';
-  const dm = document.getElementById('df-market')?.value || '';
+// ─── DASHBOARD SCOPE HELPERS ─────────────────────────────────────────────────
+// Determines if a single project record is visible to the current user on
+// the dashboard, based solely on dashboardScope — NOT role.
+function projectMatchesDashboardScope(p, user) {
+  const scope = user?.dashboardScope || '';
+
+  if (scope === 'company_wide') {
+    return true;
+  }
+
+  if (scope === 'my_projects') {
+    const myInitials = user?.initials || '';
+    return !!myInitials && p.nbsEstimator === myInitials;
+  }
+
+  if (scope === 'my_region') {
+    const assignedRegion = user?.assignedRegion || '';
+    return !!assignedRegion && p.region === assignedRegion;
+  }
+
+  // No dashboardScope set — safe fallback by initials only (never all records)
+  const myInitials = user?.initials || '';
+  if (myInitials) {
+    return p.nbsEstimator === myInitials;
+  }
+  return false;
+}
+
+// Returns the filtered dataset for the dashboard, applying both page filters
+// and dashboardScope. Replaces the old isAdmin-based getDashFiltered().
+function getScopedDashboardData() {
+  const dr  = document.getElementById('df-region')?.value || '';
+  const dm  = document.getElementById('df-market')?.value || '';
   const dsw = document.getElementById('df-swinerton')?.value || '';
-  const df = document.getElementById('df-from')?.value || '';
-  const dt = document.getElementById('df-to')?.value || '';
-  const isAdmin = currentUser && currentUser.role === 'admin';
-  const myInitials = currentUser?.initials || '';
+  const df  = document.getElementById('df-from')?.value || '';
+  const dt  = document.getElementById('df-to')?.value || '';
+
   return data.filter(p =>
-    (!dr || p.region===dr) && (!dm || p.primaryMarket===dm) &&
-    (!dsw || p.swinertonProject===dsw) &&
-    (!df || (p.dueDate && p.dueDate>=df)) &&
-    (!dt || (p.dueDate && p.dueDate<=dt)) &&
-    (isAdmin || (myInitials && p.nbsEstimator === myInitials))
+    (!dr  || p.region === dr) &&
+    (!dm  || p.primaryMarket === dm) &&
+    (!dsw || p.swinertonProject === dsw) &&
+    (!df  || (p.dueDate && p.dueDate >= df)) &&
+    (!dt  || (p.dueDate && p.dueDate <= dt)) &&
+    projectMatchesDashboardScope(p, currentUser)
   );
+}
+
+// Backward-compat alias — do not use for new code
+function getDashFiltered() { return getScopedDashboardData(); }
+
+// ─── DASHBOARD LAYOUT VISIBILITY ─────────────────────────────────────────────
+// Applies show/hide rules to major dashboard sections based on dashboardLayout.
+// Uses stable wrapper IDs added to the HTML.
+function applyDashboardLayout() {
+  const layout = currentUser?.dashboardLayout || 'estimator';
+
+  const show = (id, visible) => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = visible ? '' : 'none';
+  };
+
+  // Sections always shown for all layouts
+  show('dash-filter-wrap', true);
+  show('dash-kpi-wrap', true);
+
+  if (layout === 'estimator') {
+    // Estimator: personal pipeline, funnel, win rate trend, top GCs, newly assigned, due dates, follow-up
+    // Hide: region/market charts, company-wide workload, company-wide loss sections
+    show('dash-row-funnel-wrap', true);
+    show('dash-row-region-market-gc-wrap', false);
+    show('dash-row-workload-due-followup-wrap', true);
+    show('dash-workload-panel', false);
+    show('dash-loss-sections-wrap', false);
+    // Top GCs is shown as standalone since region/market row is hidden
+    const gcPanel = document.getElementById('dash-gc-panel');
+    if (gcPanel) {
+      gcPanel.style.display = '';
+      gcPanel.style.marginBottom = '14px';
+      const parent = gcPanel.parentElement;
+      if (parent && parent.id === 'dash-row-region-market-gc-wrap') {
+        // Pull it out visually by showing just the parent but hiding sibling panels
+        const siblings = parent.querySelectorAll('.dp:not(#dash-gc-panel)');
+        siblings.forEach(s => s.style.display = 'none');
+        parent.style.display = 'block';
+      }
+    }
+  } else if (layout === 'project_manager') {
+    show('dash-row-funnel-wrap', false);
+    show('dash-row-region-market-gc-wrap', false);
+    show('dash-row-workload-due-followup-wrap', true);
+    show('dash-workload-panel', false);
+    show('dash-loss-sections-wrap', false);
+    const gcPanel = document.getElementById('dash-gc-panel');
+    if (gcPanel) {
+      const parent = gcPanel.parentElement;
+      if (parent) {
+        const siblings = parent.querySelectorAll('.dp:not(#dash-gc-panel)');
+        siblings.forEach(s => s.style.display = 'none');
+        parent.style.display = 'block';
+      }
+    }
+  } else if (layout === 'executive' || layout === 'admin') {
+    // All sections visible
+    show('dash-row-funnel-wrap', true);
+    show('dash-row-region-market-gc-wrap', true);
+    show('dash-row-workload-due-followup-wrap', true);
+    show('dash-workload-panel', true);
+    show('dash-loss-sections-wrap', true);
+    const parent = document.getElementById('dash-row-region-market-gc-wrap');
+    if (parent) {
+      parent.style.display = '';
+      parent.querySelectorAll('.dp').forEach(el => el.style.display = '');
+    }
+  } else {
+    // Unknown layout — show everything safely
+    show('dash-row-funnel-wrap', true);
+    show('dash-row-region-market-gc-wrap', true);
+    show('dash-row-workload-due-followup-wrap', true);
+    show('dash-workload-panel', true);
+    show('dash-loss-sections-wrap', true);
+  }
+}
+
+// ─── DASHBOARD KPI BUILDER ────────────────────────────────────────────────────
+// Returns the KPI card definitions based on dashboardLayout and scoped data.
+function getDashboardKpis(layout, all) {
+  const awarded   = all.filter(p => isAwardedStatus(p.estimateStatus));
+  const lost      = all.filter(p => isLostStatus(p.estimateStatus) || p.estimateStatus==='No Bid' || p.estimateStatus==='Declined');
+  const active    = all.filter(p => isActiveStatus(p.estimateStatus));
+  const submitted = all.filter(p => p.estimateStatus==='Submitted');
+  const gcLost    = all.filter(p => isLostStatus(p.estimateStatus) && p.lossWho==='GC Lost');
+  const nbsLost   = all.filter(p => isLostStatus(p.estimateStatus) && p.lossWho==='NBS Lost');
+  const decided   = awarded.length + lost.length;
+  const winRate   = decided ? Math.round(awarded.length / decided * 100) : 0;
+  const trueDecided = awarded.length + nbsLost.length;
+  const trueWinRate = trueDecided ? Math.round(awarded.length / trueDecided * 100) : 0;
+  const pipeline  = active.reduce((s,p) => s + (Number(p.proposalTotal)||0), 0);
+  const wonV      = awarded.reduce((s,p) => s + (Number(p.proposalTotal)||0), 0);
+  const submittedVal = submitted.reduce((s,p) => s + (Number(p.proposalTotal)||0), 0);
+
+  if (layout === 'estimator' || layout === 'project_manager') {
+    return [
+      {label:'My Active Pipeline', val:fmtShort(pipeline), sub:`${active.length} bids in progress`},
+      {label:'My Total Awarded',   val:fmtShort(wonV),     sub:`${awarded.length} projects won`},
+      {label:'My Win Rate',        val:decided ? winRate+'%' : '—', sub:`${decided} decided bids`},
+      {label:'True Win Rate',      val:trueDecided ? trueWinRate+'%' : '—', sub:`excl. ${gcLost.length} GC-lost`},
+      {label:'Pending Decision',   val:fmtShort(submittedVal), sub:`${submitted.length} submitted`},
+    ];
+  }
+  return [
+    {label:'Active Pipeline',    val:fmtShort(pipeline),  sub:`${active.length} bids in progress`},
+    {label:'Total Awarded',      val:fmtShort(wonV),       sub:`${awarded.length} projects won`},
+    {label:'Win Rate',           val:decided ? winRate+'%' : '—', sub:`${decided} decided bids`},
+    {label:'True NBS Win Rate',  val:trueDecided ? trueWinRate+'%' : '—', sub:`excl. ${gcLost.length} GC-lost bids`},
+    {label:'Pending Decision',   val:fmtShort(submittedVal), sub:`${submitted.length} submitted bids`},
+  ];
 }
 
 function clearDashFilters() {
@@ -1924,8 +2065,10 @@ function renderNewlyAssigned() {
   const container = document.getElementById('dash-newly-assigned');
   if (!wrap || !container) return;
 
+  const layout = currentUser?.dashboardLayout || 'estimator';
   const myInitials = currentUser?.initials || '';
-  if (!myInitials) { wrap.style.display = 'none'; return; }
+  // Only show for estimator layout with a known user
+  if (layout !== 'estimator' || !myInitials) { wrap.style.display = 'none'; return; }
 
   const unacked = data.filter(p =>
     p.nbsEstimator === myInitials &&
@@ -1952,11 +2095,16 @@ function renderNewlyAssigned() {
 }
 
 function renderDash() {
+  // Step 1: Apply layout visibility by wrapper IDs
+  applyDashboardLayout();
+  // Step 2: Render newly assigned panel (only for estimator layout)
   renderNewlyAssigned();
+  // Step 3: Populate filter dropdowns
   const popDf=(id,items)=>{const el=document.getElementById(id);if(!el)return;const cur=el.value;el.innerHTML='<option value="">'+el.options[0].text+'</option>'+items.map(v=>`<option${v===cur?' selected':''}>${v}</option>`).join('');};
   popDf('df-region',REGIONS); popDf('df-market',MARKETS);
 
-  const all = getDashFiltered();
+  // Step 4: Get scoped dataset — uses dashboardScope, NOT role
+  const all = getScopedDashboardData();
   const awarded  = all.filter(p=>isAwardedStatus(p.estimateStatus));
   const lost     = all.filter(p=>isLostStatus(p.estimateStatus) || p.estimateStatus==='No Bid' || p.estimateStatus==='Declined');
   const active   = all.filter(p=>isActiveStatus(p.estimateStatus));
@@ -1972,14 +2120,10 @@ function renderDash() {
   const trueWinRate = trueDecided ? Math.round(awarded.length/trueDecided*100) : 0;
   const submittedVal = submitted.reduce((s,p)=>s+(Number(p.proposalTotal)||0),0);
 
-  document.getElementById('dash-kpis').innerHTML = [
-    {label:'Total Proposals',   val:all.length,              sub:`${awarded.length} awarded \u00b7 ${lost.length} lost`,           delay:0},
-    {label:'Active Pipeline',   val:fmtShort(pipeline),      sub:`${active.length} active proposals`,                         delay:.05},
-    {label:'Total Awarded',     val:fmtShort(wonV),          sub:`from ${awarded.length} won bids`,                           delay:.1},
-    {label:'Overall Win Rate',  val:decided?winRate+'%':'\u2014', sub:`all decided bids incl. GC losses`,                          delay:.15},
-    {label:'True NBS Win Rate', val:trueDecided?trueWinRate+'%':'\u2014', sub:`excl. ${gcLost.length} GC-lost bids`,               delay:.2},
-    {label:'Pending Decision',  val:fmtShort(submittedVal),  sub:`${submitted.length} submitted bids`,                        delay:.25},
-  ].map(c=>`<div class="kpi-card" style="animation-delay:${c.delay}s">
+  // Step 5: Render KPI cards based on dashboardLayout
+  const layout = currentUser?.dashboardLayout || 'estimator';
+  const kpis = getDashboardKpis(layout, all);
+  document.getElementById('dash-kpis').innerHTML = kpis.map((c,i)=>`<div class="kpi-card" style="animation-delay:${i*0.05}s">
     <div class="kpi-label">${c.label}</div>
     <div class="kpi-val">${c.val}</div>
     <div class="kpi-sub">${c.sub}</div>
@@ -3034,7 +3178,12 @@ function applyRoleUI() {
   if (emailEl) emailEl.textContent = currentUser.email || currentUser.displayName || currentUser.username || '';
 
   document.getElementById('mode-toggle-wrap').style.display = caps.modeToggle ? '' : 'none';
-  document.getElementById('tab-dash').style.display = caps.dashboard ? '' : 'none';
+
+  // Dashboard tab visibility: show if role gives caps.dashboard OR if the user
+  // has a dashboardLayout set (dashboardLayout is separate from role/permissions).
+  const hasDashboardLayout = !!(currentUser.dashboardLayout);
+  const dashTabEl = document.getElementById('tab-dash');
+  if (dashTabEl) dashTabEl.style.display = (caps.dashboard || hasDashboardLayout) ? '' : 'none';
 
   const btnAdd    = document.getElementById('btn-add');
   const btnImport = document.getElementById('btn-import');
@@ -3060,8 +3209,10 @@ function applyModeRestrictions() {
   if (syncBtn && !isAdmin) syncBtn.style.display = 'none';
 
   const dashTab = document.getElementById('tab-dash');
-  if (dashTab) dashTab.style.display = caps.dashboard ? '' : 'none';
-  if (!caps.dashboard && tab === 'dash') setTab('log');
+  const hasDashboardLayout2 = !!(currentUser?.dashboardLayout);
+  const dashVisible = caps.dashboard || hasDashboardLayout2;
+  if (dashTab) dashTab.style.display = dashVisible ? '' : 'none';
+  if (!dashVisible && tab === 'dash') setTab('log');
 
   const importBtn = document.getElementById('btn-import');
   if (importBtn) importBtn.style.display = caps.importExcel ? '' : 'none';

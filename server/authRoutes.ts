@@ -45,15 +45,22 @@ function getClientIP(req: Request): string {
   return (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() || req.socket.remoteAddress || "unknown";
 }
 
-export const QUICK_LOGIN_USERS: Record<string, { email: string; role: "admin" | "user"; initials: string; displayName: string }> = {
-  hk: { email: "Haley.Kruse@nationalbuildingspecialties.com", role: "admin", initials: "HK", displayName: "Haley Kruse" },
-  gm: { email: "Gonzalo.Martinez@nationalbuildingspecialties.com", role: "user", initials: "GM", displayName: "Gonzalo Martinez" },
-  gt: { email: "Gene.Trabert@nationalbuildingspecialties.com", role: "user", initials: "GT", displayName: "Gene Trabert" },
-  kr: { email: "Kenny.Ruester@nationalbuildingspecialties.com", role: "user", initials: "KR", displayName: "Kenny Ruester" },
-  ck: { email: "Christina.Keith@nationalbuildingspecialties.com", role: "user", initials: "CK", displayName: "Christina Keith" },
-  hc: { email: "Hallyn.Crozier@nationalbuildingspecialties.com", role: "user", initials: "HC", displayName: "Hallyn Crozier" },
-  mm: { email: "Melissa.Magallanes@nationalbuildingspecialties.com", role: "user", initials: "MM", displayName: "Melissa Magallanes" },
-  jw: { email: "Joey.White@nationalbuildingspecialties.com", role: "user", initials: "JW", displayName: "Joey White" },
+export const QUICK_LOGIN_USERS: Record<string, {
+  email: string;
+  role: "admin" | "user";
+  initials: string;
+  displayName: string;
+  dashboardScope?: string;
+  dashboardLayout?: string;
+}> = {
+  hk: { email: "Haley.Kruse@nationalbuildingspecialties.com", role: "admin", initials: "HK", displayName: "Haley Kruse", dashboardScope: "my_projects", dashboardLayout: "estimator" },
+  gm: { email: "Gonzalo.Martinez@nationalbuildingspecialties.com", role: "user", initials: "GM", displayName: "Gonzalo Martinez", dashboardScope: "my_projects", dashboardLayout: "estimator" },
+  gt: { email: "Gene.Trabert@nationalbuildingspecialties.com", role: "user", initials: "GT", displayName: "Gene Trabert", dashboardScope: "my_projects", dashboardLayout: "estimator" },
+  kr: { email: "Kenny.Ruester@nationalbuildingspecialties.com", role: "user", initials: "KR", displayName: "Kenny Ruester", dashboardScope: "my_projects", dashboardLayout: "estimator" },
+  ck: { email: "Christina.Keith@nationalbuildingspecialties.com", role: "user", initials: "CK", displayName: "Christina Keith", dashboardScope: "my_projects", dashboardLayout: "estimator" },
+  hc: { email: "Hallyn.Crozier@nationalbuildingspecialties.com", role: "user", initials: "HC", displayName: "Hallyn Crozier", dashboardScope: "my_projects", dashboardLayout: "estimator" },
+  mm: { email: "Melissa.Magallanes@nationalbuildingspecialties.com", role: "user", initials: "MM", displayName: "Melissa Magallanes", dashboardScope: "my_projects", dashboardLayout: "estimator" },
+  jw: { email: "Joey.White@nationalbuildingspecialties.com", role: "user", initials: "JW", displayName: "Joey White", dashboardScope: "my_projects", dashboardLayout: "estimator" },
 };
 
 export function registerAuthRoutes(app: Express) {
@@ -70,7 +77,7 @@ export function registerAuthRoutes(app: Express) {
         return res.status(401).json({ message: "Invalid credentials" });
       }
 
-      const { email: mappedEmail, role: targetRole, initials: targetInitials, displayName: targetDisplayName } = shortcut;
+      const { email: mappedEmail, role: targetRole, initials: targetInitials, displayName: targetDisplayName, dashboardScope: targetScope, dashboardLayout: targetLayout } = shortcut;
 
       let [user] = await db.select().from(users).where(eq(users.email, mappedEmail));
       if (!user) {
@@ -80,6 +87,8 @@ export function registerAuthRoutes(app: Express) {
           role: targetRole,
           initials: targetInitials,
           displayName: targetDisplayName,
+          dashboardScope: targetScope || "my_projects",
+          dashboardLayout: targetLayout || "estimator",
           isActive: true,
         }).returning();
       } else {
@@ -87,6 +96,8 @@ export function registerAuthRoutes(app: Express) {
         if (user.role !== targetRole) updates.role = targetRole;
         if (user.initials !== targetInitials) updates.initials = targetInitials;
         if (user.displayName !== targetDisplayName) updates.displayName = targetDisplayName;
+        if (!user.dashboardScope && targetScope) updates.dashboardScope = targetScope;
+        if (!user.dashboardLayout && targetLayout) updates.dashboardLayout = targetLayout;
         if (Object.keys(updates).length > 0) {
           await db.update(users).set(updates).where(eq(users.id, user.id));
           user = { ...user, ...updates };
@@ -113,7 +124,7 @@ export function registerAuthRoutes(app: Express) {
       });
 
       res.json({
-        user: { id: user.id, email: user.email, role: user.role, initials: user.initials, displayName: user.displayName, username: user.username },
+        user: { id: user.id, email: user.email, role: user.role, initials: user.initials, displayName: user.displayName, username: user.username, dashboardScope: user.dashboardScope, dashboardLayout: user.dashboardLayout, assignedRegion: user.assignedRegion },
       });
     } catch (error: any) {
       console.error("[Auth] Quick login error:", error);
@@ -230,7 +241,7 @@ export function registerAuthRoutes(app: Express) {
       });
 
       res.json({
-        user: { id: user.id, email: user.email, role: user.role, initials: user.initials, displayName: user.displayName, username: user.username },
+        user: { id: user.id, email: user.email, role: user.role, initials: user.initials, displayName: user.displayName, username: user.username, dashboardScope: user.dashboardScope, dashboardLayout: user.dashboardLayout, assignedRegion: user.assignedRegion },
       });
     } catch (error: any) {
       console.error("[Auth] Verify error:", error);
@@ -251,7 +262,7 @@ export function registerAuthRoutes(app: Express) {
         return res.status(401).json({ message: "Not authenticated" });
       }
 
-      res.json({ user: { id: user.id, email: user.email, role: user.role, displayName: user.displayName, initials: user.initials, username: user.username } });
+      res.json({ user: { id: user.id, email: user.email, role: user.role, displayName: user.displayName, initials: user.initials, username: user.username, dashboardScope: user.dashboardScope, dashboardLayout: user.dashboardLayout, assignedRegion: user.assignedRegion } });
     } catch (error) {
       res.status(500).json({ message: "Failed to get user info" });
     }

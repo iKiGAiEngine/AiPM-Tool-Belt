@@ -1,0 +1,401 @@
+Make this change in the existing AiPM app exactly as described below. Do not redesign the app. Do not rebuild unrelated areas. Modify the existing user logic and dashboard logic cleanly and directly.
+
+GOAL
+I need AiPM to stop forcing all Admin users to see all company projects in the HUD by default.
+
+My specific user is:
+- initials: HK
+- role: admin
+
+Even though I am an Admin, I do NOT want my HUD/dashboard to default to all projects.
+I only want my HUD to show the projects assigned to me unless I intentionally switch to a broader company-wide view later.
+
+This means the app must separate:
+1. ROLE = what the user is allowed to do
+2. DASHBOARD SCOPE = what records the HUD loads by default
+3. DASHBOARD LAYOUT = which type of HUD/widgets the user sees
+
+Admin access must NOT automatically equal company-wide dashboard scope.
+
+==================================================
+REQUIRED CHANGE
+==================================================
+
+Refactor the user/dashboard system so these are separate user properties:
+
+- role
+- dashboardScope
+- dashboardLayout
+
+Use these definitions:
+
+1. role
+Controls permissions/access only.
+Examples:
+- admin
+- president
+- estimator
+- project_manager
+
+2. dashboardScope
+Controls what project records are shown on the dashboard/HUD by default.
+Supported values:
+- my_projects
+- my_region
+- company_wide
+
+3. dashboardLayout
+Controls which dashboard widgets/sections are shown by default.
+Supported values:
+- estimator
+- project_manager
+- executive
+- admin
+
+==================================================
+MY USER DEFAULTS
+==================================================
+
+Set my user profile defaults to:
+- initials: HK
+- role: admin
+- dashboardScope: my_projects
+- dashboardLayout: estimator
+
+This means:
+- I keep full Admin access to settings, user management, and all admin functions
+- But my dashboard/HUD only loads projects assigned to HK by default
+- My HUD should feel like a working estimator/personal dashboard, not a company-wide executive dashboard
+
+==================================================
+CURRENT PROBLEM TO FIX
+==================================================
+
+Right now the dashboard logic is effectively doing this:
+
+const isAdmin = currentUser && currentUser.role === 'admin';
+...
+(isAdmin || (myInitials && p.nbsEstimator === myInitials))
+
+That is WRONG for my use case.
+It makes all admins see everything.
+Replace this behavior.
+
+==================================================
+NEW DASHBOARD DATA SCOPING LOGIC
+==================================================
+
+Create a dedicated helper function for dashboard data visibility.
+
+Required function name:
+getScopedDashboardData()
+
+It should:
+1. read dashboard filters already on the page:
+   - region
+   - market
+   - swinerton
+   - from due date
+   - to due date
+2. apply those filter values
+3. apply dashboardScope logic based on currentUser
+4. return the final scoped dataset used by the HUD
+
+The function must work like this:
+
+If currentUser.dashboardScope === 'company_wide':
+- return all matching filtered records
+
+If currentUser.dashboardScope === 'my_projects':
+- return only records assigned to the current user
+- for now, assignment for this mode should be:
+  p.nbsEstimator === currentUser.initials
+
+If currentUser.dashboardScope === 'my_region':
+- return only records where:
+  p.region === currentUser.assignedRegion
+- if currentUser.assignedRegion is blank or missing, return an empty array or safe fallback, not all records
+
+If currentUser.dashboardScope is missing:
+- use safe default behavior:
+  - admin defaults to my_projects for HK
+  - non-admin defaults to my_projects if initials exist
+  - otherwise return empty array, not all data
+
+==================================================
+IMPLEMENT EXACT LOGIC
+==================================================
+
+Create this helper logic cleanly in the codebase:
+
+function projectMatchesDashboardScope(p, currentUser) {
+  const scope = currentUser?.dashboardScope || '';
+
+  if (scope === 'company_wide') {
+    return true;
+  }
+
+  if (scope === 'my_projects') {
+    const myInitials = currentUser?.initials || '';
+    return !!myInitials && p.nbsEstimator === myInitials;
+  }
+
+  if (scope === 'my_region') {
+    const assignedRegion = currentUser?.assignedRegion || '';
+    return !!assignedRegion && p.region === assignedRegion;
+  }
+
+  const role = currentUser?.role || '';
+  const myInitials = currentUser?.initials || '';
+
+  if (role === 'admin' && myInitials === 'HK') {
+    return !!myInitials && p.nbsEstimator === myInitials;
+  }
+
+  if (myInitials) {
+    return p.nbsEstimator === myInitials;
+  }
+
+  return false;
+}
+
+Then refactor the dashboard dataset function to use that helper.
+
+Required function structure:
+
+function getScopedDashboardData() {
+  const dr  = document.getElementById('df-region')?.value || '';
+  const dm  = document.getElementById('df-market')?.value || '';
+  const dsw = document.getElementById('df-swinerton')?.value || '';
+  const df  = document.getElementById('df-from')?.value || '';
+  const dt  = document.getElementById('df-to')?.value || '';
+
+  return data.filter(p =>
+    (!dr  || p.region === dr) &&
+    (!dm  || p.primaryMarket === dm) &&
+    (!dsw || p.swinertonProject === dsw) &&
+    (!df  || (p.dueDate && p.dueDate >= df)) &&
+    (!dt  || (p.dueDate && p.dueDate <= dt)) &&
+    projectMatchesDashboardScope(p, currentUser)
+  );
+}
+
+Then replace every dashboard usage of getDashFiltered() with getScopedDashboardData().
+If other dashboard render functions depend on getDashFiltered(), either:
+- replace the old function completely, or
+- convert getDashFiltered() into a wrapper that simply returns getScopedDashboardData()
+
+Do NOT leave the old admin logic in place anywhere.
+
+==================================================
+HUD / LAYOUT RULES
+==================================================
+
+Also update the HUD so it can use dashboardLayout separately from role.
+
+Required behavior:
+- dashboardLayout controls which major dashboard sections are shown
+- role controls permissions
+- dashboardScope controls the data feeding those sections
+
+For now implement these layout rules:
+
+If currentUser.dashboardLayout === 'estimator':
+Show:
+- filter bar
+- KPI row
+- Pipeline Funnel
+- Win Rate Trend
+- Top GC / Clients
+- Newly Assigned to You
+- Bid Due Dates
+- Project Start Follow-Up
+Hide by default:
+- Pipeline by Region
+- Market Sector Performance
+- company-wide loss intelligence panels
+- company-wide loss breakdown panels
+- broad executive-only sections
+- estimator workload if not useful for the personal HUD
+
+If currentUser.dashboardLayout === 'project_manager':
+Show:
+- filter bar
+- KPI row
+- Project Start Follow-Up
+- Bid Due Dates
+- Top GC / Clients if available
+Hide estimator-specific and executive-heavy sections unless specifically useful
+
+If currentUser.dashboardLayout === 'executive':
+Show:
+- all major company reporting sections
+- KPI row
+- funnel
+- region performance
+- market performance
+- loss intelligence
+- loss breakdown
+- top GCs
+- workload
+- due dates
+- follow-up
+
+If currentUser.dashboardLayout === 'admin':
+Show:
+- all sections
+
+IMPORTANT:
+Do not use role to force the layout.
+Use dashboardLayout for layout decisions.
+
+==================================================
+HTML WRAPPER IDS
+==================================================
+
+Add stable wrapper IDs around the major dashboard sections so they can be shown/hidden cleanly by layout.
+
+Add or update wrappers like:
+- dash-filter-wrap
+- dash-kpi-wrap
+- dash-row-funnel-wrap
+- dash-row-region-market-gc-wrap
+- dash-newly-assigned-wrap
+- dash-row-workload-due-followup-wrap
+- dash-loss-sections-wrap
+
+Use these wrappers to show/hide whole sections depending on dashboardLayout.
+
+Do not rely on brittle DOM traversal.
+Do not rely on CSS only.
+Use explicit wrapper IDs and JS visibility logic.
+
+==================================================
+NEWLY ASSIGNED PANEL RULE
+==================================================
+
+The “Newly Assigned to You” section must only show if:
+- currentUser.dashboardLayout === 'estimator'
+AND
+- currentUser.initials exists
+AND
+- there are matching unacknowledged records
+
+Do not show this panel just because the user is admin.
+Do not show it for executive/admin layouts unless explicitly changed later.
+
+==================================================
+KPI RULES
+==================================================
+
+Refactor KPI rendering so the KPI cards can differ by dashboardLayout.
+
+At minimum:
+- estimator layout KPIs should be based on the user’s own scoped data
+- executive/admin layout KPIs can remain broad based on their chosen dashboardScope
+- project_manager layout should focus more on PM-relevant counts if available, otherwise use safe scoped KPI values
+
+Create a helper such as:
+getDashboardKpis(layout, scopedData)
+
+Use this helper in renderDash().
+
+==================================================
+USER PROFILE STORAGE
+==================================================
+
+Update the user profile structure so users can store:
+- role
+- initials
+- dashboardScope
+- dashboardLayout
+- assignedRegion (optional)
+
+If there is a seeded users list, update it so my HK user record includes:
+- role: admin
+- initials: HK
+- dashboardScope: my_projects
+- dashboardLayout: estimator
+
+If there is already a user settings or profile form, add these fields there:
+- dashboardScope dropdown
+- dashboardLayout dropdown
+
+Supported dropdown values must be exactly:
+
+dashboardScope:
+- my_projects
+- my_region
+- company_wide
+
+dashboardLayout:
+- estimator
+- project_manager
+- executive
+- admin
+
+==================================================
+IMPORTANT SAFETY / LOGIC RULES
+==================================================
+
+1. Admin must still keep full admin permissions
+Do NOT remove admin access to settings, users, or system controls
+
+2. Dashboard scope is not the same as permission scope
+An admin with dashboardScope = my_projects still has admin permissions
+
+3. Do not automatically expose all records to admin users on the HUD
+
+4. If a user wants broader visibility later, they can be switched to:
+- dashboardScope: company_wide
+or
+- dashboardScope: my_region
+
+5. Do not hard-code “admin = show everything” anywhere in the dashboard rendering path
+
+6. Keep the code clean and centralized:
+- one helper for project scope matching
+- one helper for getting scoped dashboard data
+- one helper for applying dashboard layout visibility
+- one helper for dashboard KPI selection
+
+==================================================
+RENDER FLOW REQUIREMENT
+==================================================
+
+The dashboard render flow should become:
+
+1. renderNewlyAssigned() should respect dashboardLayout === 'estimator'
+2. populate dashboard filter dropdowns
+3. const all = getScopedDashboardData()
+4. calculate metrics from all
+5. render KPI cards based on dashboardLayout
+6. render dashboard panels using all
+7. apply layout visibility by wrapper IDs
+
+==================================================
+DO NOT DO THESE THINGS
+==================================================
+
+- Do not redesign the CSS theme
+- Do not rename everything unnecessarily
+- Do not create a second totally separate dashboard page
+- Do not leave old isAdmin dashboard scoping logic active
+- Do not remove admin permissions
+- Do not create vague placeholders instead of implementing the actual logic
+
+==================================================
+FINAL DELIVERABLE
+==================================================
+
+After making the change, show me:
+1. which files were changed
+2. the new helper functions added
+3. exactly where the HK default user profile was updated
+4. exactly where dashboardScope is stored
+5. exactly where dashboardLayout is stored
+6. exactly where the wrapper IDs were added in the HTML
+7. exactly where layout visibility is controlled
+8. confirmation that Admin no longer automatically means company-wide HUD data
+
+Implement this directly in the existing AiPM app now.

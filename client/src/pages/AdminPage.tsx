@@ -62,6 +62,8 @@ function UserFormDialog({
   const [displayName, setDisplayName] = useState(editUser?.displayName || "");
   const [initials, setInitials] = useState(editUser?.initials || "");
   const [role, setRole] = useState(editUser?.role || "admin");
+  const [dashboardScope, setDashboardScope] = useState((editUser as any)?.dashboardScope || "my_projects");
+  const [dashboardLayout, setDashboardLayout] = useState((editUser as any)?.dashboardLayout || "estimator");
 
   const isEditing = !!editUser;
 
@@ -84,7 +86,7 @@ function UserFormDialog({
   const updateMutation = useMutation({
     mutationFn: async () => {
       await apiRequest("PATCH", `/api/admin/users/${editUser!.id}/profile`, {
-        email, displayName, initials,
+        email, displayName, initials, dashboardScope, dashboardLayout,
       });
     },
     onSuccess: () => {
@@ -163,6 +165,35 @@ function UserFormDialog({
               </Select>
             </div>
           )}
+          <div className="space-y-2">
+            <Label htmlFor="form-dashboard-scope">Dashboard Scope</Label>
+            <Select value={dashboardScope} onValueChange={setDashboardScope}>
+              <SelectTrigger id="form-dashboard-scope" data-testid="select-form-dashboard-scope">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="my_projects">My Projects</SelectItem>
+                <SelectItem value="my_region">My Region</SelectItem>
+                <SelectItem value="company_wide">Company Wide</SelectItem>
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">Controls which project records are shown on the dashboard by default</p>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="form-dashboard-layout">Dashboard Layout</Label>
+            <Select value={dashboardLayout} onValueChange={setDashboardLayout}>
+              <SelectTrigger id="form-dashboard-layout" data-testid="select-form-dashboard-layout">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="estimator">Estimator</SelectItem>
+                <SelectItem value="project_manager">Project Manager</SelectItem>
+                <SelectItem value="executive">Executive</SelectItem>
+                <SelectItem value="admin">Admin</SelectItem>
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">Controls which dashboard widgets are shown</p>
+          </div>
           <div className="flex justify-end gap-2 pt-2">
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)} data-testid="button-form-cancel">
               Cancel

@@ -822,6 +822,9 @@ export const users = pgTable("users", {
   isActive: boolean("is_active").notNull().default(true),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   lastLoginAt: timestamp("last_login_at"),
+  dashboardScope: varchar("dashboard_scope", { length: 30 }).default("my_projects"),
+  dashboardLayout: varchar("dashboard_layout", { length: 30 }).default("estimator"),
+  assignedRegion: varchar("assigned_region", { length: 100 }),
 });
 
 export const insertUserSchema = createInsertSchema(users).omit({ id: true, createdAt: true, lastLoginAt: true });
