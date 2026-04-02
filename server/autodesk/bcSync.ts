@@ -395,6 +395,8 @@ async function mapOpportunityToEntry(opp: BcOpportunity) {
   const locationStr = getLocationStr(opp);
   const officeSuffix = opp.gcCompanyName ? (opp.gcCompanyName.split(/[-–—]/).pop()?.trim() || "") : "";
   const regionResult = await matchRegionWithFallback(locationStr, officeSuffix);
+  const allRegions = await getActiveRegions();
+  const matchedRegion = regionResult.code ? allRegions.find(r => `${r.code} - ${r.name}` === regionResult.displayLabel) || allRegions.find(r => r.code === regionResult.code) : null;
   const projectName = opp.projectName || "Untitled BC Project";
   const marketContext = [
     (opp.scopes || []).join(" "),
@@ -438,6 +440,7 @@ async function mapOpportunityToEntry(opp: BcOpportunity) {
     anticipatedStart,
     anticipatedFinish,
     gcEstimateLead: opp.gcContactName || "",
+    selfPerformEstimator: matchedRegion?.selfPerformEstimator || "",
     owner: opp.gcCompanyName || "",
     bcLink,
     bcProjectId: opp.projectId || "",

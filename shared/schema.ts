@@ -899,6 +899,7 @@ export const proposalLogEntries = pgTable("proposal_log_entries", {
   dueDate: varchar("due_date", { length: 20 }),
   nbsEstimator: varchar("nbs_estimator", { length: 200 }),
   gcEstimateLead: varchar("gc_estimate_lead", { length: 200 }),
+  selfPerformEstimator: varchar("self_perform_estimator", { length: 200 }),
   proposalTotal: varchar("proposal_total", { length: 50 }),
   estimateStatus: varchar("estimate_status", { length: 100 }),
   owner: varchar("owner", { length: 200 }),

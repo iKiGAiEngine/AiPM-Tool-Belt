@@ -182,6 +182,7 @@ export async function updateProposalLogEntryById(id: number, updates: Partial<{
   estimateStatus: string;
   proposalTotal: string;
   gcEstimateLead: string;
+  selfPerformEstimator: string;
   anticipatedStart: string;
   anticipatedFinish: string;
   estimateNumber: string;
@@ -194,12 +195,14 @@ export async function updateProposalLogEntryById(id: number, updates: Partial<{
   region: string;
   primaryMarket: string;
   inviteDate: string;
+  filePath: string;
 }>) {
   const cleanUpdates: Record<string, any> = {};
   if (updates.nbsEstimator !== undefined) cleanUpdates.nbsEstimator = updates.nbsEstimator;
   if (updates.estimateStatus !== undefined) cleanUpdates.estimateStatus = updates.estimateStatus;
   if (updates.proposalTotal !== undefined) cleanUpdates.proposalTotal = updates.proposalTotal;
   if (updates.gcEstimateLead !== undefined) cleanUpdates.gcEstimateLead = updates.gcEstimateLead;
+  if (updates.selfPerformEstimator !== undefined) cleanUpdates.selfPerformEstimator = updates.selfPerformEstimator;
   if (updates.anticipatedStart !== undefined) cleanUpdates.anticipatedStart = updates.anticipatedStart;
   if (updates.anticipatedFinish !== undefined) cleanUpdates.anticipatedFinish = updates.anticipatedFinish;
   if (updates.estimateNumber !== undefined) cleanUpdates.estimateNumber = updates.estimateNumber;
@@ -212,6 +215,7 @@ export async function updateProposalLogEntryById(id: number, updates: Partial<{
   if (updates.region !== undefined) cleanUpdates.region = updates.region;
   if (updates.primaryMarket !== undefined) cleanUpdates.primaryMarket = updates.primaryMarket;
   if (updates.inviteDate !== undefined) cleanUpdates.inviteDate = updates.inviteDate;
+  if (updates.filePath !== undefined) cleanUpdates.filePath = updates.filePath;
 
   if (Object.keys(cleanUpdates).length === 0) return null;
 
