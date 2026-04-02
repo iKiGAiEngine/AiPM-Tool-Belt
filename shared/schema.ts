@@ -450,7 +450,7 @@ export const regions = pgTable("regions", {
   code: varchar("code", { length: 20 }).notNull(),
   name: varchar("name", { length: 200 }),
   aliases: text("aliases").array(),
-  selfPerformEstimator: varchar("self_perform_estimator", { length: 200 }),
+  selfPerformEstimators: text("self_perform_estimators").array(),
   isActive: boolean("is_active").notNull().default(true),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });

@@ -14,7 +14,8 @@ async function lookupSpEstimatorFromRegion(region: string): Promise<string> {
     if (!code) return "";
     const matches = await db.select().from(regions).where(eq(regions.code, code));
     const target = name ? (matches.find(r => r.name === name) || matches[0]) : matches[0];
-    return target?.selfPerformEstimator || "";
+    const arr = target?.selfPerformEstimators;
+    return (arr && arr.length > 0) ? arr[0] : "";
   } catch { return ""; }
 }
 
@@ -159,7 +160,8 @@ export async function bulkCreateProposalLogEntries(entries: Array<{
       if (code) {
         const codeMatches = allRegions.filter(r => r.code === code);
         const target = rName ? (codeMatches.find(r => r.name === rName) || codeMatches[0]) : codeMatches[0];
-        spEst = target?.selfPerformEstimator || "";
+        const spArr = target?.selfPerformEstimators;
+        spEst = (spArr && spArr.length > 0) ? spArr[0] : "";
       }
     }
 

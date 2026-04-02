@@ -373,14 +373,21 @@ export function registerCentralSettingsRoutes(app: Express) {
         };
         const name = (row.name || "").toString().trim() || null;
         const aliases = parseAliases(row.aliases);
-        const selfPerformEstimator = (row.selfPerformEstimator || "").toString().trim() || null;
+        const spRaw = (row.selfPerformEstimator || row.selfPerformEstimators || "").toString().trim();
+        const selfPerformEstimators = spRaw ? spRaw.split(",").map((s: string) => s.trim()).filter(Boolean) : null;
         try {
           if (existingMap.has(code)) {
             const existingRegion = existingMap.get(code)!;
-            await updateRegion(existingRegion.id, { code, name, aliases, selfPerformEstimator, isActive: true });
+            const merged = existingRegion.selfPerformEstimators || [];
+            if (selfPerformEstimators) {
+              for (const sp of selfPerformEstimators) {
+                if (!merged.some(e => e.toLowerCase() === sp.toLowerCase())) merged.push(sp);
+              }
+            }
+            await updateRegion(existingRegion.id, { code, name, aliases, selfPerformEstimators: merged.length ? merged : null, isActive: true });
             updated++;
           } else {
-            const newRegion = await createRegion({ code, name, aliases, selfPerformEstimator, isActive: true });
+            const newRegion = await createRegion({ code, name, aliases, selfPerformEstimators, isActive: true });
             existingMap.set(code, newRegion);
             imported++;
           }
@@ -404,7 +411,7 @@ export function registerCentralSettingsRoutes(app: Express) {
         { header: "Code", key: "code", width: 12 },
         { header: "Name", key: "name", width: 30 },
         { header: "Aliases", key: "aliases", width: 40 },
-        { header: "Self Perform Estimator", key: "selfPerformEstimator", width: 25 },
+        { header: "Self Perform Estimators", key: "selfPerformEstimators", width: 35 },
       ];
       const headerRow = ws.getRow(1);
       headerRow.font = { bold: true };
@@ -413,7 +420,7 @@ export function registerCentralSettingsRoutes(app: Express) {
           code: region.code,
           name: region.name || "",
           aliases: (region.aliases || []).join(", "),
-          selfPerformEstimator: region.selfPerformEstimator || "",
+          selfPerformEstimators: (region.selfPerformEstimators || []).join(", "),
         });
       }
       res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");

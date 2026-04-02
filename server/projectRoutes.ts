@@ -29,7 +29,6 @@ import {
   createProjectScope,
   updateProjectScopeSelection,
   deleteProject,
-  getActiveRegions,
 } from "./scopeDictionaryStorage";
 import { storage } from "./storage";
 import { runExtraction, extractPages, findAccessorySections, isSignageSection } from "./specExtractorEngine";
@@ -249,7 +248,21 @@ export function registerProjectRoutes(app: Express) {
     try {
       const id = parseInt(req.params.id);
       if (isNaN(id)) return res.status(400).json({ message: "Invalid ID" });
-      const region = await updateRegion(id, req.body);
+      const updateData = { ...req.body };
+      if (updateData.selfPerformEstimators !== undefined) {
+        const allRegionsList = await db.select().from(regions).where(eq(regions.id, id));
+        const existing = allRegionsList[0]?.selfPerformEstimators || [];
+        const incoming: string[] = Array.isArray(updateData.selfPerformEstimators) ? updateData.selfPerformEstimators : [];
+        const merged = [...existing];
+        for (const sp of incoming) {
+          const trimmed = sp.trim();
+          if (trimmed && !merged.some(e => e.toLowerCase() === trimmed.toLowerCase())) {
+            merged.push(trimmed);
+          }
+        }
+        updateData.selfPerformEstimators = merged.length ? merged : null;
+      }
+      const region = await updateRegion(id, updateData);
       if (!region) return res.status(404).json({ message: "Not found" });
       res.json(region);
     } catch (error) {
@@ -1747,32 +1760,41 @@ export function registerProjectRoutes(app: Express) {
         return res.status(404).json({ message: "Entry not found" });
       }
 
-      if (updates.selfPerformEstimator !== undefined && updated.region) {
+      if (updates.selfPerformEstimator !== undefined && updates.selfPerformEstimator && updated.region) {
         try {
-          const regionStr = (updated.region || "").trim();
-          const rm = regionStr.match(/^([A-Z]{2,5})\s*-\s*(.+)$/);
-          let regionCode = "";
-          let regionName = "";
-          if (rm) {
-            regionCode = rm[1];
-            regionName = rm[2];
-          } else if (/^[A-Z]{2,5}$/.test(regionStr)) {
-            regionCode = regionStr;
-          }
-          if (regionCode) {
-            const matchingRegions = await db.select().from(regions)
-              .where(eq(regions.code, regionCode));
-            const target = regionName
-              ? (matchingRegions.find(r => r.name === regionName) || matchingRegions[0])
-              : matchingRegions[0];
-            if (target) {
-              await db.update(regions)
-                .set({ selfPerformEstimator: updates.selfPerformEstimator })
-                .where(eq(regions.id, target.id));
+          const newSp = (updates.selfPerformEstimator as string).trim();
+          if (newSp) {
+            const regionStr = (updated.region || "").trim();
+            const rm = regionStr.match(/^([A-Z]{2,5})\s*-\s*(.+)$/);
+            let regionCode = "";
+            let regionName = "";
+            if (rm) {
+              regionCode = rm[1];
+              regionName = rm[2];
+            } else if (/^[A-Z]{2,5}$/.test(regionStr)) {
+              regionCode = regionStr;
+            }
+            if (regionCode) {
+              const matchingRegions = await db.select().from(regions)
+                .where(eq(regions.code, regionCode));
+              const target = regionName
+                ? (matchingRegions.find(r => r.name === regionName) || matchingRegions[0])
+                : matchingRegions[0];
+              if (target) {
+                const existing = target.selfPerformEstimators || [];
+                const alreadyExists = existing.some(
+                  (e: string) => e.toLowerCase() === newSp.toLowerCase()
+                );
+                if (!alreadyExists) {
+                  await db.update(regions)
+                    .set({ selfPerformEstimators: [...existing, newSp] })
+                    .where(eq(regions.id, target.id));
+                }
+              }
             }
           }
         } catch (err) {
-          console.error("[SP Estimator] Failed to sync back to region:", err);
+          console.error("[SP Estimator] Failed to append to region:", err);
         }
       }
 

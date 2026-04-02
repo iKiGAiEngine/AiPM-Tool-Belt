@@ -5,7 +5,8 @@ import { count, sql } from "drizzle-orm";
 async function ensureRegionAliasesColumn(): Promise<void> {
   try {
     await db.execute(sql`ALTER TABLE regions ADD COLUMN IF NOT EXISTS aliases text[]`);
-    await db.execute(sql`ALTER TABLE regions ADD COLUMN IF NOT EXISTS self_perform_estimator varchar(200)`);
+    await db.execute(sql`ALTER TABLE regions ADD COLUMN IF NOT EXISTS self_perform_estimators text[]`);
+    await db.execute(sql`DO $$ BEGIN IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='regions' AND column_name='self_perform_estimator') THEN UPDATE regions SET self_perform_estimators = ARRAY[self_perform_estimator] WHERE self_perform_estimator IS NOT NULL AND self_perform_estimator != '' AND self_perform_estimators IS NULL; ALTER TABLE regions DROP COLUMN self_perform_estimator; END IF; END $$`);
   } catch (e: any) {
     console.log("[Migration] aliases column check:", e.message);
   }

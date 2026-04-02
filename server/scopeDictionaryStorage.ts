@@ -106,7 +106,7 @@ export async function createRegion(data: InsertRegionInput): Promise<Region> {
     code: data.code.toUpperCase(),
     name: data.name,
     aliases: data.aliases ?? null,
-    selfPerformEstimator: data.selfPerformEstimator ?? null,
+    selfPerformEstimators: data.selfPerformEstimators ?? null,
     isActive: data.isActive ?? true,
   }).returning();
   return result[0];
@@ -117,7 +117,7 @@ export async function updateRegion(id: number, data: Partial<InsertRegionInput>)
   if (data.code !== undefined) updateData.code = data.code.toUpperCase();
   if (data.name !== undefined) updateData.name = data.name;
   if (data.aliases !== undefined) updateData.aliases = data.aliases;
-  if (data.selfPerformEstimator !== undefined) updateData.selfPerformEstimator = data.selfPerformEstimator;
+  if (data.selfPerformEstimators !== undefined) updateData.selfPerformEstimators = data.selfPerformEstimators;
   if (data.isActive !== undefined) updateData.isActive = data.isActive;
 
   const result = await db

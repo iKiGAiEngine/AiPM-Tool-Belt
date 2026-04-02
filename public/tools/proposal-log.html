@@ -2419,7 +2419,7 @@ let ESTIMATORS=[
     sel.innerHTML='<option value="">\u2014 Select \u2014</option>'+ESTIMATORS.map(e=>`<option value="${e.code}">${e.label}</option>`).join('');
   }
 })();
-const INLINE_FIELDS={proposalTotal:'number',estimateStatus:'select-status',nbsEstimator:'select-estimator',anticipatedStart:'month',anticipatedFinish:'month',dueDate:'date',notes:'textarea',bcLink:'text',gcEstimateLead:'text',selfPerformEstimator:'text',finalReviewer:'text',swinertonProject:'select-yn',region:'select-region',primaryMarket:'select-market',inviteDate:'date',estimateNumber:'text',filePath:'text'};
+const INLINE_FIELDS={proposalTotal:'number',estimateStatus:'select-status',nbsEstimator:'select-estimator',anticipatedStart:'month',anticipatedFinish:'month',dueDate:'date',notes:'textarea',bcLink:'text',gcEstimateLead:'text',selfPerformEstimator:'select-sp-estimator',finalReviewer:'text',swinertonProject:'select-yn',region:'select-region',primaryMarket:'select-market',inviteDate:'date',estimateNumber:'text',filePath:'text'};
 const FIELD_LABELS={proposalTotal:'Proposal Total',estimateStatus:'Status',nbsEstimator:'NBS Estimator',anticipatedStart:'Est. Start',anticipatedFinish:'Est. End',dueDate:'Due Date',notes:'Notes',bcLink:'BC Link',gcEstimateLead:'GC Estimate Lead',selfPerformEstimator:'SP Estimator',finalReviewer:'Final Reviewer',swinertonProject:'Swinerton?',region:'Region',primaryMarket:'Primary Market',inviteDate:'Invite Date',estimateNumber:'Estimate #',filePath:'File Path'};
 let editPopupState=null;
 
@@ -2468,6 +2468,13 @@ function openEditPopup(e,oi,field){
   } else if(type==='select-market'){
     const cur=p[field]||'';
     body.innerHTML=[{v:'',l:'\u2014 None \u2014'},...MARKETS.map(m=>({v:m,l:m}))].map(o=>`<div class="ep-item${cur===o.v?' ep-selected':''}" onclick="epSelectItem(this,'${o.v.replace(/'/g,"\\'")}')" data-value="${o.v}"><span class="ep-radio"></span>${o.l}</div>`).join('');
+  } else if(type==='select-sp-estimator'){
+    const cur=p[field]||'';
+    const regionEstimators=lookupSpEstimatorsList(p.region);
+    const opts=regionEstimators.map(s=>({v:s,l:s}));
+    const listHtml=[{v:'',l:'\u2014 None \u2014'},...opts].map(o=>`<div class="ep-item${cur===o.v?' ep-selected':''}" onclick="epSelectItem(this,'${o.v.replace(/'/g,"\\'")}')" data-value="${o.v}"><span class="ep-radio"></span>${o.l}</div>`).join('');
+    const inputHtml=`<div style="padding:6px 8px;border-bottom:1px solid var(--border)"><input type="text" id="ep-sp-custom" placeholder="Type new name..." style="width:100%;padding:4px 6px;border:1px solid var(--border);border-radius:4px;font-size:13px;background:var(--bg2);color:var(--fg)" onkeydown="if(event.key==='Enter'){event.preventDefault();epSelectCustomSp();}"></div>`;
+    body.innerHTML=inputHtml+listHtml;
   }
 
   const rect=(e.currentTarget||e.target).getBoundingClientRect();
@@ -2482,6 +2489,28 @@ function epSelectItem(el,val){
   el.closest('.ep-body').querySelectorAll('.ep-item').forEach(i=>i.classList.remove('ep-selected'));
   el.classList.add('ep-selected');
   el.dataset.value=val;
+  const customInput=document.getElementById('ep-sp-custom');
+  if(customInput) customInput.value='';
+}
+function epSelectCustomSp(){
+  const inp=document.getElementById('ep-sp-custom');
+  if(!inp)return;
+  const v=inp.value.trim();
+  if(!v)return;
+  const body=document.getElementById('ep-body');
+  body.querySelectorAll('.ep-item').forEach(i=>i.classList.remove('ep-selected'));
+  const existingItem=Array.from(body.querySelectorAll('.ep-item')).find(i=>i.dataset.value&&i.dataset.value.toLowerCase()===v.toLowerCase());
+  if(existingItem){
+    existingItem.classList.add('ep-selected');
+  } else {
+    const newItem=document.createElement('div');
+    newItem.className='ep-item ep-selected';
+    newItem.dataset.value=v;
+    newItem.innerHTML=`<span class="ep-radio"></span>${v} <span style="font-size:11px;opacity:0.6">(new)</span>`;
+    newItem.onclick=function(){epSelectItem(this,v);};
+    body.appendChild(newItem);
+  }
+  inp.value='';
 }
 
 function epKeydown(e){
@@ -2493,9 +2522,14 @@ function commitEditPopup(){
   if(!editPopupState)return;
   const{oi,field,type}=editPopupState;
   let v='';
-  if(type==='select-status'||type==='select-estimator'||type==='select-yn'||type==='select-region'||type==='select-market'){
-    const sel=document.querySelector('#ep-body .ep-item.ep-selected');
-    v=sel?sel.dataset.value:'';
+  if(type==='select-status'||type==='select-estimator'||type==='select-yn'||type==='select-region'||type==='select-market'||type==='select-sp-estimator'){
+    const customInp=document.getElementById('ep-sp-custom');
+    if(customInp&&customInp.value.trim()){
+      v=customInp.value.trim();
+    } else {
+      const sel=document.querySelector('#ep-body .ep-item.ep-selected');
+      v=sel?sel.dataset.value:'';
+    }
   } else {
     const inp=document.getElementById('ep-input');
     v=inp?inp.value.trim():'';
@@ -3027,18 +3061,22 @@ function viewScreenshot(estNum) {
   overlay.style.display = 'flex';
 }
 
-function lookupSpEstimator(region) {
-  if (!region || !REGIONS_RAW.length) return '';
+function lookupSpEstimatorsList(region) {
+  if (!region || !REGIONS_RAW.length) return [];
   const m = (region||'').match(/^([A-Z]{2,5})\s*-\s*(.+)$/);
   if (m) {
     const ro = REGIONS_RAW.find(r => r.code === m[1] && r.name === m[2]);
-    if (ro && ro.selfPerformEstimator) return ro.selfPerformEstimator;
-    const fallback = REGIONS_RAW.find(r => r.code === m[1] && r.selfPerformEstimator);
-    if (fallback) return fallback.selfPerformEstimator;
+    if (ro && ro.selfPerformEstimators && ro.selfPerformEstimators.length) return ro.selfPerformEstimators;
+    const fallback = REGIONS_RAW.find(r => r.code === m[1] && r.selfPerformEstimators && r.selfPerformEstimators.length);
+    if (fallback) return fallback.selfPerformEstimators;
   }
   const code = region.trim().toUpperCase();
-  const codeMatch = REGIONS_RAW.find(r => r.code === code && r.selfPerformEstimator);
-  return codeMatch ? codeMatch.selfPerformEstimator : '';
+  const codeMatch = REGIONS_RAW.find(r => r.code === code && r.selfPerformEstimators && r.selfPerformEstimators.length);
+  return codeMatch ? codeMatch.selfPerformEstimators : [];
+}
+function lookupSpEstimator(region) {
+  const list = lookupSpEstimatorsList(region);
+  return list.length > 0 ? list[0] : '';
 }
 
 function serverEntryToLocal(e, existingLocal) {

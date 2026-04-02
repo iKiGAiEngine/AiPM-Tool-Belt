@@ -436,11 +436,12 @@ async function mapOpportunityToEntry(opp: BcOpportunity) {
       const rm = regionDisplayLabel.match(/^([A-Z]{2,5})\s*-\s*(.+)$/);
       if (rm) {
         const matchedReg = allRegions.find(r => r.code === rm[1] && r.name === rm[2]);
-        if (matchedReg?.selfPerformEstimator) selfPerformEstimator = matchedReg.selfPerformEstimator;
+        const spArr = matchedReg?.selfPerformEstimators;
+        if (spArr && spArr.length > 0) selfPerformEstimator = spArr[0];
       }
       if (!selfPerformEstimator) {
-        const fallbackReg = allRegions.find(r => r.code === regionResult.code && r.selfPerformEstimator);
-        if (fallbackReg?.selfPerformEstimator) selfPerformEstimator = fallbackReg.selfPerformEstimator;
+        const fallbackReg = allRegions.find(r => r.code === regionResult.code && r.selfPerformEstimators && r.selfPerformEstimators.length > 0);
+        if (fallbackReg?.selfPerformEstimators?.[0]) selfPerformEstimator = fallbackReg.selfPerformEstimators[0];
       }
     } catch (_) {}
   }
