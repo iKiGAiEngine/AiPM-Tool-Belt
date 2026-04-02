@@ -1787,7 +1787,12 @@ export function registerProjectRoutes(app: Express) {
                 );
                 if (!alreadyExists) {
                   await db.update(regions)
-                    .set({ selfPerformEstimators: [...existing, newSp] })
+                    .set({ selfPerformEstimators: [newSp, ...existing] })
+                    .where(eq(regions.id, target.id));
+                } else if (existing[0]?.toLowerCase() !== newSp.toLowerCase()) {
+                  const reordered = [newSp, ...existing.filter((e: string) => e.toLowerCase() !== newSp.toLowerCase())];
+                  await db.update(regions)
+                    .set({ selfPerformEstimators: reordered })
                     .where(eq(regions.id, target.id));
                 }
               }
