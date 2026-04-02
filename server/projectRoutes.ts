@@ -49,8 +49,9 @@ import { users, proposalLogEntries, regions, proposalChangeLog } from "@shared/s
 import { eq, sql } from "drizzle-orm";
 import { resolveChangedByName, recordFieldChanges } from "./changeLogger";
 import { db } from "./db";
-import { sendBidAssignmentEmail, getBidAssignmentTemplate, saveBidAssignmentTemplate } from "./emailService";
+import { sendBidAssignmentEmail, getBidAssignmentTemplate, saveBidAssignmentTemplate, sendProjectWonEmail, getProjectWonTemplate, saveProjectWonTemplate } from "./emailService";
 import { QUICK_LOGIN_USERS } from "./authRoutes";
+import { createNotification } from "./notificationRoutes";
 
 const SCREENSHOTS_DIR = path.join(process.cwd(), "project_screenshots");
 
@@ -1798,6 +1799,74 @@ export function registerProjectRoutes(app: Express) {
 
       await recordFieldChanges(id, existingEntry as Record<string, unknown>, updates, changedByName);
 
+      if (updates.estimateStatus === "Won" && existingEntry.estimateStatus !== "Won") {
+        (async () => {
+          try {
+            const adminUsers = await db.select().from(users).where(eq(users.role, "admin"));
+
+            const recipientEmails = new Set<string>();
+            const recipientUserIds = new Set<number>();
+
+            for (const admin of adminUsers) {
+              if (admin.email) recipientEmails.add(admin.email.toLowerCase());
+              if (admin.id) recipientUserIds.add(admin.id);
+            }
+
+            const rawEstimator = (updated.nbsEstimator || "").trim();
+            if (rawEstimator) {
+              const estimatorTokens = rawEstimator
+                .split(/[,;/|]+/)
+                .map((t) => t.trim().toUpperCase())
+                .filter(Boolean);
+
+              for (const initials of estimatorTokens) {
+                const quickLoginKey = initials.toLowerCase();
+                const quickLoginUser = QUICK_LOGIN_USERS[quickLoginKey];
+                if (quickLoginUser?.email) {
+                  recipientEmails.add(quickLoginUser.email.toLowerCase());
+                }
+                const [estimatorUser] = await db.select().from(users).where(eq(users.initials, initials));
+                if (estimatorUser?.email) {
+                  recipientEmails.add(estimatorUser.email.toLowerCase());
+                  if (estimatorUser.id) recipientUserIds.add(estimatorUser.id);
+                }
+              }
+            }
+
+            const wonDetails = {
+              projectName: updated.projectName || "",
+              estimateNumber: updated.estimateNumber || "",
+              proposalTotal: updated.proposalTotal || "",
+              gcLead: updated.gcEstimateLead || "",
+              dueDate: updated.dueDate || "",
+            };
+
+            await sendProjectWonEmail(Array.from(recipientEmails), wonDetails);
+
+            const notifTitle = "Project Won";
+            const notifMessage = `${updated.projectName || "A project"} has been marked as Won.${updated.estimateNumber ? ` Estimate #${updated.estimateNumber}.` : ""}${updated.proposalTotal ? ` Total: ${updated.proposalTotal}.` : ""}`;
+
+            for (const uid of recipientUserIds) {
+              await createNotification({
+                userId: uid,
+                type: "project_won",
+                title: notifTitle,
+                message: notifMessage,
+                metadata: {
+                  projectId: id,
+                  projectName: updated.projectName,
+                  estimateNumber: updated.estimateNumber,
+                  proposalTotal: updated.proposalTotal,
+                  gcLead: updated.gcEstimateLead,
+                },
+              });
+            }
+          } catch (err) {
+            console.error("[ProjectWon] Failed to send won notifications:", err);
+          }
+        })();
+      }
+
       if (updates.selfPerformEstimator !== undefined && updates.selfPerformEstimator && updated.region) {
         try {
           const newSp = (updates.selfPerformEstimator as string).trim();
@@ -2126,6 +2195,45 @@ export function registerProjectRoutes(app: Express) {
       res.json({ success: true });
     } catch (error) {
       console.error("Failed to save email template:", error);
+      res.status(500).json({ message: "Failed to save email template" });
+    }
+  });
+
+  app.get("/api/settings/email-template/project-won", async (req: Request, res: Response) => {
+    try {
+      const userId = (req.session as any)?.userId;
+      if (!userId) return res.status(401).json({ message: "Not authenticated" });
+      const [u] = await db.select().from(users).where(eq(users.id, userId));
+      if (!u || u.role !== "admin") {
+        return res.status(403).json({ message: "Admin access required" });
+      }
+
+      const template = await getProjectWonTemplate();
+      res.json(template);
+    } catch (error) {
+      console.error("Failed to get project won email template:", error);
+      res.status(500).json({ message: "Failed to get email template" });
+    }
+  });
+
+  app.put("/api/settings/email-template/project-won", async (req: Request, res: Response) => {
+    try {
+      const userId = (req.session as any)?.userId;
+      if (!userId) return res.status(401).json({ message: "Not authenticated" });
+      const [u] = await db.select().from(users).where(eq(users.id, userId));
+      if (!u || u.role !== "admin") {
+        return res.status(403).json({ message: "Admin access required" });
+      }
+
+      const { subject, bodyMessage, signOff } = req.body;
+      if (!subject || !bodyMessage || !signOff) {
+        return res.status(400).json({ message: "All template fields are required" });
+      }
+
+      await saveProjectWonTemplate({ subject, bodyMessage, signOff });
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Failed to save project won email template:", error);
       res.status(500).json({ message: "Failed to save email template" });
     }
   });

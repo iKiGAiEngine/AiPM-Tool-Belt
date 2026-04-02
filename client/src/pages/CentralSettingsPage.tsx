@@ -2803,6 +2803,37 @@ function escapeHtml(str: string): string {
 }
 
 function EmailTemplateSection() {
+  const [activeEmailTab, setActiveEmailTab] = useState("bid-assignment");
+
+  return (
+    <Card>
+      <CardHeader>
+        <div>
+          <CardTitle className="font-heading">Email Templates</CardTitle>
+          <CardDescription>
+            Customize email notifications sent to users for bid assignments and project wins
+          </CardDescription>
+        </div>
+      </CardHeader>
+      <CardContent>
+        <Tabs value={activeEmailTab} onValueChange={setActiveEmailTab} className="space-y-6">
+          <TabsList>
+            <TabsTrigger value="bid-assignment" data-testid="tab-email-bid-assignment">Bid Assignment</TabsTrigger>
+            <TabsTrigger value="project-won" data-testid="tab-email-project-won">Project Won</TabsTrigger>
+          </TabsList>
+          <TabsContent value="bid-assignment">
+            <BidAssignmentTemplateEditor />
+          </TabsContent>
+          <TabsContent value="project-won">
+            <ProjectWonTemplateEditor />
+          </TabsContent>
+        </Tabs>
+      </CardContent>
+    </Card>
+  );
+}
+
+function BidAssignmentTemplateEditor() {
   const { toast } = useToast();
   const [subject, setSubject] = useState("");
   const [greeting, setGreeting] = useState("");
@@ -2885,117 +2916,283 @@ function EmailTemplateSection() {
     </div>
   `;
 
+  if (isLoading) {
+    return <div className="text-center py-8 text-muted-foreground">Loading template...</div>;
+  }
+
   return (
-    <Card>
-      <CardHeader>
-        <div>
-          <CardTitle className="font-heading">Email Templates</CardTitle>
-          <CardDescription>
-            Customize the email notification sent to estimators when they are assigned to a bid
-          </CardDescription>
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+      <div className="space-y-5">
+        <h3 className="font-medium text-sm text-foreground">Editable Fields</h3>
+
+        <div className="space-y-2">
+          <Label htmlFor="email-subject">Subject Line</Label>
+          <Input
+            id="email-subject"
+            value={subject}
+            onChange={(e) => setSubject(e.target.value)}
+            placeholder="Email subject line"
+            data-testid="input-email-subject"
+          />
         </div>
-      </CardHeader>
-      <CardContent>
-        {isLoading ? (
-          <div className="text-center py-8 text-muted-foreground">Loading template...</div>
-        ) : (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-            <div className="space-y-5">
-              <h3 className="font-medium text-sm text-foreground">Editable Fields</h3>
 
-              <div className="space-y-2">
-                <Label htmlFor="email-subject">Subject Line</Label>
-                <Input
-                  id="email-subject"
-                  value={subject}
-                  onChange={(e) => setSubject(e.target.value)}
-                  placeholder="Email subject line"
-                  data-testid="input-email-subject"
-                />
-              </div>
+        <div className="space-y-2">
+          <Label htmlFor="email-greeting">
+            Greeting <span className="text-xs text-muted-foreground ml-1">Use {"{{estimator}}"} for the estimator's name</span>
+          </Label>
+          <Input
+            id="email-greeting"
+            value={greeting}
+            onChange={(e) => setGreeting(e.target.value)}
+            placeholder="Hello {{estimator}},"
+            data-testid="input-email-greeting"
+          />
+        </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="email-greeting">
-                  Greeting <span className="text-xs text-muted-foreground ml-1">Use {"{{estimator}}"} for the estimator's name</span>
-                </Label>
-                <Input
-                  id="email-greeting"
-                  value={greeting}
-                  onChange={(e) => setGreeting(e.target.value)}
-                  placeholder="Hello {{estimator}},"
-                  data-testid="input-email-greeting"
-                />
-              </div>
+        <div className="space-y-2">
+          <Label htmlFor="email-body">Body Message</Label>
+          <Textarea
+            id="email-body"
+            value={bodyMessage}
+            onChange={(e) => setBodyMessage(e.target.value)}
+            placeholder="Message text before the project details"
+            rows={3}
+            data-testid="input-email-body"
+          />
+        </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="email-body">Body Message</Label>
-                <Textarea
-                  id="email-body"
-                  value={bodyMessage}
-                  onChange={(e) => setBodyMessage(e.target.value)}
-                  placeholder="Message text before the project details"
-                  rows={3}
-                  data-testid="input-email-body"
-                />
-              </div>
+        <div className="space-y-2">
+          <Label htmlFor="email-signoff">Sign-off</Label>
+          <Textarea
+            id="email-signoff"
+            value={signOff}
+            onChange={(e) => setSignOff(e.target.value)}
+            placeholder="Thank you,&#10;AiPM Tool Belt Team"
+            rows={2}
+            data-testid="input-email-signoff"
+          />
+        </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="email-signoff">Sign-off</Label>
-                <Textarea
-                  id="email-signoff"
-                  value={signOff}
-                  onChange={(e) => setSignOff(e.target.value)}
-                  placeholder="Thank you,&#10;AiPM Tool Belt Team"
-                  rows={2}
-                  data-testid="input-email-signoff"
-                />
-              </div>
+        <div className="rounded-md bg-muted/50 p-3 text-xs text-muted-foreground space-y-1">
+          <p className="font-medium text-foreground">Dynamic fields (auto-filled from bid data):</p>
+          <ul className="list-disc pl-4 space-y-0.5">
+            <li>Project Name</li>
+            <li>Estimate Number</li>
+            <li>Due Date</li>
+            <li>GC Lead</li>
+          </ul>
+        </div>
 
-              <div className="rounded-md bg-muted/50 p-3 text-xs text-muted-foreground space-y-1">
-                <p className="font-medium text-foreground">Dynamic fields (auto-filled from bid data):</p>
-                <ul className="list-disc pl-4 space-y-0.5">
-                  <li>Project Name</li>
-                  <li>Estimate Number</li>
-                  <li>Due Date</li>
-                  <li>GC Lead</li>
-                </ul>
-              </div>
+        <Button
+          onClick={() => saveMutation.mutate({ subject, greeting, bodyMessage, signOff })}
+          disabled={saveMutation.isPending || !subject || !greeting || !bodyMessage || !signOff}
+          className="gap-2"
+          data-testid="button-save-email-template"
+        >
+          <Save className="w-4 h-4" />
+          {saveMutation.isPending ? "Saving..." : "Save Template"}
+        </Button>
+      </div>
 
-              <Button
-                onClick={() => saveMutation.mutate({ subject, greeting, bodyMessage, signOff })}
-                disabled={saveMutation.isPending || !subject || !greeting || !bodyMessage || !signOff}
-                className="gap-2"
-                data-testid="button-save-email-template"
-              >
-                <Save className="w-4 h-4" />
-                {saveMutation.isPending ? "Saving..." : "Save Template"}
-              </Button>
-            </div>
+      <div className="space-y-3">
+        <h3 className="font-medium text-sm text-foreground">Live Preview</h3>
 
-            <div className="space-y-3">
-              <h3 className="font-medium text-sm text-foreground">Live Preview</h3>
+        <div className="rounded-md border bg-muted/30 px-3 py-2">
+          <span className="text-xs text-muted-foreground">Subject: </span>
+          <span className="text-sm font-medium" data-testid="text-email-subject-preview">{subject}</span>
+        </div>
 
-              <div className="rounded-md border bg-muted/30 px-3 py-2">
-                <span className="text-xs text-muted-foreground">Subject: </span>
-                <span className="text-sm font-medium" data-testid="text-email-subject-preview">{subject}</span>
-              </div>
+        <div
+          className="border rounded-lg bg-white overflow-hidden"
+          data-testid="email-preview-container"
+        >
+          <iframe
+            srcDoc={previewHtml}
+            title="Email Preview"
+            className="w-full border-0"
+            style={{ minHeight: 420 }}
+            sandbox=""
+          />
+        </div>
+      </div>
+    </div>
+  );
+}
 
-              <div
-                className="border rounded-lg bg-white overflow-hidden"
-                data-testid="email-preview-container"
-              >
-                <iframe
-                  srcDoc={previewHtml}
-                  title="Email Preview"
-                  className="w-full border-0"
-                  style={{ minHeight: 420 }}
-                  sandbox=""
-                />
-              </div>
-            </div>
-          </div>
-        )}
-      </CardContent>
-    </Card>
+function ProjectWonTemplateEditor() {
+  const { toast } = useToast();
+  const [subject, setSubject] = useState("");
+  const [bodyMessage, setBodyMessage] = useState("");
+  const [signOff, setSignOff] = useState("");
+  const [initialized, setInitialized] = useState(false);
+
+  const { data: template, isLoading } = useQuery<{
+    subject: string;
+    bodyMessage: string;
+    signOff: string;
+  }>({
+    queryKey: ["/api/settings/email-template/project-won"],
+  });
+
+  useEffect(() => {
+    if (template && !initialized) {
+      setSubject(template.subject);
+      setBodyMessage(template.bodyMessage);
+      setSignOff(template.signOff);
+      setInitialized(true);
+    }
+  }, [template, initialized]);
+
+  const saveMutation = useMutation({
+    mutationFn: async (data: { subject: string; bodyMessage: string; signOff: string }) => {
+      await apiRequest("PUT", "/api/settings/email-template/project-won", data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/settings/email-template/project-won"] });
+      toast({ title: "Email template saved" });
+    },
+    onError: () => {
+      toast({ title: "Failed to save template", variant: "destructive" });
+    },
+  });
+
+  const sampleData = {
+    projectName: "Downtown Medical Center Renovation",
+    estimateNumber: "26-0001",
+    proposalTotal: "$1,250,000",
+    gcLead: "John Smith",
+    dueDate: "2026-04-15",
+  };
+
+  const previewBody = escapeHtml(bodyMessage);
+  const previewSignOff = escapeHtml(signOff).replace(/\n/g, "<br>");
+
+  const previewHtml = `
+    <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 520px; margin: 0 auto; padding: 32px;">
+      <div style="border-bottom: 3px solid #D4A843; padding-bottom: 12px; margin-bottom: 24px;">
+        <h2 style="margin: 0; font-size: 20px; color: #111;">AiPM Tool Belt</h2>
+      </div>
+      <p style="color: #555; font-size: 14px; margin: 0 0 20px 0;">${previewBody}</p>
+      <div style="background: #f4f4f5; border-radius: 8px; padding: 20px; margin-bottom: 24px; border-left: 4px solid #D4A843;">
+        <table style="width: 100%; border-collapse: collapse;">
+          <tr>
+            <td style="padding: 6px 0; color: #888; font-size: 13px; width: 120px;">Project</td>
+            <td style="padding: 6px 0; color: #111; font-size: 14px; font-weight: 600;">${sampleData.projectName}</td>
+          </tr>
+          <tr>
+            <td style="padding: 6px 0; color: #888; font-size: 13px;">Estimate #</td>
+            <td style="padding: 6px 0; color: #111; font-size: 14px; font-weight: 600;">${sampleData.estimateNumber}</td>
+          </tr>
+          <tr>
+            <td style="padding: 6px 0; color: #888; font-size: 13px;">Proposal Total</td>
+            <td style="padding: 6px 0; color: #111; font-size: 14px; font-weight: 600;">${sampleData.proposalTotal}</td>
+          </tr>
+          <tr>
+            <td style="padding: 6px 0; color: #888; font-size: 13px;">GC Lead</td>
+            <td style="padding: 6px 0; color: #111; font-size: 14px; font-weight: 600;">${sampleData.gcLead}</td>
+          </tr>
+          <tr>
+            <td style="padding: 6px 0; color: #888; font-size: 13px;">Due Date</td>
+            <td style="padding: 6px 0; color: #111; font-size: 14px; font-weight: 600;">${sampleData.dueDate}</td>
+          </tr>
+        </table>
+      </div>
+      <p style="color: #666; font-size: 13px; margin: 0;">${previewSignOff}</p>
+    </div>
+  `;
+
+  if (isLoading) {
+    return <div className="text-center py-8 text-muted-foreground">Loading template...</div>;
+  }
+
+  return (
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+      <div className="space-y-5">
+        <h3 className="font-medium text-sm text-foreground">Editable Fields</h3>
+
+        <div className="space-y-2">
+          <Label htmlFor="won-email-subject">Subject Line</Label>
+          <Input
+            id="won-email-subject"
+            value={subject}
+            onChange={(e) => setSubject(e.target.value)}
+            placeholder="Email subject line"
+            data-testid="input-won-email-subject"
+          />
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="won-email-body">Body Message</Label>
+          <Textarea
+            id="won-email-body"
+            value={bodyMessage}
+            onChange={(e) => setBodyMessage(e.target.value)}
+            placeholder="Message text before the project details"
+            rows={3}
+            data-testid="input-won-email-body"
+          />
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="won-email-signoff">Sign-off</Label>
+          <Textarea
+            id="won-email-signoff"
+            value={signOff}
+            onChange={(e) => setSignOff(e.target.value)}
+            placeholder="Congratulations,&#10;AiPM Tool Belt Team"
+            rows={2}
+            data-testid="input-won-email-signoff"
+          />
+        </div>
+
+        <div className="rounded-md bg-muted/50 p-3 text-xs text-muted-foreground space-y-1">
+          <p className="font-medium text-foreground">Sent automatically when a project is marked Won:</p>
+          <ul className="list-disc pl-4 space-y-0.5">
+            <li>All admin users</li>
+            <li>Assigned estimator(s)</li>
+          </ul>
+          <p className="font-medium text-foreground mt-2">Dynamic fields (auto-filled from project data):</p>
+          <ul className="list-disc pl-4 space-y-0.5">
+            <li>Project Name</li>
+            <li>Estimate Number</li>
+            <li>Proposal Total</li>
+            <li>GC Lead</li>
+            <li>Due Date</li>
+          </ul>
+        </div>
+
+        <Button
+          onClick={() => saveMutation.mutate({ subject, bodyMessage, signOff })}
+          disabled={saveMutation.isPending || !subject || !bodyMessage || !signOff}
+          className="gap-2"
+          data-testid="button-save-won-email-template"
+        >
+          <Save className="w-4 h-4" />
+          {saveMutation.isPending ? "Saving..." : "Save Template"}
+        </Button>
+      </div>
+
+      <div className="space-y-3">
+        <h3 className="font-medium text-sm text-foreground">Live Preview</h3>
+
+        <div className="rounded-md border bg-muted/30 px-3 py-2">
+          <span className="text-xs text-muted-foreground">Subject: </span>
+          <span className="text-sm font-medium" data-testid="text-won-email-subject-preview">{subject}</span>
+        </div>
+
+        <div
+          className="border rounded-lg bg-white overflow-hidden"
+          data-testid="won-email-preview-container"
+        >
+          <iframe
+            srcDoc={previewHtml}
+            title="Project Won Email Preview"
+            className="w-full border-0"
+            style={{ minHeight: 460 }}
+            sandbox=""
+          />
+        </div>
+      </div>
+    </div>
   );
 }

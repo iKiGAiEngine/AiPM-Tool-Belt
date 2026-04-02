@@ -17,6 +17,12 @@ export const BID_ASSIGNMENT_DEFAULTS = {
   signOff: "Thank you,\nAiPM Tool Belt Team",
 };
 
+export const PROJECT_WON_DEFAULTS = {
+  subject: "AiPM Tool Belt - Project Won",
+  bodyMessage: "Great news! A project has been marked as Won. Please see the details below.",
+  signOff: "Congratulations,\nAiPM Tool Belt Team",
+};
+
 export async function getBidAssignmentTemplate(): Promise<{
   subject: string;
   greeting: string;
@@ -261,6 +267,146 @@ export async function sendDraftNotificationEmail(
     console.log(`Project: ${projectName}`);
     console.log(`Due Date: ${dueDate || "Not set"}`);
     console.log(`GC Lead: ${gcLead || "Not set"}`);
+    console.log(`========================================\n`);
+  }
+}
+
+export async function getProjectWonTemplate(): Promise<{
+  subject: string;
+  bodyMessage: string;
+  signOff: string;
+}> {
+  const [config] = await db
+    .select()
+    .from(emailTemplateConfig)
+    .where(eq(emailTemplateConfig.templateKey, "project_won"));
+
+  if (config) {
+    return {
+      subject: config.subject,
+      bodyMessage: config.bodyMessage,
+      signOff: config.signOff,
+    };
+  }
+
+  return { ...PROJECT_WON_DEFAULTS };
+}
+
+export async function saveProjectWonTemplate(data: {
+  subject: string;
+  bodyMessage: string;
+  signOff: string;
+}): Promise<void> {
+  const [existing] = await db
+    .select()
+    .from(emailTemplateConfig)
+    .where(eq(emailTemplateConfig.templateKey, "project_won"));
+
+  if (existing) {
+    await db
+      .update(emailTemplateConfig)
+      .set({
+        subject: data.subject,
+        greeting: "",
+        bodyMessage: data.bodyMessage,
+        signOff: data.signOff,
+        updatedAt: new Date(),
+      })
+      .where(eq(emailTemplateConfig.id, existing.id));
+  } else {
+    await db.insert(emailTemplateConfig).values({
+      templateKey: "project_won",
+      subject: data.subject,
+      greeting: "",
+      bodyMessage: data.bodyMessage,
+      signOff: data.signOff,
+    });
+  }
+}
+
+export interface ProjectWonDetails {
+  projectName: string;
+  estimateNumber: string;
+  proposalTotal: string;
+  gcLead: string;
+  dueDate: string;
+}
+
+export async function sendProjectWonEmail(
+  recipients: string[],
+  details: ProjectWonDetails
+): Promise<void> {
+  if (recipients.length === 0) return;
+
+  const template = await getProjectWonTemplate();
+
+  const bodyMessage = escapeHtml(template.bodyMessage);
+  const signOff = escapeHtml(template.signOff).replace(/\n/g, "<br>");
+
+  const text = [
+    template.bodyMessage,
+    "",
+    `Project: ${details.projectName}`,
+    `Estimate #: ${details.estimateNumber}`,
+    `Proposal Total: ${details.proposalTotal || "Not set"}`,
+    `GC Lead: ${details.gcLead || "Not set"}`,
+    `Due Date: ${details.dueDate || "Not set"}`,
+    "",
+    template.signOff,
+  ].join("\n");
+
+  const html = `
+    <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 520px; margin: 0 auto; padding: 32px;">
+      <div style="border-bottom: 3px solid #D4A843; padding-bottom: 12px; margin-bottom: 24px;">
+        <h2 style="margin: 0; font-size: 20px; color: #111;">AiPM Tool Belt</h2>
+      </div>
+      <p style="color: #555; font-size: 14px; margin: 0 0 20px 0;">${bodyMessage}</p>
+      <div style="background: #f4f4f5; border-radius: 8px; padding: 20px; margin-bottom: 24px; border-left: 4px solid #D4A843;">
+        <table style="width: 100%; border-collapse: collapse;">
+          <tr>
+            <td style="padding: 6px 0; color: #888; font-size: 13px; width: 120px;">Project</td>
+            <td style="padding: 6px 0; color: #111; font-size: 14px; font-weight: 600;">${escapeHtml(details.projectName)}</td>
+          </tr>
+          <tr>
+            <td style="padding: 6px 0; color: #888; font-size: 13px;">Estimate #</td>
+            <td style="padding: 6px 0; color: #111; font-size: 14px; font-weight: 600;">${escapeHtml(details.estimateNumber || "Not set")}</td>
+          </tr>
+          <tr>
+            <td style="padding: 6px 0; color: #888; font-size: 13px;">Proposal Total</td>
+            <td style="padding: 6px 0; color: #111; font-size: 14px; font-weight: 600;">${escapeHtml(details.proposalTotal || "Not set")}</td>
+          </tr>
+          <tr>
+            <td style="padding: 6px 0; color: #888; font-size: 13px;">GC Lead</td>
+            <td style="padding: 6px 0; color: #111; font-size: 14px; font-weight: 600;">${escapeHtml(details.gcLead || "Not set")}</td>
+          </tr>
+          <tr>
+            <td style="padding: 6px 0; color: #888; font-size: 13px;">Due Date</td>
+            <td style="padding: 6px 0; color: #111; font-size: 14px; font-weight: 600;">${escapeHtml(details.dueDate || "Not set")}</td>
+          </tr>
+        </table>
+      </div>
+      <p style="color: #666; font-size: 13px; margin: 0;">${signOff}</p>
+    </div>
+  `;
+
+  if (EMAIL_PROVIDER === "sendgrid") {
+    for (const to of recipients) {
+      try {
+        await sgMail.send({ to, from: EMAIL_FROM, subject: template.subject, text, html });
+        console.log(`[Email] Project Won notification sent to ${to} via SendGrid`);
+      } catch (error: any) {
+        console.error(`[Email] SendGrid error sending project won notification to ${to}:`, error?.response?.body || error.message);
+      }
+    }
+  } else {
+    console.log(`\n========================================`);
+    console.log(`[Email-DEV] Project Won Notification`);
+    console.log(`To: ${recipients.join(", ")}`);
+    console.log(`Project: ${details.projectName}`);
+    console.log(`Estimate #: ${details.estimateNumber}`);
+    console.log(`Proposal Total: ${details.proposalTotal || "Not set"}`);
+    console.log(`GC Lead: ${details.gcLead || "Not set"}`);
+    console.log(`Due Date: ${details.dueDate || "Not set"}`);
     console.log(`========================================\n`);
   }
 }
