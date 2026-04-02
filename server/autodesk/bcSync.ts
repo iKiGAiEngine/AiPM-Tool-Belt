@@ -111,14 +111,20 @@ export function normalizeOpportunity(raw: Record<string, any>): BcOpportunity {
   const gcOfficeHint = deepGet(raw,
     "invitedBy.companyName",
     "invitedBy.name",
+    "invitedBy.officeName",
+    "invitedBy.officeCity",
+    "invitedBy.office.name",
+    "invitedBy.office.city",
+    "invitedBy.office.officeName",
     "client.company.officeName",
     "client.officeName",
     "client.office.name",
     "client.office.city",
-    "invitedBy.office.city",
-    "invitedBy.office.name",
     "attributes.invitedBy.companyName",
     "attributes.invitedBy.name",
+    "attributes.invitedBy.officeName",
+    "attributes.invitedBy.office.name",
+    "attributes.invitedBy.office.city",
   );
 
   const leadFirst = deepGet(raw, "client.lead.firstName");
@@ -410,41 +416,60 @@ function getLocationStr(opp: BcOpportunity): string {
 const GENERIC_COMPANY_WORDS = new Set([
   "builders", "builder", "construction", "constructors", "contractor", "contractors",
   "group", "inc", "llc", "ltd", "co", "corp", "company", "enterprises",
-  "general", "services", "solutions", "partners", "associates",
+  "general", "services", "solutions", "partners", "associates", "swinerton",
 ]);
 
-function extractOfficeCity(name: string | undefined): string {
-  if (!name) return "";
-  const segments = name.split(/[-–—]/);
-  if (segments.length < 2) return "";
-  const candidate = segments[segments.length - 1].trim();
-  if (!candidate || GENERIC_COMPANY_WORDS.has(candidate.toLowerCase())) return "";
-  return candidate;
+/**
+ * Extract all non-generic location/office segments from a company display name.
+ * e.g. "Swinerton Builders - Dallas" → ["Dallas"]
+ *      "Swinerton Builders - SoCal - Target Markets" → ["SoCal", "Target Markets"]
+ * Returns segments in order from most-specific (last) to least-specific (first).
+ */
+function extractOfficeSegments(name: string | undefined): string[] {
+  if (!name) return [];
+  const raw = name.split(/[-–—|]/);
+  const segments: string[] = [];
+  for (const seg of raw) {
+    const trimmed = seg.trim();
+    if (!trimmed) continue;
+    // Keep if not purely generic words
+    const words = trimmed.toLowerCase().split(/\s+/);
+    const allGeneric = words.every(w => GENERIC_COMPANY_WORDS.has(w));
+    if (!allGeneric) segments.push(trimmed);
+  }
+  // Return in reverse order (most specific last segment first)
+  return segments.reverse();
 }
 
 async function mapOpportunityToEntry(opp: BcOpportunity) {
   const locationStr = getLocationStr(opp);
 
-  const officeSuffix = extractOfficeCity(opp.gcCompanyName);
-  const officeHintCity = extractOfficeCity(opp.gcOfficeHint);
+  // Collect all office segments from BOTH the GC company name and the office hint.
+  // Most-specific segment (last in the string) comes first in the array.
+  const hintSegments = extractOfficeSegments(opp.gcOfficeHint);
+  const companySegments = extractOfficeSegments(opp.gcCompanyName);
 
-  // Try office hint FIRST — it's the most specific signal for subregion disambiguation
-  // (e.g. "Target Markets" uniquely identifies TM even when the project city is shared by all LA subregions)
-  let regionResult = await matchRegionWithFallback(officeHintCity, officeSuffix);
+  // Diagnostic: log raw fields so we can discover any unknown BC API field names
+  console.log(`[BC Sync] Raw office data for "${opp.projectName}": gcCompanyName="${opp.gcCompanyName}" gcOfficeHint="${opp.gcOfficeHint}" → hintSegs=[${hintSegments.join("|")}] companySegs=[${companySegments.join("|")}] location="${locationStr}"`);
 
-  // If office hint didn't resolve confidently, try the project location
-  if (!regionResult.confident) {
-    const locResult = await matchRegionWithFallback(locationStr, officeSuffix || officeHintCity);
-    if (locResult.confident) regionResult = locResult;
+  // Ordered candidates: hint segments first (most authoritative), then company segments
+  // Per business rule: Swinerton OFFICE determines region, not project address.
+  const officeCandidates = [...hintSegments, ...companySegments].filter(Boolean);
+
+  let regionResult = { code: "", name: "", confident: false };
+
+  // 1. Try each office segment (office name drives region, not project address)
+  for (const seg of officeCandidates) {
+    const r = await matchRegionWithFallback(seg, "");
+    if (r.confident) { regionResult = r; break; }
   }
 
-  // Final pass: project location alone
+  // 2. Project location as a TRUE last resort only (user wants office to win)
   if (!regionResult.confident && locationStr) {
-    const locOnly = await matchRegionWithFallback(locationStr, "");
-    if (locOnly.confident) regionResult = locOnly;
+    regionResult = await matchRegionWithFallback(locationStr, "");
   }
 
-  console.log(`[BC Sync] Region match for "${opp.projectName}": locationStr="${locationStr}" officeSuffix="${officeSuffix}" officeHintCity="${officeHintCity}" → region="${regionResult.code}" confident=${regionResult.confident}`);
+  console.log(`[BC Sync] Region match for "${opp.projectName}": candidates=[${officeCandidates.join("|")}] location="${locationStr}" → region="${regionResult.code}" confident=${regionResult.confident}`);
   const projectName = opp.projectName || "Untitled BC Project";
   const marketContext = [
     (opp.scopes || []).join(" "),
