@@ -1741,6 +1741,9 @@ function saveProposal(){
   if(Number(formVals.proposalTotal)>0 && formVals.estimateStatus==='Estimating'){
     formVals.estimateStatus='Submitted';
   }
+  if(!formVals.selfPerformEstimator && formVals.region){
+    formVals.selfPerformEstimator = lookupSpEstimator(formVals.region);
+  }
   if(editIdx!==null){
     const existing=data[editIdx];
     Object.assign(existing, formVals);
@@ -2847,6 +2850,7 @@ async function pushLocalEntriesToServer(entries){
         dueDate:e.dueDate||'',
         nbsEstimator:e.nbsEstimator||'',
         gcEstimateLead:e.gcEstimateLead||'',
+        selfPerformEstimator:e.selfPerformEstimator||'',
         proposalTotal:e.proposalTotal||'',
         estimateStatus:e.estimateStatus||'Estimating',
         anticipatedStart:e.anticipatedStart||'',

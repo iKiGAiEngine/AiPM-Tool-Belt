@@ -1,7 +1,22 @@
 import { db } from "./db";
-import { proposalLogEntries, proposalAcknowledgements } from "@shared/schema";
+import { proposalLogEntries, proposalAcknowledgements, regions } from "@shared/schema";
 import { eq, inArray, isNull, and, sql } from "drizzle-orm";
 import { triggerSheetSync, isGoogleSheetConfigured } from "./googleSheetSync";
+
+async function lookupSpEstimatorFromRegion(region: string): Promise<string> {
+  if (!region) return "";
+  try {
+    const m = region.match(/^([A-Z]{2,5})\s*-\s*(.+)$/);
+    let code = "";
+    let name = "";
+    if (m) { code = m[1]; name = m[2]; }
+    else if (/^[A-Z]{2,5}$/.test(region.trim())) { code = region.trim(); }
+    if (!code) return "";
+    const matches = await db.select().from(regions).where(eq(regions.code, code));
+    const target = name ? (matches.find(r => r.name === name) || matches[0]) : matches[0];
+    return target?.selfPerformEstimator || "";
+  } catch { return ""; }
+}
 
 const MARKET_KEYWORDS: Record<string, string[]> = {
   "Education": ["school", "elementary", "middle", "high school", "university", "college", "campus", "academy", "institute", "classroom", "gymnasium", "library", "k-12", "k12", "education", "student", "learning"],
@@ -63,6 +78,8 @@ export async function createProposalLogEntry(data: {
     return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
   })();
 
+  const spEstimator = await lookupSpEstimatorFromRegion(data.region);
+
   const [entry] = await db.insert(proposalLogEntries).values({
     projectName: data.projectName,
     estimateNumber: data.estimateNumber,
@@ -78,6 +95,7 @@ export async function createProposalLogEntry(data: {
     anticipatedStart: data.anticipatedStart || null,
     anticipatedFinish: data.anticipatedFinish || null,
     nbsEstimator: data.nbsEstimator || null,
+    selfPerformEstimator: spEstimator || null,
     bcLink: data.bcLink || null,
     isTest: data.isTest || false,
     syncedToLocal: false,
@@ -103,6 +121,7 @@ export async function bulkCreateProposalLogEntries(entries: Array<{
   anticipatedFinish?: string;
   nbsEstimator?: string;
   gcEstimateLead?: string;
+  selfPerformEstimator?: string;
   proposalTotal?: string;
   bcLink?: string;
 }>) {
@@ -114,6 +133,8 @@ export async function bulkCreateProposalLogEntries(entries: Array<{
   })();
 
   const terminalStatuses = ['Awarded', 'Lost', 'Lost - Note Why in Comments'];
+
+  const allRegions = await db.select().from(regions);
 
   const values = entries.map(data => {
     let status = data.estimateStatus || "Estimating";
@@ -127,10 +148,25 @@ export async function bulkCreateProposalLogEntries(entries: Array<{
       }
     }
 
+    let spEst = "";
+    const regionStr = data.region || "";
+    if (regionStr) {
+      const rm = regionStr.match(/^([A-Z]{2,5})\s*-\s*(.+)$/);
+      let code = "";
+      let rName = "";
+      if (rm) { code = rm[1]; rName = rm[2]; }
+      else if (/^[A-Z]{2,5}$/.test(regionStr.trim())) { code = regionStr.trim(); }
+      if (code) {
+        const codeMatches = allRegions.filter(r => r.code === code);
+        const target = rName ? (codeMatches.find(r => r.name === rName) || codeMatches[0]) : codeMatches[0];
+        spEst = target?.selfPerformEstimator || "";
+      }
+    }
+
     return {
       projectName: data.projectName,
       estimateNumber: data.estimateNumber,
-      region: data.region || "",
+      region: regionStr,
       primaryMarket: data.primaryMarket || guessMarket(data.projectName),
       inviteDate: data.inviteDate || fallbackInviteDate,
       dueDate: data.dueDate || "",
@@ -143,6 +179,7 @@ export async function bulkCreateProposalLogEntries(entries: Array<{
       anticipatedFinish: data.anticipatedFinish || null,
       nbsEstimator: data.nbsEstimator || null,
       gcEstimateLead: data.gcEstimateLead || null,
+      selfPerformEstimator: data.selfPerformEstimator || spEst || null,
       proposalTotal: data.proposalTotal || null,
       bcLink: data.bcLink || null,
       isTest: data.isTest || false,
