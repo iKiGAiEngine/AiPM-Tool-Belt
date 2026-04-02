@@ -1732,12 +1732,7 @@ function openModal(idx=null) {
 function closeModal(){document.getElementById('modal').classList.remove('open');editIdx=null;}
 function outsideClose(e){if(e.target===document.getElementById('modal'))closeModal();}
 
-function onModalRegionChange(regionVal){
-  if(!regionVal)return;
-  const sp=lookupSpEstimator(regionVal);
-  const spEl=document.getElementById('f-selfPerformEstimator');
-  if(spEl && sp) spEl.value=sp;
-}
+function onModalRegionChange(regionVal){}
 function saveProposal(){
   const name=document.getElementById('f-projectName').value.trim();
   if(!name){alert('Project name is required.');return;}
