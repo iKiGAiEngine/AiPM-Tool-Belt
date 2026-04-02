@@ -1748,24 +1748,28 @@ export function registerProjectRoutes(app: Express) {
 
       if (updates.region !== undefined && updates.selfPerformEstimator === undefined) {
         try {
-          const regionStr = (updates.region || "").trim();
-          const rm = regionStr.match(/^([A-Z]{2,5})\s*-\s*(.+)$/);
-          let regionCode = "";
-          let regionName = "";
-          if (rm) {
-            regionCode = rm[1];
-            regionName = rm[2];
-          } else if (/^[A-Z]{2,5}$/.test(regionStr)) {
-            regionCode = regionStr;
-          }
-          if (regionCode) {
-            const matchingRegions = await db.select().from(regions)
-              .where(eq(regions.code, regionCode));
-            const target = regionName
-              ? (matchingRegions.find(r => r.name === regionName) || matchingRegions[0])
-              : matchingRegions[0];
-            if (target && target.selfPerformEstimators && target.selfPerformEstimators.length > 0) {
-              updates.selfPerformEstimator = target.selfPerformEstimators[0];
+          const [existingForRegion] = await db.select().from(proposalLogEntries).where(eq(proposalLogEntries.id, id));
+          const oldRegion = (existingForRegion?.region || "").trim();
+          const newRegion = (updates.region || "").trim();
+          if (newRegion !== oldRegion) {
+            const rm = newRegion.match(/^([A-Z]{2,5})\s*-\s*(.+)$/);
+            let regionCode = "";
+            let regionName = "";
+            if (rm) {
+              regionCode = rm[1];
+              regionName = rm[2];
+            } else if (/^[A-Z]{2,5}$/.test(newRegion)) {
+              regionCode = newRegion;
+            }
+            if (regionCode) {
+              const matchingRegions = await db.select().from(regions)
+                .where(eq(regions.code, regionCode));
+              const target = regionName
+                ? (matchingRegions.find(r => r.name === regionName) || matchingRegions[0])
+                : matchingRegions[0];
+              if (target && target.selfPerformEstimators && target.selfPerformEstimators.length > 0) {
+                updates.selfPerformEstimator = target.selfPerformEstimators[0];
+              }
             }
           }
         } catch (err) {
