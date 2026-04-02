@@ -47,6 +47,7 @@ import { guessMarket, createProposalLogEntry, bulkCreateProposalLogEntries, getU
 import { getSheetUrl, syncProposalLogToSheet, pullRepairAndPush, isGoogleSheetConfigured } from "./googleSheetSync";
 import { users, proposalLogEntries, regions, proposalChangeLog } from "@shared/schema";
 import { eq, sql } from "drizzle-orm";
+import { resolveChangedByName, recordFieldChanges } from "./changeLogger";
 import { db } from "./db";
 import { sendBidAssignmentEmail, getBidAssignmentTemplate, saveBidAssignmentTemplate } from "./emailService";
 import { QUICK_LOGIN_USERS } from "./authRoutes";
@@ -1788,38 +1789,14 @@ export function registerProjectRoutes(app: Express) {
       }
 
       const userId = (req.session as any)?.userId;
-      let changedByName = "Unknown";
-      if (userId) {
-        const [u] = await db.select().from(users).where(eq(users.id, userId));
-        if (u) changedByName = u.initials || u.displayName || u.email;
-      }
-      const trackableFields = ["nbsEstimator", "estimateStatus", "proposalTotal", "gcEstimateLead", "selfPerformEstimator", "anticipatedStart", "anticipatedFinish", "dueDate", "notes", "bcLink", "nbsSelectedScopes", "finalReviewer", "swinertonProject", "region", "primaryMarket", "inviteDate", "estimateNumber", "filePath"] as const;
-      const changeRows: { entryId: number; fieldName: string; oldValue: string | null; newValue: string | null; changedBy: string }[] = [];
-      const existingRecord = existingEntry as Record<string, unknown>;
-      for (const field of trackableFields) {
-        if (updates[field] !== undefined) {
-          const oldVal = existingRecord[field];
-          const newVal = updates[field];
-          const oldStr = oldVal == null ? "" : String(oldVal);
-          const newStr = newVal == null ? "" : String(newVal);
-          if (oldStr !== newStr) {
-            changeRows.push({ entryId: id, fieldName: field, oldValue: oldStr || null, newValue: newStr || null, changedBy: changedByName });
-          }
-        }
-      }
+      const changedByName = await resolveChangedByName(userId);
 
       const updated = await updateProposalLogEntryById(id, updates);
       if (!updated) {
         return res.status(404).json({ message: "Entry not found" });
       }
 
-      if (changeRows.length > 0) {
-        try {
-          await db.insert(proposalChangeLog).values(changeRows);
-        } catch (err) {
-          console.error("[ChangeLog] Failed to record changes (non-fatal):", err);
-        }
-      }
+      await recordFieldChanges(id, existingEntry as Record<string, unknown>, updates, changedByName);
 
       if (updates.selfPerformEstimator !== undefined && updates.selfPerformEstimator && updated.region) {
         try {

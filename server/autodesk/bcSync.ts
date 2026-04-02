@@ -2,6 +2,7 @@ import type { Express, Request, Response } from "express";
 import { db } from "../db";
 import { proposalLogEntries, bcSyncLog, bcSyncState, users } from "@shared/schema";
 import { eq } from "drizzle-orm";
+import { resolveChangedByName, recordFieldChanges } from "../changeLogger";
 import { getValidToken, hasValidConnection } from "./tokenManager";
 import { createNotification, createNotificationForAdmins } from "../notificationRoutes";
 import { guessMarket } from "../proposalLogService";
@@ -1254,7 +1255,11 @@ export function registerBcSyncRoutes(app: Express) {
         return res.status(400).json({ message: "No fields to update" });
       }
 
+      const changedByName = await resolveChangedByName(userId);
       const [updated] = await db.update(proposalLogEntries).set(updates).where(eq(proposalLogEntries.id, id)).returning();
+
+      await recordFieldChanges(id, entry as Record<string, unknown>, updates, changedByName);
+
       res.json(updated);
     } catch (err) {
       console.error("[BC Sync] Edit draft error:", err);
