@@ -904,7 +904,7 @@ th.col-drop-after::after{content:'';position:absolute;right:0;top:0;bottom:0;wid
       </div>
       <div class="form-row">
         <div class="form-group"><label class="fl">Region</label>
-          <select class="fi" id="f-region-input">
+          <select class="fi" id="f-region-input" onchange="onModalRegionChange(this.value)">
             <option value="">&mdash; Select &mdash;</option>
           </select>
         </div>
@@ -1732,6 +1732,12 @@ function openModal(idx=null) {
 function closeModal(){document.getElementById('modal').classList.remove('open');editIdx=null;}
 function outsideClose(e){if(e.target===document.getElementById('modal'))closeModal();}
 
+function onModalRegionChange(regionVal){
+  if(!regionVal)return;
+  const sp=lookupSpEstimator(regionVal);
+  const spEl=document.getElementById('f-selfPerformEstimator');
+  if(spEl && sp) spEl.value=sp;
+}
 function saveProposal(){
   const name=document.getElementById('f-projectName').value.trim();
   if(!name){alert('Project name is required.');return;}
@@ -1740,15 +1746,26 @@ function saveProposal(){
   if(Number(formVals.proposalTotal)>0 && formVals.estimateStatus==='Estimating'){
     formVals.estimateStatus='Submitted';
   }
-  if(!formVals.selfPerformEstimator && formVals.region && editIdx===null){
-    formVals.selfPerformEstimator = lookupSpEstimator(formVals.region);
+  if(formVals.region){
+    const spFromRegion = lookupSpEstimator(formVals.region);
+    if(spFromRegion){
+      if(editIdx===null){
+        formVals.selfPerformEstimator = spFromRegion;
+      } else {
+        const existing = data[editIdx];
+        const regionChanged = existing.region !== formVals.region;
+        if(regionChanged || !existing.selfPerformEstimator){
+          formVals.selfPerformEstimator = spFromRegion;
+        }
+      }
+    }
   }
   if(editIdx!==null){
     const existing=data[editIdx];
     Object.assign(existing, formVals);
     if(existing._serverDbId){
       const serverUpdates={};
-      ['nbsEstimator','estimateStatus','proposalTotal','gcEstimateLead','anticipatedStart','anticipatedFinish','nbsSelectedScopes','notes'].forEach(f=>{
+      ['nbsEstimator','estimateStatus','proposalTotal','gcEstimateLead','selfPerformEstimator','anticipatedStart','anticipatedFinish','nbsSelectedScopes','notes','region'].forEach(f=>{
         if(formVals[f]!==undefined) serverUpdates[f]=formVals[f];
       });
       if(Object.keys(serverUpdates).length){
@@ -2559,6 +2576,16 @@ function commitEditPopup(){
   data[oi][field]=v;
   save();
   syncFieldToServer(data[oi],field,v);
+
+  if(field==='region'){
+    const spVal=lookupSpEstimator(v);
+    if(spVal){
+      data[oi].selfPerformEstimator=spVal;
+      save();
+      syncFieldToServer(data[oi],'selfPerformEstimator',spVal);
+    }
+  }
+
   closeEditPopupUI();
   buildRows();
 }

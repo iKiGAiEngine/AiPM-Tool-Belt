@@ -1746,6 +1746,33 @@ export function registerProjectRoutes(app: Express) {
         await clearAcknowledgementsForEntry(id);
       }
 
+      if (updates.region !== undefined && updates.selfPerformEstimator === undefined) {
+        try {
+          const regionStr = (updates.region || "").trim();
+          const rm = regionStr.match(/^([A-Z]{2,5})\s*-\s*(.+)$/);
+          let regionCode = "";
+          let regionName = "";
+          if (rm) {
+            regionCode = rm[1];
+            regionName = rm[2];
+          } else if (/^[A-Z]{2,5}$/.test(regionStr)) {
+            regionCode = regionStr;
+          }
+          if (regionCode) {
+            const matchingRegions = await db.select().from(regions)
+              .where(eq(regions.code, regionCode));
+            const target = regionName
+              ? (matchingRegions.find(r => r.name === regionName) || matchingRegions[0])
+              : matchingRegions[0];
+            if (target && target.selfPerformEstimators && target.selfPerformEstimators.length > 0) {
+              updates.selfPerformEstimator = target.selfPerformEstimators[0];
+            }
+          }
+        } catch (err) {
+          console.error("[SP Estimator] Failed to auto-populate from region:", err);
+        }
+      }
+
       if (updates.proposalTotal !== undefined && updates.estimateStatus === undefined) {
         const hasTotal = updates.proposalTotal.replace(/[^0-9.]/g, '');
         if (hasTotal && Number(hasTotal) > 0) {
