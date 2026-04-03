@@ -39,8 +39,8 @@ CRITICAL RULES:
 - Do NOT confuse these dates with each other. Each date has a specific label on the page.
 - Do NOT return null for a date field if the date is visible on the page. Always extract what is shown.
 - For dates, return in YYYY-MM-DD format.
-- "clientName" is the general contractor or client company name. Look for "Client", "Builder", "GC", "General Contractor". On BuildingConnected, this often appears near the top with a company icon.
-- "clientLocation" is the city/office location of the client (NOT the project location). Often shown as "Company - City" (e.g., "Swinerton Builders - Portland"). Extract the city/location part after the dash.
+- "clientName" is the general contractor or client company name. Look for "Client", "Builder", "GC", "General Contractor". On BuildingConnected, this often appears near the top with a company icon. Extract ONLY the company name (e.g., "Swinerton Builders", "Turner Construction").
+- "clientLocation" is the COMPLETE office/division designation shown after the company name. On BuildingConnected, the client field often shows "Company - Office" or "Company - Region - Division" (e.g., "Swinerton Builders - Portland", "Swinerton Builders - SoCal - Parking Structures", "Hensel Phelps - Dallas"). Extract EVERYTHING after the company name dash, preserving all parts including division names like "Parking Structures", "Special Projects", "Target Markets", "Facility Solutions". Do NOT strip division names — keep the full string (e.g., "SoCal - Parking Structures" not just "SoCal"). If the client shows as "Swinerton Builders - Parking Structures", extract "Parking Structures" as the clientLocation.
 - "location" is the PROJECT location/address where the work will be done. Look for "Location", "Address", "Project Location", "City".
 - "gcContactName" is the name of the contact person from the GC/client. On BuildingConnected, look in the "Team Summary" or contact section.
 - "gcContactEmail" is their email address.
