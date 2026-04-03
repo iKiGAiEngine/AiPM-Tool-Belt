@@ -465,16 +465,20 @@ async function mapOpportunityToEntry(opp: BcOpportunity) {
   const allActiveRegions = await getActiveRegions();
 
   if (isSwinerton(opp.gcCompanyName || "")) {
-    // Swinerton: match purely by office name — no project address, no project-type keywords
-    // Try each office candidate segment (hint first, then company name parts)
-    for (const seg of officeCandidates) {
-      const r = matchSwinertonOffice(seg, allActiveRegions);
-      if (r.confident) { regionResult = r; matchedSegment = seg; break; }
+    // Swinerton: match purely by office name — no project address, no project-type keywords.
+    // IMPORTANT: try the full strings BEFORE individual segments so that compound names like
+    // "OCLA - Special Projects" trigger the blank rule before "OCLA" alone matches LAX-OCLA.
+    const fullStrings = [opp.gcOfficeHint, opp.gcCompanyName].filter(Boolean) as string[];
+    for (const full of fullStrings) {
+      const r = matchSwinertonOffice(full, allActiveRegions);
+      if (r.confident) { regionResult = r; matchedSegment = full; break; }
     }
-    // If segments didn't work, try the full company name string
-    if (!regionResult.confident && fullCompanyName) {
-      const r = matchSwinertonOffice(fullCompanyName, allActiveRegions);
-      if (r.confident) { regionResult = r; matchedSegment = fullCompanyName; }
+    // Fall back to individual segments only if full strings didn't produce a confident match
+    if (!regionResult.confident) {
+      for (const seg of officeCandidates) {
+        const r = matchSwinertonOffice(seg, allActiveRegions);
+        if (r.confident) { regionResult = r; matchedSegment = seg; break; }
+      }
     }
   } else {
     // Non-Swinerton GC: look up EXT region by company name
