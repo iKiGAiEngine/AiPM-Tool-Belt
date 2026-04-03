@@ -7,6 +7,7 @@ import {
 } from "@shared/schema";
 import { eq, ilike, or, sql } from "drizzle-orm";
 import * as xlsx from "xlsx";
+import ExcelJS from "exceljs";
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 * 1024 * 1024 } });
 const fileUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 25 * 1024 * 1024 } });
@@ -445,6 +446,48 @@ export function registerVendorDatabaseRoutes(app: Express) {
     try {
       await db.delete(mfrFiles).where(eq(mfrFiles.id, Number(req.params.fid)));
       res.json({ ok: true });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // ---- TEMPLATE DOWNLOAD ----
+
+  app.get("/api/mfr/template", async (req: Request, res: Response) => {
+    try {
+      const workbook = new ExcelJS.Workbook();
+      const sheet = workbook.addWorksheet("Estimating");
+
+      // Header row
+      const headerRow = sheet.addRow(["Scope / Trade", "Manufacturer", "Rep / Distributor", "Contact Name", "Email"]);
+      headerRow.font = { bold: true };
+      headerRow.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF0F0F0" } };
+
+      // Example scope header
+      sheet.addRow(["Toilet Accessories", "", "", "", ""]);
+
+      // Example data rows
+      sheet.addRow(["", "Kohler", "ABC Supply", "John Doe", "john@example.com"]);
+      sheet.addRow(["", "Bradley", "XYZ Distributors", "Jane Smith", "jane@example.com"]);
+      sheet.addRow(["", "Bobrick", "", "Mike Johnson", "mike@example.com"]);
+
+      // Add another scope
+      sheet.addRow(["Fire Extinguishers", "", "", "", ""]);
+      sheet.addRow(["", "Amerex", "Safety Plus", "Bob Wilson", "bob@example.com"]);
+
+      // Set column widths
+      sheet.columns = [
+        { width: 20 },
+        { width: 25 },
+        { width: 25 },
+        { width: 20 },
+        { width: 30 },
+      ];
+
+      const buffer = await workbook.xlsx.writeBuffer();
+      res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+      res.setHeader("Content-Disposition", "attachment; filename=Manufacturer_Template.xlsx");
+      res.send(buffer);
     } catch (err: any) {
       res.status(500).json({ error: err.message });
     }

@@ -218,7 +218,8 @@ function ExcelUploadModal({ onClose, onSuccess }: { onClose: () => void; onSucce
           <h2 style={{ fontSize: 16, fontWeight: 700, color: "var(--text-primary)" }}>Upload NBS Manufacturer List</h2>
           <X size={18} style={{ cursor: "pointer", color: "var(--text-dim)" }} onClick={onClose} />
         </div>
-        <p style={{ fontSize: 12, color: "var(--text-dim)", marginBottom: 16 }}>Upload your NBS Manufacturer List (.xlsx). The Estimating sheet will be parsed to create vendor and contact records.</p>
+        <p style={{ fontSize: 12, color: "var(--text-dim)", marginBottom: 4 }}>Upload your NBS Manufacturer List (.xlsx). The Estimating sheet will be parsed to create vendor and contact records.</p>
+        <a href="/api/mfr/template" download style={{ fontSize: 11, color: "var(--gold)", textDecoration: "underline", cursor: "pointer", marginBottom: 16, display: "inline-block" }}>Download template</a>
 
         {!result ? (
           <>
