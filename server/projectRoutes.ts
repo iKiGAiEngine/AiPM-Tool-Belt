@@ -45,7 +45,7 @@ import { extractProjectDetailsFromScreenshot } from "./screenshotExtractor";
 import { matchRegionWithFallback } from "./regionMatcher";
 import { guessMarket, createProposalLogEntry, bulkCreateProposalLogEntries, getUnsyncedEntries, markEntriesSynced, getActiveProposalLogEntries, getAllProposalLogEntries, updateProposalLogEntryById, deleteProposalLogEntry, deleteProposalLogEntries, getAcknowledgedEntryIds, acknowledgeEntry, unacknowledgeEntry, clearAcknowledgementsForEntry } from "./proposalLogService";
 import { getSheetUrl, syncProposalLogToSheet, pullRepairAndPush, isGoogleSheetConfigured } from "./googleSheetSync";
-import { users, proposalLogEntries, regions, proposalChangeLog } from "@shared/schema";
+import { users, proposalLogEntries, regions, proposalChangeLog, estimateTemplates } from "@shared/schema";
 import { eq, sql } from "drizzle-orm";
 import { resolveChangedByName, recordFieldChanges } from "./changeLogger";
 import { db } from "./db";
@@ -1633,6 +1633,84 @@ export function registerProjectRoutes(app: Express) {
     } catch (error) {
       console.error("Project folder download error:", error);
       res.status(500).json({ message: "Failed to download project folder" });
+    }
+  });
+
+  app.get("/api/projects/:id/download-estimate", async (req: Request, res: Response) => {
+    try {
+      const projectId = parseInt(req.params.id);
+      if (isNaN(projectId)) return res.status(400).json({ message: "Invalid project ID" });
+
+      const project = await getProjectById(projectId);
+      if (!project) return res.status(404).json({ message: "Project not found" });
+
+      // Get active estimate template
+      const templateResult = await db
+        .select()
+        .from(estimateTemplates)
+        .where(eq(estimateTemplates.isActive, true))
+        .limit(1);
+
+      if (templateResult.length === 0) {
+        return res.status(404).json({ message: "No active estimate template found" });
+      }
+
+      const template = templateResult[0];
+      const templateBuffer = template.fileData 
+        ? Buffer.from(template.fileData, "base64")
+        : (template.filePath && fs.existsSync(template.filePath) ? fs.readFileSync(template.filePath) : null);
+
+      if (!templateBuffer) {
+        return res.status(404).json({ message: "Template file not found" });
+      }
+
+      // Load template with ExcelJS
+      const workbook = new ExcelJS.Workbook();
+      await workbook.xlsx.load(templateBuffer);
+
+      // Prepare project data
+      const projectData: Record<string, string | null> = {
+        projectId: project.projectId,
+        projectName: project.projectName,
+        regionCode: project.regionCode,
+        dueDate: project.dueDate,
+      };
+
+      // Fill cells based on stamp mappings
+      const stampMappings = template.stampMappings as Array<{ cellRef: string; fieldName: string; label: string }> || [];
+      
+      for (const mapping of stampMappings) {
+        const value = projectData[mapping.fieldName];
+        if (value !== undefined && value !== null) {
+          try {
+            // Parse cell reference like "Summary Sheet!AB1"
+            const [sheetName, cellRef] = mapping.cellRef.includes("!") 
+              ? mapping.cellRef.split("!")
+              : [workbook.worksheets[0]?.name || "Sheet1", mapping.cellRef];
+
+            const sheet = workbook.getWorksheet(sheetName);
+            if (sheet) {
+              const cell = sheet.getCell(cellRef);
+              cell.value = value;
+            }
+          } catch (e) {
+            console.warn(`Failed to set cell ${mapping.cellRef} for ${mapping.fieldName}`, e);
+          }
+        }
+      }
+
+      // Generate Excel file
+      const excelBuffer = await workbook.xlsx.writeBuffer();
+
+      const safeName = sanitizeForWindows(project.projectName || "Project");
+      const filename = `${project.regionCode}_${project.projectId}_${safeName}_Estimate.xlsx`;
+
+      res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+      res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+      res.send(excelBuffer);
+    } catch (error) {
+      console.error("Project estimate download error:", error);
+      res.status(500).json({ message: "Failed to download estimate" });
     }
   });
 
