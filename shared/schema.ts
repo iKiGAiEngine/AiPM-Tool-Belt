@@ -1048,9 +1048,34 @@ export type InsertMfrContact = typeof mfrContacts.$inferInsert;
 export const insertMfrContactSchema = createInsertSchema(mfrContacts).omit({ id: true, createdAt: true });
 export type InsertMfrContactInput = z.infer<typeof insertMfrContactSchema>;
 
+export const mfrManufacturers = pgTable("mfr_manufacturers", {
+  id: serial("id").primaryKey(),
+  name: varchar("name", { length: 255 }).notNull().unique(),
+  website: varchar("website", { length: 500 }),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+export type MfrManufacturer = typeof mfrManufacturers.$inferSelect;
+export type InsertMfrManufacturer = typeof mfrManufacturers.$inferInsert;
+export const insertMfrManufacturerSchema = createInsertSchema(mfrManufacturers).omit({ id: true, createdAt: true, updatedAt: true });
+export type InsertMfrManufacturerInput = z.infer<typeof insertMfrManufacturerSchema>;
+
+export const mfrVendorManufacturers = pgTable("mfr_vendor_manufacturers", {
+  id: serial("id").primaryKey(),
+  vendorId: integer("vendor_id").notNull().references(() => mfrVendors.id),
+  manufacturerId: integer("manufacturer_id").notNull().references(() => mfrManufacturers.id),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => ({
+  unique: unique().on(table.vendorId, table.manufacturerId),
+}));
+export type MfrVendorManufacturer = typeof mfrVendorManufacturers.$inferSelect;
+export type InsertMfrVendorManufacturer = typeof mfrVendorManufacturers.$inferInsert;
+
 export const mfrProducts = pgTable("mfr_products", {
   id: serial("id").primaryKey(),
   vendorId: integer("vendor_id").notNull().references(() => mfrVendors.id),
+  manufacturerId: integer("manufacturer_id").notNull().references(() => mfrManufacturers.id),
   model: varchar("model", { length: 255 }),
   description: text("description"),
   csiCode: varchar("csi_code", { length: 50 }),
