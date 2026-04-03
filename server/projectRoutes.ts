@@ -121,6 +121,7 @@ export function registerProjectRoutes(app: Express) {
       
       // First try the full client location string
       let regionMatch = await matchRegionWithFallback(clientLoc, projectLoc);
+      let matchedSegment = "";
       
       // If that doesn't work, try splitting client location by dashes and checking each segment
       if (!regionMatch.confident && clientLoc) {
@@ -129,12 +130,16 @@ export function registerProjectRoutes(app: Express) {
           const segMatch = await matchRegionWithFallback(seg, "");
           if (segMatch.confident) {
             regionMatch = segMatch;
+            matchedSegment = seg;
             break;
           }
         }
+      } else if (regionMatch.confident) {
+        matchedSegment = clientLoc || projectLoc;
       }
       
       const matchedRegionCode = regionMatch.confident ? regionMatch.code : null;
+      console.log(`[ScreenshotExtractor] Region match for "${result.projectName}": clientLoc="${clientLoc}" projectLoc="${projectLoc}" → matched="${matchedSegment}" region="${regionMatch.code}" (${regionMatch.displayLabel}) confident=${regionMatch.confident}`);
 
       const primaryMarket = guessMarket(result.projectName || "", result.rawText);
 
