@@ -377,7 +377,7 @@ export function registerProjectRoutes(app: Express) {
     ]),
     async (req: Request, res: Response) => {
       try {
-        const { projectName, regionCode, dueDate, isTest } = req.body;
+        const { projectName, regionCode, dueDate, isTest, screenshotLocation } = req.body;
 
         if (!projectName || !regionCode || !dueDate) {
           return res.status(400).json({ message: "Project name, region code, and due date are required" });
@@ -542,6 +542,7 @@ export function registerProjectRoutes(app: Express) {
           projectName: safeName,
           regionCode: regionCode.toUpperCase(),
           dueDate,
+          projectAddress: screenshotLocation,
           status: initialStatus,
           specsiftSessionId: specsiftSessionId,
           planparserJobId: planParserJobId,
