@@ -512,13 +512,17 @@ function extractClientInfo(text: string): { clientName: string | null; clientLoc
 
   for (let i = 0; i < lines.length; i++) {
     if (/^Client\s*:?\s*$/i.test(lines[i])) {
+      let fullClientText = "";
       for (let j = i + 1; j < Math.min(i + 5, lines.length); j++) {
         const line = lines[j];
         if (line.length < 3 || /^(Bidding|Overview|Files|Messages|Vendors|Status)/i.test(line)) break;
         if (line.includes("@") || line.match(/^\+?\d[\d\s\-().]+$/)) continue;
-        const dashMatch = line.match(/^(.+?)\s*[-–—]\s*(.+)$/);
+        fullClientText += (fullClientText ? " " : "") + line;
+      }
+      if (fullClientText) {
+        const dashMatch = fullClientText.match(/^(.+?)\s*[-–—]\s*(.+)$/);
         if (dashMatch) return { clientName: dashMatch[1].trim(), clientLocation: dashMatch[2].trim(), gcContactName: null, gcContactEmail: null };
-        if (line.length > 3) return { clientName: line, clientLocation: null, gcContactName: null, gcContactEmail: null };
+        if (fullClientText.length > 3) return { clientName: fullClientText, clientLocation: null, gcContactName: null, gcContactEmail: null };
       }
     }
     if (/\bClient\s*:\s*/i.test(lines[i])) {

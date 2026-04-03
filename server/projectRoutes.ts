@@ -118,7 +118,22 @@ export function registerProjectRoutes(app: Express) {
 
       const clientLoc = (result.clientLocation || "").trim();
       const projectLoc = (result.location || "").trim();
-      const regionMatch = await matchRegionWithFallback(clientLoc, projectLoc);
+      
+      // First try the full client location string
+      let regionMatch = await matchRegionWithFallback(clientLoc, projectLoc);
+      
+      // If that doesn't work, try splitting client location by dashes and checking each segment
+      if (!regionMatch.confident && clientLoc) {
+        const segments = clientLoc.split(/[-–—]/).map(s => s.trim()).filter(Boolean);
+        for (const seg of segments) {
+          const segMatch = await matchRegionWithFallback(seg, "");
+          if (segMatch.confident) {
+            regionMatch = segMatch;
+            break;
+          }
+        }
+      }
+      
       const matchedRegionCode = regionMatch.confident ? regionMatch.code : null;
 
       const primaryMarket = guessMarket(result.projectName || "", result.rawText);
