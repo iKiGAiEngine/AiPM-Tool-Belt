@@ -150,6 +150,8 @@ export function registerProjectRoutes(app: Express) {
 
       // confident=true + empty code = intentionally blank (estimator decides)
       const matchedRegionCode = (regionMatch.confident && regionMatch.code) ? regionMatch.code : null;
+      // Also return the full display label so the frontend can pre-select the exact sub-region
+      const matchedRegionLabel = matchedRegionCode ? (regionMatch.displayLabel || null) : null;
       console.log(`[ScreenshotExtractor] Region match for "${projectName}": client="${clientName}" clientLoc="${clientLoc}" → region="${regionMatch.code}" (${regionMatch.displayLabel}) confident=${regionMatch.confident}`);
 
       const primaryMarket = guessMarket(result.projectName || "", result.rawText);
@@ -160,6 +162,7 @@ export function registerProjectRoutes(app: Express) {
         location: result.location,
         tradeName: result.tradeName,
         matchedRegionCode,
+        matchedRegionLabel,
         inviteDate: result.inviteDate,
         expectedStart: result.expectedStart,
         expectedFinish: result.expectedFinish,
@@ -786,18 +789,20 @@ export function registerProjectRoutes(app: Express) {
           }
 
           const activeRegions = await getActiveRegions();
-          const matchedRegion = activeRegions.find(r => r.code === regionCode.toUpperCase());
-          let regionLabel = matchedRegion ? (matchedRegion.name ? `${matchedRegion.name} (${regionCode.toUpperCase()})` : regionCode.toUpperCase()) : "";
+          // Prefer the exact label returned by the screenshot extractor (e.g. "LAX - TM")
+          // to avoid mis-picking the first DB region with a matching code (e.g. SPD instead of TM)
+          const screenshotRegionLabel = req.body.screenshotRegionLabel || "";
+          let regionLabel = screenshotRegionLabel;
+          if (!regionLabel) {
+            const matchedRegion = activeRegions.find(r => r.code === regionCode.toUpperCase());
+            regionLabel = matchedRegion
+              ? (matchedRegion.name ? `${matchedRegion.code} - ${matchedRegion.name}` : matchedRegion.code)
+              : regionCode.toUpperCase();
+          }
 
           const rawScreenshotText = req.body.screenshotRawText || "";
           const frontendMarket = req.body.primaryMarket || "";
           const bestMarket = frontendMarket || guessMarket(safeName, rawScreenshotText);
-          if (!regionLabel) {
-            const fallbackMatch = await matchRegionWithFallback(req.body.screenshotLocation || "", safeName);
-            if (fallbackMatch.confident) {
-              regionLabel = fallbackMatch.displayLabel;
-            }
-          }
 
           const frontendInviteDate = req.body.inviteDate || "";
           const frontendEstimateStatus = req.body.estimateStatus || "";

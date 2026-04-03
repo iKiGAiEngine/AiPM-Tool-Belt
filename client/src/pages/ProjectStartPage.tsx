@@ -81,6 +81,7 @@ export default function ProjectStartPage() {
     location: string | null;
     tradeName: string | null;
     matchedRegionCode: string | null;
+    matchedRegionLabel: string | null;
     inviteDate: string | null;
     expectedStart: string | null;
     expectedFinish: string | null;
@@ -173,7 +174,19 @@ export default function ProjectStartPage() {
       }
       if (data.matchedRegionCode && !regionCode) {
         setRegionCode(data.matchedRegionCode);
-        const matched = regions.find((r) => r.code === data.matchedRegionCode);
+        // Use the full label (e.g. "LAX - TM") to select the exact sub-region, not just the first
+        // region with a matching code (which could be SPD, OCLA, etc.)
+        let matched = null;
+        if (data.matchedRegionLabel) {
+          const parts = data.matchedRegionLabel.split(" - ");
+          const labelCode = parts[0]?.trim();
+          const labelName = parts.slice(1).join(" - ").trim() || null;
+          matched = regions.find((r) =>
+            r.code === labelCode && (labelName ? r.name === labelName : !r.name)
+          ) ?? regions.find((r) => r.code === data.matchedRegionCode) ?? null;
+        } else {
+          matched = regions.find((r) => r.code === data.matchedRegionCode) ?? null;
+        }
         if (matched) setSelectedRegionId(String(matched.id));
         setRegionNotConfident(false);
       } else if (!data.matchedRegionCode && !regionCode) {
@@ -373,6 +386,9 @@ export default function ProjectStartPage() {
     }
     if (extractionResult?.rawText) {
       formData.append("screenshotRawText", extractionResult.rawText);
+    }
+    if (extractionResult?.matchedRegionLabel) {
+      formData.append("screenshotRegionLabel", extractionResult.matchedRegionLabel);
     }
 
     const isFolderOnly = !plans.file && !specs.file;
