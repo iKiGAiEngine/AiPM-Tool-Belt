@@ -16,10 +16,15 @@ export async function matchRegionFromLocation(locationStr: string): Promise<Regi
   return matchRegionFromLocationSync(locationStr, regions);
 }
 
-export function matchRegionFromLocationSync(locationStr: string, regions: Region[]): RegionMatchResult {
+export function matchRegionFromLocationSync(
+  locationStr: string,
+  regions: Region[],
+  fullClientName?: string
+): RegionMatchResult {
   const loc = (locationStr || "").toLowerCase().trim();
   if (!loc) return { code: "", displayLabel: "", confident: false };
 
+  // Step 1: Try exact match on name or code
   for (const region of regions) {
     const nameLower = (region.name || "").toLowerCase();
     const codeLower = region.code.toLowerCase();
@@ -28,17 +33,57 @@ export function matchRegionFromLocationSync(locationStr: string, regions: Region
     }
   }
 
+  // Step 2: Try alias match
+  let regionCodeMatch: string | null = null;
+  let firstMatchForCode: RegionMatchResult | null = null;
+
   for (const region of regions) {
     const aliases = region.aliases || [];
     for (const alias of aliases) {
       const a = alias.toLowerCase();
       const re = new RegExp(`(?:^|[\\s,/\\-])${a.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?:$|[\\s,/\\-])`, "i");
       if (re.test(` ${loc} `)) {
-        return { code: region.code, displayLabel: formatRegionDisplay(region), confident: true };
+        // Found a region match - save it
+        regionCodeMatch = region.code;
+        if (!firstMatchForCode) {
+          firstMatchForCode = { code: region.code, displayLabel: formatRegionDisplay(region), confident: true };
+        }
+        break;
       }
     }
   }
 
+  // If we found a region and have the full client name, refine the match by searching for specific office identifiers
+  if (regionCodeMatch && fullClientName) {
+    const fullClient = (fullClientName || "").toLowerCase().trim();
+    const candidatesForRegion = regions.filter(r => r.code === regionCodeMatch);
+    
+    if (candidatesForRegion.length > 1) {
+      // Multiple office variants exist for this region code
+      // Search the full client name for office-specific identifiers
+      for (const region of candidatesForRegion) {
+        const aliases = region.aliases || [];
+        for (const alias of aliases) {
+          const a = alias.toLowerCase();
+          // Skip generic location aliases like "socal", "los angeles", "orange county" 
+          if (["socal", "los angeles", "la", "orange county", "santa ana"].includes(a)) {
+            continue;
+          }
+          const re = new RegExp(`(?:^|[\\s,/\\-])${a.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?:$|[\\s,/\\-])`, "i");
+          if (re.test(` ${fullClient} `)) {
+            // Found a specific office match in the full client name
+            return { code: region.code, displayLabel: formatRegionDisplay(region), confident: true };
+          }
+        }
+      }
+    }
+  }
+
+  if (firstMatchForCode) {
+    return firstMatchForCode;
+  }
+
+  // Step 3: Partial match on name or code
   for (const region of regions) {
     const nameLower = (region.name || "").toLowerCase();
     const codeLower = region.code.toLowerCase();
@@ -55,12 +100,13 @@ export function matchRegionFromLocationSync(locationStr: string, regions: Region
 
 export async function matchRegionWithFallback(
   primaryLocation: string,
-  fallbackLocation: string
+  fallbackLocation: string,
+  fullClientName?: string
 ): Promise<RegionMatchResult> {
   const regions = await getActiveRegions();
-  let result = matchRegionFromLocationSync(primaryLocation, regions);
+  let result = matchRegionFromLocationSync(primaryLocation, regions, fullClientName);
   if (result.confident) return result;
 
-  result = matchRegionFromLocationSync(fallbackLocation, regions);
+  result = matchRegionFromLocationSync(fallbackLocation, regions, fullClientName);
   return result;
 }

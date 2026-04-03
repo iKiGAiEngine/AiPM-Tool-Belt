@@ -119,15 +119,15 @@ export function registerProjectRoutes(app: Express) {
       const clientLoc = (result.clientLocation || "").trim();
       const projectLoc = (result.location || "").trim();
       
-      // First try the full client location string
-      let regionMatch = await matchRegionWithFallback(clientLoc, projectLoc);
+      // First try the full client location string with the full client name for office refinement
+      let regionMatch = await matchRegionWithFallback(clientLoc, projectLoc, result.clientName || undefined);
       let matchedSegment = "";
       
       // If that doesn't work, try splitting client location by dashes and checking each segment
       if (!regionMatch.confident && clientLoc) {
         const segments = clientLoc.split(/[-–—]/).map(s => s.trim()).filter(Boolean);
         for (const seg of segments) {
-          const segMatch = await matchRegionWithFallback(seg, "");
+          const segMatch = await matchRegionWithFallback(seg, "", result.clientName || undefined);
           if (segMatch.confident) {
             regionMatch = segMatch;
             matchedSegment = seg;
