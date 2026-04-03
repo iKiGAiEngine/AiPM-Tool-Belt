@@ -464,7 +464,7 @@ export function registerVendorDatabaseRoutes(app: Express) {
       instructions.addRow([""]);
       instructions.addRow(["STRUCTURE:"]);
       instructions.addRow(["- Column A: Scope/Trade category (e.g., Toilet Accessories, Fire Extinguishers)"]);
-      instructions.addRow(["- Column B: Manufacturer name (Kohler, Bradley, Bobrick, Amerex, etc.)"]);
+      instructions.addRow(["- Column B: Manufacturer names (comma-separated if vendor reps multiple brands)"]);
       instructions.addRow(["- Column C: Distributor/Rep Company (the vendor providing products)"]);
       instructions.addRow(["- Column D: Contact Name at the vendor"]);
       instructions.addRow(["- Column E: Contact Email"]);
@@ -472,13 +472,13 @@ export function registerVendorDatabaseRoutes(app: Express) {
       instructions.addRow(["HOW IT WORKS:"]);
       instructions.addRow(["1. One Scope header per trade (column A only, leave B-E empty)"]);
       instructions.addRow(["2. Data rows list manufacturers and the vendor that represents them"]);
-      instructions.addRow(["3. If vendor ABC Supply reps multiple manufacturers, list each row separately"]);
-      instructions.addRow(["4. The system automatically deduplicates vendors and creates relationships"]);
+      instructions.addRow(["3. If vendor ABC Supply reps multiple manufacturers, use comma-separated list: 'Kohler, Bradley, Bobrick'"]);
+      instructions.addRow(["4. The system automatically deduplicates vendors and creates relationships for each manufacturer"]);
+      instructions.addRow(["5. One contact info per vendor (shared across all manufacturers they represent)"]);
       instructions.addRow([""]);
       instructions.addRow(["EXAMPLE:"]);
-      instructions.addRow(["Toilet Accessories | Kohler | ABC Supply | John Doe | john@example.com"]);
-      instructions.addRow(["                  | Bradley | ABC Supply | John Doe | john@example.com"]);
-      instructions.addRow(["                  | Bobrick | XYZ Distributors | Jane Smith | jane@example.com"]);
+      instructions.addRow(["Toilet Accessories | Kohler, Bradley, Bobrick | ABC Supply | John Doe | john@example.com"]);
+      instructions.addRow(["                  | Soap Dispensers Brand  | XYZ Distributors | Jane Smith | jane@example.com"]);
       instructions.addRow([""]);
       instructions.addRow(["See 'Data' sheet for the full template with examples."]);
       instructions.columns = [{ width: 80 }];
@@ -487,20 +487,18 @@ export function registerVendorDatabaseRoutes(app: Express) {
       const sheet = workbook.addWorksheet("Data");
 
       // Header row
-      const headerRow = sheet.addRow(["Scope / Trade", "Manufacturer", "Distributor / Rep", "Contact Name", "Email"]);
+      const headerRow = sheet.addRow(["Scope / Trade", "Manufacturers", "Distributor / Rep", "Contact Name", "Email"]);
       headerRow.font = { bold: true };
       headerRow.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF0F0F0" } };
 
       // Example scope header and data
       sheet.addRow(["Toilet Accessories", "", "", "", ""]);
-      sheet.addRow(["", "Kohler", "ABC Supply", "John Doe", "john@example.com"]);
-      sheet.addRow(["", "Bradley", "ABC Supply", "John Doe", "john@example.com"]);
-      sheet.addRow(["", "Bobrick", "XYZ Distributors", "Jane Smith", "jane@example.com"]);
+      sheet.addRow(["", "Kohler, Bradley, Bobrick", "ABC Supply", "John Doe", "john@example.com"]);
+      sheet.addRow(["", "Soap Dispenser Brand", "XYZ Distributors", "Jane Smith", "jane@example.com"]);
 
       sheet.addRow([""]);
       sheet.addRow(["Fire Extinguishers", "", "", "", ""]);
-      sheet.addRow(["", "Amerex", "Safety Plus", "Bob Wilson", "bob@example.com"]);
-      sheet.addRow(["", "Tyco", "Safety Plus", "Bob Wilson", "bob@example.com"]);
+      sheet.addRow(["", "Amerex, Tyco", "Safety Plus", "Bob Wilson", "bob@example.com"]);
 
       // Set column widths
       sheet.columns = [
@@ -571,23 +569,9 @@ export function registerVendorDatabaseRoutes(app: Express) {
           continue;
         }
 
-        if (!colB || !colC) continue; // Skip rows without both manufacturer AND distributor
+        if (!colB || !colC) continue; // Skip rows without both manufacturers AND distributor
 
-        // Get or create manufacturer
-        const mfrNameLower = colB.toLowerCase().trim();
-        let manufacturerId: number;
-        if (manufacturerNameMap.has(mfrNameLower)) {
-          manufacturerId = manufacturerNameMap.get(mfrNameLower)!;
-        } else {
-          const [newMfr] = await db.insert(mfrManufacturers).values({
-            name: colB,
-          }).returning();
-          manufacturerId = newMfr.id;
-          manufacturerNameMap.set(mfrNameLower, manufacturerId);
-          manufacturersCreated++;
-        }
-
-        // Get or create vendor (distributor)
+        // Get or create vendor (distributor) - one per row
         const vendorNameLower = colC.toLowerCase().trim();
         let vendorId: number;
         if (vendorNameMap.has(vendorNameLower)) {
@@ -602,18 +586,37 @@ export function registerVendorDatabaseRoutes(app: Express) {
           vendorsCreated++;
         }
 
-        // Create vendor-manufacturer relationship if it doesn't exist
-        const relKey = `${vendorId}-${manufacturerId}`;
-        if (!relationshipSet.has(relKey)) {
-          await db.insert(mfrVendorManufacturers).values({
-            vendorId,
-            manufacturerId,
-          });
-          relationshipSet.add(relKey);
-          relationshipsCreated++;
+        // Parse comma-separated manufacturers
+        const manufacturerNames = colB.split(",").map((m) => m.trim()).filter((m) => m.length > 0);
+
+        for (const mfrName of manufacturerNames) {
+          // Get or create manufacturer
+          const mfrNameLower = mfrName.toLowerCase().trim();
+          let manufacturerId: number;
+          if (manufacturerNameMap.has(mfrNameLower)) {
+            manufacturerId = manufacturerNameMap.get(mfrNameLower)!;
+          } else {
+            const [newMfr] = await db.insert(mfrManufacturers).values({
+              name: mfrName,
+            }).returning();
+            manufacturerId = newMfr.id;
+            manufacturerNameMap.set(mfrNameLower, manufacturerId);
+            manufacturersCreated++;
+          }
+
+          // Create vendor-manufacturer relationship if it doesn't exist
+          const relKey = `${vendorId}-${manufacturerId}`;
+          if (!relationshipSet.has(relKey)) {
+            await db.insert(mfrVendorManufacturers).values({
+              vendorId,
+              manufacturerId,
+            });
+            relationshipSet.add(relKey);
+            relationshipsCreated++;
+          }
         }
 
-        // Create contact(s)
+        // Create contact(s) once per vendor
         if (colD || colC) {
           const existingContacts = await db.select().from(mfrContacts).where(eq(mfrContacts.vendorId, vendorId));
           const isPrimary = existingContacts.length === 0;
