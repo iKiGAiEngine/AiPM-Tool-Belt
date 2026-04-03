@@ -79,7 +79,8 @@ export function matchRegionFromLocationSync(
       }
       
       // If client name didn't reveal the office, try project name for project-type disambiguation
-      if (projectName) {
+      // ONLY for LAX region which has office variants (TM, SPD, OCLA, FS)
+      if (projectName && regionCodeMatch === "LAX") {
         const proj = (projectName || "").toLowerCase().trim();
         for (const region of candidatesForRegion) {
           const aliases = region.aliases || [];
