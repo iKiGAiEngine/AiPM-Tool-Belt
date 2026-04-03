@@ -122,12 +122,20 @@ export function registerProjectRoutes(app: Express) {
       const clientName = result.clientName || "";
 
       const activeRegions = await getActiveRegions();
-      let regionMatch: { code: string; displayLabel: string; confident: boolean };
+      let regionMatch: { code: string; displayLabel: string; confident: boolean } = { code: "", displayLabel: "", confident: false };
 
       if (isSwinerton(clientName)) {
-        // Swinerton: match purely by office name — no address, no project-type keywords
-        regionMatch = matchSwinertonOffice(clientLoc, activeRegions);
-        // If clientLoc alone didn't match, try each dash-segment (e.g. "SoCal - Parking Structures")
+        // Swinerton: match using the full assembled string first for maximum context,
+        // then fall back to clientLoc alone, then individual dash-segments.
+        const fullClientStr = [clientName, clientLoc].filter(Boolean).join(" - ");
+        const candidateStrings = [...new Set([fullClientStr, clientLoc].filter(Boolean))];
+
+        for (const str of candidateStrings) {
+          const r = matchSwinertonOffice(str, activeRegions);
+          if (r.confident) { regionMatch = r; break; }
+        }
+
+        // If no full-string match, try individual dash-segments of clientLoc
         if (!regionMatch.confident && clientLoc) {
           const segments = clientLoc.split(/[-–—]/).map((s: string) => s.trim()).filter(Boolean);
           for (const seg of segments) {

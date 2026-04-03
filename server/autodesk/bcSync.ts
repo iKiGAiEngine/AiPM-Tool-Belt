@@ -468,7 +468,9 @@ async function mapOpportunityToEntry(opp: BcOpportunity) {
     // Swinerton: match purely by office name — no project address, no project-type keywords.
     // IMPORTANT: try the full strings BEFORE individual segments so that compound names like
     // "OCLA - Special Projects" trigger the blank rule before "OCLA" alone matches LAX-OCLA.
-    const fullStrings = [opp.gcOfficeHint, opp.gcCompanyName].filter(Boolean) as string[];
+    // Include fullCompanyName (gcCompanyName + gcOfficeHint combined) for maximum context.
+    const fullStrings = [opp.gcOfficeHint, opp.gcCompanyName, fullCompanyName]
+      .filter((s, i, a) => Boolean(s) && a.indexOf(s) === i) as string[];
     for (const full of fullStrings) {
       const r = matchSwinertonOffice(full, allActiveRegions);
       if (r.confident) { regionResult = r; matchedSegment = full; break; }
