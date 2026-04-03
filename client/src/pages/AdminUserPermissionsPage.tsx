@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, RotateCcw } from "lucide-react";
+import { Loader2, RotateCcw, Zap } from "lucide-react";
 
 interface UserWithPermissions {
   id: number;
@@ -14,6 +14,13 @@ interface UserWithPermissions {
   role: string;
   features: string[];
   availableFeatures: string[];
+}
+
+interface PermissionProfile {
+  id: number;
+  name: string;
+  description?: string;
+  features: string[];
 }
 
 const FEATURE_LABELS: Record<string, string> = {
@@ -34,13 +41,49 @@ export function AdminUserPermissionsPage() {
   const { toast } = useToast();
   const [selectedUser, setSelectedUser] = useState<number | null>(null);
   const [userFeatures, setUserFeatures] = useState<Record<number, Set<string>>>({});
+  const [expandedProfile, setExpandedProfile] = useState<number | null>(null);
 
-  const { data: users = [], isLoading } = useQuery({
+  const { data: rawUsers = [], isLoading } = useQuery({
     queryKey: ["/api/admin/users/permissions/matrix"],
     queryFn: async () => {
       const res = await fetch("/api/admin/users/permissions/matrix");
       if (!res.ok) throw new Error("Failed to fetch permissions");
       return res.json() as Promise<UserWithPermissions[]>;
+    },
+  });
+
+  // Deduplicate users by id
+  const users = Array.from(
+    new Map(rawUsers.map((user) => [user.id, user])).values()
+  );
+
+  const { data: profiles = [], isLoading: profilesLoading } = useQuery({
+    queryKey: ["/api/admin/profiles"],
+    queryFn: async () => {
+      const res = await fetch("/api/admin/profiles");
+      if (!res.ok) return [];
+      return res.json() as Promise<PermissionProfile[]>;
+    },
+  });
+
+  const assignProfileMutation = useMutation({
+    mutationFn: async ({ userId, profileId }: { userId: number; profileId: number }) => {
+      const res = await apiRequest("POST", `/api/admin/users/${userId}/assign-profile/${profileId}`, {});
+      return res;
+    },
+    onSuccess: (_, { userId, profileId }) => {
+      const profile = profiles.find((p) => p.id === profileId);
+      if (profile) {
+        setUserFeatures((prev) => ({
+          ...prev,
+          [userId]: new Set(profile.features),
+        }));
+      }
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/users/permissions/matrix"] });
+      toast({ title: `Applied profile "${profile?.name}" to user` });
+    },
+    onError: () => {
+      toast({ title: "Failed to assign profile", variant: "destructive" });
     },
   });
 
@@ -136,13 +179,67 @@ export function AdminUserPermissionsPage() {
       <div>
         <h1 className="text-3xl font-bold text-foreground">User Feature Access</h1>
         <p className="text-muted-foreground mt-2">
-          Manage which features each user can access. Initial role determines default access.
+          Manage which features each user can access. Use profiles for quick assignment or customize individually.
         </p>
       </div>
 
-      <div className="grid grid-cols-3 gap-6">
-        {/* User List */}
+      <div className="grid grid-cols-4 gap-6">
+        {/* Profiles */}
         <Card className="col-span-1">
+          <CardHeader>
+            <CardTitle className="text-lg">Profiles</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {profilesLoading ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <div className="space-y-2">
+                {profiles.map((profile) => (
+                  <div key={profile.id} className="border rounded-md p-3 bg-muted/50">
+                    <button
+                      onClick={() =>
+                        setExpandedProfile(expandedProfile === profile.id ? null : profile.id)
+                      }
+                      className="w-full text-left font-medium text-sm hover:text-gold transition"
+                      data-testid={`button-profile-${profile.id}`}
+                    >
+                      {profile.name}
+                    </button>
+                    {expandedProfile === profile.id && (
+                      <div className="mt-2 space-y-2 pt-2 border-t">
+                        <p className="text-xs text-muted-foreground">{profile.description}</p>
+                        <div className="text-xs space-y-1">
+                          {profile.features.map((f) => (
+                            <div key={f} className="text-muted-foreground">
+                              • {FEATURE_LABELS[f] || f}
+                            </div>
+                          ))}
+                        </div>
+                        {selectedUser && (
+                          <Button
+                            size="sm"
+                            onClick={() =>
+                              assignProfileMutation.mutate({ userId: selectedUser, profileId: profile.id })
+                            }
+                            disabled={assignProfileMutation.isPending}
+                            className="w-full mt-2"
+                            data-testid={`button-assign-profile-${profile.id}`}
+                          >
+                            <Zap className="w-3 h-3 mr-1" />
+                            Apply to {selectedUser ? "User" : "Select User"}
+                          </Button>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* User List */}
+        <Card className="col-span-1" data-testid="card-user-list">
           <CardHeader>
             <CardTitle>Users</CardTitle>
           </CardHeader>
@@ -168,7 +265,7 @@ export function AdminUserPermissionsPage() {
         </Card>
 
         {/* Permission Matrix */}
-        <Card className="col-span-2">
+        <Card className="col-span-2" data-testid="card-permission-matrix">
           <CardHeader>
             <div className="flex justify-between items-center">
               <div>

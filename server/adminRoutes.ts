@@ -1,6 +1,6 @@
 import type { Express, Request, Response } from "express";
 import { db } from "./db";
-import { users, auditLogs, FEATURES, DEFAULT_ROLE_FEATURES, Feature } from "@shared/schema";
+import { users, auditLogs, FEATURES, DEFAULT_ROLE_FEATURES, Feature, permissionProfiles } from "@shared/schema";
 import { eq, desc, and, gte, lte, like, or, sql } from "drizzle-orm";
 import { requireAdmin, isAllowedDomain } from "./authRoutes";
 import { auditLog } from "./auditService";
@@ -406,6 +406,173 @@ export function registerAdminRoutes(app: Express) {
       res.json(Object.values(FEATURES));
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch features" });
+    }
+  });
+
+  // ---- PERMISSION PROFILES ----
+
+  // Get all permission profiles
+  app.get("/api/admin/profiles", requireAdmin, async (req: Request, res: Response) => {
+    try {
+      const profiles = await db.select().from(permissionProfiles).orderBy(desc(permissionProfiles.createdAt));
+      res.json(profiles);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch profiles" });
+    }
+  });
+
+  // Create a new permission profile
+  app.post("/api/admin/profiles", requireAdmin, async (req: Request, res: Response) => {
+    try {
+      const { name, description, features } = req.body as {
+        name: string;
+        description?: string;
+        features: string[];
+      };
+      const actorId = (req.session as any)?.userId;
+
+      if (!name || !Array.isArray(features)) {
+        return res.status(400).json({ message: "Name and features are required" });
+      }
+
+      const [created] = await db
+        .insert(permissionProfiles)
+        .values({ name, description, features })
+        .returning();
+
+      const [actor] = await db.select().from(users).where(eq(users.id, actorId));
+      await auditLog({
+        actionType: "profile_created",
+        actorUserId: actorId,
+        actorEmail: actor?.email,
+        entityType: "profile",
+        entityId: String(created.id),
+        summary: `Created permission profile "${name}" with ${features.length} features`,
+        ipAddress: (req.headers["x-forwarded-for"] as string)?.split(",")[0] || req.socket.remoteAddress || "",
+        userAgent: req.headers["user-agent"] || "",
+        requestPath: req.path,
+        requestMethod: req.method,
+      });
+
+      res.json(created);
+    } catch (error: any) {
+      if (error.message?.includes("unique")) {
+        return res.status(400).json({ message: "Profile name already exists" });
+      }
+      res.status(500).json({ message: "Failed to create profile" });
+    }
+  });
+
+  // Update a permission profile
+  app.patch("/api/admin/profiles/:id", requireAdmin, async (req: Request, res: Response) => {
+    try {
+      const profileId = parseInt(req.params.id);
+      const { name, description, features } = req.body as {
+        name?: string;
+        description?: string;
+        features?: string[];
+      };
+      const actorId = (req.session as any)?.userId;
+
+      const [updated] = await db
+        .update(permissionProfiles)
+        .set({
+          name: name || undefined,
+          description: description || undefined,
+          features: features || undefined,
+          updatedAt: new Date(),
+        })
+        .where(eq(permissionProfiles.id, profileId))
+        .returning();
+
+      if (!updated) return res.status(404).json({ message: "Profile not found" });
+
+      const [actor] = await db.select().from(users).where(eq(users.id, actorId));
+      await auditLog({
+        actionType: "profile_updated",
+        actorUserId: actorId,
+        actorEmail: actor?.email,
+        entityType: "profile",
+        entityId: String(profileId),
+        summary: `Updated permission profile "${updated.name}"`,
+        ipAddress: (req.headers["x-forwarded-for"] as string)?.split(",")[0] || req.socket.remoteAddress || "",
+        userAgent: req.headers["user-agent"] || "",
+        requestPath: req.path,
+        requestMethod: req.method,
+      });
+
+      res.json(updated);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to update profile" });
+    }
+  });
+
+  // Delete a permission profile
+  app.delete("/api/admin/profiles/:id", requireAdmin, async (req: Request, res: Response) => {
+    try {
+      const profileId = parseInt(req.params.id);
+      const actorId = (req.session as any)?.userId;
+
+      const [deleted] = await db
+        .delete(permissionProfiles)
+        .where(eq(permissionProfiles.id, profileId))
+        .returning();
+
+      if (!deleted) return res.status(404).json({ message: "Profile not found" });
+
+      const [actor] = await db.select().from(users).where(eq(users.id, actorId));
+      await auditLog({
+        actionType: "profile_deleted",
+        actorUserId: actorId,
+        actorEmail: actor?.email,
+        entityType: "profile",
+        entityId: String(profileId),
+        summary: `Deleted permission profile "${deleted.name}"`,
+        ipAddress: (req.headers["x-forwarded-for"] as string)?.split(",")[0] || req.socket.remoteAddress || "",
+        userAgent: req.headers["user-agent"] || "",
+        requestPath: req.path,
+        requestMethod: req.method,
+      });
+
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ message: "Failed to delete profile" });
+    }
+  });
+
+  // Assign a profile to a user (applies profile features as user's permissions)
+  app.post("/api/admin/users/:userId/assign-profile/:profileId", requireAdmin, async (req: Request, res: Response) => {
+    try {
+      const userId = parseInt(req.params.userId);
+      const profileId = parseInt(req.params.profileId);
+      const actorId = (req.session as any)?.userId;
+
+      const [user] = await db.select().from(users).where(eq(users.id, userId));
+      if (!user) return res.status(404).json({ message: "User not found" });
+
+      const [profile] = await db.select().from(permissionProfiles).where(eq(permissionProfiles.id, profileId));
+      if (!profile) return res.status(404).json({ message: "Profile not found" });
+
+      // Apply profile features to user
+      await storage.setUserFeatureAccess(userId, profile.features);
+
+      const [actor] = await db.select().from(users).where(eq(users.id, actorId));
+      await auditLog({
+        actionType: "profile_assigned",
+        actorUserId: actorId,
+        actorEmail: actor?.email,
+        entityType: "user",
+        entityId: String(userId),
+        summary: `Assigned profile "${profile.name}" to ${user.email}`,
+        ipAddress: (req.headers["x-forwarded-for"] as string)?.split(",")[0] || req.socket.remoteAddress || "",
+        userAgent: req.headers["user-agent"] || "",
+        requestPath: req.path,
+        requestMethod: req.method,
+      });
+
+      res.json({ success: true, features: profile.features });
+    } catch (error) {
+      res.status(500).json({ message: "Failed to assign profile" });
     }
   });
 }

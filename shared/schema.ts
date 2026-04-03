@@ -1217,3 +1217,21 @@ export const insertUserFeatureAccessSchema = createInsertSchema(userFeatureAcces
 });
 export type InsertUserFeatureAccess = z.infer<typeof insertUserFeatureAccessSchema>;
 export type UserFeatureAccess = typeof userFeatureAccess.$inferSelect;
+
+// Permission Profiles - reusable bundles of features
+export const permissionProfiles = pgTable("permission_profiles", {
+  id: serial("id").primaryKey(),
+  name: varchar("name", { length: 100 }).notNull().unique(),
+  description: text("description"),
+  features: jsonb("features").$type<string[]>().default([]),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+export const insertPermissionProfileSchema = createInsertSchema(permissionProfiles).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type InsertPermissionProfile = z.infer<typeof insertPermissionProfileSchema>;
+export type PermissionProfile = typeof permissionProfiles.$inferSelect;
