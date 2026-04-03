@@ -1,0 +1,730 @@
+# REPLIT AGENT BUILD PROMPT
+
+## AiPM Toolbelt — Vendor / Manufacturer Database Module
+
+> Paste this entire document into Replit Agent as your initial prompt. It contains everything needed to build the complete application.
+
+-----
+
+## WHAT TO BUILD
+
+Build a **Vendor / Manufacturer Database** web application — a module within the **AiPM Toolbelt**, a construction technology platform for commercial specialty contractors. This is an internal tool for **National Building Specialties (NBS)**, a commercial construction company based in Riverside, CA that installs Division 10 specialties (toilet accessories, partitions, lockers, etc.).
+
+The app has **two tabbed views** within one module:
+
+1. **Vendors tab** — The daily-use view for Project Managers and Estimators. Vendor profiles with contacts, products, pricing, lead times, and a minimal tax summary.
+1. **Certificate Tracker tab** — An accounting/admin view for managing resale certificate workflows (send → confirm → track expiration). Not needed day-to-day by PMs.
+
+The app must support **Excel upload** of NBS’s existing manufacturer list to bulk-populate vendor and contact records on first use.
+
+-----
+
+## TECH STACK
+
+- **Frontend:** React with Vite, styled with Tailwind CSS
+- **Backend:** Express / Node.js REST API
+- **Database:** Replit PostgreSQL (Neon) — use Replit’s built-in Postgres
+- **Auth:** Simple email/password with bcrypt + JWT (no third-party auth providers)
+- **File Storage:** Local filesystem `/uploads` directory for uploaded documents (W-9s, certs, price sheets)
+- **File Parsing:** Use `xlsx` npm package (SheetJS) to parse uploaded Excel files
+
+-----
+
+## BRANDING & DESIGN SYSTEM
+
+This is an **AiPM Toolbelt** module. Follow this design system exactly:
+
+### Colors
+
+```
+Background:        #0F1114
+Surface:           #1A1D23
+Surface Alt:       #22262E
+Border:            #2D3340
+Border Light:      #3A4050
+Accent (Amber):    #E8A83E
+Accent Dim:        rgba(232,168,62,0.15)
+Accent Text:       #0F1114
+Text Primary:      #E8E6E1
+Text Secondary:    #8B8D93
+Text Muted:        #5D6068
+Success (Green):   #4CAF7D
+Warning (Amber):   #E8A83E
+Danger (Red):      #E05252
+Info (Blue):       #5B8DEF
+```
+
+### Typography
+
+- **UI text:** DM Sans (Google Fonts) — all labels, buttons, descriptions
+- **Data/mono:** JetBrains Mono (Google Fonts) — model numbers, cert numbers, IDs, badges, KPI values
+- Import both from Google Fonts CDN
+
+### Visual Style
+
+- Dark theme throughout — no light mode needed
+- Industrial/utilitarian aesthetic — built for construction workers, not designers
+- Collapsible sections with chevron toggles
+- Color-coded status badges (monospace font, small)
+- Subtle hover states on interactive rows
+- Staggered slide-in animations on list items
+- Toast notifications (bottom-right, auto-dismiss after 3 seconds)
+- Border radius: 6px for elements, 10px for cards/sections
+
+### Layout
+
+- Fixed header with AiPM branding and tab navigation
+- Content area max-width: 1100px, centered
+- Header shows: “AiPM Toolbelt › VENDOR DATABASE” breadcrumb in mono font
+- Title: “Manufacturers & Vendors” in DM Sans bold
+
+### AiPM Toolbelt Tile
+
+On any future AiPM dashboard/home screen, this module should appear as a tile with:
+
+- Icon: Shield or database icon
+- Title: “Vendor Database”
+- Subtitle: “Manufacturers, contacts, products, tax & compliance”
+- The tile links into this module
+
+-----
+
+## DATABASE SCHEMA
+
+Create these tables in PostgreSQL. Run migrations on app startup.
+
+```sql
+-- Users & Auth
+CREATE TABLE IF NOT EXISTS users (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  email VARCHAR(255) UNIQUE NOT NULL,
+  password_hash VARCHAR(255) NOT NULL,
+  display_name VARCHAR(100),
+  role VARCHAR(20) DEFAULT 'viewer' CHECK (role IN ('admin', 'pm', 'viewer')),
+  created_at TIMESTAMP DEFAULT NOW(),
+  last_login TIMESTAMP
+);
+
+-- Vendors (master record)
+CREATE TABLE IF NOT EXISTS vendors (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name VARCHAR(255) NOT NULL,
+  category VARCHAR(100),
+  website VARCHAR(500),
+  notes TEXT,
+  tags TEXT[],
+  created_by UUID REFERENCES users(id),
+  created_at TIMESTAMP DEFAULT NOW(),
+  updated_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Contacts (many per vendor)
+CREATE TABLE IF NOT EXISTS contacts (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  vendor_id UUID REFERENCES vendors(id) ON DELETE CASCADE,
+  name VARCHAR(255),
+  role VARCHAR(100),
+  email VARCHAR(255),
+  phone VARCHAR(50),
+  territory VARCHAR(255),
+  is_primary BOOLEAN DEFAULT FALSE,
+  notes TEXT,
+  created_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Products (many per vendor)
+CREATE TABLE IF NOT EXISTS products (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  vendor_id UUID REFERENCES vendors(id) ON DELETE CASCADE,
+  model VARCHAR(255),
+  description TEXT,
+  csi_code VARCHAR(50),
+  list_price DECIMAL(10,2),
+  unit VARCHAR(20),
+  notes TEXT,
+  created_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Pricing (one per vendor)
+CREATE TABLE IF NOT EXISTS pricing (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  vendor_id UUID REFERENCES vendors(id) ON DELETE CASCADE UNIQUE,
+  discount_tier VARCHAR(255),
+  payment_terms VARCHAR(255),
+  notes TEXT,
+  updated_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Logistics (one per vendor)
+CREATE TABLE IF NOT EXISTS logistics (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  vendor_id UUID REFERENCES vendors(id) ON DELETE CASCADE UNIQUE,
+  avg_lead_time_days INTEGER,
+  ships_from VARCHAR(255),
+  freight_notes TEXT,
+  updated_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Tax Info (one per vendor)
+CREATE TABLE IF NOT EXISTS tax_info (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  vendor_id UUID REFERENCES vendors(id) ON DELETE CASCADE UNIQUE,
+  ein VARCHAR(20),
+  w9_on_file BOOLEAN DEFAULT FALSE,
+  w9_received_date DATE,
+  is_1099_eligible BOOLEAN DEFAULT FALSE,
+  tax_exempt BOOLEAN DEFAULT FALSE,
+  exemption_type VARCHAR(100),
+  exemption_cert_number VARCHAR(100),
+  nexus_states TEXT[],
+  tax_notes TEXT,
+  updated_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Resale Certificates (many per vendor, one per state)
+CREATE TABLE IF NOT EXISTS resale_certificates (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  vendor_id UUID REFERENCES vendors(id) ON DELETE CASCADE,
+  state CHAR(2) NOT NULL,
+  cert_type VARCHAR(20) DEFAULT 'Resale',
+  cert_number VARCHAR(100),
+  issue_date DATE,
+  expiration_date DATE,
+  sent BOOLEAN DEFAULT FALSE,
+  date_sent DATE,
+  contact_sent_to VARCHAR(255),
+  vendor_confirmed BOOLEAN DEFAULT FALSE,
+  confirmation_date DATE,
+  blanket BOOLEAN DEFAULT FALSE,
+  project_name VARCHAR(255),
+  notes TEXT,
+  created_at TIMESTAMP DEFAULT NOW(),
+  updated_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Files (many per vendor)
+CREATE TABLE IF NOT EXISTS files (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  vendor_id UUID REFERENCES vendors(id) ON DELETE CASCADE,
+  file_type VARCHAR(50),
+  original_name VARCHAR(500),
+  stored_path VARCHAR(1000),
+  mime_type VARCHAR(100),
+  size_bytes INTEGER,
+  uploaded_by UUID REFERENCES users(id),
+  uploaded_at TIMESTAMP DEFAULT NOW(),
+  notes VARCHAR(500)
+);
+
+-- Seed a default admin user (password: "admin123" — change on first login)
+-- Hash this password with bcrypt in the migration script
+INSERT INTO users (email, password_hash, display_name, role)
+VALUES ('admin@nbs.com', '$BCRYPT_HASH_OF_admin123', 'Admin', 'admin')
+ON CONFLICT (email) DO NOTHING;
+```
+
+### Category Seed Values
+
+When creating the vendor form, use this dropdown list:
+
+```
+Toilet Accessories, Partitions, Lockers, Appliances, Plumbing Fixtures,
+Fire Protection, Division 10 Specialties, Doors & Hardware, Signage,
+Postal Specialties, Visual Display, Flagpoles, Other
+```
+
+### CSI Code Seed Values
+
+For the product CSI code dropdown:
+
+```
+10 21 00 - Compartments & Cubicles
+10 28 00 - Toilet Accessories
+10 44 00 - Fire Extinguisher Cabinets
+10 51 00 - Lockers
+10 55 00 - Postal Specialties
+10 56 00 - Storage Assemblies
+10 11 00 - Visual Display Units
+10 71 00 - Exterior Protection
+10 73 00 - Protective Covers
+10 75 00 - Flagpoles
+22 40 00 - Plumbing Fixtures
+08 10 00 - Doors & Frames
+Custom
+```
+
+-----
+
+## API ENDPOINTS
+
+### Auth
+
+```
+POST   /api/auth/login           { email, password } → { token, user }
+POST   /api/auth/register        { email, password, displayName, role } → { user } (admin only)
+GET    /api/auth/me              → { user } (requires JWT)
+```
+
+### Vendors
+
+```
+GET    /api/vendors              ?search=&category=&page=&limit= → { vendors[], total }
+GET    /api/vendors/:id          → { vendor with all relations joined }
+POST   /api/vendors              { name, category, ... } → { vendor }
+PUT    /api/vendors/:id          { ...fields } → { vendor }
+DELETE /api/vendors/:id          (admin only, soft delete)
+GET    /api/vendors/export       → JSON array of all vendors with all relations
+POST   /api/vendors/import       { vendors: [] } → { imported: N, skipped: N }
+```
+
+### Sub-resources (all require pm or admin role)
+
+```
+POST   /api/vendors/:id/contacts          { name, role, email, ... }
+PUT    /api/vendors/:id/contacts/:cid     { ...fields }
+DELETE /api/vendors/:id/contacts/:cid
+
+POST   /api/vendors/:id/products          { model, description, ... }
+PUT    /api/vendors/:id/products/:pid     { ...fields }
+DELETE /api/vendors/:id/products/:pid
+
+PUT    /api/vendors/:id/pricing           { discountTier, paymentTerms, notes }
+PUT    /api/vendors/:id/logistics         { avgLeadTimeDays, shipsFrom, freightNotes }
+PUT    /api/vendors/:id/tax               { ein, w9OnFile, ... }
+```
+
+### Resale Certificates
+
+```
+GET    /api/vendors/:id/certs             → cert[]
+POST   /api/vendors/:id/certs             { state, certType, ... }
+PUT    /api/vendors/:id/certs/:cid        { ...fields }
+DELETE /api/vendors/:id/certs/:cid
+GET    /api/certs/all                     → all certs across all vendors (for tracker view)
+GET    /api/certs/expiring?days=90        → certs expiring within N days
+```
+
+### Files
+
+```
+POST   /api/vendors/:id/files             multipart upload
+GET    /api/files/:fid                    download
+DELETE /api/files/:fid
+```
+
+### Dashboard
+
+```
+GET    /api/dashboard/compliance          → { totalVendors, w9OnFile, w9Missing, certsTotal, certsSent, certsConfirmed, certsExpiring, certsExpired, certsNotSent, vendorsNoCerts[] }
+```
+
+### Excel Upload (critical feature)
+
+```
+POST   /api/vendors/upload-excel          multipart .xlsx file upload
+```
+
+-----
+
+## EXCEL UPLOAD FEATURE (CRITICAL)
+
+NBS has an existing manufacturer list in Excel format. The upload feature must parse this file and populate the database. Here is the exact structure of the Excel file:
+
+### Excel Column Mapping
+
+The spreadsheet has these columns (with a header row and a “Scope/Trade” sub-header row):
+
+|Excel Column                                |Maps To                                                                                                                                                                                                                                                                                           |
+|--------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+|**Scope/ Trade**                            |`vendors.category` — values like “Toilet Accessories”, “Partitions”, etc. This is a section header row, not per-row. Apply the most recent Scope/Trade value to all rows below it until the next Scope/Trade row.                                                                                 |
+|**Manufacturer**                            |`vendors.name` — e.g. “Bobrick”, “Bradley”, “ASI”. Multiple rows may reference the same manufacturer.                                                                                                                                                                                             |
+|**Manufacturer Representative/ Distributor**|Create as a **contact** record with `role = "Manufacturer Rep / Distributor"` and `contacts.name` = this value (e.g. “Pacific Building Specialties”, “Total Restroom”, “Fastenal”)                                                                                                                |
+|**Contact Name**                            |`contacts.name` — the actual person name (e.g. “Michael Clark”, “Ian Blair”). If a Rep/Distributor is also listed, create TWO contacts: one for the rep company and one for the person. Or better: set `contacts.name` to the person name and `contacts.role` to the rep/distributor company name.|
+|**Email Contact**                           |`contacts.email` — may contain multiple emails separated by semicolons. If multiple, create multiple contact records or store the first as primary.                                                                                                                                               |
+
+### Upload Processing Logic
+
+```
+1. Parse the Excel file using SheetJS (xlsx npm package)
+2. Read the "Estimating" sheet (first sheet)
+3. Skip the title row ("ESTIMATING") and header row
+4. Track the current "Scope/Trade" — when a row has a value in column A but nothing in columns B-E, it's a scope header row
+5. For each data row:
+   a. Check if a vendor with this name already exists (case-insensitive match)
+   b. If not, create vendor with name and category (from current scope)
+   c. If the vendor already exists, skip vendor creation but still process contacts
+   d. Create contact record(s):
+      - name: Contact Name column value
+      - role: Manufacturer Representative/Distributor column value
+      - email: Email Contact column value (handle semicolons)
+      - is_primary: true for the first contact per vendor
+6. Return summary: { vendorsCreated, vendorsSkipped, contactsCreated }
+```
+
+### Upload UI
+
+- In the Vendors tab header, add an “Upload Excel” button next to Import/Export
+- Clicking opens a modal with:
+  - Drag-and-drop zone or file picker (.xlsx, .xls only)
+  - Brief instruction: “Upload your NBS Manufacturer List (.xlsx). The Estimating sheet will be parsed to create vendor and contact records.”
+  - After upload, show a summary: “Created X vendors, Y contacts. Skipped Z existing vendors.”
+  - Option to download a template file that matches the expected format
+
+-----
+
+## UI VIEWS — DETAILED SPECIFICATIONS
+
+### Global Header (persistent across both tabs)
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│ AiPM Toolbelt › VENDOR DATABASE           [Upload] [Export] [Import] │
+│ Manufacturers & Vendors                                          │
+│                                                                   │
+│ [■ Vendors]  [🛡 Certificate Tracker (3)]                        │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+- “AiPM Toolbelt” in accent amber, monospace, uppercase, letterspaced
+- “VENDOR DATABASE” in secondary text, monospace
+- Title “Manufacturers & Vendors” in large DM Sans bold
+- Tab bar: Vendors (default active), Certificate Tracker (with red badge showing count of not_sent + expired certs)
+- Upload Excel / Export JSON / Import JSON buttons in header right
+
+### VENDORS TAB
+
+#### Vendor List View
+
+- Search bar with magnifying glass icon (searches vendor name, tags, product models, contact names)
+- Category filter dropdown
+- “Add Vendor” primary button (amber)
+- Vendor cards in a vertical list:
+  - Left: 36px square avatar with first 2 letters of vendor name (amber tinted)
+  - Middle: vendor name (bold), category badge, tag badges (blue)
+  - Right: tax status indicators (expired cert alert icon in red, expiring cert alert in amber, W-9 badge in green), product/contact counts, chevron
+  - Hover: lighten background, brighten border
+
+#### Vendor Detail / Edit View
+
+- Back button + vendor name header + Save/Delete buttons
+- Collapsible sections (all open by default except Tax):
+
+**1. General Info**
+
+- 2-column grid: Name, Category (dropdown), Website, Tags (chip input with Enter to add)
+- Full-width: Notes textarea
+
+**2. Contacts (N)**
+
+- “Add” button in section header
+- Cards per contact: star icon to toggle primary, name, role, territory, email, phone
+- Primary contact gets amber background tint and “PRIMARY” badge
+- Delete button per contact
+
+**3. Products & Models (N)**
+
+- “Add” button in section header
+- Expandable list: click row to expand inline editor
+- Collapsed: model number (mono/amber), description, CSI code badge, price (green mono)
+- Expanded: model, description, CSI code (dropdown), list price, unit, notes
+
+**4. Pricing & Terms**
+
+- 2-column: Discount Tier / Multiplier, Payment Terms
+- Full-width: Pricing Notes
+
+**5. Lead Times & Shipping**
+
+- 3-column: Avg Lead Time (days), Ships From
+- Full-width: Freight / Shipping Notes
+
+**6. Tax & Compliance (Summary)** — COLLAPSED BY DEFAULT
+
+- 3-column: EIN, W-9 On File (checkbox + badge), W-9 Received Date
+- Footer text: “X resale certs on file. Use the Certificate Tracker tab for full cert management.” (with “Certificate Tracker” highlighted in accent)
+
+**7. Files & Documents**
+
+- Drag-and-drop upload zone
+- File type selector (W-9, Resale Cert, Exemption Cert, Price Sheet, Credit App, Other)
+- List of uploaded files: filename, type badge, upload date, size, download/delete buttons
+
+### CERTIFICATE TRACKER TAB
+
+#### Dashboard KPI Cards (6 across, top)
+
+```
+┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐
+│ Total    │ │ Total    │ │ Certs    │ │Confirmed │ │Expiring  │ │Not Sent/ │
+│ Vendors  │ │ Certs    │ │ Sent     │ │          │ │ <90d     │ │Expired   │
+│   45     │ │   62     │ │   38     │ │   30     │ │    4     │ │   10     │
+│ 7 no cert│ │          │ │ of 62    │ │ (green)  │ │ (amber)  │ │ (red)    │
+└──────────┘ └──────────┘ └──────────┘ └──────────┘ └──────────┘ └──────────┘
+```
+
+#### Filters
+
+- Search (vendor name, state, cert #)
+- Status dropdown: All, Not Sent, Sent, Confirmed, Expiring, Expired
+- State dropdown (populated from data)
+
+#### Certificate Table
+
+Grid layout table with these columns:
+
+- Vendor Name (bold, truncate)
+- State (badge)
+- Type (Resale/Exempt)
+- Cert # (mono font)
+- Sent? (Yes/No badge)
+- Confirmed? (Yes/No badge)
+- Expiration (date + days remaining in parens, colored by status)
+- Status (computed badge: NOT SENT gray, SENT blue, CONFIRMED green, EXPIRING amber, EXPIRED red)
+- Edit (text link)
+
+Row behaviors:
+
+- Click any row to expand inline edit form
+- Expired rows get red-tinted background
+- Hover highlights on non-expired rows
+
+#### Inline Edit Form (expands below clicked row)
+
+4-column grid:
+
+- Row 1: State (dropdown), Cert Type (Resale/Exempt), Cert # (text), Contact Sent To (text)
+- Row 2: Sent? (checkbox), Date Sent (date), Vendor Confirmed? (checkbox), Confirmation Date (date)
+- Row 3: Issue Date (date), Expiration Date (date), Notes (text)
+- Action buttons: Delete (red), Cancel, Save (amber primary)
+
+#### Vendors Without Certs (bottom section)
+
+- Header: “⚠ Vendors Without Any Certificates (N)”
+- Flex-wrap of clickable chips: each chip shows vendor name with “+” icon
+- Red-tinted chips — clicking creates a blank cert record for that vendor
+- This is a quick-action panel so you can see at a glance who’s missing coverage
+
+-----
+
+## CERTIFICATE TRACKING STATUS LOGIC
+
+Compute the tracking status for each cert in the application layer (not stored in DB):
+
+```javascript
+function getCertTrackingStatus(cert) {
+  // Check expiration first (overrides other statuses)
+  if (cert.expiration_date) {
+    const daysUntil = daysDifference(cert.expiration_date, today);
+    if (daysUntil < 0) return "expired";
+    if (daysUntil <= 90) return "expiring";
+  }
+  // Then check workflow state
+  if (!cert.sent) return "not_sent";
+  if (cert.vendor_confirmed) return "confirmed";
+  return "sent";
+}
+```
+
+Status badge styling:
+
+|Status   |Label    |Text Color|Background           |
+|---------|---------|----------|---------------------|
+|not_sent |NOT SENT |#5D6068   |#5D606818            |
+|sent     |SENT     |#5B8DEF   |rgba(91,141,239,0.12)|
+|confirmed|CONFIRMED|#4CAF7D   |rgba(76,175,125,0.12)|
+|expiring |EXPIRING |#E8A83E   |rgba(232,168,62,0.15)|
+|expired  |EXPIRED  |#E05252   |rgba(224,82,82,0.12) |
+
+-----
+
+## AUTH & PERMISSIONS
+
+### Roles
+
+|Action                        |Admin|PM|Viewer|
+|------------------------------|-----|--|------|
+|View vendors / search / filter|✓    |✓ |✓     |
+|Export data                   |✓    |✓ |✓     |
+|View cert tracker dashboard   |✓    |✓ |✓     |
+|Add / edit vendors            |✓    |✓ |✗     |
+|Delete vendors                |✓    |✗ |✗     |
+|Manage contacts / products    |✓    |✓ |✗     |
+|Edit tax / compliance / certs |✓    |✓ |✗     |
+|Upload / delete files         |✓    |✓ |✗     |
+|Upload Excel manufacturer list|✓    |✓ |✗     |
+|Manage users                  |✓    |✗ |✗     |
+
+### Implementation
+
+- JWT token in Authorization header (Bearer token)
+- Middleware validates token and attaches user to request
+- Role check middleware for protected routes
+- Default admin account seeded on first run: admin@nbs.com / admin123
+- No self-registration — admin creates accounts via /api/auth/register
+
+-----
+
+## IMPORTANT IMPLEMENTATION NOTES
+
+1. **GET /api/vendors/:id should JOIN all related tables** — return vendor + contacts + products + pricing + logistics + tax_info + resale_certificates + files in a single response. The frontend expects a fully hydrated vendor object.
+1. **Search should be full-text across multiple tables** — when searching “Michael Clark” it should find the vendor that has that contact. Use PostgreSQL `ILIKE` across vendors.name, contacts.name, contacts.email, products.model, products.description, and any array element in vendors.tags.
+1. **The Excel upload is the most important feature for first use** — if this doesn’t work smoothly, the tool is useless because nobody will re-enter 50+ vendors by hand. Test with the column layout described above.
+1. **Backward compatibility for existing data** — the cert tracker fields (sent, date_sent, vendor_confirmed, etc.) should all default to false/null so existing cert records still work.
+1. **Tab navigation state** — switching between Vendors and Certificate Tracker should preserve state within each tab (scroll position, open modals, etc.) but navigating to a vendor detail and back should return to the list.
+1. **Single source of truth for cert data** — the Certificate Tracker tab and the vendor detail’s Tax & Compliance section both read/write the same `resale_certificates` table. Edits in one place must reflect in the other.
+1. **Toast notifications** — show on every save, delete, upload, and import action. Auto-dismiss after 3 seconds. Position: fixed bottom-right.
+1. **The app will eventually connect to other AiPM Toolbelt modules** — structure the codebase so vendor data can be referenced by future tools (submittal builder, procurement log, estimate-to-cart). The vendor API should be clean and well-documented.
+
+-----
+
+## FILE STRUCTURE (suggested)
+
+```
+/
+├── client/
+│   ├── src/
+│   │   ├── components/
+│   │   │   ├── layout/
+│   │   │   │   ├── Header.jsx
+│   │   │   │   ├── TabNav.jsx
+│   │   │   │   └── Toast.jsx
+│   │   │   ├── shared/
+│   │   │   │   ├── Badge.jsx
+│   │   │   │   ├── Btn.jsx
+│   │   │   │   ├── Field.jsx
+│   │   │   │   ├── Grid.jsx
+│   │   │   │   ├── Section.jsx
+│   │   │   │   ├── KpiCard.jsx
+│   │   │   │   └── EmptyState.jsx
+│   │   │   ├── vendors/
+│   │   │   │   ├── VendorList.jsx
+│   │   │   │   ├── VendorDetail.jsx
+│   │   │   │   ├── VendorCard.jsx
+│   │   │   │   ├── ContactEditor.jsx
+│   │   │   │   ├── ProductEditor.jsx
+│   │   │   │   ├── FileUploader.jsx
+│   │   │   │   └── ExcelUploadModal.jsx
+│   │   │   └── tracker/
+│   │   │       ├── CertificateTracker.jsx
+│   │   │       ├── CertTable.jsx
+│   │   │       ├── CertEditForm.jsx
+│   │   │       └── TrackerDashboard.jsx
+│   │   ├── hooks/
+│   │   │   ├── useAuth.js
+│   │   │   ├── useVendors.js
+│   │   │   └── useCerts.js
+│   │   ├── utils/
+│   │   │   ├── api.js
+│   │   │   ├── certStatus.js
+│   │   │   └── constants.js
+│   │   ├── App.jsx
+│   │   └── main.jsx
+│   ├── index.html
+│   ├── tailwind.config.js
+│   └── vite.config.js
+├── server/
+│   ├── index.js
+│   ├── db.js
+│   ├── migrate.js
+│   ├── middleware/
+│   │   ├── auth.js
+│   │   └── roles.js
+│   ├── routes/
+│   │   ├── auth.js
+│   │   ├── vendors.js
+│   │   ├── contacts.js
+│   │   ├── products.js
+│   │   ├── certs.js
+│   │   ├── files.js
+│   │   ├── dashboard.js
+│   │   └── upload.js        ← Excel upload handler
+│   └── utils/
+│       └── excelParser.js   ← NBS manufacturer list parser
+├── uploads/                  ← file storage directory
+├── package.json
+└── .replit
+```
+
+-----
+
+## PACKAGES TO INSTALL
+
+```json
+{
+  "dependencies": {
+    "express": "^4.18.0",
+    "pg": "^8.11.0",
+    "bcryptjs": "^2.4.3",
+    "jsonwebtoken": "^9.0.0",
+    "multer": "^1.4.5-lts.1",
+    "cors": "^2.8.5",
+    "uuid": "^9.0.0",
+    "xlsx": "^0.18.5",
+    "dotenv": "^16.3.0"
+  },
+  "devDependencies": {
+    "vite": "^5.0.0",
+    "@vitejs/plugin-react": "^4.0.0",
+    "tailwindcss": "^3.4.0",
+    "postcss": "^8.4.0",
+    "autoprefixer": "^10.4.0"
+  }
+}
+```
+
+-----
+
+## TAILWIND CONFIG
+
+Extend with AiPM brand colors:
+
+```javascript
+// tailwind.config.js
+module.exports = {
+  content: ["./client/src/**/*.{js,jsx}"],
+  theme: {
+    extend: {
+      colors: {
+        aipm: {
+          bg: '#0F1114',
+          surface: '#1A1D23',
+          'surface-alt': '#22262E',
+          border: '#2D3340',
+          'border-light': '#3A4050',
+          accent: '#E8A83E',
+          'accent-dim': 'rgba(232,168,62,0.15)',
+          text: '#E8E6E1',
+          'text-dim': '#8B8D93',
+          'text-muted': '#5D6068',
+          danger: '#E05252',
+          success: '#4CAF7D',
+          info: '#5B8DEF',
+        }
+      },
+      fontFamily: {
+        sans: ['DM Sans', 'Segoe UI', 'sans-serif'],
+        mono: ['JetBrains Mono', 'SF Mono', 'Fira Code', 'monospace'],
+      }
+    }
+  },
+  plugins: []
+}
+```
+
+-----
+
+## WHAT SUCCESS LOOKS LIKE
+
+When the build is complete, a user should be able to:
+
+1. Log in with admin@nbs.com / admin123
+1. Upload the NBS Manufacturer List Excel file and see 30+ vendors auto-populated with contacts
+1. Click into any vendor and see all their contacts pre-filled
+1. Add products, pricing, and logistics info to vendors
+1. Switch to the Certificate Tracker tab and see the dashboard showing “X vendors without certs”
+1. Click a vendor chip to add a cert, fill in state/cert#/dates, mark as sent
+1. See the KPI cards update in real-time
+1. Export the full database as JSON
+1. Upload a W-9 PDF and have it linked to a vendor
+
+Build this from scratch. Do not use any pre-built admin templates. The UI must match the AiPM design system described above.

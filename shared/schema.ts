@@ -1010,3 +1010,129 @@ export const proposalChangeLog = pgTable("proposal_change_log", {
 
 export type ProposalChangeLog = typeof proposalChangeLog.$inferSelect;
 export type InsertProposalChangeLog = typeof proposalChangeLog.$inferInsert;
+
+// =====================================================
+// VENDOR / MANUFACTURER DATABASE MODULE
+// =====================================================
+
+export const mfrVendors = pgTable("mfr_vendors", {
+  id: serial("id").primaryKey(),
+  name: varchar("name", { length: 255 }).notNull(),
+  category: varchar("category", { length: 100 }),
+  website: varchar("website", { length: 500 }),
+  notes: text("notes"),
+  tags: jsonb("tags").$type<string[]>().default([]),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+export type MfrVendor = typeof mfrVendors.$inferSelect;
+export type InsertMfrVendor = typeof mfrVendors.$inferInsert;
+export const insertMfrVendorSchema = createInsertSchema(mfrVendors).omit({ id: true, createdAt: true, updatedAt: true });
+export type InsertMfrVendorInput = z.infer<typeof insertMfrVendorSchema>;
+
+export const mfrContacts = pgTable("mfr_contacts", {
+  id: serial("id").primaryKey(),
+  vendorId: integer("vendor_id").notNull().references(() => mfrVendors.id),
+  name: varchar("name", { length: 255 }),
+  role: varchar("role", { length: 255 }),
+  email: varchar("email", { length: 255 }),
+  phone: varchar("phone", { length: 50 }),
+  territory: varchar("territory", { length: 255 }),
+  isPrimary: boolean("is_primary").default(false),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+export type MfrContact = typeof mfrContacts.$inferSelect;
+export type InsertMfrContact = typeof mfrContacts.$inferInsert;
+export const insertMfrContactSchema = createInsertSchema(mfrContacts).omit({ id: true, createdAt: true });
+export type InsertMfrContactInput = z.infer<typeof insertMfrContactSchema>;
+
+export const mfrProducts = pgTable("mfr_products", {
+  id: serial("id").primaryKey(),
+  vendorId: integer("vendor_id").notNull().references(() => mfrVendors.id),
+  model: varchar("model", { length: 255 }),
+  description: text("description"),
+  csiCode: varchar("csi_code", { length: 50 }),
+  listPrice: varchar("list_price", { length: 50 }),
+  unit: varchar("unit", { length: 20 }),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+export type MfrProduct = typeof mfrProducts.$inferSelect;
+export type InsertMfrProduct = typeof mfrProducts.$inferInsert;
+export const insertMfrProductSchema = createInsertSchema(mfrProducts).omit({ id: true, createdAt: true });
+export type InsertMfrProductInput = z.infer<typeof insertMfrProductSchema>;
+
+export const mfrPricing = pgTable("mfr_pricing", {
+  id: serial("id").primaryKey(),
+  vendorId: integer("vendor_id").notNull().references(() => mfrVendors.id).unique(),
+  discountTier: varchar("discount_tier", { length: 255 }),
+  paymentTerms: varchar("payment_terms", { length: 255 }),
+  notes: text("notes"),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+export type MfrPricing = typeof mfrPricing.$inferSelect;
+
+export const mfrLogistics = pgTable("mfr_logistics", {
+  id: serial("id").primaryKey(),
+  vendorId: integer("vendor_id").notNull().references(() => mfrVendors.id).unique(),
+  avgLeadTimeDays: integer("avg_lead_time_days"),
+  shipsFrom: varchar("ships_from", { length: 255 }),
+  freightNotes: text("freight_notes"),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+export type MfrLogistics = typeof mfrLogistics.$inferSelect;
+
+export const mfrTaxInfo = pgTable("mfr_tax_info", {
+  id: serial("id").primaryKey(),
+  vendorId: integer("vendor_id").notNull().references(() => mfrVendors.id).unique(),
+  ein: varchar("ein", { length: 20 }),
+  w9OnFile: boolean("w9_on_file").default(false),
+  w9ReceivedDate: varchar("w9_received_date", { length: 20 }),
+  is1099Eligible: boolean("is_1099_eligible").default(false),
+  taxExempt: boolean("tax_exempt").default(false),
+  exemptionType: varchar("exemption_type", { length: 100 }),
+  exemptionCertNumber: varchar("exemption_cert_number", { length: 100 }),
+  nexusStates: jsonb("nexus_states").$type<string[]>().default([]),
+  taxNotes: text("tax_notes"),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+export type MfrTaxInfo = typeof mfrTaxInfo.$inferSelect;
+
+export const mfrResaleCerts = pgTable("mfr_resale_certs", {
+  id: serial("id").primaryKey(),
+  vendorId: integer("vendor_id").notNull().references(() => mfrVendors.id),
+  state: varchar("state", { length: 2 }).notNull(),
+  certType: varchar("cert_type", { length: 20 }).default("Resale"),
+  certNumber: varchar("cert_number", { length: 100 }),
+  issueDate: varchar("issue_date", { length: 20 }),
+  expirationDate: varchar("expiration_date", { length: 20 }),
+  sent: boolean("sent").default(false),
+  dateSent: varchar("date_sent", { length: 20 }),
+  contactSentTo: varchar("contact_sent_to", { length: 255 }),
+  vendorConfirmed: boolean("vendor_confirmed").default(false),
+  confirmationDate: varchar("confirmation_date", { length: 20 }),
+  blanket: boolean("blanket").default(false),
+  projectName: varchar("project_name", { length: 255 }),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+export type MfrResaleCert = typeof mfrResaleCerts.$inferSelect;
+export type InsertMfrResaleCert = typeof mfrResaleCerts.$inferInsert;
+export const insertMfrResaleCertSchema = createInsertSchema(mfrResaleCerts).omit({ id: true, createdAt: true, updatedAt: true });
+export type InsertMfrResaleCertInput = z.infer<typeof insertMfrResaleCertSchema>;
+
+export const mfrFiles = pgTable("mfr_files", {
+  id: serial("id").primaryKey(),
+  vendorId: integer("vendor_id").notNull().references(() => mfrVendors.id),
+  fileType: varchar("file_type", { length: 50 }),
+  originalName: varchar("original_name", { length: 500 }),
+  fileData: text("file_data"),
+  mimeType: varchar("mime_type", { length: 100 }),
+  sizeBytes: integer("size_bytes"),
+  uploadedBy: varchar("uploaded_by", { length: 100 }),
+  uploadedAt: timestamp("uploaded_at").notNull().defaultNow(),
+  notes: varchar("notes", { length: 500 }),
+});
+export type MfrFile = typeof mfrFiles.$inferSelect;

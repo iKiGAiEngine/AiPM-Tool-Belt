@@ -25,6 +25,7 @@ import { registerAutodeskRoutes } from "./autodesk/auth";
 import { registerBcSyncRoutes } from "./autodesk/bcSync";
 import { registerNotificationRoutes } from "./notificationRoutes";
 import { registerBackupRoutes } from "./backupRestore";
+import { registerVendorDatabaseRoutes } from "./vendorDatabaseRoutes";
 import { auditLog } from "./auditService";
 import { db } from "./db";
 import { users as usersTable } from "@shared/schema";
@@ -125,6 +126,7 @@ export async function registerRoutes(
   registerSpecExtractorRoutes(app);
   registerToolUsageRoutes(app);
   registerNotificationRoutes(app);
+  registerVendorDatabaseRoutes(app);
   registerBcSyncRoutes(app);
   registerBackupRoutes(app);
   

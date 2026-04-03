@@ -5,7 +5,7 @@ import {
   ScanSearch, Receipt, FolderPlus, ClipboardList,
   Loader2, FlaskConical,
   TableProperties, Sparkles, Users, Activity, FileBarChart,
-  FolderOpenDot, Check, PackageCheck
+  FolderOpenDot, Check, PackageCheck, Shield
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
@@ -83,6 +83,14 @@ const tools: ToolTile[] = [
     description: "Assemble and export Division 10 submittal packages",
     icon: PackageCheck,
     href: "/submittal-builder",
+    available: true,
+  },
+  {
+    id: "vendordatabase",
+    title: "Vendor Database",
+    description: "Manufacturers, contacts, products, tax & compliance",
+    icon: Shield,
+    href: "/vendor-database",
     available: true,
   },
   {
