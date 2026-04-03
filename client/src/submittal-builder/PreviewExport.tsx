@@ -3,8 +3,8 @@ import { btnPrimary } from "./helpers";
 import type { Scope, SubmittalProject } from "./types";
 import type { PageInfo } from "./pagination";
 
-const thS: React.CSSProperties = { border: "1px solid #ccc", padding: "3px 4px", fontSize: 8, fontWeight: 700, textAlign: "center", background: "#f5f5f5" };
-const tdS: React.CSSProperties = { border: "1px solid #ddd", padding: "3px 4px", fontSize: 8, textAlign: "center", verticalAlign: "top" };
+const thS: React.CSSProperties = { border: "1px solid #999", padding: "3px 4px", fontSize: 8, fontWeight: 700, textAlign: "center", background: "#e8e8e8", color: "#000" };
+const tdS: React.CSSProperties = { border: "1px solid #bbb", padding: "3px 4px", fontSize: 8, textAlign: "center", verticalAlign: "top", color: "#000" };
 
 function PageFrame({ num, total, label, children }: { num: number; total: number; label: string; children: React.ReactNode }) {
   return (
@@ -42,8 +42,8 @@ export default function PreviewExport({ scope, project, pageInfo, update, flash 
   return (
     <div style={{ padding: 20 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 20 }}>
-        <span style={{ fontSize: 15, fontWeight: 700, color: "#f8fafc" }}>Preview — {scope.tabName}</span>
-        <span style={{ fontSize: 11, color: "#64748b" }}>{pageInfo.total} pages</span>
+        <span style={{ fontSize: 15, fontWeight: 700, color: "var(--text-primary)" }}>Preview — {scope.tabName}</span>
+        <span style={{ fontSize: 11, color: "var(--text-muted)" }}>{pageInfo.total} pages</span>
         <div style={{ flex: 1 }} />
         <button onClick={exportPackage} style={btnPrimary}>✓ Generate Final Package</button>
       </div>

@@ -49,8 +49,8 @@ export default function ProductDataPanel({ scope, update, scopeIdx, pageInfo, fl
 
   return (
     <div style={{ padding: 20 }}>
-      <div style={{ fontSize: 15, fontWeight: 700, color: "#f8fafc", marginBottom: 4 }}>Product Data — {scope.tabName}</div>
-      <div style={{ fontSize: 11, color: "#64748b", marginBottom: 16 }}>
+      <div style={{ fontSize: 15, fontWeight: 700, color: "var(--text-primary)", marginBottom: 4 }}>Product Data — {scope.tabName}</div>
+      <div style={{ fontSize: 11, color: "var(--text-muted)", marginBottom: 16 }}>
         {pageInfo.attachments.length} sheets attached · {pageInfo.attachments.length > 0 ? "Pages " + pageInfo.attachments[0].startPage + "–" + pageInfo.total : "No attachments"} of {pageInfo.total}
       </div>
 
@@ -58,30 +58,30 @@ export default function ProductDataPanel({ scope, update, scopeIdx, pageInfo, fl
         const ls = LINE_STATUS[l.lineStatus] || LINE_STATUS.missing;
         return (
           <div key={l.id} style={{ marginBottom: 10 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 12px", background: "#1a1c2a", borderRadius: l.attachments && l.attachments.length ? "6px 6px 0 0" : 6, border: "1px solid #2a2d3a" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 12px", background: "var(--bg3)", borderRadius: l.attachments && l.attachments.length ? "6px 6px 0 0" : 6, border: "1px solid var(--border-ds)" }}>
               <div style={{ width: 8, height: 8, borderRadius: 4, background: ls.color, flexShrink: 0 }} />
-              <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, fontWeight: 700, color: "#BF9B30", width: 60, flexShrink: 0 }}>{l.callout}</span>
-              <span style={{ fontSize: 12, color: "#e2e8f0", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{l.desc}</span>
-              <span style={{ fontSize: 10, color: "#64748b", fontFamily: "'JetBrains Mono', monospace" }}>{l.model}</span>
+              <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, fontWeight: 700, color: "var(--gold)", width: 60, flexShrink: 0 }}>{l.callout}</span>
+              <span style={{ fontSize: 12, color: "var(--text-primary)", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{l.desc}</span>
+              <span style={{ fontSize: 10, color: "var(--text-muted)", fontFamily: "'JetBrains Mono', monospace" }}>{l.model}</span>
             </div>
 
             {l.attachments && l.attachments.map((a) => {
               const pi = pageInfo.attachments.find((x) => x.id === a.id);
               return (
-                <div key={a.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 12px 6px 42px", background: "#161822", borderLeft: "1px solid #2a2d3a", borderRight: "1px solid #2a2d3a", borderBottom: "1px solid #1e2030" }}>
+                <div key={a.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 12px 6px 42px", background: "var(--bg-card)", borderLeft: "1px solid var(--border-ds)", borderRight: "1px solid var(--border-ds)", borderBottom: "1px solid var(--border-ds)" }}>
                   <span style={{ fontSize: 13 }}>📄</span>
-                  <span style={{ fontSize: 11, color: "#e2e8f0", flex: 1 }}>{a.fileName}</span>
-                  <span style={{ fontSize: 9, fontWeight: 700, padding: "1px 6px", borderRadius: 3, background: "#052e16", color: "#22c55e" }}>{(a.matchStatus || "exact").toUpperCase()}</span>
-                  <span style={{ fontSize: 10, color: "#64748b", fontFamily: "'JetBrains Mono', monospace" }}>{a.pageCount}pg</span>
-                  <span style={{ fontSize: 10, color: "#64748b" }}>{pi ? "Pg " + pi.startPage + (pi.endPage > pi.startPage ? "–" + pi.endPage : "") : ""}</span>
-                  <span style={{ fontSize: 9, padding: "1px 6px", borderRadius: 3, background: "rgba(191,155,48,.12)", color: "#BF9B30" }}>Stamp: {a.calloutStamp}</span>
-                  <button onClick={() => removeAttachment(l.id, a.id)} style={{ background: "none", border: "none", color: "#475569", cursor: "pointer", fontSize: 13 }}>&times;</button>
+                  <span style={{ fontSize: 11, color: "var(--text-primary)", flex: 1 }}>{a.fileName}</span>
+                  <span style={{ fontSize: 9, fontWeight: 700, padding: "1px 6px", borderRadius: 3, background: "var(--success-bg)", color: "var(--success)" }}>{(a.matchStatus || "exact").toUpperCase()}</span>
+                  <span style={{ fontSize: 10, color: "var(--text-muted)", fontFamily: "'JetBrains Mono', monospace" }}>{a.pageCount}pg</span>
+                  <span style={{ fontSize: 10, color: "var(--text-muted)" }}>{pi ? "Pg " + pi.startPage + (pi.endPage > pi.startPage ? "–" + pi.endPage : "") : ""}</span>
+                  <span style={{ fontSize: 9, padding: "1px 6px", borderRadius: 3, background: "var(--warning-bg)", color: "var(--gold)" }}>Stamp: {a.calloutStamp}</span>
+                  <button onClick={() => removeAttachment(l.id, a.id)} style={{ background: "none", border: "none", color: "var(--text-secondary)", cursor: "pointer", fontSize: 13 }}>&times;</button>
                 </div>
               );
             })}
 
-            <div onDragOver={(e) => { e.preventDefault(); setDragLineId(l.id); }} onDragLeave={() => setDragLineId(null)} onDrop={(e) => handleDrop(l.id, e)} style={{ padding: "6px 12px 6px 42px", background: dragLineId === l.id ? "rgba(191,155,48,.06)" : "transparent", borderLeft: "1px solid #2a2d3a", borderRight: "1px solid #2a2d3a", borderBottom: "1px solid #2a2d3a", borderRadius: "0 0 6px 6px", transition: "background .15s" }}>
-              <span style={{ fontSize: 11, color: dragLineId === l.id ? "#BF9B30" : "#475569" }}>{dragLineId === l.id ? "Drop PDF here →" : "+ Drop product data PDF"}</span>
+            <div onDragOver={(e) => { e.preventDefault(); setDragLineId(l.id); }} onDragLeave={() => setDragLineId(null)} onDrop={(e) => handleDrop(l.id, e)} style={{ padding: "6px 12px 6px 42px", background: dragLineId === l.id ? "var(--warning-bg)" : "transparent", borderLeft: "1px solid var(--border-ds)", borderRight: "1px solid var(--border-ds)", borderBottom: "1px solid var(--border-ds)", borderRadius: "0 0 6px 6px", transition: "background .15s" }}>
+              <span style={{ fontSize: 11, color: dragLineId === l.id ? "var(--gold)" : "var(--text-secondary)" }}>{dragLineId === l.id ? "Drop PDF here →" : "+ Drop product data PDF"}</span>
             </div>
           </div>
         );

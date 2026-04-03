@@ -108,18 +108,18 @@ export default function Workspace({ projectId, onHome, flash, refreshProjects }:
   ];
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: "calc(100vh - 57px)", background: "#0f1117" }}>
-      <div style={{ background: "#161822", borderBottom: "1px solid #2a2d3a", padding: "0 16px", display: "flex", alignItems: "center", height: 48, gap: 10, flexShrink: 0 }}>
+    <div style={{ display: "flex", flexDirection: "column", height: "calc(100vh - 57px)", background: "var(--bg-page)" }}>
+      <div style={{ background: "var(--bg-card)", borderBottom: "1px solid var(--border-ds)", padding: "0 16px", display: "flex", alignItems: "center", height: 48, gap: 10, flexShrink: 0 }}>
         <button onClick={onHome} style={btnGhost}>&larr;</button>
         <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-          <div style={{ width: 4, height: 18, background: "#BF9B30", borderRadius: 1 }} />
-          <span style={{ fontWeight: 800, fontSize: 13, color: "#f8fafc", fontFamily: "'Rajdhani', sans-serif" }}>AiPM</span>
+          <div style={{ width: 4, height: 18, background: "var(--gold)", borderRadius: 1 }} />
+          <span style={{ fontWeight: 800, fontSize: 13, color: "var(--text-primary)", fontFamily: "'Rajdhani', sans-serif" }}>AiPM</span>
         </div>
-        <span style={{ fontSize: 14, fontWeight: 700, color: "#f8fafc" }}>{project.projectName}</span>
-        <span style={{ fontSize: 11, color: "#64748b" }}>{project.gc}</span>
-        {project.estimateNumber && <span style={{ fontSize: 11, color: "#BF9B30", fontFamily: "monospace" }}>{project.estimateNumber}</span>}
+        <span style={{ fontSize: 14, fontWeight: 700, color: "var(--text-primary)" }}>{project.projectName}</span>
+        <span style={{ fontSize: 11, color: "var(--text-muted)" }}>{project.gc}</span>
+        {project.estimateNumber && <span style={{ fontSize: 11, color: "var(--gold)", fontFamily: "monospace" }}>{project.estimateNumber}</span>}
         <div style={{ flex: 1 }} />
-        <span style={{ fontSize: 11, color: saving === "saved" ? "#22c55e" : saving === "saving" ? "#f59e0b" : "#94a3b8" }}>
+        <span style={{ fontSize: 11, color: saving === "saved" ? "var(--success)" : saving === "saving" ? "var(--warning)" : "var(--text-secondary)" }}>
           {saving === "saved" ? "✓ Saved" : saving === "saving" ? "Saving..." : "● Unsaved"}
         </span>
         <button onClick={() => { triggerSave(project); flash("Saved", "success"); }} style={{ ...btnGhost, fontSize: 12 }}>Save Draft</button>
@@ -127,15 +127,15 @@ export default function Workspace({ projectId, onHome, flash, refreshProjects }:
 
       {!hasScopes && (
         <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center" }} onDragOver={(e) => e.preventDefault()} onDrop={handleEstimateDrop}>
-          <div style={{ width: 480, textAlign: "center", padding: 40, border: "2px dashed #2a2d3a", borderRadius: 16, background: "#161822" }}>
+          <div style={{ width: 480, textAlign: "center", padding: 40, border: "2px dashed var(--border-ds)", borderRadius: 16, background: "var(--bg-card)" }}>
             <div style={{ fontSize: 40, marginBottom: 12 }}>📋</div>
-            <div style={{ fontSize: 16, fontWeight: 700, color: "#f8fafc", marginBottom: 6 }}>Drop Estimate Workbook to Begin</div>
-            <div style={{ fontSize: 12, color: "#64748b", lineHeight: 1.6 }}>
+            <div style={{ fontSize: 16, fontWeight: 700, color: "var(--text-primary)", marginBottom: 6 }}>Drop Estimate Workbook to Begin</div>
+            <div style={{ fontSize: 12, color: "var(--text-muted)", lineHeight: 1.6 }}>
               Drag your .xlsm or .xlsx estimate file here.<br />
               The system will auto-detect scope tabs, CSI sections, and line items.
             </div>
             <div style={{ marginTop: 20 }}>
-              <button onClick={() => handleEstimateDrop({ preventDefault: () => {}, dataTransfer: { files: [{ name: "sample.xlsm" }] } } as any)} style={{ background: "none", border: "1px dashed #BF9B30", color: "#BF9B30", borderRadius: 6, padding: "6px 16px", cursor: "pointer", fontSize: 12 }}>
+              <button onClick={() => handleEstimateDrop({ preventDefault: () => {}, dataTransfer: { files: [{ name: "sample.xlsm" }] } } as any)} style={{ background: "none", border: "1px dashed var(--gold)", color: "var(--gold)", borderRadius: 6, padding: "6px 16px", cursor: "pointer", fontSize: 12 }}>
                 Use Sample Data (Demo)
               </button>
             </div>
@@ -145,22 +145,22 @@ export default function Workspace({ projectId, onHome, flash, refreshProjects }:
 
       {hasScopes && (
         <>
-          <div style={{ background: "#13151f", borderBottom: "1px solid #2a2d3a", padding: "0 12px", display: "flex", gap: 0, overflowX: "auto", flexShrink: 0 }}>
+          <div style={{ background: "var(--bg3)", borderBottom: "1px solid var(--border-ds)", padding: "0 12px", display: "flex", gap: 0, overflowX: "auto", flexShrink: 0 }}>
             {project.scopes.map((s, i) => {
               const att = s.lines ? s.lines.filter((l) => l.attachments && l.attachments.length > 0).length : 0;
               const tot = s.lines ? s.lines.length : 0;
               const isActive = i === activeScopeIdx;
               return (
-                <button key={s.id} onClick={() => setActiveScopeIdx(i)} style={{ padding: "8px 14px", fontSize: 12, fontWeight: isActive ? 700 : 400, color: isActive ? "#BF9B30" : "#94a3b8", background: "none", border: "none", cursor: "pointer", borderBottom: isActive ? "2px solid #BF9B30" : "2px solid transparent", whiteSpace: "nowrap" }}>
-                  {s.tabName}<span style={{ marginLeft: 6, fontSize: 10, color: att === tot ? "#22c55e" : "#64748b" }}>{att}/{tot}</span>
+                <button key={s.id} onClick={() => setActiveScopeIdx(i)} style={{ padding: "8px 14px", fontSize: 12, fontWeight: isActive ? 700 : 400, color: isActive ? "var(--gold)" : "var(--text-secondary)", background: "none", border: "none", cursor: "pointer", borderBottom: isActive ? "2px solid var(--gold)" : "2px solid transparent", whiteSpace: "nowrap" }}>
+                  {s.tabName}<span style={{ marginLeft: 6, fontSize: 10, color: att === tot ? "var(--success)" : "var(--text-muted)" }}>{att}/{tot}</span>
                 </button>
               );
             })}
           </div>
 
-          <div style={{ background: "#161822", borderBottom: "1px solid #2a2d3a", padding: "0 12px", display: "flex", gap: 0, flexShrink: 0 }}>
+          <div style={{ background: "var(--bg-card)", borderBottom: "1px solid var(--border-ds)", padding: "0 12px", display: "flex", gap: 0, flexShrink: 0 }}>
             {tabs.map((t) => (
-              <button key={t.key} onClick={() => setActiveTab(t.key)} style={{ padding: "7px 14px", fontSize: 12, fontWeight: activeTab === t.key ? 600 : 400, color: activeTab === t.key ? "#f8fafc" : "#64748b", background: "none", border: "none", cursor: "pointer", borderBottom: activeTab === t.key ? "2px solid #f8fafc" : "2px solid transparent" }}>{t.label}</button>
+              <button key={t.key} onClick={() => setActiveTab(t.key)} style={{ padding: "7px 14px", fontSize: 12, fontWeight: activeTab === t.key ? 600 : 400, color: activeTab === t.key ? "var(--text-primary)" : "var(--text-muted)", background: "none", border: "none", cursor: "pointer", borderBottom: activeTab === t.key ? "2px solid var(--text-primary)" : "2px solid transparent" }}>{t.label}</button>
             ))}
           </div>
 

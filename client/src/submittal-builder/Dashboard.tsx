@@ -25,38 +25,38 @@ export default function Dashboard({ projects, loading, onOpen, onNew, onDelete, 
   });
 
   return (
-    <div style={{ background: "#0f1117", minHeight: "calc(100vh - 57px)", fontFamily: "'DM Sans', system-ui, sans-serif" }}>
+    <div style={{ background: "var(--bg-page)", minHeight: "calc(100vh - 57px)", fontFamily: "'DM Sans', system-ui, sans-serif" }}>
       <div style={{ maxWidth: 960, margin: "0 auto", padding: "32px 24px" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 32 }}>
           <button onClick={onBack} style={{ ...btnGhost, display: "flex", alignItems: "center", gap: 6 }}>
             ← AiPM Home
           </button>
           <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-            <div style={{ width: 5, height: 24, background: "#BF9B30", borderRadius: 2 }} />
-            <span style={{ fontSize: 20, fontWeight: 800, color: "#f8fafc", fontFamily: "'Rajdhani', sans-serif" }}>AiPM</span>
-            <span style={{ fontSize: 16, color: "#94a3b8" }}>Submittal Builder</span>
+            <div style={{ width: 5, height: 24, background: "var(--gold)", borderRadius: 2 }} />
+            <span style={{ fontSize: 20, fontWeight: 800, color: "var(--text-primary)", fontFamily: "'Rajdhani', sans-serif" }}>AiPM</span>
+            <span style={{ fontSize: 16, color: "var(--text-secondary)" }}>Submittal Builder</span>
           </div>
           <div style={{ flex: 1 }} />
           <button onClick={onNew} style={btnPrimary}>+ New Submittal</button>
         </div>
 
         <div style={{ display: "flex", gap: 8, marginBottom: 20, flexWrap: "wrap" }}>
-          <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search projects..." style={{ ...inputStyle, flex: 1, minWidth: 200, color: "#e2e8f0" }} />
-          <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} style={{ ...inputStyle, width: 180, color: "#e2e8f0" }}>
+          <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search projects..." style={{ ...inputStyle, flex: 1, minWidth: 200 }} />
+          <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} style={{ ...inputStyle, width: 180 }}>
             <option value="all">All Statuses</option>
             {Object.entries(STATUS_META).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
           </select>
         </div>
 
         {loading ? (
-          <div style={{ textAlign: "center", padding: 60, color: "#64748b" }}>Loading projects...</div>
+          <div style={{ textAlign: "center", padding: 60, color: "var(--text-muted)" }}>Loading projects...</div>
         ) : filtered.length === 0 ? (
-          <div style={{ textAlign: "center", padding: 60, color: "#475569" }}>
+          <div style={{ textAlign: "center", padding: 60, color: "var(--text-secondary)" }}>
             {projects.length === 0 ? (
               <div>
                 <div style={{ fontSize: 40, marginBottom: 12 }}>📋</div>
-                <div style={{ fontSize: 16, color: "#94a3b8", marginBottom: 8 }}>No submittal projects yet</div>
-                <div style={{ fontSize: 13, color: "#64748b", marginBottom: 20 }}>Start by selecting a Won project from the Proposal Log</div>
+                <div style={{ fontSize: 16, color: "var(--text-secondary)", marginBottom: 8 }}>No submittal projects yet</div>
+                <div style={{ fontSize: 13, color: "var(--text-muted)", marginBottom: 20 }}>Start by selecting a Won project from the Proposal Log</div>
                 <button onClick={onNew} style={btnPrimary}>+ New Submittal</button>
               </div>
             ) : "No projects match your filters."}
@@ -71,26 +71,26 @@ export default function Dashboard({ projects, loading, onOpen, onNew, onDelete, 
               const comp = lineCount > 0 ? pct(attachedCount, lineCount) : 0;
 
               return (
-                <div key={p.id} onClick={() => onOpen(p.id)} style={{ display: "flex", alignItems: "center", gap: 16, padding: "14px 18px", background: "#161822", border: "1px solid #2a2d3a", borderRadius: 8, cursor: "pointer", transition: "border-color .15s" }}
-                  onMouseEnter={(e) => { e.currentTarget.style.borderColor = "#BF9B30"; }}
-                  onMouseLeave={(e) => { e.currentTarget.style.borderColor = "#2a2d3a"; }}>
+                <div key={p.id} onClick={() => onOpen(p.id)} style={{ display: "flex", alignItems: "center", gap: 16, padding: "14px 18px", background: "var(--bg-card)", border: "1px solid var(--border-ds)", borderRadius: 8, cursor: "pointer", transition: "border-color .15s" }}
+                  onMouseEnter={(e) => { e.currentTarget.style.borderColor = "var(--gold)"; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.borderColor = "var(--border-ds)"; }}>
                   <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 14, fontWeight: 700, color: "#f8fafc", marginBottom: 3 }}>{p.projectName}</div>
-                    <div style={{ fontSize: 12, color: "#94a3b8" }}>
+                    <div style={{ fontSize: 14, fontWeight: 700, color: "var(--text-primary)", marginBottom: 3 }}>{p.projectName}</div>
+                    <div style={{ fontSize: 12, color: "var(--text-secondary)" }}>
                       {p.gc}{p.attention ? " · " + p.attention : ""}{p.assignedPm ? " · PM: " + p.assignedPm : ""}
-                      {p.estimateNumber && <span style={{ marginLeft: 8, color: "#BF9B30", fontFamily: "monospace", fontSize: 11 }}>{p.estimateNumber}</span>}
-                      {p.region && <span style={{ marginLeft: 8, color: "#64748b", fontSize: 11 }}>{p.region}</span>}
+                      {p.estimateNumber && <span style={{ marginLeft: 8, color: "var(--gold)", fontFamily: "monospace", fontSize: 11 }}>{p.estimateNumber}</span>}
+                      {p.region && <span style={{ marginLeft: 8, color: "var(--text-muted)", fontSize: 11 }}>{p.region}</span>}
                     </div>
                   </div>
                   <div style={{ textAlign: "right", minWidth: 100 }}>
-                    <div style={{ fontSize: 11, color: "#64748b", marginBottom: 4 }}>{scopeCount} scopes · {lineCount} lines</div>
-                    <div style={{ height: 4, width: 100, background: "#2a2d3a", borderRadius: 2, overflow: "hidden" }}>
-                      <div style={{ height: "100%", width: comp + "%", background: comp === 100 ? "#22c55e" : "#BF9B30", borderRadius: 2 }} />
+                    <div style={{ fontSize: 11, color: "var(--text-muted)", marginBottom: 4 }}>{scopeCount} scopes · {lineCount} lines</div>
+                    <div style={{ height: 4, width: 100, background: "var(--border-ds)", borderRadius: 2, overflow: "hidden" }}>
+                      <div style={{ height: "100%", width: comp + "%", background: comp === 100 ? "var(--success)" : "var(--gold)", borderRadius: 2 }} />
                     </div>
                   </div>
                   <span style={{ padding: "3px 10px", borderRadius: 4, fontSize: 11, fontWeight: 600, color: sm.color, background: sm.bg, whiteSpace: "nowrap" }}>{sm.label}</span>
-                  <span style={{ fontSize: 11, color: "#475569", minWidth: 80, textAlign: "right" }}>{formatTimestamp(p.updatedAt)}</span>
-                  <button onClick={(e) => { e.stopPropagation(); if (window.confirm("Delete this project?")) onDelete(p.id); }} style={{ background: "none", border: "none", color: "#475569", cursor: "pointer", fontSize: 16, padding: 4 }} title="Delete">&times;</button>
+                  <span style={{ fontSize: 11, color: "var(--text-secondary)", minWidth: 80, textAlign: "right" }}>{formatTimestamp(p.updatedAt)}</span>
+                  <button onClick={(e) => { e.stopPropagation(); if (window.confirm("Delete this project?")) onDelete(p.id); }} style={{ background: "none", border: "none", color: "var(--text-secondary)", cursor: "pointer", fontSize: 16, padding: 4 }} title="Delete">&times;</button>
                 </div>
               );
             })}

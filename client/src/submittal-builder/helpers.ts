@@ -41,11 +41,11 @@ export const LINE_STATUS: Record<string, { label: string; color: string }> = {
 };
 
 export const inputStyle: React.CSSProperties = {
-  background: "#0f1117",
-  border: "1px solid #2a2d3a",
+  background: "var(--bg-input)",
+  border: "1px solid var(--border-ds)",
   borderRadius: 4,
   padding: "6px 10px",
-  color: "#e2e8f0",
+  color: "var(--text-primary)",
   fontSize: 12,
   outline: "none",
   width: "100%",
@@ -56,8 +56,8 @@ export const btnPrimary: React.CSSProperties = {
   borderRadius: 6,
   fontSize: 13,
   fontWeight: 700,
-  background: "linear-gradient(135deg, #BF9B30, #D4AF37)",
-  color: "#000",
+  background: `linear-gradient(135deg, var(--gold), var(--gold-light))`,
+  color: "var(--text-inverse)",
   border: "none",
   cursor: "pointer",
 };
@@ -67,8 +67,8 @@ export const btnGhost: React.CSSProperties = {
   borderRadius: 4,
   fontSize: 12,
   background: "none",
-  border: "1px solid #2a2d3a",
-  color: "#94a3b8",
+  border: "1px solid var(--border-ds)",
+  color: "var(--text-secondary)",
   cursor: "pointer",
 };
 

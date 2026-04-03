@@ -12,7 +12,7 @@ interface Props {
 }
 
 function Lbl({ children }: { children: React.ReactNode }) {
-  return <span style={{ fontSize: 11, fontWeight: 700, color: "#94a3b8", textAlign: "right" }}>{children}</span>;
+  return <span style={{ fontSize: 11, fontWeight: 700, color: "var(--text-secondary)", textAlign: "right" }}>{children}</span>;
 }
 
 export default function CoverPageEditor({ scope, project, update, scopeIdx, pageInfo }: Props) {
@@ -57,13 +57,13 @@ export default function CoverPageEditor({ scope, project, update, scopeIdx, page
   return (
     <div style={{ padding: 20, maxWidth: 680 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
-        <span style={{ fontSize: 15, fontWeight: 700, color: "#f8fafc" }}>Cover Page — {scope.tabName}</span>
+        <span style={{ fontSize: 15, fontWeight: 700, color: "var(--text-primary)" }}>Cover Page — {scope.tabName}</span>
         <div style={{ flex: 1 }} />
         <button onClick={autoGen} style={{ ...btnGhost, fontSize: 11 }}>Auto-generate from pages</button>
       </div>
 
-      <div style={{ background: "#1a1c2a", borderRadius: 8, border: "1px solid #2a2d3a", padding: 14, marginBottom: 16 }}>
-        <div style={{ fontSize: 10, fontWeight: 700, color: "#64748b", marginBottom: 8, textTransform: "uppercase", letterSpacing: ".5px" }}>Project Info</div>
+      <div style={{ background: "var(--bg-card)", borderRadius: 8, border: "1px solid var(--border-ds)", padding: 14, marginBottom: 16 }}>
+        <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text-muted)", marginBottom: 8, textTransform: "uppercase", letterSpacing: ".5px" }}>Project Info</div>
         <div style={{ display: "grid", gridTemplateColumns: "110px 1fr", gap: "6px 10px", alignItems: "center" }}>
           <Lbl>DATE:</Lbl>
           <input value={project.coverDate || ""} onChange={(e) => editProject("coverDate", e.target.value)} style={inputStyle} />
@@ -76,23 +76,23 @@ export default function CoverPageEditor({ scope, project, update, scopeIdx, page
         </div>
       </div>
 
-      <div style={{ background: "#1a1c2a", borderRadius: 8, border: "1px solid #2a2d3a", padding: 14 }}>
-        <div style={{ fontSize: 10, fontWeight: 700, color: "#64748b", marginBottom: 8, textTransform: "uppercase", letterSpacing: ".5px" }}>Submittal Table ({pageInfo.total} total pages)</div>
-        <div style={{ display: "grid", gridTemplateColumns: "70px 1fr 110px 100px 24px", gap: 2, padding: "4px 0", fontSize: 10, fontWeight: 700, color: "#64748b" }}>
+      <div style={{ background: "var(--bg-card)", borderRadius: 8, border: "1px solid var(--border-ds)", padding: 14 }}>
+        <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text-muted)", marginBottom: 8, textTransform: "uppercase", letterSpacing: ".5px" }}>Submittal Table ({pageInfo.total} total pages)</div>
+        <div style={{ display: "grid", gridTemplateColumns: "70px 1fr 110px 100px 24px", gap: 2, padding: "4px 0", fontSize: 10, fontWeight: 700, color: "var(--text-muted)" }}>
           <span>Spec</span><span>Description</span><span>Type</span><span>Comments</span><span></span>
         </div>
         {scope.coverLines && scope.coverLines.map((cl) => (
           <div key={cl.id} style={{ display: "grid", gridTemplateColumns: "70px 1fr 110px 100px 24px", gap: 4, padding: "3px 0", alignItems: "center" }}>
-            <span style={{ fontSize: 11, color: "#94a3b8", fontFamily: "'JetBrains Mono', monospace" }}>{scope.csi}</span>
-            <span style={{ fontSize: 11, color: "#f8fafc", fontWeight: 600 }}>{scope.tabName}</span>
+            <span style={{ fontSize: 11, color: "var(--text-secondary)", fontFamily: "'JetBrains Mono', monospace" }}>{scope.csi}</span>
+            <span style={{ fontSize: 11, color: "var(--text-primary)", fontWeight: 600 }}>{scope.tabName}</span>
             <select value={cl.type} onChange={(e) => editRow(cl.id, "type", e.target.value)} style={{ ...inputStyle, fontSize: 10 }}>
               <option>Schedule</option><option>Product Data</option><option>Color Chart</option><option>Shop Drawings</option>
             </select>
             <input value={cl.comment || ""} onChange={(e) => editRow(cl.id, "comment", e.target.value)} style={{ ...inputStyle, fontSize: 10 }} placeholder="Page X" />
-            <button onClick={() => removeRow(cl.id)} style={{ background: "none", border: "none", color: "#475569", cursor: "pointer", fontSize: 13 }}>&times;</button>
+            <button onClick={() => removeRow(cl.id)} style={{ background: "none", border: "none", color: "var(--text-secondary)", cursor: "pointer", fontSize: 13 }}>&times;</button>
           </div>
         ))}
-        <button onClick={addRow} style={{ background: "none", border: "none", color: "#475569", cursor: "pointer", fontSize: 11, marginTop: 6 }}>+ Add row</button>
+        <button onClick={addRow} style={{ background: "none", border: "none", color: "var(--text-secondary)", cursor: "pointer", fontSize: 11, marginTop: 6 }}>+ Add row</button>
       </div>
     </div>
   );
