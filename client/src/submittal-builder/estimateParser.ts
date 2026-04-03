@@ -1,3 +1,5 @@
+import * as XLSX from "xlsx";
+
 export interface ParsedScope {
   tab: string;
   csi: string;
@@ -10,71 +12,129 @@ export interface ParsedWorkbook {
   scopes: ParsedScope[];
 }
 
-const MOCK_PARSED_DATA: ParsedWorkbook = {
-  project: "Sample Project",
-  scopes: [
-    {
-      tab: "Toilet Accessories",
-      csi: "10 28 00",
-      specTitle: "Toilet Bath and Laundry Accessories",
-      lines: [
-        { callout: "BCS2", desc: "Horizontal, Recessed Mounted Baby Changing Station - Stainless", model: "KB310-SSRE", qty: 18 },
-        { callout: "CH1", desc: "Hat and Coat Hook", model: "9134-000000", qty: 31 },
-        { callout: "GB18V", desc: "Straight Grab Bar – 18\" Length", model: "8320-001180", qty: 19 },
-        { callout: "GB36", desc: "Straight Grab Bar – 36\" Length", model: "8320-001360", qty: 19 },
-        { callout: "GB42", desc: "Straight Grab Bar – 42\" Length", model: "8320-001420", qty: 23 },
-        { callout: "PTD1", desc: "Paper Towel Dispenser", model: "GP Pro 59488A", qty: 29 },
-        { callout: "SNDP1", desc: "Sanitary Napkin Disposal, 1.2-Gal.", model: "4722-150000", qty: 29 },
-        { callout: "SPD-01", desc: "Touchless Soap Dispenser - Polished Chrome", model: "ESD-200", qty: 31 },
-        { callout: "TSCD", desc: "Toilet Seat Cover Dispenser", model: "5831-000000", qty: 35 },
-        { callout: "TTD3", desc: "Multi-Roll Toilet Tissue Dispenser – ConturaSeries", model: "5A00-000000", qty: 39 },
-        { callout: "WR2", desc: "Waste Receptacle, 12-Gal.", model: "344-000000", qty: 19 },
-      ],
-    },
-    {
-      tab: "Fire Extinguishers",
-      csi: "10 44 00",
-      specTitle: "Fire Protection Specialties",
-      lines: [
-        { callout: "FEC", desc: "Fire Extinguisher + Tagging", model: "FE10C Cosmic 10E", qty: 24 },
-        { callout: "FEC", desc: "Fire Extinguisher Cabinet – Ambassador Series, Clear Acrylic, White", model: "C1016V10", qty: 24 },
-        { callout: "FEC", desc: "Fire Extinguisher Arrow Tent Sign", model: "24S", qty: 24 },
-      ],
-    },
-    {
-      tab: "Wall Protection",
-      csi: "10 26 00",
-      specTitle: "Wall and Door Protection",
-      lines: [
-        { callout: "CG-A1", desc: "Corner Guard, 90 degree, flush mounted, 3\" legs, 12'-0\" Height", model: "Acrovyn 4000 FS-20N", qty: 65 },
-        { callout: "EG-A1", desc: "End Wall Corner Guard, flush mounted", model: "Acrovyn 4000 FS-25N", qty: 9 },
-        { callout: "CR-1", desc: "Bumper Guard, 2-3/4\" exposed face, 12'L", model: "Acrovyn 4000 BG-30N", qty: 10 },
-        { callout: "CR-1", desc: "Bumper Guard End Caps", model: "Acrovyn 4000 End cap BG30N", qty: 20 },
-      ],
-    },
-    {
-      tab: "Toilet Compartments",
-      csi: "10 21 13",
-      specTitle: "Toilet Compartments",
-      lines: [
-        { callout: "N/A", desc: "Floor Mounted Overhead Braced Solid Plastic Partitions - POLY Stalls, 72\" Tall", model: "Toilet Compartment", qty: 30 },
-        { callout: "N/A", desc: "Wall Mounted Solid Plastic POLY Screen 24\" x 55\"", model: "Urinal Screen", qty: 1 },
-      ],
-    },
-    {
-      tab: "Visual Display",
-      csi: "10 11 00",
-      specTitle: "Visual Display Units",
-      lines: [
-        { callout: "Map Rail", desc: "Display Reveal End Cap - Silver", model: "B0005AS", qty: 6 },
-        { callout: "Map Rail", desc: "Display Reveal - Silver, 60 in", model: "A1024", qty: 12 },
-      ],
-    },
-  ],
-};
+// Sheets that are never scope/product sheets
+const SKIP_SHEETS = new Set([
+  "summary", "summary sheet", "cover", "cover page", "toc", "table of contents",
+  "index", "notes", "instructions", "lookup", "data", "lists", "division 10",
+  "div 10", "template", "overview", "ref", "reference",
+]);
 
-export async function parseEstimateWorkbook(_fileName: string): Promise<ParsedWorkbook> {
-  return new Promise((resolve) => {
-    setTimeout(() => { resolve(MOCK_PARSED_DATA); }, 1500);
-  });
+function normalizeHeader(h: unknown): string {
+  return String(h ?? "").toLowerCase().replace(/[^a-z0-9]/g, "");
+}
+
+interface ColMap {
+  callout?: number;
+  desc?: number;
+  model?: number;
+  qty?: number;
+}
+
+function findHeaderRow(sheet: XLSX.WorkSheet): { row: number; colMap: ColMap } | null {
+  const ref = sheet["!ref"];
+  if (!ref) return null;
+  const range = XLSX.utils.decode_range(ref);
+
+  for (let row = range.s.r; row <= Math.min(range.e.r, range.s.r + 14); row++) {
+    const colMap: ColMap = {};
+    for (let col = range.s.c; col <= range.e.c; col++) {
+      const cell = sheet[XLSX.utils.encode_cell({ r: row, c: col })];
+      if (!cell || cell.v == null) continue;
+      const h = normalizeHeader(cell.v);
+
+      if (!colMap.callout && (h === "callout" || h === "tag" || h === "item" || h === "id" || h === "no" || h === "num"))
+        colMap.callout = col;
+      else if (!colMap.desc && (h.startsWith("desc") || h === "product" || h === "scope" || h === "name"))
+        colMap.desc = col;
+      else if (!colMap.model && (h.startsWith("model") || h.startsWith("part") || h.startsWith("catalog") || h === "mfr" || h === "spec"))
+        colMap.model = col;
+      else if (!colMap.qty && (h === "qty" || h.startsWith("quantity") || h === "count" || h === "ea" || h === "total"))
+        colMap.qty = col;
+    }
+
+    // Require at minimum a description column to consider this a valid header row
+    if (colMap.desc !== undefined) {
+      return { row, colMap };
+    }
+  }
+  return null;
+}
+
+function cellStr(sheet: XLSX.WorkSheet, row: number, col: number): string {
+  const cell = sheet[XLSX.utils.encode_cell({ r: row, c: col })];
+  return cell && cell.v != null ? String(cell.v).trim() : "";
+}
+
+function extractCsiAndTitle(sheet: XLSX.WorkSheet, headerRow: number): { csi: string; specTitle: string } {
+  let csi = "";
+  let specTitle = "";
+  const ref = sheet["!ref"];
+  if (!ref) return { csi, specTitle };
+  const range = XLSX.utils.decode_range(ref);
+
+  for (let row = range.s.r; row < headerRow; row++) {
+    for (let col = range.s.c; col <= Math.min(range.e.c, range.s.c + 5); col++) {
+      const val = cellStr(sheet, row, col);
+      if (!val) continue;
+      // CSI code: "10 28 00", "102800", "10-28-00", etc.
+      if (!csi && /^10[\s\-]?\d{2}[\s\-]?\d{0,2}/.test(val)) {
+        csi = val;
+      } else if (!specTitle && val.length > 8 && !/^\d/.test(val) && val !== csi) {
+        specTitle = val;
+      }
+    }
+  }
+  return { csi, specTitle };
+}
+
+export async function parseEstimateWorkbook(file: File): Promise<ParsedWorkbook> {
+  const arrayBuffer = await file.arrayBuffer();
+  const workbook = XLSX.read(arrayBuffer, { type: "array", cellFormula: false, cellHTML: false });
+
+  // Read project name from the Summary sheet (cell B1)
+  let project = "";
+  const summarySheet =
+    workbook.Sheets["Summary"] ||
+    workbook.Sheets["Summary Sheet"] ||
+    workbook.Sheets[workbook.SheetNames[0]];
+  if (summarySheet) {
+    const b1 = summarySheet["B1"];
+    if (b1 && b1.v != null) project = String(b1.v).trim();
+  }
+
+  const scopes: ParsedScope[] = [];
+
+  for (const sheetName of workbook.SheetNames) {
+    if (SKIP_SHEETS.has(sheetName.toLowerCase().trim())) continue;
+
+    const sheet = workbook.Sheets[sheetName];
+    if (!sheet || !sheet["!ref"]) continue;
+
+    const headerResult = findHeaderRow(sheet);
+    if (!headerResult) continue;
+
+    const { row: headerRow, colMap } = headerResult;
+    const range = XLSX.utils.decode_range(sheet["!ref"]!);
+    const { csi, specTitle } = extractCsiAndTitle(sheet, headerRow);
+
+    const lines: ParsedScope["lines"] = [];
+
+    for (let row = headerRow + 1; row <= range.e.r; row++) {
+      const desc = colMap.desc !== undefined ? cellStr(sheet, row, colMap.desc) : "";
+      if (!desc) continue;
+
+      const callout = colMap.callout !== undefined ? cellStr(sheet, row, colMap.callout) : "";
+      const model = colMap.model !== undefined ? cellStr(sheet, row, colMap.model) : "";
+      const qtyRaw = colMap.qty !== undefined ? cellStr(sheet, row, colMap.qty) : "";
+      const qty = qtyRaw ? parseFloat(qtyRaw) || 0 : 0;
+
+      lines.push({ callout, desc, model, qty });
+    }
+
+    if (lines.length > 0) {
+      scopes.push({ tab: sheetName, csi, specTitle, lines });
+    }
+  }
+
+  return { project, scopes };
 }

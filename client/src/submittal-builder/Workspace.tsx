@@ -76,8 +76,13 @@ export default function Workspace({ projectId, onHome, flash, refreshProjects }:
     e.preventDefault();
     const files = Array.from(e.dataTransfer ? e.dataTransfer.files : []);
     if (files.length === 0) return;
+    const file = files[0] as File;
+    if (!file || typeof file.arrayBuffer !== "function") {
+      flash("Could not read file — please drop a real .xlsm or .xlsx file.", "error");
+      return;
+    }
     flash("Parsing estimate workbook...", "info");
-    parseEstimateWorkbook(files[0].name).then((parsed) => {
+    parseEstimateWorkbook(file).then((parsed) => {
       update((p) => {
         p.scopes = parsed.scopes.map((s, i) => ({
           id: uid(), tabName: s.tab, csi: s.csi, specTitle: s.specTitle, sortOrder: i, scopeStatus: "in_progress",
@@ -133,11 +138,6 @@ export default function Workspace({ projectId, onHome, flash, refreshProjects }:
             <div style={{ fontSize: 12, color: "var(--text-muted)", lineHeight: 1.6 }}>
               Drag your .xlsm or .xlsx estimate file here.<br />
               The system will auto-detect scope tabs, CSI sections, and line items.
-            </div>
-            <div style={{ marginTop: 20 }}>
-              <button onClick={() => handleEstimateDrop({ preventDefault: () => {}, dataTransfer: { files: [{ name: "sample.xlsm" }] } } as any)} style={{ background: "none", border: "1px dashed var(--gold)", color: "var(--gold)", borderRadius: 6, padding: "6px 16px", cursor: "pointer", fontSize: 12 }}>
-                Use Sample Data (Demo)
-              </button>
             </div>
           </div>
         </div>
