@@ -43,6 +43,7 @@ import { getActiveFolderTemplate, getActiveEstimateTemplate, getFolderTemplateFi
 import ExcelJS from "exceljs";
 import { extractProjectDetailsFromScreenshot } from "./screenshotExtractor";
 import { matchRegionWithFallback } from "./regionMatcher";
+import { isSwinerton, matchSwinertonOffice, matchExtRegion } from "./swinertonOffices";
 import { guessMarket, createProposalLogEntry, bulkCreateProposalLogEntries, getUnsyncedEntries, markEntriesSynced, getActiveProposalLogEntries, getAllProposalLogEntries, updateProposalLogEntryById, deleteProposalLogEntry, deleteProposalLogEntries, getAcknowledgedEntryIds, acknowledgeEntry, unacknowledgeEntry, clearAcknowledgementsForEntry } from "./proposalLogService";
 import { getSheetUrl, syncProposalLogToSheet, pullRepairAndPush, isGoogleSheetConfigured } from "./googleSheetSync";
 import { users, proposalLogEntries, regions, proposalChangeLog, estimateTemplates } from "@shared/schema";
@@ -117,30 +118,31 @@ export function registerProjectRoutes(app: Express) {
       console.log(`[ScreenshotExtractor] Extracted: name="${result.projectName}", date="${result.dueDate}", location="${result.location}", client="${result.clientName}", clientLoc="${result.clientLocation}", invite="${result.inviteDate}", start="${result.expectedStart}", finish="${result.expectedFinish}", gcContact="${result.gcContactName}", gcEmail="${result.gcContactEmail}"`);
 
       const clientLoc = (result.clientLocation || "").trim();
-      const projectLoc = (result.location || "").trim();
       const projectName = result.projectName || "";
-      
-      // First try the full client location string with the full client name for office refinement
-      let regionMatch = await matchRegionWithFallback(clientLoc, projectLoc, result.clientName || undefined, projectName);
-      let matchedSegment = "";
-      
-      // If that doesn't work, try splitting client location by dashes and checking each segment
-      if (!regionMatch.confident && clientLoc) {
-        const segments = clientLoc.split(/[-–—]/).map(s => s.trim()).filter(Boolean);
-        for (const seg of segments) {
-          const segMatch = await matchRegionWithFallback(seg, "", result.clientName || undefined, projectName);
-          if (segMatch.confident) {
-            regionMatch = segMatch;
-            matchedSegment = seg;
-            break;
+      const clientName = result.clientName || "";
+
+      const activeRegions = await getActiveRegions();
+      let regionMatch: { code: string; displayLabel: string; confident: boolean };
+
+      if (isSwinerton(clientName)) {
+        // Swinerton: match purely by office name — no address, no project-type keywords
+        regionMatch = matchSwinertonOffice(clientLoc, activeRegions);
+        // If clientLoc alone didn't match, try each dash-segment (e.g. "SoCal - Parking Structures")
+        if (!regionMatch.confident && clientLoc) {
+          const segments = clientLoc.split(/[-–—]/).map((s: string) => s.trim()).filter(Boolean);
+          for (const seg of segments) {
+            const segMatch = matchSwinertonOffice(seg, activeRegions);
+            if (segMatch.confident) { regionMatch = segMatch; break; }
           }
         }
-      } else if (regionMatch.confident) {
-        matchedSegment = clientLoc || projectLoc;
+      } else {
+        // Non-Swinerton GC: look up EXT region by company name
+        regionMatch = matchExtRegion(clientName, activeRegions);
       }
-      
-      const matchedRegionCode = regionMatch.confident ? regionMatch.code : null;
-      console.log(`[ScreenshotExtractor] Region match for "${projectName}": clientLoc="${clientLoc}" projectLoc="${projectLoc}" → matched="${matchedSegment}" region="${regionMatch.code}" (${regionMatch.displayLabel}) confident=${regionMatch.confident}`);
+
+      // confident=true + empty code = intentionally blank (estimator decides)
+      const matchedRegionCode = (regionMatch.confident && regionMatch.code) ? regionMatch.code : null;
+      console.log(`[ScreenshotExtractor] Region match for "${projectName}": client="${clientName}" clientLoc="${clientLoc}" → region="${regionMatch.code}" (${regionMatch.displayLabel}) confident=${regionMatch.confident}`);
 
       const primaryMarket = guessMarket(result.projectName || "", result.rawText);
 

@@ -10,6 +10,7 @@ import { generateProjectId, createProject, getActiveRegions } from "../scopeDict
 import { sendDraftNotificationEmail } from "../emailService";
 import { getActiveFolderTemplate, getActiveEstimateTemplate, getFolderTemplateFileBuffer, getEstimateTemplateFileBuffer } from "../templateStorage";
 import { matchRegionWithFallback } from "../regionMatcher";
+import { isSwinerton, matchSwinertonOffice, matchExtRegion } from "../swinertonOffices";
 import fs from "fs";
 import path from "path";
 import JSZip from "jszip";
@@ -456,24 +457,32 @@ async function mapOpportunityToEntry(opp: BcOpportunity) {
   // Per business rule: Swinerton OFFICE determines region, not project address.
   const officeCandidates = [...hintSegments, ...companySegments].filter(Boolean);
 
-  let regionResult = { code: "", name: "", confident: false };
+  let regionResult: { code: string; displayLabel?: string; confident: boolean } = { code: "", confident: false };
   let matchedSegment = "";
   const fullCompanyName = [opp.gcCompanyName, opp.gcOfficeHint].filter(Boolean).join(" - ");
   const projectName = opp.projectName || "";
 
-  // 1. Try each office segment (office name drives region, not project address)
-  for (const seg of officeCandidates) {
-    const r = await matchRegionWithFallback(seg, "", fullCompanyName, projectName);
-    if (r.confident) { regionResult = r; matchedSegment = seg; break; }
+  const allActiveRegions = await getActiveRegions();
+
+  if (isSwinerton(opp.gcCompanyName || "")) {
+    // Swinerton: match purely by office name — no project address, no project-type keywords
+    // Try each office candidate segment (hint first, then company name parts)
+    for (const seg of officeCandidates) {
+      const r = matchSwinertonOffice(seg, allActiveRegions);
+      if (r.confident) { regionResult = r; matchedSegment = seg; break; }
+    }
+    // If segments didn't work, try the full company name string
+    if (!regionResult.confident && fullCompanyName) {
+      const r = matchSwinertonOffice(fullCompanyName, allActiveRegions);
+      if (r.confident) { regionResult = r; matchedSegment = fullCompanyName; }
+    }
+  } else {
+    // Non-Swinerton GC: look up EXT region by company name
+    regionResult = matchExtRegion(opp.gcCompanyName || "", allActiveRegions);
+    if (regionResult.confident) matchedSegment = opp.gcCompanyName || "";
   }
 
-  // 2. Project location as a TRUE last resort only (user wants office to win)
-  if (!regionResult.confident && locationStr) {
-    regionResult = await matchRegionWithFallback(locationStr, "", fullCompanyName, projectName);
-    if (regionResult.confident) matchedSegment = locationStr;
-  }
-
-  console.log(`[BC Sync] Region match for "${opp.projectName}": candidates=[${officeCandidates.join("|")}] location="${locationStr}" → matched="${matchedSegment}" region="${regionResult.code}" (${regionResult.displayLabel}) confident=${regionResult.confident}`);
+  console.log(`[BC Sync] Region match for "${opp.projectName}": gc="${opp.gcCompanyName}" candidates=[${officeCandidates.join("|")}] → matched="${matchedSegment}" region="${regionResult.code}" (${(regionResult as any).displayLabel || ""}) confident=${regionResult.confident}`);
   const marketContext = [
     (opp.scopes || []).join(" "),
     locationStr,
@@ -506,19 +515,19 @@ async function mapOpportunityToEntry(opp: BcOpportunity) {
 
   const bcLink = opp.id ? `https://app.buildingconnected.com/opportunities/${opp.id}` : "";
 
+  const regionDisplayLabel = (regionResult as any).displayLabel || "";
+
   let selfPerformEstimator = "";
   if (regionResult.code) {
     try {
-      const allRegions = await getActiveRegions();
-      const regionDisplayLabel = regionResult.displayLabel || "";
       const rm = regionDisplayLabel.match(/^([A-Z]{2,5})\s*-\s*(.+)$/);
       if (rm) {
-        const matchedReg = allRegions.find(r => r.code === rm[1] && r.name === rm[2]);
+        const matchedReg = allActiveRegions.find(r => r.code === rm[1] && r.name === rm[2]);
         const spArr = matchedReg?.selfPerformEstimators;
         if (spArr && spArr.length > 0) selfPerformEstimator = spArr[0];
       }
       if (!selfPerformEstimator) {
-        const fallbackReg = allRegions.find(r => r.code === regionResult.code && r.selfPerformEstimators && r.selfPerformEstimators.length > 0);
+        const fallbackReg = allActiveRegions.find(r => r.code === regionResult.code && r.selfPerformEstimators && r.selfPerformEstimators.length > 0);
         if (fallbackReg?.selfPerformEstimators?.[0]) selfPerformEstimator = fallbackReg.selfPerformEstimators[0];
       }
     } catch (_) {}
@@ -526,7 +535,7 @@ async function mapOpportunityToEntry(opp: BcOpportunity) {
 
   return {
     projectName,
-    region: regionResult.code ? regionResult.displayLabel : "",
+    region: regionResult.code ? regionDisplayLabel : "",
     regionNotConfident: !regionResult.confident,
     primaryMarket,
     dueDate,
