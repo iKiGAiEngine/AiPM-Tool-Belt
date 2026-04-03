@@ -502,6 +502,7 @@ export const projects = pgTable("projects", {
   projectName: varchar("project_name", { length: 500 }).notNull(),
   regionCode: varchar("region_code", { length: 20 }).notNull(),
   dueDate: varchar("due_date", { length: 20 }).notNull(),
+  projectAddress: varchar("project_address", { length: 1000 }),
   status: varchar("status", { length: 50 }).notNull().default("created"),
   specsiftSessionId: varchar("specsift_session_id", { length: 100 }),
   planparserJobId: varchar("planparser_job_id", { length: 100 }),

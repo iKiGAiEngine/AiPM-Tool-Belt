@@ -1668,35 +1668,31 @@ export function registerProjectRoutes(app: Express) {
       const workbook = new ExcelJS.Workbook();
       await workbook.xlsx.load(templateBuffer);
 
-      // Prepare project data
-      const projectData: Record<string, string | null> = {
-        projectId: project.projectId,
-        projectName: project.projectName,
-        regionCode: project.regionCode,
-        dueDate: project.dueDate,
-      };
+      // Get proposal log entry to retrieve additional fields
+      const proposalEntry = project.id 
+        ? (await db.select().from(proposalLogEntries).where(eq(proposalLogEntries.projectDbId, project.id)).limit(1))[0]
+        : null;
 
-      // Fill cells based on stamp mappings
-      const stampMappings = template.stampMappings as Array<{ cellRef: string; fieldName: string; label: string }> || [];
-      
-      for (const mapping of stampMappings) {
-        const value = projectData[mapping.fieldName];
-        if (value !== undefined && value !== null) {
-          try {
-            // Parse cell reference like "Summary Sheet!AB1"
-            const [sheetName, cellRef] = mapping.cellRef.includes("!") 
-              ? mapping.cellRef.split("!")
-              : [workbook.worksheets[0]?.name || "Sheet1", mapping.cellRef];
-
-            const sheet = workbook.getWorksheet(sheetName);
-            if (sheet) {
-              const cell = sheet.getCell(cellRef);
-              cell.value = value;
-            }
-          } catch (e) {
-            console.warn(`Failed to set cell ${mapping.cellRef} for ${mapping.fieldName}`, e);
-          }
-        }
+      // Prepare the 6 fields to populate
+      const summarySheet = workbook.getWorksheet("Summary Sheet");
+      if (summarySheet) {
+        // B1: Project Name
+        if (project.projectName) summarySheet.getCell("B1").value = project.projectName;
+        
+        // B2: BID DUE DATE
+        if (project.dueDate) summarySheet.getCell("B2").value = project.dueDate;
+        
+        // B4: SHIP TO (Project Address)
+        if (project.projectAddress) summarySheet.getCell("B4").value = project.projectAddress;
+        
+        // B6: GC ESTIMATOR (Self Perform Estimator Name)
+        if (proposalEntry?.selfPerformEstimator) summarySheet.getCell("B6").value = proposalEntry.selfPerformEstimator;
+        
+        // B12: PROJECT START DATE
+        if (proposalEntry?.anticipatedStart) summarySheet.getCell("B12").value = proposalEntry.anticipatedStart;
+        
+        // B13: PROJECT END DATE
+        if (proposalEntry?.anticipatedFinish) summarySheet.getCell("B13").value = proposalEntry.anticipatedFinish;
       }
 
       // Generate Excel file

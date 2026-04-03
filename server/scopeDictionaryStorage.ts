@@ -177,6 +177,7 @@ export async function createProject(data: InsertProjectInput): Promise<Project> 
     projectName: data.projectName,
     regionCode: data.regionCode,
     dueDate: data.dueDate,
+    projectAddress: data.projectAddress,
     status: data.status ?? "created",
     specsiftSessionId: data.specsiftSessionId,
     planparserJobId: data.planparserJobId,
