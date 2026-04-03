@@ -1,0 +1,2827 @@
+# Replit Build Prompt: AiPM Submittal Builder
+
+## What this is
+
+You are creating a React web application called AiPM Submittal Builder. This is an internal SaaS tool for a commercial construction specialty contractor called National Building Specialties (NBS). It is part of a larger product suite called AiPM (styled with lowercase i).
+
+The purpose of the tool is to let a project manager (PM) create submittal packages from construction estimate workbooks. The PM selects a project, uploads an estimate Excel file, and the system parses it into scope tabs and schedule line items. The PM then assigns product data PDFs to each line item, builds a cover page, validates the package, previews it, and exports it.
+
+## What you must do
+
+Create every file listed below exactly as provided. Do not modify any file contents. Do not rename files. Do not reorganize the structure. Do not add any files that are not listed. Do not install packages beyond what is in package.json. Do not add TypeScript. Do not add a backend server. Do not add Tailwind. Do not add any CSS framework.
+
+The app uses inline styles defined in JavaScript objects. The only CSS file is src/styles/global.css. Do not change this pattern.
+
+## Tech stack
+
+- React 18 (JSX, not TypeScript)
+- Vite 5 as the build tool and dev server
+- No backend server. The app is entirely client-side.
+- Persistence uses localStorage (see src/services/storage.js)
+- Google Fonts loaded via link tag in index.html: DM Sans and JetBrains Mono
+
+## How to run
+
+After creating all files:
+
+1. Run: npm install
+1. Run: npm run dev
+1. The app will be available at http://localhost:5173
+
+The Replit run command should be: npm run dev
+
+## File tree
+
+Create this exact directory structure:
+
+```
+aipm-submittal-builder/
+  package.json
+  vite.config.js
+  index.html
+  src/
+    main.jsx
+    App.jsx
+    styles/
+      global.css
+    utils/
+      helpers.js
+    services/
+      storage.js
+      proposalLog.js
+      estimateParser.js
+      validation.js
+      pagination.js
+    components/
+      Dashboard.jsx
+      NewProject.jsx
+      Workspace.jsx
+      ScheduleEditor.jsx
+      ProductDataPanel.jsx
+      CoverPageEditor.jsx
+      ValidationPanel.jsx
+      PreviewExport.jsx
+      shared/
+        Toast.jsx
+        PageFrame.jsx
+        IssueList.jsx
+        Lbl.jsx
+```
+
+## Critical rules
+
+1. Do not modify any file contents. Every file below must be created exactly as shown, character for character.
+1. Do not add TypeScript, Tailwind, or any CSS framework.
+1. Do not create a server, API, or backend of any kind.
+1. Do not add any packages beyond react, react-dom, vite, and @vitejs/plugin-react.
+1. Do not create any test files.
+1. Do not reorganize or rename any files or directories.
+1. Do not add any explanatory comments that are not already in the source files.
+1. The app must compile and run without errors on first attempt.
+
+## Complete file contents
+
+Below is every file with its exact path and complete contents. Create each one exactly as shown.
+
+-----
+
+### FILE: package.json
+
+```json
+{
+  "name": "aipm-submittal-builder",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.2.0",
+    "vite": "^5.0.0"
+  }
+}
+```
+
+-----
+
+### FILE: vite.config.js
+
+```javascript
+import { defineConfig } from "vite";
+import react from "@vitejs/plugin-react";
+
+export default defineConfig({
+  plugins: [react()],
+  server: {
+    host: "0.0.0.0",
+    port: 5173,
+  },
+});
+```
+
+-----
+
+### FILE: index.html
+
+```html
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AiPM Submittal Builder</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>
+```
+
+-----
+
+### FILE: src/main.jsx
+
+```javascript
+import React from "react";
+import ReactDOM from "react-dom/client";
+import App from "./App.jsx";
+import "./styles/global.css";
+
+ReactDOM.createRoot(document.getElementById("root")).render(
+  <React.StrictMode>
+    <App />
+  </React.StrictMode>
+);
+```
+
+-----
+
+### FILE: src/styles/global.css
+
+```css
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  width: 100%;
+}
+
+body {
+  font-family: "DM Sans", "Segoe UI", system-ui, sans-serif;
+  background: #0f1117;
+  color: #e2e8f0;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+::-webkit-scrollbar {
+  width: 5px;
+}
+
+::-webkit-scrollbar-track {
+  background: #0f1117;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #2a2d3a;
+  border-radius: 3px;
+}
+
+select {
+  appearance: none;
+  -webkit-appearance: none;
+}
+
+input:focus,
+select:focus {
+  outline: none;
+  border-color: #BF9B30;
+}
+```
+
+-----
+
+### FILE: src/utils/helpers.js
+
+```javascript
+// Unique ID generator
+let _idCounter = Date.now();
+export function uid() {
+  _idCounter += 1;
+  return String(_idCounter);
+}
+
+// Current timestamp in milliseconds
+export function now() {
+  return Date.now();
+}
+
+// Format timestamp to readable string
+export function formatTimestamp(ts) {
+  if (!ts) return "\u2014";
+  return new Date(ts).toLocaleString("en-US", {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
+
+// Percentage helper (safe divide)
+export function pct(numerator, denominator) {
+  if (denominator === 0) return 0;
+  return Math.round((numerator / denominator) * 100);
+}
+
+// Status metadata for submittal projects
+export const STATUS_META = {
+  not_started: { label: "Not Started", color: "#64748b", bg: "#1e293b" },
+  in_progress: { label: "In Progress", color: "#3b82f6", bg: "#1e3a5f" },
+  waiting_product_data: { label: "Waiting on Product Data", color: "#f59e0b", bg: "#422006" },
+  ready_for_review: { label: "Ready for Review", color: "#a855f7", bg: "#3b0764" },
+  ready_for_export: { label: "Ready for Export", color: "#22c55e", bg: "#052e16" },
+  exported: { label: "Exported", color: "#10b981", bg: "#064e3b" },
+};
+
+// Status metadata for individual line items
+export const LINE_STATUS = {
+  missing: { label: "Missing", color: "#ef4444" },
+  attached: { label: "Attached", color: "#22c55e" },
+  not_required: { label: "Not Required", color: "#64748b" },
+  pending: { label: "Pending", color: "#f59e0b" },
+  by_others: { label: "By Others", color: "#8b5cf6" },
+};
+
+// Shared inline style objects used across components
+export const inputStyle = {
+  background: "#0f1117",
+  border: "1px solid #2a2d3a",
+  borderRadius: 4,
+  padding: "6px 10px",
+  color: "#e2e8f0",
+  fontSize: 12,
+  outline: "none",
+  width: "100%",
+};
+
+export const btnPrimary = {
+  padding: "8px 18px",
+  borderRadius: 6,
+  fontSize: 13,
+  fontWeight: 700,
+  background: "linear-gradient(135deg, #BF9B30, #D4AF37)",
+  color: "#000",
+  border: "none",
+  cursor: "pointer",
+};
+
+export const btnGhost = {
+  padding: "6px 12px",
+  borderRadius: 4,
+  fontSize: 12,
+  background: "none",
+  border: "1px solid #2a2d3a",
+  color: "#94a3b8",
+  cursor: "pointer",
+};
+
+// Placeholder page count for attachments.
+// This is a TEMPORARY mock. In production, the real PDF page count
+// is read from the uploaded file via pdf.js or a backend service.
+export function placeholderPageCount() {
+  return 2;
+}
+```
+
+-----
+
+### FILE: src/services/storage.js
+
+```javascript
+// Persistent storage adapter using localStorage.
+// All submittal projects are stored under keys prefixed with "submittal:".
+// In a future phase this can be swapped for a real database client
+// without changing any calling code.
+
+const PREFIX = "submittal:";
+
+function getItem(key) {
+  try {
+    const raw = localStorage.getItem(key);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+function setItem(key, value) {
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function removeItem(key) {
+  try {
+    localStorage.removeItem(key);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function listKeys(prefix) {
+  const results = [];
+  for (let i = 0; i < localStorage.length; i++) {
+    const key = localStorage.key(i);
+    if (key && key.startsWith(prefix)) {
+      results.push(key);
+    }
+  }
+  return results;
+}
+
+// Load all saved submittal projects, sorted by most recently updated first.
+export async function loadAllProjects() {
+  const keys = listKeys(PREFIX);
+  const projects = [];
+  for (const k of keys) {
+    const p = getItem(k);
+    if (p) projects.push(p);
+  }
+  return projects.sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+}
+
+// Load a single project by ID.
+export async function loadProject(id) {
+  return getItem(PREFIX + id);
+}
+
+// Save a project. Sets updatedAt automatically.
+export async function saveProject(project) {
+  const p = { ...project, updatedAt: Date.now() };
+  setItem(PREFIX + p.id, p);
+  return p;
+}
+
+// Delete a project by ID.
+export async function deleteProject(id) {
+  removeItem(PREFIX + id);
+}
+```
+
+-----
+
+### FILE: src/services/proposalLog.js
+
+```javascript
+// AiPM Proposal Log integration adapter.
+// Phase 1: returns mock Awarded project data.
+// In production: replace with real API call to the Proposal Log service.
+
+const AWARDED_PROJECTS = [
+  {
+    id: "PL-2025-041",
+    projectName: "Celina Government Center",
+    gc: "Swinerton Builders",
+    attention: "Corey Spaise",
+    assignedPm: "Eddie",
+    status: "Awarded",
+  },
+  {
+    id: "PL-2025-038",
+    projectName: "Riverside Medical Office Building",
+    gc: "Turner Construction",
+    attention: "Mark Chen",
+    assignedPm: "Eddie",
+    status: "Awarded",
+  },
+  {
+    id: "PL-2025-035",
+    projectName: "Anaheim Convention Center Expansion",
+    gc: "McCarthy Building",
+    attention: "Sarah Kim",
+    assignedPm: "CK",
+    status: "Awarded",
+  },
+  {
+    id: "PL-2025-032",
+    projectName: "Irvine Spectrum Phase IV",
+    gc: "Hensel Phelps",
+    attention: "David Torres",
+    assignedPm: "Eddie",
+    status: "Awarded",
+  },
+  {
+    id: "PL-2025-029",
+    projectName: "Ontario Airport Terminal Renovation",
+    gc: "Clark Construction",
+    attention: "James Walsh",
+    assignedPm: "Eddie",
+    status: "Awarded",
+  },
+  {
+    id: "PL-2025-027",
+    projectName: "San Bernardino County Admin Building",
+    gc: "Skanska",
+    attention: "Lisa Park",
+    assignedPm: "CK",
+    status: "Awarded",
+  },
+];
+
+export async function fetchAwardedProjects() {
+  return AWARDED_PROJECTS;
+}
+```
+
+-----
+
+### FILE: src/services/estimateParser.js
+
+```javascript
+// Estimate workbook parser service.
+// Phase 1: returns mock parsed data matching the real Celina Government Center
+// estimate workbook structure (row 7 headers, row 9+ data, columns B-G).
+// In production: this calls a Python FastAPI endpoint that uses openpyxl
+// to read the actual .xlsm file and return the same shape.
+
+const MOCK_PARSED_DATA = {
+  project: "Celina Government Center",
+  scopes: [
+    {
+      tab: "Toilet Accessories",
+      csi: "10 28 00",
+      specTitle: "Toilet Bath and Laundry Accessories",
+      lines: [
+        { callout: "BCS2", desc: "Horizontal, Recessed Mounted Baby Changing Station - Stainless", model: "KB310-SSRE", qty: 18 },
+        { callout: "CH1", desc: "Hat and Coat Hook", model: "9134-000000", qty: 31 },
+        { callout: "GB18V", desc: "Straight Grab Bar \u2013 18\" Length", model: "8320-001180", qty: 19 },
+        { callout: "GB36", desc: "Straight Grab Bar \u2013 36\" Length", model: "8320-001360", qty: 19 },
+        { callout: "GB42", desc: "Straight Grab Bar \u2013 42\" Length", model: "8320-001420", qty: 23 },
+        { callout: "PTD1", desc: "Paper Towel Dispenser", model: "GP Pro 59488A", qty: 29 },
+        { callout: "SNDP1", desc: "Sanitary Napkin Disposal, 1.2-Gal.", model: "4722-150000", qty: 29 },
+        { callout: "SPD-01", desc: "Sloan AC Powered, Touchless Soap Dispenser - Polished Chrome", model: "ESD-200", qty: 31 },
+        { callout: "TSCD", desc: "Toilet Seat Cover Dispenser", model: "5831-000000", qty: 35 },
+        { callout: "TTD3", desc: "Multi-Roll Toilet Tissue Dispenser \u2013 ConturaSeries", model: "5A00-000000", qty: 39 },
+        { callout: "WR2", desc: "Waste Receptacle, Requires 4\" Wall Recess \u2013 12-Gal.", model: "344-000000", qty: 19 },
+        { callout: "ACS1", desc: "Adult Changing Station 27.5' x 67', Electric height Adjustable Battery operated, w/ Pressalit Blue Mattress", model: "Pressalit MCT2", qty: 1 },
+        { callout: "MBHS", desc: "Shelf, 4 Mop Holders, 3 Rag Hooks \u2013 36\" Length", model: "9984-000000", qty: 5 },
+      ],
+    },
+    {
+      tab: "Fire Protection",
+      csi: "10 44 00",
+      specTitle: "Fire Protection Specialties",
+      lines: [
+        { callout: "FEC", desc: "Fire Extinguisher + Tagging", model: "FE10C Cosmic 10E", qty: 24 },
+        { callout: "FEC", desc: "Fire Extinguisher Cabinet Amassador Series, 1-1/2\" Square Trim, Vertical Duo, Clear Acrylic, White", model: "C1016V10", qty: 24 },
+        { callout: "FEC", desc: "Fire Extinguisher Arrow Tent Sign", model: "24S", qty: 24 },
+      ],
+    },
+    {
+      tab: "Emergency Specialties",
+      csi: "10 43 00",
+      specTitle: "Fire Protection Specialties",
+      lines: [
+        { callout: "AED", desc: "LIFEPAK Semi Automatic USB & Wifi", model: "LIFEPAK CR2 WIFI Semi-auto Connected AED W/ Bag", qty: 2 },
+        { callout: "AED", desc: "AED Cabinet Fully Recessed, Flat Trim X 6 3/4\", 85 Db Audible Alarm, Steel", model: "C1415F12", qty: 2 },
+        { callout: "AED", desc: "AED Tent Sign", model: "14TS", qty: 2 },
+      ],
+    },
+    {
+      tab: "Wall Protection",
+      csi: "10 26 00",
+      specTitle: "Wall and Door Protection",
+      lines: [
+        { callout: "CG-A1", desc: "Corner Guard, 90 degree, flush mounted, 3\" legs, 1/4\" nose radius. 12' - 0\" Height.", model: "Acrovyn 4000 FS-20N", qty: 65 },
+        { callout: "EG-A1", desc: "Acrovyn 4000 End Wall Corner Guard, flush mounted. For wall widths of 3-1/8\" to 7\".", model: "Acrovyn 4000 FS-25N", qty: 9 },
+        { callout: "CR-1", desc: "Bumper Guard, 2-3/4\" exposed face, bumper mounted, 12'L (115.27LF)", model: "Acrovyn 4000 Model BG-30N", qty: 10 },
+        { callout: "CR-1", desc: "Bumper Guard End Caps", model: "Acrovyn 4000 End cap for Model BG30N", qty: 20 },
+      ],
+    },
+    {
+      tab: "Toilet Compartments",
+      csi: "10 21 13",
+      specTitle: "Toilet Compartments",
+      lines: [
+        { callout: "N/A", desc: "Floor Mounted Overhead Braced Solid Plastic Partitions - POLY Stalls. 72\" Tall Panels and Doors, 9\" AFF, Non Rated.", model: "Toilet Compartment", qty: 30 },
+        { callout: "N/A", desc: "Wall Mounted Solid Plastic POLY Screen 24\" x 55\"", model: "Urinal Screen", qty: 1 },
+      ],
+    },
+    {
+      tab: "Visual Display Units",
+      csi: "10 11 00",
+      specTitle: "Visual Display Units",
+      lines: [
+        { callout: "Map Rail", desc: "Display Reveal End Cap - Silver", model: "B0005AS", qty: 6 },
+        { callout: "Map Rail", desc: "Display Reveal - Silver, 60 in (152 cm)", model: "A1024", qty: 12 },
+      ],
+    },
+  ],
+};
+
+// Parse an estimate workbook file.
+// Phase 1: ignores the actual file and returns mock data.
+// The fileName parameter is accepted for logging/display purposes.
+export async function parseEstimateWorkbook(fileName) {
+  // Simulate parsing delay
+  return new Promise((resolve) => {
+    setTimeout(() => {
+      resolve(MOCK_PARSED_DATA);
+    }, 1500);
+  });
+}
+```
+
+-----
+
+### FILE: src/services/validation.js
+
+```javascript
+// Package validation engine.
+// Audits a submittal project and returns categorized issues.
+
+export function validateProject(project) {
+  if (!project || !project.scopes) {
+    return { errors: [], warnings: [], info: [], summary: {} };
+  }
+
+  const errors = [];
+  const warnings = [];
+  const info = [];
+
+  let totalLines = 0;
+  let attached = 0;
+  let missing = 0;
+  let blankCallout = 0;
+  let blankDesc = 0;
+  let blankModel = 0;
+  let zeroQty = 0;
+  let totalAttPages = 0;
+
+  project.scopes.forEach((scope) => {
+    // Check for missing cover rows
+    if (!scope.coverLines || scope.coverLines.length === 0) {
+      warnings.push({ scope: scope.tabName, msg: "No cover page rows defined" });
+    }
+
+    const scopeCallouts = {};
+    const scopeModels = {};
+
+    scope.lines.forEach((line) => {
+      totalLines++;
+
+      // Skip lines marked not required or by others
+      if (line.lineStatus === "not_required" || line.lineStatus === "by_others") {
+        info.push({
+          scope: scope.tabName,
+          line: line.callout || "(no callout)",
+          msg: "Marked " + line.lineStatus.replace("_", " "),
+        });
+        return;
+      }
+
+      // Attachment check
+      const attCount = line.attachments ? line.attachments.length : 0;
+      const attPages = line.attachments
+        ? line.attachments.reduce((a, x) => a + (x.pageCount || 0), 0)
+        : 0;
+      totalAttPages += attPages;
+
+      if (attCount > 0) {
+        attached++;
+      } else {
+        missing++;
+        warnings.push({
+          scope: scope.tabName,
+          line: line.callout || "(blank)",
+          msg: "Missing product data",
+        });
+      }
+
+      // Blank field checks
+      if (!line.callout || !line.callout.trim()) {
+        blankCallout++;
+        errors.push({
+          scope: scope.tabName,
+          line: "Row " + line.sortOrder,
+          msg: "Blank callout",
+        });
+      }
+
+      if (!line.desc || !line.desc.trim()) {
+        blankDesc++;
+        errors.push({
+          scope: scope.tabName,
+          line: line.callout || "Row " + line.sortOrder,
+          msg: "Blank description",
+        });
+      }
+
+      if (!line.model || !line.model.trim()) {
+        blankModel++;
+        warnings.push({
+          scope: scope.tabName,
+          line: line.callout || "(blank)",
+          msg: "Blank model number",
+        });
+      }
+
+      const qtyVal = Number(line.qty);
+      if (!line.qty || qtyVal === 0 || isNaN(qtyVal)) {
+        zeroQty++;
+        warnings.push({
+          scope: scope.tabName,
+          line: line.callout || "(blank)",
+          msg: "Zero or missing quantity",
+        });
+      }
+
+      // Track duplicates within scope
+      if (line.callout && line.callout.trim()) {
+        const key = line.callout.trim();
+        scopeCallouts[key] = (scopeCallouts[key] || 0) + 1;
+      }
+      if (line.model && line.model.trim()) {
+        const key = line.model.trim();
+        scopeModels[key] = (scopeModels[key] || 0) + 1;
+      }
+    });
+
+    // Report duplicates
+    Object.entries(scopeCallouts)
+      .filter(([, count]) => count > 1)
+      .forEach(([key, count]) => {
+        info.push({
+          scope: scope.tabName,
+          msg: "Duplicate callout: " + key + " (" + count + "x)",
+        });
+      });
+
+    Object.entries(scopeModels)
+      .filter(([, count]) => count > 1)
+      .forEach(([key, count]) => {
+        info.push({
+          scope: scope.tabName,
+          msg: "Duplicate model: " + key + " (" + count + "x)",
+        });
+      });
+  });
+
+  // Projected total pages: cover + schedule pages + attachment pages per scope
+  const schedulePages = project.scopes.reduce((a, s) => {
+    return a + Math.max(1, Math.ceil((s.lines ? s.lines.length : 0) / 15));
+  }, 0);
+  const projectedPages = project.scopes.length + schedulePages + totalAttPages;
+
+  return {
+    errors,
+    warnings,
+    info,
+    summary: {
+      totalScopes: project.scopes.length,
+      totalLines,
+      attached,
+      missing,
+      blankCallout,
+      blankDesc,
+      blankModel,
+      zeroQty,
+      totalAttPages,
+      projectedPages,
+    },
+  };
+}
+```
+
+-----
+
+### FILE: src/services/pagination.js
+
+```javascript
+// Pagination engine for submittal packages.
+// Computes page numbers for cover, schedule (multi-page), and attachments.
+
+export const LINES_PER_SCHEDULE_PAGE = 15;
+
+export function computePagination(scope) {
+  if (!scope) {
+    return {
+      cover: 1,
+      scheduleStart: 2,
+      scheduleEnd: 2,
+      schedulePages: 1,
+      attachments: [],
+      total: 2,
+    };
+  }
+
+  const lineCount = scope.lines ? scope.lines.length : 0;
+  const schedulePages = Math.max(1, Math.ceil(lineCount / LINES_PER_SCHEDULE_PAGE));
+  const scheduleEnd = 1 + schedulePages;
+
+  let page = scheduleEnd + 1;
+  const attachments = [];
+
+  if (scope.lines) {
+    scope.lines.forEach((line) => {
+      if (line.attachments) {
+        line.attachments.forEach((att) => {
+          const pgCount = att.pageCount || 1;
+          attachments.push({
+            id: att.id,
+            fileName: att.fileName,
+            callout: line.callout,
+            model: line.model,
+            calloutStamp: att.calloutStamp,
+            pageCount: pgCount,
+            startPage: page,
+            endPage: page + pgCount - 1,
+          });
+          page += pgCount;
+        });
+      }
+    });
+  }
+
+  return {
+    cover: 1,
+    scheduleStart: 2,
+    scheduleEnd: scheduleEnd,
+    schedulePages: schedulePages,
+    attachments: attachments,
+    total: attachments.length > 0 ? page - 1 : scheduleEnd,
+  };
+}
+```
+
+-----
+
+### FILE: src/App.jsx
+
+```javascript
+import React, { useState, useEffect } from "react";
+import { loadAllProjects, saveProject, deleteProject } from "./services/storage.js";
+import { uid, now } from "./utils/helpers.js";
+import Dashboard from "./components/Dashboard.jsx";
+import NewProject from "./components/NewProject.jsx";
+import Workspace from "./components/Workspace.jsx";
+import Toast from "./components/shared/Toast.jsx";
+
+export default function App() {
+  var [view, setView] = useState("dashboard");
+  var [projects, setProjects] = useState([]);
+  var [activeProjectId, setActiveProjectId] = useState(null);
+  var [loading, setLoading] = useState(true);
+  var [toast, setToast] = useState(null);
+
+  var flash = function (msg, type) {
+    setToast({ msg: msg, type: type || "info" });
+    setTimeout(function () {
+      setToast(null);
+    }, 3000);
+  };
+
+  // Load all projects on mount
+  useEffect(function () {
+    loadAllProjects().then(function (p) {
+      setProjects(p);
+      setLoading(false);
+    });
+  }, []);
+
+  var refreshProjects = function () {
+    return loadAllProjects().then(function (p) {
+      setProjects(p);
+    });
+  };
+
+  var openProject = function (id) {
+    setActiveProjectId(id);
+    setView("workspace");
+  };
+
+  var goHome = function () {
+    setView("dashboard");
+    setActiveProjectId(null);
+    refreshProjects();
+  };
+
+  var startNew = function () {
+    setView("newProject");
+  };
+
+  var createProject = function (plProject) {
+    var p = {
+      id: uid(),
+      proposalLogId: plProject.id,
+      projectName: plProject.projectName,
+      gc: plProject.gc,
+      attention: plProject.attention || "",
+      assignedPm: plProject.assignedPm || "",
+      submittalStatus: "not_started",
+      completionPercent: 0,
+      createdAt: now(),
+      updatedAt: now(),
+      lastOpenedAt: now(),
+      lastActiveScopeId: null,
+      lastActiveTab: "schedule",
+      scopes: [],
+      coverDate: new Date().toLocaleDateString("en-US", {
+        month: "2-digit",
+        day: "2-digit",
+        year: "2-digit",
+      }),
+    };
+    saveProject(p).then(function () {
+      refreshProjects().then(function () {
+        setActiveProjectId(p.id);
+        setView("workspace");
+      });
+    });
+  };
+
+  var handleDelete = function (id) {
+    deleteProject(id).then(function () {
+      refreshProjects();
+    });
+  };
+
+  return (
+    <div
+      style={{
+        fontFamily: "'DM Sans', 'Segoe UI', system-ui, sans-serif",
+        background: "#0f1117",
+        color: "#e2e8f0",
+        minHeight: "100vh",
+      }}
+    >
+      {toast && <Toast msg={toast.msg} type={toast.type} />}
+      {view === "dashboard" && (
+        <Dashboard
+          projects={projects}
+          loading={loading}
+          onOpen={openProject}
+          onNew={startNew}
+          onDelete={handleDelete}
+        />
+      )}
+      {view === "newProject" && (
+        <NewProject onBack={goHome} onCreate={createProject} />
+      )}
+      {view === "workspace" && activeProjectId && (
+        <Workspace
+          projectId={activeProjectId}
+          onHome={goHome}
+          flash={flash}
+          refreshProjects={refreshProjects}
+        />
+      )}
+    </div>
+  );
+}
+```
+
+-----
+
+### FILE: src/components/Dashboard.jsx
+
+```javascript
+import React, { useState } from "react";
+import { STATUS_META, formatTimestamp, pct, inputStyle, btnPrimary } from "../utils/helpers.js";
+
+export default function Dashboard({ projects, loading, onOpen, onNew, onDelete }) {
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
+
+  const filtered = projects.filter((p) => {
+    if (statusFilter !== "all" && p.submittalStatus !== statusFilter) return false;
+    if (search) {
+      const q = search.toLowerCase();
+      if (
+        !p.projectName.toLowerCase().includes(q) &&
+        !(p.gc || "").toLowerCase().includes(q)
+      ) {
+        return false;
+      }
+    }
+    return true;
+  });
+
+  return (
+    <div style={{ maxWidth: 960, margin: "0 auto", padding: "32px 24px" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 32 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <div style={{ width: 5, height: 24, background: "#BF9B30", borderRadius: 2 }} />
+          <span style={{ fontSize: 20, fontWeight: 800, color: "#f8fafc" }}>AiPM</span>
+          <span style={{ fontSize: 16, color: "#94a3b8" }}>Submittal Builder</span>
+        </div>
+        <div style={{ flex: 1 }} />
+        <button onClick={onNew} style={btnPrimary}>+ New Submittal</button>
+      </div>
+
+      <div style={{ display: "flex", gap: 8, marginBottom: 20, flexWrap: "wrap" }}>
+        <input
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Search projects..."
+          style={{ ...inputStyle, flex: 1, minWidth: 200 }}
+        />
+        <select
+          value={statusFilter}
+          onChange={(e) => setStatusFilter(e.target.value)}
+          style={{ ...inputStyle, width: 180 }}
+        >
+          <option value="all">All Statuses</option>
+          {Object.entries(STATUS_META).map(([k, v]) => (
+            <option key={k} value={k}>{v.label}</option>
+          ))}
+        </select>
+      </div>
+
+      {loading ? (
+        <div style={{ textAlign: "center", padding: 60, color: "#64748b" }}>
+          Loading projects...
+        </div>
+      ) : filtered.length === 0 ? (
+        <div style={{ textAlign: "center", padding: 60, color: "#475569" }}>
+          {projects.length === 0
+            ? "No submittal projects yet. Click + New Submittal to begin."
+            : "No projects match your filters."}
+        </div>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          {filtered.map((p) => {
+            const sm = STATUS_META[p.submittalStatus] || STATUS_META.not_started;
+            const scopeCount = p.scopes ? p.scopes.length : 0;
+            const lineCount = p.scopes
+              ? p.scopes.reduce((a, s) => a + (s.lines ? s.lines.length : 0), 0)
+              : 0;
+            const attachedCount = p.scopes
+              ? p.scopes.reduce(
+                  (a, s) =>
+                    a +
+                    (s.lines
+                      ? s.lines.filter((l) => l.attachments && l.attachments.length > 0).length
+                      : 0),
+                  0
+                )
+              : 0;
+            const comp = lineCount > 0 ? pct(attachedCount, lineCount) : 0;
+
+            return (
+              <div
+                key={p.id}
+                onClick={() => onOpen(p.id)}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 16,
+                  padding: "14px 18px",
+                  background: "#161822",
+                  border: "1px solid #2a2d3a",
+                  borderRadius: 8,
+                  cursor: "pointer",
+                  transition: "border-color .15s",
+                }}
+                onMouseEnter={(e) => { e.currentTarget.style.borderColor = "#BF9B30"; }}
+                onMouseLeave={(e) => { e.currentTarget.style.borderColor = "#2a2d3a"; }}
+              >
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: "#f8fafc", marginBottom: 3 }}>
+                    {p.projectName}
+                  </div>
+                  <div style={{ fontSize: 12, color: "#94a3b8" }}>
+                    {p.gc}
+                    {p.attention ? " \u00b7 " + p.attention : ""}
+                    {p.assignedPm ? " \u00b7 PM: " + p.assignedPm : ""}
+                  </div>
+                </div>
+                <div style={{ textAlign: "right", minWidth: 100 }}>
+                  <div style={{ fontSize: 11, color: "#64748b", marginBottom: 4 }}>
+                    {scopeCount} scopes &middot; {lineCount} lines
+                  </div>
+                  <div
+                    style={{
+                      height: 4,
+                      width: 100,
+                      background: "#2a2d3a",
+                      borderRadius: 2,
+                      overflow: "hidden",
+                    }}
+                  >
+                    <div
+                      style={{
+                        height: "100%",
+                        width: comp + "%",
+                        background: comp === 100 ? "#22c55e" : "#BF9B30",
+                        borderRadius: 2,
+                      }}
+                    />
+                  </div>
+                </div>
+                <span
+                  style={{
+                    padding: "3px 10px",
+                    borderRadius: 4,
+                    fontSize: 11,
+                    fontWeight: 600,
+                    color: sm.color,
+                    background: sm.bg,
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  {sm.label}
+                </span>
+                <span style={{ fontSize: 11, color: "#475569", minWidth: 80, textAlign: "right" }}>
+                  {formatTimestamp(p.updatedAt)}
+                </span>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (window.confirm("Delete this project?")) onDelete(p.id);
+                  }}
+                  style={{
+                    background: "none",
+                    border: "none",
+                    color: "#475569",
+                    cursor: "pointer",
+                    fontSize: 16,
+                    padding: 4,
+                  }}
+                  title="Delete"
+                >
+                  &times;
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+```
+
+-----
+
+### FILE: src/components/NewProject.jsx
+
+```javascript
+import React, { useState, useEffect } from "react";
+import { fetchAwardedProjects } from "../services/proposalLog.js";
+import { inputStyle, btnGhost } from "../utils/helpers.js";
+
+export default function NewProject({ onBack, onCreate }) {
+  const [awarded, setAwarded] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState("");
+
+  useEffect(() => {
+    fetchAwardedProjects().then((p) => {
+      setAwarded(p);
+      setLoading(false);
+    });
+  }, []);
+
+  const filtered = awarded.filter(
+    (p) => !search || p.projectName.toLowerCase().includes(search.toLowerCase())
+  );
+
+  return (
+    <div style={{ maxWidth: 700, margin: "0 auto", padding: "32px 24px" }}>
+      <button onClick={onBack} style={{ ...btnGhost, marginBottom: 20 }}>
+        &larr; Back to Projects
+      </button>
+      <h2 style={{ fontSize: 18, fontWeight: 800, color: "#f8fafc", marginBottom: 4 }}>
+        Start New Submittal
+      </h2>
+      <p style={{ fontSize: 13, color: "#64748b", marginBottom: 20 }}>
+        Select an awarded project from the AiPM Proposal Log.
+      </p>
+      <input
+        value={search}
+        onChange={(e) => setSearch(e.target.value)}
+        placeholder="Search awarded projects..."
+        style={{ ...inputStyle, width: "100%", marginBottom: 16 }}
+      />
+      {loading ? (
+        <div style={{ padding: 40, textAlign: "center", color: "#64748b" }}>
+          Loading Proposal Log...
+        </div>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          {filtered.map((p) => (
+            <div
+              key={p.id}
+              onClick={() => onCreate(p)}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 12,
+                padding: "12px 16px",
+                background: "#161822",
+                border: "1px solid #2a2d3a",
+                borderRadius: 8,
+                cursor: "pointer",
+                transition: "border-color .15s",
+              }}
+              onMouseEnter={(e) => { e.currentTarget.style.borderColor = "#BF9B30"; }}
+              onMouseLeave={(e) => { e.currentTarget.style.borderColor = "#2a2d3a"; }}
+            >
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 14, fontWeight: 700, color: "#f8fafc" }}>
+                  {p.projectName}
+                </div>
+                <div style={{ fontSize: 12, color: "#94a3b8" }}>
+                  {p.gc}
+                  {p.attention ? " \u00b7 Attn: " + p.attention : ""}
+                  {p.assignedPm ? " \u00b7 PM: " + p.assignedPm : ""}
+                </div>
+              </div>
+              <span
+                style={{
+                  padding: "3px 10px",
+                  borderRadius: 4,
+                  fontSize: 11,
+                  fontWeight: 600,
+                  color: "#22c55e",
+                  background: "#052e16",
+                }}
+              >
+                Awarded
+              </span>
+              <span style={{ fontSize: 12, color: "#BF9B30" }}>&rarr;</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+```
+
+-----
+
+### FILE: src/components/Workspace.jsx
+
+```javascript
+import React, { useState, useEffect, useCallback, useRef } from "react";
+import { loadProject, saveProject } from "../services/storage.js";
+import { parseEstimateWorkbook } from "../services/estimateParser.js";
+import { computePagination } from "../services/pagination.js";
+import { uid, now, pct, btnGhost } from "../utils/helpers.js";
+import ScheduleEditor from "./ScheduleEditor.jsx";
+import ProductDataPanel from "./ProductDataPanel.jsx";
+import CoverPageEditor from "./CoverPageEditor.jsx";
+import ValidationPanel from "./ValidationPanel.jsx";
+import PreviewExport from "./PreviewExport.jsx";
+
+export default function Workspace({ projectId, onHome, flash, refreshProjects }) {
+  var [project, setProject] = useState(null);
+  var [loading, setLoading] = useState(true);
+  var [saving, setSaving] = useState("saved");
+  var [activeTab, setActiveTab] = useState("schedule");
+  var [activeScopeIdx, setActiveScopeIdx] = useState(0);
+  var saveTimer = useRef(null);
+
+  // Load project from storage on mount
+  useEffect(function () {
+    loadProject(projectId).then(function (p) {
+      if (p) {
+        setProject(p);
+        setActiveTab(p.lastActiveTab || "schedule");
+        if (p.lastActiveScopeId && p.scopes) {
+          var idx = p.scopes.findIndex(function (s) {
+            return s.id === p.lastActiveScopeId;
+          });
+          if (idx >= 0) setActiveScopeIdx(idx);
+        }
+      }
+      setLoading(false);
+    });
+  }, [projectId]);
+
+  // Autosave with debounce
+  var triggerSave = useCallback(
+    function (updated) {
+      setSaving("unsaved");
+      clearTimeout(saveTimer.current);
+      saveTimer.current = setTimeout(function () {
+        setSaving("saving");
+        var scope =
+          updated.scopes && updated.scopes[activeScopeIdx]
+            ? updated.scopes[activeScopeIdx]
+            : null;
+        var toSave = Object.assign({}, updated, {
+          lastActiveScopeId: scope ? scope.id : null,
+          lastActiveTab: activeTab,
+          lastOpenedAt: now(),
+        });
+
+        // Compute completion
+        var totalLines = 0;
+        var attachedLines = 0;
+        if (toSave.scopes) {
+          toSave.scopes.forEach(function (s) {
+            if (s.lines) {
+              totalLines += s.lines.length;
+              s.lines.forEach(function (l) {
+                if (l.attachments && l.attachments.length > 0) attachedLines++;
+              });
+            }
+          });
+        }
+        toSave.completionPercent = totalLines > 0 ? pct(attachedLines, totalLines) : 0;
+
+        // Compute status
+        if (!toSave.scopes || toSave.scopes.length === 0) {
+          toSave.submittalStatus = "not_started";
+        } else if (attachedLines === 0) {
+          toSave.submittalStatus = "in_progress";
+        } else if (attachedLines < totalLines) {
+          toSave.submittalStatus = "waiting_product_data";
+        } else {
+          toSave.submittalStatus = "ready_for_review";
+        }
+
+        saveProject(toSave).then(function () {
+          setSaving("saved");
+        });
+      }, 800);
+    },
+    [activeScopeIdx, activeTab]
+  );
+
+  // Deep-clone and update project, then trigger save
+  var update = function (fn) {
+    setProject(function (prev) {
+      var next = fn(JSON.parse(JSON.stringify(prev)));
+      triggerSave(next);
+      return next;
+    });
+  };
+
+  // Handle estimate workbook drop
+  var handleEstimateDrop = function (e) {
+    e.preventDefault();
+    var files = e.dataTransfer ? Array.from(e.dataTransfer.files) : [];
+    if (files.length === 0) return;
+    flash("Parsing estimate workbook...", "info");
+    parseEstimateWorkbook(files[0].name).then(function (parsed) {
+      update(function (p) {
+        p.scopes = parsed.scopes.map(function (s, i) {
+          return {
+            id: uid(),
+            tabName: s.tab,
+            csi: s.csi,
+            specTitle: s.specTitle,
+            sortOrder: i,
+            scopeStatus: "in_progress",
+            lines: s.lines.map(function (l, j) {
+              return {
+                id: uid(),
+                callout: l.callout,
+                desc: l.desc,
+                model: l.model,
+                qty: l.qty,
+                lineStatus: "missing",
+                sortOrder: j,
+                attachments: [],
+              };
+            }),
+            coverLines: [
+              {
+                id: uid(),
+                spec: s.csi,
+                desc: s.tab,
+                type: "Schedule",
+                comment: "Page 2",
+              },
+            ],
+          };
+        });
+        p.submittalStatus = "in_progress";
+        return p;
+      });
+      var lineTotal = parsed.scopes.reduce(function (a, s) {
+        return a + s.lines.length;
+      }, 0);
+      flash(
+        "Parsed " + parsed.scopes.length + " scopes, " + lineTotal + " line items",
+        "success"
+      );
+    });
+  };
+
+  if (loading) {
+    return (
+      <div style={{ padding: 60, textAlign: "center", color: "#64748b" }}>
+        Loading project...
+      </div>
+    );
+  }
+
+  if (!project) {
+    return (
+      <div style={{ padding: 60, textAlign: "center", color: "#ef4444" }}>
+        Project not found.
+      </div>
+    );
+  }
+
+  var hasScopes = project.scopes && project.scopes.length > 0;
+  var scope = hasScopes ? project.scopes[activeScopeIdx] : null;
+  var pageInfo = computePagination(scope);
+
+  var tabs = [
+    { key: "schedule", label: "Schedule" },
+    { key: "productdata", label: "Product Data" },
+    { key: "cover", label: "Cover Page" },
+    { key: "validation", label: "Validation" },
+    { key: "preview", label: "Preview / Export" },
+  ];
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", height: "100vh" }}>
+      {/* Top bar */}
+      <div
+        style={{
+          background: "#161822",
+          borderBottom: "1px solid #2a2d3a",
+          padding: "0 16px",
+          display: "flex",
+          alignItems: "center",
+          height: 48,
+          gap: 10,
+          flexShrink: 0,
+        }}
+      >
+        <button onClick={onHome} style={btnGhost}>
+          &larr;
+        </button>
+        <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+          <div
+            style={{ width: 4, height: 18, background: "#BF9B30", borderRadius: 1 }}
+          />
+          <span style={{ fontWeight: 800, fontSize: 13, color: "#f8fafc" }}>AiPM</span>
+        </div>
+        <span style={{ fontSize: 14, fontWeight: 700, color: "#f8fafc" }}>
+          {project.projectName}
+        </span>
+        <span style={{ fontSize: 11, color: "#64748b" }}>{project.gc}</span>
+        <div style={{ flex: 1 }} />
+        <span
+          style={{
+            fontSize: 11,
+            color:
+              saving === "saved"
+                ? "#22c55e"
+                : saving === "saving"
+                ? "#f59e0b"
+                : "#94a3b8",
+          }}
+        >
+          {saving === "saved"
+            ? "\u2713 Saved"
+            : saving === "saving"
+            ? "Saving..."
+            : "\u25cf Unsaved"}
+        </span>
+        <button
+          onClick={function () {
+            triggerSave(project);
+            flash("Saved", "success");
+          }}
+          style={{ ...btnGhost, fontSize: 12 }}
+        >
+          Save Draft
+        </button>
+      </div>
+
+      {/* Upload gate if no scopes yet */}
+      {!hasScopes && (
+        <div
+          style={{
+            flex: 1,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+          onDragOver={function (e) {
+            e.preventDefault();
+          }}
+          onDrop={handleEstimateDrop}
+        >
+          <div
+            style={{
+              width: 480,
+              textAlign: "center",
+              padding: 40,
+              border: "2px dashed #2a2d3a",
+              borderRadius: 16,
+              background: "#161822",
+            }}
+          >
+            <div style={{ fontSize: 40, marginBottom: 12 }}>&#128203;</div>
+            <div
+              style={{ fontSize: 16, fontWeight: 700, color: "#f8fafc", marginBottom: 6 }}
+            >
+              Drop Estimate Workbook to Begin
+            </div>
+            <div style={{ fontSize: 12, color: "#64748b", lineHeight: 1.6 }}>
+              Drag your .xlsm or .xlsx estimate file here.
+              <br />
+              The system will auto-detect scope tabs, CSI sections, and line items.
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Builder when scopes exist */}
+      {hasScopes && (
+        <>
+          {/* Scope tabs */}
+          <div
+            style={{
+              background: "#13151f",
+              borderBottom: "1px solid #2a2d3a",
+              padding: "0 12px",
+              display: "flex",
+              gap: 0,
+              overflowX: "auto",
+              flexShrink: 0,
+            }}
+          >
+            {project.scopes.map(function (s, i) {
+              var att = s.lines
+                ? s.lines.filter(function (l) {
+                    return l.attachments && l.attachments.length > 0;
+                  }).length
+                : 0;
+              var tot = s.lines ? s.lines.length : 0;
+              var isActive = i === activeScopeIdx;
+              return (
+                <button
+                  key={s.id}
+                  onClick={function () {
+                    setActiveScopeIdx(i);
+                  }}
+                  style={{
+                    padding: "8px 14px",
+                    fontSize: 12,
+                    fontWeight: isActive ? 700 : 400,
+                    color: isActive ? "#BF9B30" : "#94a3b8",
+                    background: "none",
+                    border: "none",
+                    cursor: "pointer",
+                    borderBottom: isActive
+                      ? "2px solid #BF9B30"
+                      : "2px solid transparent",
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  {s.tabName}
+                  <span
+                    style={{
+                      marginLeft: 6,
+                      fontSize: 10,
+                      color: att === tot ? "#22c55e" : "#64748b",
+                    }}
+                  >
+                    {att}/{tot}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Section tabs */}
+          <div
+            style={{
+              background: "#161822",
+              borderBottom: "1px solid #2a2d3a",
+              padding: "0 12px",
+              display: "flex",
+              gap: 0,
+              flexShrink: 0,
+            }}
+          >
+            {tabs.map(function (t) {
+              return (
+                <button
+                  key={t.key}
+                  onClick={function () {
+                    setActiveTab(t.key);
+                  }}
+                  style={{
+                    padding: "7px 14px",
+                    fontSize: 12,
+                    fontWeight: activeTab === t.key ? 600 : 400,
+                    color: activeTab === t.key ? "#f8fafc" : "#64748b",
+                    background: "none",
+                    border: "none",
+                    cursor: "pointer",
+                    borderBottom:
+                      activeTab === t.key
+                        ? "2px solid #f8fafc"
+                        : "2px solid transparent",
+                  }}
+                >
+                  {t.label}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Active section content */}
+          <div style={{ flex: 1, overflowY: "auto" }}>
+            {activeTab === "schedule" && scope && (
+              <ScheduleEditor
+                scope={scope}
+                update={update}
+                scopeIdx={activeScopeIdx}
+              />
+            )}
+            {activeTab === "productdata" && scope && (
+              <ProductDataPanel
+                scope={scope}
+                update={update}
+                scopeIdx={activeScopeIdx}
+                pageInfo={pageInfo}
+                flash={flash}
+              />
+            )}
+            {activeTab === "cover" && scope && (
+              <CoverPageEditor
+                scope={scope}
+                project={project}
+                update={update}
+                scopeIdx={activeScopeIdx}
+                pageInfo={pageInfo}
+              />
+            )}
+            {activeTab === "validation" && (
+              <ValidationPanel project={project} />
+            )}
+            {activeTab === "preview" && scope && (
+              <PreviewExport
+                scope={scope}
+                project={project}
+                pageInfo={pageInfo}
+                update={update}
+                flash={flash}
+              />
+            )}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+```
+
+-----
+
+### FILE: src/components/ScheduleEditor.jsx
+
+```javascript
+import React from "react";
+import { LINE_STATUS, inputStyle, btnGhost, uid } from "../utils/helpers.js";
+
+export default function ScheduleEditor({ scope, update, scopeIdx }) {
+  const editLine = (lineId, field, value) => {
+    update((p) => {
+      const line = p.scopes[scopeIdx].lines.find((x) => x.id === lineId);
+      if (line) line[field] = value;
+      return p;
+    });
+  };
+
+  const addLine = () => {
+    update((p) => {
+      p.scopes[scopeIdx].lines.push({
+        id: uid(),
+        callout: "",
+        desc: "",
+        model: "",
+        qty: "",
+        lineStatus: "missing",
+        sortOrder: p.scopes[scopeIdx].lines.length,
+        attachments: [],
+      });
+      return p;
+    });
+  };
+
+  const removeLine = (lineId) => {
+    update((p) => {
+      p.scopes[scopeIdx].lines = p.scopes[scopeIdx].lines.filter(
+        (l) => l.id !== lineId
+      );
+      return p;
+    });
+  };
+
+  return (
+    <div style={{ padding: 20 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
+        <span style={{ fontSize: 15, fontWeight: 700, color: "#f8fafc" }}>
+          {scope.tabName}
+        </span>
+        <span style={{ fontSize: 11, color: "#64748b" }}>
+          CSI {scope.csi} &middot; {scope.lines.length} lines
+        </span>
+        <div style={{ flex: 1 }} />
+        <button onClick={addLine} style={{ ...btnGhost, fontSize: 12 }}>
+          + Add Line
+        </button>
+      </div>
+
+      {/* Header */}
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "90px 32px 1fr 1fr 60px 110px 28px",
+          gap: 2,
+          padding: "6px 8px",
+          background: "#1A2E44",
+          borderRadius: "6px 6px 0 0",
+          fontSize: 10,
+          fontWeight: 700,
+          color: "#94a3b8",
+          textTransform: "uppercase",
+          letterSpacing: ".5px",
+        }}
+      >
+        <span>Callout</span>
+        <span></span>
+        <span>Description</span>
+        <span>Model Number</span>
+        <span>Qty</span>
+        <span>Status</span>
+        <span></span>
+      </div>
+
+      {/* Rows */}
+      {scope.lines.map((l, i) => {
+        const ls = LINE_STATUS[l.lineStatus] || LINE_STATUS.missing;
+        return (
+          <div
+            key={l.id}
+            style={{
+              display: "grid",
+              gridTemplateColumns: "90px 32px 1fr 1fr 60px 110px 28px",
+              gap: 2,
+              padding: "4px 8px",
+              background: i % 2 === 0 ? "#1a1c2a" : "#161822",
+              borderLeft: "1px solid #2a2d3a",
+              borderRight: "1px solid #2a2d3a",
+              borderBottom: "1px solid #1e2030",
+              alignItems: "center",
+            }}
+          >
+            <input
+              value={l.callout}
+              onChange={(e) => editLine(l.id, "callout", e.target.value)}
+              style={{
+                ...inputStyle,
+                fontSize: 11,
+                fontFamily: "'JetBrains Mono', monospace",
+                padding: "3px 6px",
+              }}
+            />
+            <div
+              style={{
+                width: 8,
+                height: 8,
+                borderRadius: 4,
+                background: ls.color,
+              }}
+              title={ls.label}
+            />
+            <input
+              value={l.desc}
+              onChange={(e) => editLine(l.id, "desc", e.target.value)}
+              style={{ ...inputStyle, fontSize: 11, padding: "3px 6px" }}
+            />
+            <input
+              value={l.model}
+              onChange={(e) => editLine(l.id, "model", e.target.value)}
+              style={{
+                ...inputStyle,
+                fontSize: 11,
+                fontFamily: "'JetBrains Mono', monospace",
+                padding: "3px 6px",
+              }}
+            />
+            <input
+              value={l.qty}
+              onChange={(e) => editLine(l.id, "qty", e.target.value)}
+              style={{ ...inputStyle, fontSize: 11, padding: "3px 6px", textAlign: "center" }}
+            />
+            <select
+              value={l.lineStatus}
+              onChange={(e) => editLine(l.id, "lineStatus", e.target.value)}
+              style={{ ...inputStyle, fontSize: 10, padding: "3px 4px" }}
+            >
+              {Object.entries(LINE_STATUS).map(([k, v]) => (
+                <option key={k} value={k}>{v.label}</option>
+              ))}
+            </select>
+            <button
+              onClick={() => removeLine(l.id)}
+              style={{
+                background: "none",
+                border: "none",
+                color: "#475569",
+                cursor: "pointer",
+                fontSize: 14,
+              }}
+            >
+              &times;
+            </button>
+          </div>
+        );
+      })}
+
+      <div
+        style={{
+          padding: 8,
+          background: "#1a1c2a",
+          borderRadius: "0 0 6px 6px",
+          border: "1px solid #2a2d3a",
+          borderTop: "none",
+        }}
+      >
+        <button
+          onClick={addLine}
+          style={{ background: "none", border: "none", color: "#475569", cursor: "pointer", fontSize: 11 }}
+        >
+          + Add line item
+        </button>
+      </div>
+    </div>
+  );
+}
+```
+
+-----
+
+### FILE: src/components/ProductDataPanel.jsx
+
+```javascript
+import React, { useState } from "react";
+import { LINE_STATUS, uid, placeholderPageCount } from "../utils/helpers.js";
+
+export default function ProductDataPanel({ scope, update, scopeIdx, pageInfo, flash }) {
+  const [dragLineId, setDragLineId] = useState(null);
+
+  const addAttachment = (lineId, file) => {
+    update((p) => {
+      const line = p.scopes[scopeIdx].lines.find((x) => x.id === lineId);
+      if (line) {
+        line.attachments.push({
+          id: uid(),
+          fileName: file.name || "ProductData_" + uid() + ".pdf",
+          pageCount: placeholderPageCount(),
+          calloutStamp: line.callout,
+          matchStatus: "exact",
+          sortOrder: line.attachments.length,
+        });
+        if (line.lineStatus === "missing") {
+          line.lineStatus = "attached";
+        }
+      }
+      return p;
+    });
+  };
+
+  const removeAttachment = (lineId, attId) => {
+    update((p) => {
+      const line = p.scopes[scopeIdx].lines.find((x) => x.id === lineId);
+      if (line) {
+        line.attachments = line.attachments.filter((a) => a.id !== attId);
+        if (line.attachments.length === 0 && line.lineStatus === "attached") {
+          line.lineStatus = "missing";
+        }
+      }
+      return p;
+    });
+  };
+
+  const handleDrop = (lineId, e) => {
+    e.preventDefault();
+    setDragLineId(null);
+    const files = Array.from(e.dataTransfer ? e.dataTransfer.files : []);
+    files.forEach((f) => addAttachment(lineId, f));
+    if (files.length && flash) {
+      const line = scope.lines.find((l) => l.id === lineId);
+      flash(files.length + " file(s) attached to " + (line ? line.callout : "line"), "success");
+    }
+  };
+
+  return (
+    <div style={{ padding: 20 }}>
+      <div style={{ fontSize: 15, fontWeight: 700, color: "#f8fafc", marginBottom: 4 }}>
+        Product Data &mdash; {scope.tabName}
+      </div>
+      <div style={{ fontSize: 11, color: "#64748b", marginBottom: 16 }}>
+        {pageInfo.attachments.length} sheets attached &middot;{" "}
+        {pageInfo.attachments.length > 0
+          ? "Pages " + pageInfo.attachments[0].startPage + "\u2013" + pageInfo.total
+          : "No attachments"}{" "}
+        of {pageInfo.total}
+      </div>
+
+      {scope.lines.map((l) => {
+        const ls = LINE_STATUS[l.lineStatus] || LINE_STATUS.missing;
+        return (
+          <div key={l.id} style={{ marginBottom: 10 }}>
+            {/* Line header */}
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+                padding: "8px 12px",
+                background: "#1a1c2a",
+                borderRadius: l.attachments && l.attachments.length ? "6px 6px 0 0" : 6,
+                border: "1px solid #2a2d3a",
+              }}
+            >
+              <div
+                style={{
+                  width: 8,
+                  height: 8,
+                  borderRadius: 4,
+                  background: ls.color,
+                  flexShrink: 0,
+                }}
+              />
+              <span
+                style={{
+                  fontFamily: "'JetBrains Mono', monospace",
+                  fontSize: 11,
+                  fontWeight: 700,
+                  color: "#BF9B30",
+                  width: 60,
+                  flexShrink: 0,
+                }}
+              >
+                {l.callout}
+              </span>
+              <span
+                style={{
+                  fontSize: 12,
+                  color: "#e2e8f0",
+                  flex: 1,
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                {l.desc}
+              </span>
+              <span
+                style={{
+                  fontSize: 10,
+                  color: "#64748b",
+                  fontFamily: "'JetBrains Mono', monospace",
+                }}
+              >
+                {l.model}
+              </span>
+            </div>
+
+            {/* Existing attachments */}
+            {l.attachments &&
+              l.attachments.map((a) => {
+                const pi = pageInfo.attachments.find((x) => x.id === a.id);
+                return (
+                  <div
+                    key={a.id}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 8,
+                      padding: "6px 12px 6px 42px",
+                      background: "#161822",
+                      borderLeft: "1px solid #2a2d3a",
+                      borderRight: "1px solid #2a2d3a",
+                      borderBottom: "1px solid #1e2030",
+                    }}
+                  >
+                    <span style={{ fontSize: 13 }}>&#128196;</span>
+                    <span style={{ fontSize: 11, color: "#e2e8f0", flex: 1 }}>
+                      {a.fileName}
+                    </span>
+                    <span
+                      style={{
+                        fontSize: 9,
+                        fontWeight: 700,
+                        padding: "1px 6px",
+                        borderRadius: 3,
+                        background: "#052e16",
+                        color: "#22c55e",
+                      }}
+                    >
+                      {(a.matchStatus || "exact").toUpperCase()}
+                    </span>
+                    <span
+                      style={{
+                        fontSize: 10,
+                        color: "#64748b",
+                        fontFamily: "'JetBrains Mono', monospace",
+                      }}
+                    >
+                      {a.pageCount}pg
+                    </span>
+                    <span style={{ fontSize: 10, color: "#64748b" }}>
+                      {pi
+                        ? "Pg " +
+                          pi.startPage +
+                          (pi.endPage > pi.startPage ? "\u2013" + pi.endPage : "")
+                        : ""}
+                    </span>
+                    <span
+                      style={{
+                        fontSize: 9,
+                        padding: "1px 6px",
+                        borderRadius: 3,
+                        background: "rgba(191,155,48,.12)",
+                        color: "#BF9B30",
+                      }}
+                    >
+                      Stamp: {a.calloutStamp}
+                    </span>
+                    <button
+                      onClick={() => removeAttachment(l.id, a.id)}
+                      style={{
+                        background: "none",
+                        border: "none",
+                        color: "#475569",
+                        cursor: "pointer",
+                        fontSize: 13,
+                      }}
+                    >
+                      &times;
+                    </button>
+                  </div>
+                );
+              })}
+
+            {/* Drop zone */}
+            <div
+              onDragOver={(e) => {
+                e.preventDefault();
+                setDragLineId(l.id);
+              }}
+              onDragLeave={() => setDragLineId(null)}
+              onDrop={(e) => handleDrop(l.id, e)}
+              style={{
+                padding: "6px 12px 6px 42px",
+                background: dragLineId === l.id ? "rgba(191,155,48,.06)" : "transparent",
+                borderLeft: "1px solid #2a2d3a",
+                borderRight: "1px solid #2a2d3a",
+                borderBottom: "1px solid #2a2d3a",
+                borderRadius: "0 0 6px 6px",
+                transition: "background .15s",
+              }}
+            >
+              <span
+                style={{
+                  fontSize: 11,
+                  color: dragLineId === l.id ? "#BF9B30" : "#475569",
+                }}
+              >
+                {dragLineId === l.id ? "Drop PDF here \u2192" : "+ Drop product data PDF"}
+              </span>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+```
+
+-----
+
+### FILE: src/components/CoverPageEditor.jsx
+
+```javascript
+import React from "react";
+import { uid, inputStyle, btnGhost } from "../utils/helpers.js";
+import { computePagination } from "../services/pagination.js";
+import Lbl from "./shared/Lbl.jsx";
+
+export default function CoverPageEditor({ scope, project, update, scopeIdx, pageInfo }) {
+  const editProject = (field, value) => {
+    update((p) => {
+      p[field] = value;
+      return p;
+    });
+  };
+
+  const addRow = () => {
+    update((p) => {
+      p.scopes[scopeIdx].coverLines.push({
+        id: uid(),
+        spec: scope.csi,
+        desc: scope.tabName,
+        type: "Product Data",
+        comment: "",
+      });
+      return p;
+    });
+  };
+
+  const removeRow = (rowId) => {
+    update((p) => {
+      p.scopes[scopeIdx].coverLines = p.scopes[scopeIdx].coverLines.filter(
+        (c) => c.id !== rowId
+      );
+      return p;
+    });
+  };
+
+  const editRow = (rowId, field, value) => {
+    update((p) => {
+      const row = p.scopes[scopeIdx].coverLines.find((x) => x.id === rowId);
+      if (row) row[field] = value;
+      return p;
+    });
+  };
+
+  const autoGen = () => {
+    update((p) => {
+      const s = p.scopes[scopeIdx];
+      const pi = computePagination(s);
+      const rows = [
+        {
+          id: uid(),
+          spec: s.csi,
+          desc: s.tabName,
+          type: "Schedule",
+          comment:
+            pi.schedulePages > 1
+              ? "Pages 2\u2013" + pi.scheduleEnd
+              : "Page 2",
+        },
+      ];
+      if (pi.attachments.length > 0) {
+        var first = pi.attachments[0].startPage;
+        var last = pi.attachments[pi.attachments.length - 1].endPage;
+        rows.push({
+          id: uid(),
+          spec: s.csi,
+          desc: s.tabName,
+          type: "Product Data",
+          comment: first === last ? "Page " + first : "Pages " + first + "\u2013" + last,
+        });
+      }
+      s.coverLines = rows;
+      return p;
+    });
+  };
+
+  return (
+    <div style={{ padding: 20, maxWidth: 680 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
+        <span style={{ fontSize: 15, fontWeight: 700, color: "#f8fafc" }}>
+          Cover Page &mdash; {scope.tabName}
+        </span>
+        <div style={{ flex: 1 }} />
+        <button onClick={autoGen} style={{ ...btnGhost, fontSize: 11 }}>
+          Auto-generate from pages
+        </button>
+      </div>
+
+      {/* Project info */}
+      <div
+        style={{
+          background: "#1a1c2a",
+          borderRadius: 8,
+          border: "1px solid #2a2d3a",
+          padding: 14,
+          marginBottom: 16,
+        }}
+      >
+        <div
+          style={{
+            fontSize: 10,
+            fontWeight: 700,
+            color: "#64748b",
+            marginBottom: 8,
+            textTransform: "uppercase",
+            letterSpacing: ".5px",
+          }}
+        >
+          Project Info
+        </div>
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "110px 1fr",
+            gap: "6px 10px",
+            alignItems: "center",
+          }}
+        >
+          <Lbl>DATE:</Lbl>
+          <input
+            value={project.coverDate || ""}
+            onChange={(e) => editProject("coverDate", e.target.value)}
+            style={inputStyle}
+          />
+          <Lbl>PROJECT:</Lbl>
+          <input
+            value={project.projectName}
+            onChange={(e) => editProject("projectName", e.target.value)}
+            style={inputStyle}
+          />
+          <Lbl>SUBMITTED TO:</Lbl>
+          <input
+            value={project.gc}
+            onChange={(e) => editProject("gc", e.target.value)}
+            style={inputStyle}
+          />
+          <Lbl>ATTENTION:</Lbl>
+          <input
+            value={project.attention}
+            onChange={(e) => editProject("attention", e.target.value)}
+            style={inputStyle}
+          />
+        </div>
+      </div>
+
+      {/* Submittal table */}
+      <div
+        style={{
+          background: "#1a1c2a",
+          borderRadius: 8,
+          border: "1px solid #2a2d3a",
+          padding: 14,
+        }}
+      >
+        <div
+          style={{
+            fontSize: 10,
+            fontWeight: 700,
+            color: "#64748b",
+            marginBottom: 8,
+            textTransform: "uppercase",
+            letterSpacing: ".5px",
+          }}
+        >
+          Submittal Table ({pageInfo.total} total pages)
+        </div>
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "70px 1fr 110px 100px 24px",
+            gap: 2,
+            padding: "4px 0",
+            fontSize: 10,
+            fontWeight: 700,
+            color: "#64748b",
+          }}
+        >
+          <span>Spec</span>
+          <span>Description</span>
+          <span>Type</span>
+          <span>Comments</span>
+          <span></span>
+        </div>
+        {scope.coverLines &&
+          scope.coverLines.map((cl) => (
+            <div
+              key={cl.id}
+              style={{
+                display: "grid",
+                gridTemplateColumns: "70px 1fr 110px 100px 24px",
+                gap: 4,
+                padding: "3px 0",
+                alignItems: "center",
+              }}
+            >
+              <span
+                style={{
+                  fontSize: 11,
+                  color: "#94a3b8",
+                  fontFamily: "'JetBrains Mono', monospace",
+                }}
+              >
+                {scope.csi}
+              </span>
+              <span style={{ fontSize: 11, color: "#f8fafc", fontWeight: 600 }}>
+                {scope.tabName}
+              </span>
+              <select
+                value={cl.type}
+                onChange={(e) => editRow(cl.id, "type", e.target.value)}
+                style={{ ...inputStyle, fontSize: 10 }}
+              >
+                <option>Schedule</option>
+                <option>Product Data</option>
+                <option>Color Chart</option>
+                <option>Shop Drawings</option>
+              </select>
+              <input
+                value={cl.comment || ""}
+                onChange={(e) => editRow(cl.id, "comment", e.target.value)}
+                style={{ ...inputStyle, fontSize: 10 }}
+                placeholder="Page X"
+              />
+              <button
+                onClick={() => removeRow(cl.id)}
+                style={{
+                  background: "none",
+                  border: "none",
+                  color: "#475569",
+                  cursor: "pointer",
+                  fontSize: 13,
+                }}
+              >
+                &times;
+              </button>
+            </div>
+          ))}
+        <button
+          onClick={addRow}
+          style={{
+            background: "none",
+            border: "none",
+            color: "#475569",
+            cursor: "pointer",
+            fontSize: 11,
+            marginTop: 6,
+          }}
+        >
+          + Add row
+        </button>
+      </div>
+    </div>
+  );
+}
+```
+
+-----
+
+### FILE: src/components/ValidationPanel.jsx
+
+```javascript
+import React from "react";
+import { validateProject } from "../services/validation.js";
+import IssueList from "./shared/IssueList.jsx";
+
+export default function ValidationPanel({ project }) {
+  var v = validateProject(project);
+  var s = v.summary;
+
+  return (
+    <div style={{ padding: 20, maxWidth: 780 }}>
+      <div style={{ fontSize: 15, fontWeight: 700, color: "#f8fafc", marginBottom: 16 }}>
+        Package Validation
+      </div>
+
+      {/* Top summary cards */}
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(4, 1fr)",
+          gap: 8,
+          marginBottom: 20,
+        }}
+      >
+        {[
+          { label: "Scopes", value: s.totalScopes, color: "#f8fafc" },
+          { label: "Lines", value: s.totalLines, color: "#f8fafc" },
+          { label: "Attached", value: s.attached, color: "#22c55e" },
+          {
+            label: "Missing",
+            value: s.missing,
+            color: s.missing > 0 ? "#ef4444" : "#22c55e",
+          },
+        ].map(function (c, i) {
+          return (
+            <div
+              key={i}
+              style={{
+                padding: 14,
+                background: "#1a1c2a",
+                borderRadius: 8,
+                border: "1px solid #2a2d3a",
+              }}
+            >
+              <div style={{ fontSize: 24, fontWeight: 800, color: c.color }}>
+                {c.value}
+              </div>
+              <div style={{ fontSize: 11, color: "#64748b" }}>{c.label}</div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Detail cards */}
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(3, 1fr)",
+          gap: 8,
+          marginBottom: 20,
+        }}
+      >
+        {[
+          { label: "Blank Callouts", value: s.blankCallout, warn: s.blankCallout > 0 },
+          { label: "Blank Models", value: s.blankModel, warn: s.blankModel > 0 },
+          { label: "Zero Qty", value: s.zeroQty, warn: s.zeroQty > 0 },
+          { label: "Attachment Pages", value: s.totalAttPages, warn: false },
+          { label: "Projected Pages", value: s.projectedPages, warn: false },
+          { label: "Blank Descriptions", value: s.blankDesc, warn: s.blankDesc > 0 },
+        ].map(function (c, i) {
+          return (
+            <div
+              key={i}
+              style={{
+                padding: 10,
+                background: "#1a1c2a",
+                borderRadius: 6,
+                border: "1px solid " + (c.warn ? "#7f1d1d" : "#2a2d3a"),
+              }}
+            >
+              <div
+                style={{
+                  fontSize: 18,
+                  fontWeight: 700,
+                  color: c.warn ? "#ef4444" : "#f8fafc",
+                }}
+              >
+                {c.value}
+              </div>
+              <div style={{ fontSize: 10, color: "#64748b" }}>{c.label}</div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Issue lists */}
+      {v.errors.length > 0 && (
+        <IssueList title="Errors" items={v.errors} color="#ef4444" />
+      )}
+      {v.warnings.length > 0 && (
+        <IssueList title="Warnings" items={v.warnings} color="#f59e0b" />
+      )}
+      {v.info.length > 0 && (
+        <IssueList title="Info" items={v.info} color="#64748b" />
+      )}
+      {v.errors.length === 0 && v.warnings.length === 0 && (
+        <div
+          style={{
+            padding: 24,
+            textAlign: "center",
+            color: "#22c55e",
+            fontSize: 14,
+            fontWeight: 600,
+          }}
+        >
+          &#10003; All checks passed
+        </div>
+      )}
+    </div>
+  );
+}
+```
+
+-----
+
+### FILE: src/components/PreviewExport.jsx
+
+```javascript
+import React from "react";
+import { LINES_PER_SCHEDULE_PAGE } from "../services/pagination.js";
+import { btnPrimary } from "../utils/helpers.js";
+import PageFrame from "./shared/PageFrame.jsx";
+
+var thS = {
+  border: "1px solid #ccc",
+  padding: "3px 4px",
+  fontSize: 8,
+  fontWeight: 700,
+  textAlign: "center",
+  background: "#f5f5f5",
+};
+var tdS = {
+  border: "1px solid #ddd",
+  padding: "3px 4px",
+  fontSize: 8,
+  textAlign: "center",
+  verticalAlign: "top",
+};
+
+export default function PreviewExport({ scope, project, pageInfo, update, flash }) {
+  var exportPackage = function () {
+    update(function (p) {
+      p.submittalStatus = "exported";
+      return p;
+    });
+    if (flash) flash("Package marked as exported. Final PDF generation is a Phase 2 feature.", "success");
+  };
+
+  // Build schedule pages based on pagination
+  var schedulePages = [];
+  for (var p = 0; p < pageInfo.schedulePages; p++) {
+    var start = p * LINES_PER_SCHEDULE_PAGE;
+    var end = Math.min(start + LINES_PER_SCHEDULE_PAGE, scope.lines.length);
+    schedulePages.push({ pageNum: 2 + p, lines: scope.lines.slice(start, end) });
+  }
+
+  // Empty cover rows to fill table
+  var emptyCoverRows = Math.max(0, 6 - (scope.coverLines ? scope.coverLines.length : 0));
+
+  return (
+    <div style={{ padding: 20 }}>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 10,
+          marginBottom: 20,
+        }}
+      >
+        <span style={{ fontSize: 15, fontWeight: 700, color: "#f8fafc" }}>
+          Preview &mdash; {scope.tabName}
+        </span>
+        <span style={{ fontSize: 11, color: "#64748b" }}>
+          {pageInfo.total} pages
+        </span>
+        <div style={{ flex: 1 }} />
+        <button onClick={exportPackage} style={btnPrimary}>
+          &#10003; Generate Final Package
+        </button>
+      </div>
+
+      <div
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          gap: 20,
+        }}
+      >
+        {/* Cover page */}
+        <PageFrame num={1} total={pageInfo.total} label="COVER">
+          <div style={{ padding: "20px 24px", fontSize: 10, color: "#222", lineHeight: 1.8 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 5, marginBottom: 2 }}>
+              <div style={{ width: 4, height: 16, background: "#BF9B30" }} />
+              <b style={{ fontSize: 13 }}>NBS</b>
+            </div>
+            <div style={{ borderBottom: "2px solid #BF9B30", marginBottom: 10 }} />
+            <b style={{ fontSize: 14 }}>Submittal Transmittal</b>
+            <br /><br />
+            <b>DATE:</b> {project.coverDate}
+            <br />
+            <b>PROJECT:</b> {project.projectName}
+            <br /><br />
+            <b>SUBMITTED BY:</b> National Building Specialties
+            <br />
+            &nbsp;&nbsp;&nbsp;&nbsp;4130 Flat Rock Drive, #110
+            <br />
+            &nbsp;&nbsp;&nbsp;&nbsp;Riverside, CA 92505
+            <br /><br />
+            <b>SUBMITTED TO:</b> {project.gc}
+            <br /><br />
+            <b>ATTENTION:</b> {project.attention}
+            <table
+              style={{
+                width: "100%",
+                borderCollapse: "collapse",
+                marginTop: 12,
+                fontSize: 9,
+              }}
+            >
+              <thead>
+                <tr style={{ background: "#f0f0f0" }}>
+                  <th style={thS}>Spec Section</th>
+                  <th style={thS}>Description</th>
+                  <th style={thS}>Type</th>
+                  <th style={thS}>Comments</th>
+                </tr>
+              </thead>
+              <tbody>
+                {scope.coverLines &&
+                  scope.coverLines.map(function (c, i) {
+                    return (
+                      <tr key={i}>
+                        <td style={tdS}>{scope.csi}</td>
+                        <td style={{ ...tdS, fontWeight: 600 }}>{scope.tabName}</td>
+                        <td style={tdS}>{c.type}</td>
+                        <td style={tdS}>{c.comment}</td>
+                      </tr>
+                    );
+                  })}
+                {Array.from({ length: emptyCoverRows }).map(function (_, i) {
+                  return (
+                    <tr key={"e" + i}>
+                      <td style={tdS}>&nbsp;</td>
+                      <td style={tdS} />
+                      <td style={tdS} />
+                      <td style={tdS} />
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </PageFrame>
+
+        {/* Schedule pages */}
+        {schedulePages.map(function (sp, si) {
+          return (
+            <PageFrame
+              key={si}
+              num={sp.pageNum}
+              total={pageInfo.total}
+              label={si === 0 ? "SCHEDULE" : "SCHEDULE (cont.)"}
+            >
+              <div style={{ padding: "16px 20px", textAlign: "center" }}>
+                <b style={{ fontSize: 13, color: "#111" }}>{project.projectName}</b>
+                <br />
+                <b style={{ fontSize: 11, color: "#111" }}>{scope.tabName} Schedule</b>
+                <table
+                  style={{
+                    width: "100%",
+                    borderCollapse: "collapse",
+                    fontSize: 8,
+                    marginTop: 10,
+                  }}
+                >
+                  <thead>
+                    <tr style={{ background: "#f0f0f0" }}>
+                      <th style={thS}>SPEC No.</th>
+                      <th style={thS}>SPEC TITLE</th>
+                      <th style={thS}>CALLOUT</th>
+                      <th style={thS}>DESCRIPTION</th>
+                      <th style={thS}>MODEL</th>
+                      <th style={thS}>QTY</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {sp.lines.map(function (l, j) {
+                      return (
+                        <tr key={j}>
+                          <td style={tdS}>{scope.csi}</td>
+                          <td style={tdS}>{scope.specTitle}</td>
+                          <td style={tdS}>{l.callout}</td>
+                          <td
+                            style={{
+                              ...tdS,
+                              textAlign: "left",
+                              maxWidth: 140,
+                              overflow: "hidden",
+                              textOverflow: "ellipsis",
+                            }}
+                          >
+                            {l.desc}
+                          </td>
+                          <td style={{ ...tdS, textAlign: "left", fontSize: 7 }}>
+                            {l.model}
+                          </td>
+                          <td style={tdS}>{l.qty}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </PageFrame>
+          );
+        })}
+
+        {/* Product data pages */}
+        {pageInfo.attachments.map(function (a) {
+          return (
+            <PageFrame
+              key={a.id}
+              num={a.startPage}
+              total={pageInfo.total}
+              label={"PRODUCT DATA \u2014 " + a.callout}
+            >
+              <div style={{ padding: 20, textAlign: "center", position: "relative" }}>
+                <div
+                  style={{
+                    position: "absolute",
+                    top: 6,
+                    right: 10,
+                    padding: "2px 8px",
+                    borderRadius: 3,
+                    background: "#BF9B30",
+                    color: "#000",
+                    fontSize: 8,
+                    fontWeight: 800,
+                  }}
+                >
+                  {a.callout}
+                </div>
+                <div style={{ fontSize: 32, color: "#ccc", margin: "30px 0 10px" }}>
+                  &#128196;
+                </div>
+                <div style={{ fontSize: 11, fontWeight: 600, color: "#333" }}>
+                  {a.fileName}
+                </div>
+                <div style={{ fontSize: 9, color: "#888", marginTop: 3 }}>
+                  {a.pageCount} page{a.pageCount > 1 ? "s" : ""} &middot; {a.model}
+                </div>
+              </div>
+            </PageFrame>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+```
+
+-----
+
+### FILE: src/components/shared/Toast.jsx
+
+```javascript
+import React from "react";
+
+export default function Toast({ msg, type }) {
+  let bg = "#1e3a5f";
+  let borderColor = "#3b82f6";
+  if (type === "success") { bg = "#052e16"; borderColor = "#22c55e"; }
+  if (type === "warning") { bg = "#422006"; borderColor = "#f59e0b"; }
+
+  return (
+    <div
+      style={{
+        position: "fixed",
+        top: 10,
+        right: 10,
+        zIndex: 999,
+        padding: "8px 16px",
+        borderRadius: 6,
+        fontSize: 12,
+        fontWeight: 500,
+        background: bg,
+        color: "#fff",
+        border: "1px solid " + borderColor,
+        boxShadow: "0 4px 20px rgba(0,0,0,.3)",
+      }}
+    >
+      {msg}
+    </div>
+  );
+}
+```
+
+-----
+
+### FILE: src/components/shared/PageFrame.jsx
+
+```javascript
+import React from "react";
+
+export default function PageFrame({ num, total, label, children }) {
+  return (
+    <div
+      style={{
+        width: 520,
+        background: "#fff",
+        borderRadius: 3,
+        boxShadow: "0 2px 16px rgba(0,0,0,.4)",
+        overflow: "hidden",
+        position: "relative",
+        minHeight: 600,
+      }}
+    >
+      <div
+        style={{
+          position: "absolute",
+          top: 4,
+          left: 6,
+          fontSize: 8,
+          fontWeight: 700,
+          color: "#fff",
+          background: "#1A2E44",
+          padding: "1px 6px",
+          borderRadius: 2,
+          opacity: 0.7,
+        }}
+      >
+        {label}
+      </div>
+      {children}
+      <div
+        style={{
+          position: "absolute",
+          bottom: 6,
+          right: 12,
+          fontSize: 9,
+          color: "#999",
+        }}
+      >
+        Page {num} of {total}
+      </div>
+    </div>
+  );
+}
+```
+
+-----
+
+### FILE: src/components/shared/IssueList.jsx
+
+```javascript
+import React from "react";
+
+export default function IssueList({ title, items, color }) {
+  return (
+    <div style={{ marginBottom: 16 }}>
+      <div style={{ fontSize: 12, fontWeight: 700, color: color, marginBottom: 6 }}>
+        {title} ({items.length})
+      </div>
+      {items.slice(0, 20).map((item, i) => (
+        <div
+          key={i}
+          style={{
+            fontSize: 11,
+            color: "#94a3b8",
+            padding: "3px 0",
+            borderBottom: "1px solid #1e2030",
+          }}
+        >
+          <span style={{ color: "#64748b" }}>{item.scope}</span>
+          {item.line && <span style={{ color: "#64748b" }}> &middot; {item.line}</span>}
+          <span> &mdash; {item.msg}</span>
+        </div>
+      ))}
+      {items.length > 20 && (
+        <div style={{ fontSize: 11, color: "#475569", paddingTop: 4 }}>
+          + {items.length - 20} more
+        </div>
+      )}
+    </div>
+  );
+}
+```
+
+-----
+
+### FILE: src/components/shared/Lbl.jsx
+
+```javascript
+import React from "react";
+
+export default function Lbl({ children }) {
+  return (
+    <span style={{ fontSize: 11, fontWeight: 700, color: "#94a3b8", textAlign: "right" }}>
+      {children}
+    </span>
+  );
+}
+```
+
+-----
+
+## Final verification
+
+After creating all 24 files, run npm install and npm run dev. The app should:
+
+1. Open to a dashboard showing “No submittal projects yet. Click + New Submittal to begin.”
+1. Clicking + New Submittal shows a list of 6 awarded projects from the Proposal Log.
+1. Selecting a project creates a new submittal and shows the estimate upload gate.
+1. Dragging any file onto the upload area triggers the mock parser (1.5s delay) and populates 6 scope tabs with line items.
+1. The workspace has 5 section tabs: Schedule, Product Data, Cover Page, Validation, Preview / Export.
+1. Schedule lines are editable with add/remove. Each line has a status dropdown.
+1. Product Data allows drag-drop of PDFs onto individual line items.
+1. Cover Page has editable project info fields and submittal table rows with auto-generate.
+1. Validation audits the entire project and shows errors, warnings, and info.
+1. Preview shows page-by-page rendering with cover, schedule (multi-page), and product data placeholders with callout stamps and page numbers.
+1. All changes autosave to localStorage. The save indicator shows Saved / Saving / Unsaved.
+1. Returning to dashboard and reopening a project restores the exact scope, tab, and edits.
+
+Do not explain what you are doing. Just create the files and run the app.
