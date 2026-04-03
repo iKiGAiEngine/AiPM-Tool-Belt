@@ -459,21 +459,21 @@ async function mapOpportunityToEntry(opp: BcOpportunity) {
   let regionResult = { code: "", name: "", confident: false };
   let matchedSegment = "";
   const fullCompanyName = [opp.gcCompanyName, opp.gcOfficeHint].filter(Boolean).join(" - ");
+  const projectName = opp.projectName || "";
 
   // 1. Try each office segment (office name drives region, not project address)
   for (const seg of officeCandidates) {
-    const r = await matchRegionWithFallback(seg, "", fullCompanyName);
+    const r = await matchRegionWithFallback(seg, "", fullCompanyName, projectName);
     if (r.confident) { regionResult = r; matchedSegment = seg; break; }
   }
 
   // 2. Project location as a TRUE last resort only (user wants office to win)
   if (!regionResult.confident && locationStr) {
-    regionResult = await matchRegionWithFallback(locationStr, "", fullCompanyName);
+    regionResult = await matchRegionWithFallback(locationStr, "", fullCompanyName, projectName);
     if (regionResult.confident) matchedSegment = locationStr;
   }
 
   console.log(`[BC Sync] Region match for "${opp.projectName}": candidates=[${officeCandidates.join("|")}] location="${locationStr}" → matched="${matchedSegment}" region="${regionResult.code}" (${regionResult.displayLabel}) confident=${regionResult.confident}`);
-  const projectName = opp.projectName || "Untitled BC Project";
   const marketContext = [
     (opp.scopes || []).join(" "),
     locationStr,

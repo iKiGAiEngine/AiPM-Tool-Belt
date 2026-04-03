@@ -19,7 +19,8 @@ export async function matchRegionFromLocation(locationStr: string): Promise<Regi
 export function matchRegionFromLocationSync(
   locationStr: string,
   regions: Region[],
-  fullClientName?: string
+  fullClientName?: string,
+  projectName?: string
 ): RegionMatchResult {
   const loc = (locationStr || "").toLowerCase().trim();
   if (!loc) return { code: "", displayLabel: "", confident: false };
@@ -76,6 +77,26 @@ export function matchRegionFromLocationSync(
           }
         }
       }
+      
+      // If client name didn't reveal the office, try project name for project-type disambiguation
+      if (projectName) {
+        const proj = (projectName || "").toLowerCase().trim();
+        for (const region of candidatesForRegion) {
+          const aliases = region.aliases || [];
+          for (const alias of aliases) {
+            const a = alias.toLowerCase();
+            // Skip generic location aliases
+            if (["socal", "los angeles", "la", "orange county", "santa ana"].includes(a)) {
+              continue;
+            }
+            const re = new RegExp(`(?:^|[\\s,/\\-])${a.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?:$|[\\s,/\\-])`, "i");
+            if (re.test(` ${proj} `)) {
+              // Found a project-type match in the project name
+              return { code: region.code, displayLabel: formatRegionDisplay(region), confident: true };
+            }
+          }
+        }
+      }
     }
   }
 
@@ -101,12 +122,13 @@ export function matchRegionFromLocationSync(
 export async function matchRegionWithFallback(
   primaryLocation: string,
   fallbackLocation: string,
-  fullClientName?: string
+  fullClientName?: string,
+  projectName?: string
 ): Promise<RegionMatchResult> {
   const regions = await getActiveRegions();
-  let result = matchRegionFromLocationSync(primaryLocation, regions, fullClientName);
+  let result = matchRegionFromLocationSync(primaryLocation, regions, fullClientName, projectName);
   if (result.confident) return result;
 
-  result = matchRegionFromLocationSync(fallbackLocation, regions, fullClientName);
+  result = matchRegionFromLocationSync(fallbackLocation, regions, fullClientName, projectName);
   return result;
 }
