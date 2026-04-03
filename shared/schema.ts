@@ -1021,6 +1021,7 @@ export const mfrVendors = pgTable("mfr_vendors", {
   name: varchar("name", { length: 255 }).notNull(),
   category: varchar("category", { length: 100 }),
   website: varchar("website", { length: 500 }),
+  materials: text("materials"), // Comma-separated material types (e.g., "Solid Plastic, Phenolic, Metal")
   notes: text("notes"),
   tags: jsonb("tags").$type<string[]>().default([]),
   createdAt: timestamp("created_at").notNull().defaultNow(),

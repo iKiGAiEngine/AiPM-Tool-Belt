@@ -466,8 +466,14 @@ export function registerVendorDatabaseRoutes(app: Express) {
       instructions.addRow(["- Column A: Scope/Trade category (e.g., Toilet Accessories, Fire Extinguishers)"]);
       instructions.addRow(["- Column B: Manufacturer names (comma-separated if vendor reps multiple brands)"]);
       instructions.addRow(["- Column C: Distributor/Rep Company (the vendor providing products)"]);
-      instructions.addRow(["- Column D: Contact Name at the vendor"]);
-      instructions.addRow(["- Column E: Contact Email"]);
+      instructions.addRow(["- Column D: Contact Name (primary contact)"]);
+      instructions.addRow(["- Column E: Contact Email (primary contact email)"]);
+      instructions.addRow(["- Column F: Contact Name 2 (optional, secondary contact)"]);
+      instructions.addRow(["- Column G: Contact Email 2 (optional, secondary contact email)"]);
+      instructions.addRow(["- Column H: Contact Name 3 (optional, tertiary contact)"]);
+      instructions.addRow(["- Column I: Contact Email 3 (optional, tertiary contact email)"]);
+      instructions.addRow(["- Column J: Materials Covered (comma-separated, e.g., 'Solid Plastic, Phenolic, Metal')"]);
+      instructions.addRow(["  (For toilet partitions: solid plastic, phenolic, metal; for fixtures: chrome, stainless, etc.)"]);
       instructions.addRow([""]);
       instructions.addRow(["HOW IT WORKS:"]);
       instructions.addRow(["1. One Scope header per trade (column A only, leave B-E empty)"]);
@@ -487,26 +493,75 @@ export function registerVendorDatabaseRoutes(app: Express) {
       const sheet = workbook.addWorksheet("Data");
 
       // Header row
-      const headerRow = sheet.addRow(["Scope / Trade", "Manufacturers", "Distributor / Rep", "Contact Name", "Email"]);
+      const headerRow = sheet.addRow([
+        "Scope / Trade", 
+        "Manufacturers", 
+        "Distributor / Rep", 
+        "Contact Name", 
+        "Email", 
+        "Contact Name 2", 
+        "Email 2", 
+        "Contact Name 3", 
+        "Email 3", 
+        "Materials Covered"
+      ]);
       headerRow.font = { bold: true };
       headerRow.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF0F0F0" } };
 
       // Example scope header and data
-      sheet.addRow(["Toilet Accessories", "", "", "", ""]);
-      sheet.addRow(["", "Kohler, Bradley, Bobrick", "ABC Supply", "John Doe", "john@example.com"]);
-      sheet.addRow(["", "Soap Dispenser Brand", "XYZ Distributors", "Jane Smith", "jane@example.com"]);
+      sheet.addRow(["Toilet Accessories", "", "", "", "", "", "", "", "", ""]);
+      sheet.addRow([
+        "", 
+        "Kohler, Bradley, Bobrick", 
+        "ABC Supply", 
+        "John Doe", 
+        "john@example.com", 
+        "Sarah Johnson", 
+        "sarah@abcsupply.com", 
+        "", 
+        "", 
+        "Solid Plastic, Phenolic, Metal"
+      ]);
+      sheet.addRow([
+        "", 
+        "Soap Dispenser Brand", 
+        "XYZ Distributors", 
+        "Jane Smith", 
+        "jane@example.com", 
+        "", 
+        "", 
+        "", 
+        "", 
+        "Automated, Manual Pump"
+      ]);
 
       sheet.addRow([""]);
-      sheet.addRow(["Fire Extinguishers", "", "", "", ""]);
-      sheet.addRow(["", "Amerex, Tyco", "Safety Plus", "Bob Wilson", "bob@example.com"]);
+      sheet.addRow(["Fire Extinguishers", "", "", "", "", "", "", "", "", ""]);
+      sheet.addRow([
+        "", 
+        "Amerex, Tyco", 
+        "Safety Plus", 
+        "Bob Wilson", 
+        "bob@example.com", 
+        "Mike Chen", 
+        "mike@safetyplus.com", 
+        "Lisa Patterson", 
+        "lisa@safetyplus.com", 
+        "Wet Chemical, Dry Powder, CO2"
+      ]);
 
       // Set column widths
       sheet.columns = [
-        { width: 20 },
-        { width: 25 },
-        { width: 25 },
-        { width: 20 },
-        { width: 30 },
+        { width: 20 },  // Scope
+        { width: 25 },  // Manufacturers
+        { width: 25 },  // Distributor/Rep
+        { width: 18 },  // Contact 1 Name
+        { width: 28 },  // Contact 1 Email
+        { width: 18 },  // Contact 2 Name
+        { width: 28 },  // Contact 2 Email
+        { width: 18 },  // Contact 3 Name
+        { width: 28 },  // Contact 3 Email
+        { width: 35 },  // Materials Covered
       ];
 
       const buffer = await workbook.xlsx.writeBuffer();
@@ -558,13 +613,18 @@ export function registerVendorDatabaseRoutes(app: Express) {
       for (let i = dataStart; i < rows.length; i++) {
         const row = rows[i] as any[];
         const colA = String(row[0] || "").trim();
-        const colB = String(row[1] || "").trim(); // Manufacturer name
+        const colB = String(row[1] || "").trim(); // Manufacturer names
         const colC = String(row[2] || "").trim(); // Distributor/Rep (vendor)
-        const colD = String(row[3] || "").trim(); // Contact Name
-        const colE = String(row[4] || "").trim(); // Email
+        const colD = String(row[3] || "").trim(); // Contact Name 1
+        const colE = String(row[4] || "").trim(); // Email 1
+        const colF = String(row[5] || "").trim(); // Contact Name 2
+        const colG = String(row[6] || "").trim(); // Email 2
+        const colH = String(row[7] || "").trim(); // Contact Name 3
+        const colI = String(row[8] || "").trim(); // Email 3
+        const colJ = String(row[9] || "").trim(); // Materials Covered
 
-        // Scope/Trade header row: has value in col A but nothing in cols B-E
-        if (colA && !colB && !colC && !colD && !colE) {
+        // Scope/Trade header row: has value in col A but nothing in cols B-C
+        if (colA && !colB && !colC) {
           currentScope = colA;
           continue;
         }
@@ -580,6 +640,7 @@ export function registerVendorDatabaseRoutes(app: Express) {
           const [newVendor] = await db.insert(mfrVendors).values({
             name: colC,
             category: currentScope || null,
+            materials: colJ || null,
           }).returning();
           vendorId = newVendor.id;
           vendorNameMap.set(vendorNameLower, vendorId);
@@ -616,28 +677,35 @@ export function registerVendorDatabaseRoutes(app: Express) {
           }
         }
 
-        // Create contact(s) once per vendor
-        if (colD || colC) {
-          const existingContacts = await db.select().from(mfrContacts).where(eq(mfrContacts.vendorId, vendorId));
-          const isPrimary = existingContacts.length === 0;
+        // Create contact(s) once per vendor - support up to 3 contacts
+        const existingContacts = await db.select().from(mfrContacts).where(eq(mfrContacts.vendorId, vendorId));
+        let contactIndex = existingContacts.length;
 
-          // Handle semicolon-separated emails
-          const emailStr = colE;
-          const firstEmail = emailStr.split(/[;,]/)[0].trim();
+        // Contact pairs: [name, email]
+        const contactPairs = [
+          [colD, colE],
+          [colF, colG],
+          [colH, colI],
+        ];
 
-          if (colD) {
-            // Check if this contact already exists
-            const exists = existingContacts.some((c) => c.name?.toLowerCase() === colD.toLowerCase());
-            if (!exists) {
-              await db.insert(mfrContacts).values({
-                vendorId,
-                name: colD,
-                role: "Contact",
-                email: firstEmail || null,
-                isPrimary,
-              });
-              contactsCreated++;
-            }
+        for (const [contactName, contactEmail] of contactPairs) {
+          if (!contactName) continue; // Skip empty contact slots
+
+          // Extract first email if semicolon/comma separated
+          const firstEmail = contactEmail.split(/[;,]/)[0].trim();
+
+          // Check if this contact already exists
+          const exists = existingContacts.some((c) => c.name?.toLowerCase() === contactName.toLowerCase());
+          if (!exists) {
+            await db.insert(mfrContacts).values({
+              vendorId,
+              name: contactName,
+              role: "Contact",
+              email: firstEmail || null,
+              isPrimary: contactIndex === 0,
+            });
+            contactsCreated++;
+            contactIndex++;
           }
         }
       }
