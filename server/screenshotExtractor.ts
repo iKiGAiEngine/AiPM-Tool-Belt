@@ -159,9 +159,9 @@ RULES:
 - Search the entire text for each labeled field. Dates typically appear on the same line or the line immediately after their label.
 - For dates, convert to YYYY-MM-DD format. Handle formats like "Mar 16, 2026", "Feb 28, 2026 at 2:00 PM PST", "03/16/2026".
 - Strip time/timezone from dates (e.g., "Mar 16, 2026 at 2:00 PM PST" → "2026-03-16").
-- "clientName" is the general contractor (GC). Look for company names like Swinerton, Turner, etc.
-- "clientLocation" is the GC's office city, often shown as "Company - City" (extract just the city part).
-- "location" is the project address/location where work is done.
+- "clientName" is the general contractor (GC) company name only (e.g., "Swinerton Builders", "Turner Construction"). Look near labels like "Client", "GC", "General Contractor".
+- "clientLocation" is the COMPLETE office/division designation shown LITERALLY after the company name dash in the client field. Extract EVERYTHING after the first dash — preserve all parts including division names like "Parking Structures", "Special Projects", "Target Markets", "Facility Solutions". Do NOT strip any part and do NOT infer from the project location/address. Examples: if client shows "Swinerton Builders - Parking Structures", return "Parking Structures"; if it shows "Swinerton Builders - SoCal - Parking Structures", return "SoCal - Parking Structures". NEVER use the project city or state as clientLocation.
+- "location" is the project address/location where work is done (this is NOT the GC office).
 - "gcContactName" and "gcContactEmail" are the GC contact person's name and email.
 - "tradeName" is the trade/scope being bid.
 - "projectName" is the project title, usually appearing near the top.
