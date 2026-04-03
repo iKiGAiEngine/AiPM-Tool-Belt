@@ -1,9 +1,10 @@
 import type { Express, Request, Response } from "express";
 import { db } from "./db";
-import { users, auditLogs } from "@shared/schema";
+import { users, auditLogs, FEATURES, DEFAULT_ROLE_FEATURES, Feature } from "@shared/schema";
 import { eq, desc, and, gte, lte, like, or, sql } from "drizzle-orm";
 import { requireAdmin, isAllowedDomain } from "./authRoutes";
 import { auditLog } from "./auditService";
+import { storage } from "./storage";
 
 export function registerAdminRoutes(app: Express) {
   app.get("/api/admin/users", requireAdmin, async (req: Request, res: Response) => {
@@ -293,6 +294,118 @@ export function registerAdminRoutes(app: Express) {
       res.json(result.map(r => r.actionType));
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch action types" });
+    }
+  });
+
+  // ---- USER PERMISSIONS ----
+
+  // Get all users with their feature access
+  app.get("/api/admin/users/permissions/matrix", requireAdmin, async (req: Request, res: Response) => {
+    try {
+      const allUsers = await db.select().from(users);
+      
+      const usersWithPermissions = await Promise.all(
+        allUsers.map(async (user) => {
+          const features = await storage.getUserFeatureAccess(user.id);
+          return {
+            ...user,
+            features,
+            availableFeatures: Object.values(FEATURES),
+          };
+        })
+      );
+
+      res.json(usersWithPermissions);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch permissions matrix" });
+    }
+  });
+
+  // Update a user's feature access
+  app.patch("/api/admin/users/:id/permissions", requireAdmin, async (req: Request, res: Response) => {
+    try {
+      const userId = parseInt(req.params.id);
+      const { features } = req.body as { features: Feature[] };
+      const actorId = (req.session as any)?.userId;
+
+      // Validate features
+      const validFeatures = Object.values(FEATURES);
+      if (!Array.isArray(features) || !features.every((f) => validFeatures.includes(f))) {
+        return res.status(400).json({ message: "Invalid features provided" });
+      }
+
+      // Get user
+      const [user] = await db.select().from(users).where(eq(users.id, userId));
+      if (!user) return res.status(404).json({ message: "User not found" });
+
+      // Update permissions
+      await storage.setUserFeatureAccess(userId, features);
+
+      // Audit log
+      const [actor] = await db.select().from(users).where(eq(users.id, actorId));
+      await auditLog({
+        actionType: "user_permissions_changed",
+        actorUserId: actorId,
+        actorEmail: actor?.email,
+        entityType: "user",
+        entityId: String(userId),
+        summary: `Updated permissions for ${user.email}: ${features.join(", ")}`,
+        ipAddress: (req.headers["x-forwarded-for"] as string)?.split(",")[0] || req.socket.remoteAddress || "",
+        userAgent: req.headers["user-agent"] || "",
+        requestPath: req.path,
+        requestMethod: req.method,
+      });
+
+      const updatedFeatures = await storage.getUserFeatureAccess(userId);
+      res.json({ success: true, features: updatedFeatures });
+    } catch (error) {
+      res.status(500).json({ message: "Failed to update permissions" });
+    }
+  });
+
+  // Reset user permissions to role defaults
+  app.post("/api/admin/users/:id/reset-permissions", requireAdmin, async (req: Request, res: Response) => {
+    try {
+      const userId = parseInt(req.params.id);
+      const actorId = (req.session as any)?.userId;
+
+      // Get user
+      const [user] = await db.select().from(users).where(eq(users.id, userId));
+      if (!user) return res.status(404).json({ message: "User not found" });
+
+      // Get default features for the user's role
+      const defaultFeatures = DEFAULT_ROLE_FEATURES[user.role] || DEFAULT_ROLE_FEATURES.user;
+
+      // Set permissions to defaults
+      await storage.setUserFeatureAccess(userId, defaultFeatures);
+
+      // Audit log
+      const [actor] = await db.select().from(users).where(eq(users.id, actorId));
+      await auditLog({
+        actionType: "user_permissions_reset",
+        actorUserId: actorId,
+        actorEmail: actor?.email,
+        entityType: "user",
+        entityId: String(userId),
+        summary: `Reset permissions for ${user.email} to ${user.role} defaults`,
+        ipAddress: (req.headers["x-forwarded-for"] as string)?.split(",")[0] || req.socket.remoteAddress || "",
+        userAgent: req.headers["user-agent"] || "",
+        requestPath: req.path,
+        requestMethod: req.method,
+      });
+
+      res.json({ success: true, features: defaultFeatures });
+    } catch (error) {
+      res.status(500).json({ message: "Failed to reset permissions" });
+    }
+  });
+
+  // Get all available features
+  app.get("/api/admin/features", requireAdmin, async (req: Request, res: Response) => {
+    try {
+      res.json(Object.values(FEATURES));
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch features" });
     }
   });
 }

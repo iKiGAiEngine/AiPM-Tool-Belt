@@ -1163,3 +1163,57 @@ export const mfrFiles = pgTable("mfr_files", {
   notes: varchar("notes", { length: 500 }),
 });
 export type MfrFile = typeof mfrFiles.$inferSelect;
+
+// =====================================================
+// USER FEATURE ACCESS CONTROL
+// =====================================================
+
+// Define all available features/tools
+export const FEATURES = {
+  PROPOSAL_LOG: "proposal-log",
+  VENDOR_DATABASE: "vendor-database",
+  SUBMITTAL_BUILDER: "submittal-builder",
+  SCHEDULE_CONVERTER: "schedule-converter",
+  SPEC_EXTRACTOR: "spec-extractor",
+  QUOTE_PARSER: "quote-parser",
+  PLAN_PARSER: "plan-parser",
+  BC_SYNC: "bc-sync",
+  DRAFT_REVIEW: "draft-review",
+  CENTRAL_SETTINGS: "central-settings",
+  PROJECT_START: "project-start",
+} as const;
+
+export type Feature = typeof FEATURES[keyof typeof FEATURES];
+
+// Default feature access per role
+export const DEFAULT_ROLE_FEATURES: Record<string, Feature[]> = {
+  admin: Object.values(FEATURES),
+  accounting: [
+    FEATURES.PROPOSAL_LOG,
+    FEATURES.VENDOR_DATABASE,
+    FEATURES.CENTRAL_SETTINGS,
+  ],
+  project_manager: [
+    FEATURES.PROPOSAL_LOG,
+    FEATURES.SUBMITTAL_BUILDER,
+    FEATURES.SCHEDULE_CONVERTER,
+    FEATURES.SPEC_EXTRACTOR,
+    FEATURES.QUOTE_PARSER,
+    FEATURES.PROJECT_START,
+  ],
+  user: [FEATURES.PROPOSAL_LOG, FEATURES.SUBMITTAL_BUILDER],
+};
+
+export const userFeatureAccess = pgTable("user_feature_access", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull(),
+  feature: varchar("feature", { length: 50 }).notNull(),
+  grantedAt: timestamp("granted_at").notNull().defaultNow(),
+});
+
+export const insertUserFeatureAccessSchema = createInsertSchema(userFeatureAccess).omit({
+  id: true,
+  grantedAt: true,
+});
+export type InsertUserFeatureAccess = z.infer<typeof insertUserFeatureAccessSchema>;
+export type UserFeatureAccess = typeof userFeatureAccess.$inferSelect;

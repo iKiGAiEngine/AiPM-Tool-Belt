@@ -1,10 +1,11 @@
 import type { Express, Request, Response, NextFunction } from "express";
 import { db } from "./db";
-import { users, authTokens } from "@shared/schema";
+import { users, authTokens, DEFAULT_ROLE_FEATURES } from "@shared/schema";
 import { eq, and, gt, isNull } from "drizzle-orm";
 import { createHash, randomInt } from "crypto";
 import { sendOTPEmail } from "./emailService";
 import { auditLog } from "./auditService";
+import { storage } from "./storage";
 
 const ALLOWED_DOMAINS = (process.env.ALLOWED_EMAIL_DOMAINS || "nationalbuildingspecialties.com,swinerton.com")
   .split(",")
@@ -226,6 +227,13 @@ export function registerAuthRoutes(app: Express) {
 
       await db.update(authTokens).set({ usedAt: new Date() }).where(eq(authTokens.id, token.id));
       await db.update(users).set({ lastLoginAt: new Date() }).where(eq(users.id, user.id));
+
+      // Initialize default permissions if user has none
+      const existingPermissions = await storage.getUserFeatureAccess(user.id);
+      if (existingPermissions.length === 0) {
+        const defaultFeatures = DEFAULT_ROLE_FEATURES[user.role] || DEFAULT_ROLE_FEATURES.user;
+        await storage.setUserFeatureAccess(user.id, defaultFeatures);
+      }
 
       (req.session as any).userId = user.id;
 

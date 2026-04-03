@@ -2,7 +2,7 @@ import { randomUUID } from "crypto";
 import fs from "fs";
 import path from "path";
 import { db } from "./db";
-import { sessions, extractedSections, accessoryMatches as accessoryMatchesTable } from "@shared/schema";
+import { sessions, extractedSections, accessoryMatches as accessoryMatchesTable, userFeatureAccess } from "@shared/schema";
 import { eq, desc } from "drizzle-orm";
 import type { 
   Session, 
@@ -10,7 +10,9 @@ import type {
   ExtractedSection, 
   InsertSection, 
   AccessoryMatch,
-  InsertAccessoryMatch
+  InsertAccessoryMatch,
+  UserFeatureAccess,
+  Feature
 } from "@shared/schema";
 
 const PDF_BUFFER_DIR = path.join(process.cwd(), "data", "specsift_pdfs");
@@ -85,6 +87,9 @@ export interface IStorage {
   storePdfBuffer(sessionId: string, buffer: Buffer): Promise<void>;
   getPdfBuffer(sessionId: string): Promise<Buffer | undefined>;
   deletePdfBuffer(sessionId: string): Promise<boolean>;
+
+  getUserFeatureAccess(userId: number): Promise<Feature[]>;
+  setUserFeatureAccess(userId: number, features: Feature[]): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -250,6 +255,23 @@ export class DatabaseStorage implements IStorage {
   async deleteAccessoryMatchesBySession(sessionId: string): Promise<boolean> {
     await db.delete(accessoryMatchesTable).where(eq(accessoryMatchesTable.sessionId, sessionId));
     return true;
+  }
+
+  async getUserFeatureAccess(userId: number): Promise<Feature[]> {
+    const result = await db.select().from(userFeatureAccess).where(eq(userFeatureAccess.userId, userId));
+    return result.map((row) => row.feature as Feature);
+  }
+
+  async setUserFeatureAccess(userId: number, features: Feature[]): Promise<void> {
+    // Delete existing access for this user
+    await db.delete(userFeatureAccess).where(eq(userFeatureAccess.userId, userId));
+    
+    // Add new access entries
+    if (features.length > 0) {
+      await db.insert(userFeatureAccess).values(
+        features.map((feature) => ({ userId, feature }))
+      );
+    }
   }
 }
 

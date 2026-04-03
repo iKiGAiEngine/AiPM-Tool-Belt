@@ -87,6 +87,10 @@ app.use((req, res, next) => {
 (async () => {
   await seedDefaultData();
 
+  // Initialize permissions table
+  const { initializePermissions } = await import("./permissionsInit");
+  await initializePermissions();
+
   const { runDataRepairs } = await import("./dataRepair");
   await runDataRepairs();
 

@@ -70,6 +70,22 @@ export async function registerRoutes(
   });
 
   registerAuthRoutes(app);
+
+  // Get current user's feature access
+  app.get("/api/user/features", async (req: Request, res: Response) => {
+    try {
+      const userId = (req.session as any)?.userId;
+      if (!userId) {
+        return res.status(401).json({ message: "Not authenticated" });
+      }
+
+      const features = await storage.getUserFeatureAccess(userId);
+      res.json(features);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch features" });
+    }
+  });
+
   registerAutodeskRoutes(app);
 
   app.get("/tools/proposal-log", (req, res) => {
