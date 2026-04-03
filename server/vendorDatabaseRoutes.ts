@@ -552,6 +552,25 @@ export function registerVendorDatabaseRoutes(app: Express) {
     }
   });
 
+  // ---- CLEAR ALL ----
+
+  app.delete("/api/mfr/all", async (req: Request, res: Response) => {
+    try {
+      // Delete in dependency order
+      await db.delete(mfrFiles);
+      await db.delete(mfrResaleCerts);
+      await db.delete(mfrTaxInfo);
+      await db.delete(mfrLogistics);
+      await db.delete(mfrPricing);
+      await db.delete(mfrProducts);
+      await db.delete(mfrContacts);
+      await db.delete(mfrVendors);
+      res.json({ ok: true });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
   // ---- EXPORT ----
 
   app.get("/api/mfr/export", async (req: Request, res: Response) => {

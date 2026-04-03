@@ -798,6 +798,19 @@ export default function VendorDatabasePage() {
     toast({ title: "Export downloaded" });
   };
 
+  const deleteAll = async () => {
+    if (!confirm("Are you sure? This will delete ALL manufacturers, vendors, contacts, products, and certificates. This cannot be undone.")) return;
+    try {
+      const res = await fetch("/api/mfr/all", { method: "DELETE", credentials: "include" });
+      if (!res.ok) throw new Error("Delete failed");
+      qc.invalidateQueries({ queryKey: ["/api/mfr/vendors"] });
+      qc.invalidateQueries({ queryKey: ["/api/mfr/dashboard"] });
+      toast({ title: "All manufacturer data deleted" });
+    } catch (err: any) {
+      toast({ title: "Delete failed", description: err.message, variant: "destructive" });
+    }
+  };
+
   if (selectedVendorId !== null) {
     return (
       <div style={{ padding: "24px 32px", maxWidth: 1100, margin: "0 auto" }}>
@@ -825,6 +838,7 @@ export default function VendorDatabasePage() {
           <div style={{ display: "flex", gap: 8 }}>
             <Btn label="Upload Excel" icon={Upload} onClick={() => setShowExcelUpload(true)} />
             <Btn label="Export JSON" icon={Download} onClick={exportAll} />
+            <Btn label="Delete All" icon={Trash2} onClick={deleteAll} variant="ghost" />
           </div>
         </div>
 
