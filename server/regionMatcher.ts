@@ -16,6 +16,30 @@ export async function matchRegionFromLocation(locationStr: string): Promise<Regi
   return matchRegionFromLocationSync(locationStr, regions);
 }
 
+/**
+ * Given a list of office variants (all with the same region code),
+ * return a set of aliases that are UNIQUE to each specific variant
+ * (i.e., NOT shared across all variants). Only these can disambiguate.
+ */
+function buildUniqueAliasMap(candidates: Region[]): Map<number, Set<string>> {
+  const aliasSets = candidates.map(r => new Set((r.aliases || []).map(a => a.toLowerCase())));
+  const uniqueMap = new Map<number, Set<string>>();
+
+  candidates.forEach((_, i) => {
+    const unique = new Set<string>();
+    for (const alias of aliasSets[i]) {
+      // An alias is unique if at least one OTHER candidate does NOT have it
+      const isShared = aliasSets.every(s => s.has(alias));
+      if (!isShared) {
+        unique.add(alias);
+      }
+    }
+    uniqueMap.set(i, unique);
+  });
+
+  return uniqueMap;
+}
+
 export function matchRegionFromLocationSync(
   locationStr: string,
   regions: Region[],
@@ -54,45 +78,40 @@ export function matchRegionFromLocationSync(
     }
   }
 
-  // If we found a region and have the full client name, refine the match by searching for specific office identifiers
-  if (regionCodeMatch && fullClientName) {
-    const fullClient = (fullClientName || "").toLowerCase().trim();
+  // If we found a region and there are multiple office variants, refine using
+  // only UNIQUE (variant-specific) aliases so shared base aliases don't cause false matches.
+  if (regionCodeMatch && (fullClientName || projectName)) {
     const candidatesForRegion = regions.filter(r => r.code === regionCodeMatch);
-    
+
     if (candidatesForRegion.length > 1) {
-      // Multiple office variants exist for this region code
-      // Search the full client name for office-specific identifiers
-      for (const region of candidatesForRegion) {
-        const aliases = region.aliases || [];
-        for (const alias of aliases) {
-          const a = alias.toLowerCase();
-          // Skip generic location aliases like "socal", "los angeles", "orange county" 
-          if (["socal", "los angeles", "la", "orange county", "santa ana"].includes(a)) {
-            continue;
-          }
-          const re = new RegExp(`(?:^|[\\s,/\\-])${a.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?:$|[\\s,/\\-])`, "i");
-          if (re.test(` ${fullClient} `)) {
-            // Found a specific office match in the full client name
-            return { code: region.code, displayLabel: formatRegionDisplay(region), confident: true };
+      const uniqueAliasMap = buildUniqueAliasMap(candidatesForRegion);
+
+      // --- Pass 1: Search the full client name ---
+      if (fullClientName) {
+        const fullClient = fullClientName.toLowerCase().trim();
+        for (let i = 0; i < candidatesForRegion.length; i++) {
+          const region = candidatesForRegion[i];
+          const uniqueAliases = uniqueAliasMap.get(i) || new Set();
+          for (const a of uniqueAliases) {
+            const re = new RegExp(`(?:^|[\\s,/\\-])${a.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?:$|[\\s,/\\-])`, "i");
+            if (re.test(` ${fullClient} `)) {
+              console.log(`[RegionMatcher] Office refined via client name: alias="${a}" → ${formatRegionDisplay(region)}`);
+              return { code: region.code, displayLabel: formatRegionDisplay(region), confident: true };
+            }
           }
         }
       }
-      
-      // If client name didn't reveal the office, try project name for project-type disambiguation
-      // ONLY for LAX region which has office variants (TM, SPD, OCLA, FS)
+
+      // --- Pass 2: Search the project name (LAX only) ---
       if (projectName && regionCodeMatch === "LAX") {
-        const proj = (projectName || "").toLowerCase().trim();
-        for (const region of candidatesForRegion) {
-          const aliases = region.aliases || [];
-          for (const alias of aliases) {
-            const a = alias.toLowerCase();
-            // Skip generic location aliases
-            if (["socal", "los angeles", "la", "orange county", "santa ana"].includes(a)) {
-              continue;
-            }
+        const proj = projectName.toLowerCase().trim();
+        for (let i = 0; i < candidatesForRegion.length; i++) {
+          const region = candidatesForRegion[i];
+          const uniqueAliases = uniqueAliasMap.get(i) || new Set();
+          for (const a of uniqueAliases) {
             const re = new RegExp(`(?:^|[\\s,/\\-])${a.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?:$|[\\s,/\\-])`, "i");
             if (re.test(` ${proj} `)) {
-              // Found a project-type match in the project name
+              console.log(`[RegionMatcher] Office refined via project name: alias="${a}" → ${formatRegionDisplay(region)}`);
               return { code: region.code, displayLabel: formatRegionDisplay(region), confident: true };
             }
           }
