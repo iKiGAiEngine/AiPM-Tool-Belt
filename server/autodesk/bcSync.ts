@@ -1161,23 +1161,43 @@ export function registerBcSyncRoutes(app: Express) {
           const workbook = new ExcelJS.Workbook();
           await workbook.xlsx.load(estimateBuffer);
 
-          const projectData: Record<string, string> = {
-            projectId: estimateNumber,
-            projectName: safeName,
-            regionCode,
-            dueDate: finalDueDate,
-          };
-
           let stampedCount = 0;
-          for (const mapping of (activeEstimateTemplate.stampMappings || [])) {
-            const value = projectData[mapping.fieldName];
-            if (value === undefined) continue;
-            const match = mapping.cellRef.match(/^(.+)!([A-Z]+\d+)$/);
-            if (!match) continue;
-            const [, sheetName, cellAddr] = match;
-            const sheet = workbook.getWorksheet(sheetName);
-            if (sheet) {
-              sheet.getCell(cellAddr).value = value;
+          const summarySheet = workbook.getWorksheet("Summary") || workbook.worksheets[0];
+          
+          if (summarySheet) {
+            // B1: Project Name
+            if (safeName) {
+              summarySheet.getCell("B1").value = safeName;
+              stampedCount++;
+            }
+            
+            // B2: BID DUE DATE
+            if (finalDueDate) {
+              summarySheet.getCell("B2").value = finalDueDate;
+              stampedCount++;
+            }
+            
+            // B4: SHIP TO (Project Address)
+            if (entry.projectAddress) {
+              summarySheet.getCell("B4").value = entry.projectAddress;
+              stampedCount++;
+            }
+            
+            // B6: GC ESTIMATOR (Self Perform Estimator Name)
+            if (finalGcEstimateLead) {
+              summarySheet.getCell("B6").value = finalGcEstimateLead;
+              stampedCount++;
+            }
+            
+            // B12: PROJECT START DATE
+            if (entry.anticipatedStart) {
+              summarySheet.getCell("B12").value = entry.anticipatedStart;
+              stampedCount++;
+            }
+            
+            // B13: PROJECT END DATE
+            if (entry.anticipatedFinish) {
+              summarySheet.getCell("B13").value = entry.anticipatedFinish;
               stampedCount++;
             }
           }

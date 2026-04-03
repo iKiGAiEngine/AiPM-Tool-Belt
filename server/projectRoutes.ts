@@ -450,30 +450,31 @@ export function registerProjectRoutes(app: Express) {
             const workbook = new ExcelJS.Workbook();
             await workbook.xlsx.load(estimateBuffer);
 
-            const projectData: Record<string, string> = {
-              projectId: projectIdStr,
-              projectName: safeName,
-              regionCode: regionCode.toUpperCase(),
-              dueDate,
-            };
-
             let stampedCount = 0;
-            for (const mapping of (activeEstimateTemplate.stampMappings || [])) {
-              const value = projectData[mapping.fieldName];
-              if (value === undefined) continue;
-
-              const match = mapping.cellRef.match(/^(.+)!([A-Z]+\d+)$/);
-              if (!match) continue;
-
-              const [, sheetName, cellAddr] = match;
-              const sheet = workbook.getWorksheet(sheetName);
-              if (sheet) {
-                sheet.getCell(cellAddr).value = value;
+            const summarySheet = workbook.getWorksheet("Summary") || workbook.worksheets[0];
+            
+            if (summarySheet) {
+              // B1: Project Name
+              if (safeName) {
+                summarySheet.getCell("B1").value = safeName;
                 stampedCount++;
-                console.log(`[ProjectCreate] Stamped ${mapping.label}: ${value} → ${mapping.cellRef}`);
-              } else {
-                console.warn(`[ProjectCreate] Sheet '${sheetName}' not found in estimate template`);
               }
+              
+              // B2: BID DUE DATE
+              if (dueDate) {
+                summarySheet.getCell("B2").value = dueDate;
+                stampedCount++;
+              }
+              
+              // B4: SHIP TO (Project Address)
+              if (screenshotLocation) {
+                summarySheet.getCell("B4").value = screenshotLocation;
+                stampedCount++;
+              }
+              
+              console.log(`[ProjectCreate] Stamped ${stampedCount} cells in Summary sheet`);
+            } else {
+              console.warn(`[ProjectCreate] Could not find Summary sheet in estimate template`);
             }
 
             const dueParts = dueDate.split("-");
