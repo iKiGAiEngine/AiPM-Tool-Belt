@@ -1297,7 +1297,7 @@ export default function ProjectLogPage() {
                     />
                   </div>
                   <div className="rounded-lg px-3 py-2 text-[11px]" style={{ background: "var(--bg-input)", color: "var(--text-dim)" }}>
-                    Folder will be created as: <strong style={{ color: "var(--text)" }}>{(editForm.region || "???").toUpperCase()} - {editForm.projectName || "???"}</strong>
+                    Folder will be created as: <strong style={{ color: "var(--text)" }}>{((editForm.region || "???").split(" - ")[0]).toUpperCase()} - {editForm.projectName || "???"}</strong>
                   </div>
                 </div>
                 <div className="flex items-center justify-between gap-2 p-4" style={{ borderTop: "1px solid var(--border-ds)" }}>
