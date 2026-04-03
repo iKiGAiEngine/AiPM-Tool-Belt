@@ -20,6 +20,7 @@ import SpecExtractorPage from "@/pages/SpecExtractorPage";
 import LoginPage from "@/pages/LoginPage";
 import AdminPage from "@/pages/AdminPage";
 import AuditLogPage from "@/pages/AuditLogPage";
+import SubmittalBuilderPage from "@/submittal-builder/SubmittalBuilderPage";
 import NotFound from "@/pages/not-found";
 
 function AdminRoute({ component: Component }: { component: React.ComponentType }) {
@@ -43,6 +44,7 @@ function Router() {
       <Route path="/spec-extractor" component={SpecExtractorPage} />
       <Route path="/admin">{() => <AdminRoute component={AdminPage} />}</Route>
       <Route path="/admin/audit">{() => <AdminRoute component={AuditLogPage} />}</Route>
+      <Route path="/submittal-builder" component={SubmittalBuilderPage} />
       <Route component={NotFound} />
     </Switch>
   );
