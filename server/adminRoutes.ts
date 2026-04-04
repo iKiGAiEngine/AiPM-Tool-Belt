@@ -60,7 +60,7 @@ export function registerAdminRoutes(app: Express) {
       const { role } = req.body;
       const actorId = (req.session as any)?.userId;
 
-      if (!["user", "admin"].includes(role)) {
+      if (!["user", "admin", "accounting", "project_manager"].includes(role)) {
         return res.status(400).json({ message: "Invalid role" });
       }
 
@@ -76,6 +76,21 @@ export function registerAdminRoutes(app: Express) {
 
       if (!updated) return res.status(404).json({ message: "User not found" });
 
+      // Find and apply the profile linked to this role
+      const [linkedProfile] = await db
+        .select()
+        .from(permissionProfiles)
+        .where(eq(permissionProfiles.linkedRole, role));
+
+      if (linkedProfile) {
+        // Apply the linked profile's features to the user
+        await storage.setUserFeatureAccess(userId, linkedProfile.features);
+      } else {
+        // Fall back to role-based defaults if no linked profile
+        const defaultFeatures = DEFAULT_ROLE_FEATURES[role] || DEFAULT_ROLE_FEATURES.user;
+        await storage.setUserFeatureAccess(userId, defaultFeatures);
+      }
+
       const [actor] = await db.select().from(users).where(eq(users.id, actorId));
       await auditLog({
         actionType: "user_role_changed",
@@ -83,7 +98,7 @@ export function registerAdminRoutes(app: Express) {
         actorEmail: actor?.email,
         entityType: "user",
         entityId: String(userId),
-        summary: `Changed role of ${updated.email} to ${role}`,
+        summary: `Changed role of ${updated.email} to ${role}${linkedProfile ? ` (applied profile: ${linkedProfile.name})` : ""}`,
         ipAddress: (req.headers["x-forwarded-for"] as string)?.split(",")[0] || req.socket.remoteAddress || "",
         userAgent: req.headers["user-agent"] || "",
         requestPath: req.path,
@@ -573,6 +588,54 @@ export function registerAdminRoutes(app: Express) {
       res.json({ success: true, features: profile.features });
     } catch (error) {
       res.status(500).json({ message: "Failed to assign profile" });
+    }
+  });
+
+  // Link a profile to a role
+  app.patch("/api/admin/profiles/:id/link-role", requireAdmin, async (req: Request, res: Response) => {
+    try {
+      const profileId = parseInt(req.params.id);
+      const { role } = req.body as { role?: string };
+      const actorId = (req.session as any)?.userId;
+
+      // If role is provided, check it's valid
+      if (role && !["user", "admin", "accounting", "project_manager"].includes(role)) {
+        return res.status(400).json({ message: "Invalid role" });
+      }
+
+      // If setting this profile to a role, unlink any other profiles from that role first
+      if (role) {
+        await db
+          .update(permissionProfiles)
+          .set({ linkedRole: null })
+          .where(eq(permissionProfiles.linkedRole, role));
+      }
+
+      const [updated] = await db
+        .update(permissionProfiles)
+        .set({ linkedRole: role || null })
+        .where(eq(permissionProfiles.id, profileId))
+        .returning();
+
+      if (!updated) return res.status(404).json({ message: "Profile not found" });
+
+      const [actor] = await db.select().from(users).where(eq(users.id, actorId));
+      await auditLog({
+        actionType: "profile_role_linked",
+        actorUserId: actorId,
+        actorEmail: actor?.email,
+        entityType: "profile",
+        entityId: String(profileId),
+        summary: `Linked profile "${updated.name}" to role ${role || "none"}`,
+        ipAddress: (req.headers["x-forwarded-for"] as string)?.split(",")[0] || req.socket.remoteAddress || "",
+        userAgent: req.headers["user-agent"] || "",
+        requestPath: req.path,
+        requestMethod: req.method,
+      });
+
+      res.json(updated);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to link profile to role" });
     }
   });
 }

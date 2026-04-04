@@ -1224,6 +1224,7 @@ export const permissionProfiles = pgTable("permission_profiles", {
   name: varchar("name", { length: 100 }).notNull().unique(),
   description: text("description"),
   features: jsonb("features").$type<string[]>().default([]),
+  linkedRole: varchar("linked_role", { length: 50 }), // Optional: links this profile to a role (admin, user, accounting, project_manager, etc)
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });

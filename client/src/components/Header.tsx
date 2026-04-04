@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import {
   Home, Wrench, Receipt, FlaskConical, Loader2, Shield, LogOut,
-  FolderPlus, ScanSearch, ClipboardList, TableProperties, Settings, type LucideIcon
+  FolderPlus, ScanSearch, ClipboardList, TableProperties, Settings, Users, type LucideIcon
 } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
@@ -156,6 +156,13 @@ export function Header() {
               <Link href="/admin">
                 <Button variant="ghost" size="icon" title="Admin" data-testid="link-admin">
                   <Shield className="h-4 w-4" />
+                </Button>
+              </Link>
+            )}
+            {isAdmin && (
+              <Link href="/admin/permissions">
+                <Button variant="ghost" size="icon" title="User Permissions" data-testid="link-admin-permissions">
+                  <Users className="h-4 w-4" />
                 </Button>
               </Link>
             )}

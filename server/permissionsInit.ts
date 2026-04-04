@@ -20,10 +20,21 @@ export async function initializePermissions() {
         name VARCHAR(100) NOT NULL UNIQUE,
         description TEXT,
         features JSONB DEFAULT '[]',
+        linked_role VARCHAR(50),
         created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
       )
     `);
+
+    // Add linked_role column if it doesn't exist (for existing tables)
+    try {
+      await db.execute(sql`
+        ALTER TABLE permission_profiles 
+        ADD COLUMN IF NOT EXISTS linked_role VARCHAR(50)
+      `);
+    } catch (err: any) {
+      // Column might already exist, ignore error
+    }
 
     // Create default profiles if they don't exist
     const existingProfiles = await db.select().from(permissionProfiles);
@@ -32,16 +43,19 @@ export async function initializePermissions() {
         {
           name: "Full Access",
           description: "All features (Admin)",
+          linkedRole: "admin",
           features: Object.values(FEATURES),
         },
         {
           name: "Accounting",
           description: "Proposal Log, Vendor Database, Settings",
+          linkedRole: "accounting",
           features: [FEATURES.PROPOSAL_LOG, FEATURES.VENDOR_DATABASE, FEATURES.CENTRAL_SETTINGS],
         },
         {
           name: "Project Manager",
           description: "Proposal Log, Submittal Builder, Schedule Converter, Spec Extractor, Quote Parser, Project Start",
+          linkedRole: "project_manager",
           features: [
             FEATURES.PROPOSAL_LOG,
             FEATURES.SUBMITTAL_BUILDER,
@@ -54,6 +68,7 @@ export async function initializePermissions() {
         {
           name: "Standard User",
           description: "Proposal Log, Submittal Builder",
+          linkedRole: "user",
           features: [FEATURES.PROPOSAL_LOG, FEATURES.SUBMITTAL_BUILDER],
         },
       ];
@@ -61,7 +76,7 @@ export async function initializePermissions() {
       for (const profile of defaultProfiles) {
         await db.insert(permissionProfiles).values(profile);
       }
-      console.log("[Permissions] Created default profiles");
+      console.log("[Permissions] Created default profiles linked to roles");
     }
 
     // For each user without permissions, assign default permissions based on their role
