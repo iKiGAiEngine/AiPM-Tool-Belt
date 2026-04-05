@@ -1,6 +1,6 @@
 import { db } from "./db";
 import { users, userFeatureAccess, DEFAULT_ROLE_FEATURES, permissionProfiles, FEATURES } from "@shared/schema";
-import { sql, eq } from "drizzle-orm";
+import { sql, eq, desc } from "drizzle-orm";
 
 export async function initializePermissions() {
   try {
@@ -71,6 +71,15 @@ export async function initializePermissions() {
           linkedRole: "user",
           features: [FEATURES.PROPOSAL_LOG, FEATURES.SUBMITTAL_BUILDER],
         },
+        {
+          name: "Executive",
+          description: "Proposal Log, Project Log, Draft Review",
+          linkedRole: null, // Not auto-linked to a role, but available for manual assignment
+          features: [
+            FEATURES.PROPOSAL_LOG,
+            FEATURES.DRAFT_REVIEW,
+          ],
+        },
       ];
 
       for (const profile of defaultProfiles) {
@@ -79,10 +88,52 @@ export async function initializePermissions() {
       console.log("[Permissions] Created default profiles linked to roles");
     }
 
-    // For each user without permissions, assign default permissions based on their role
-    const allUsers = await db.select().from(users);
+    // Add Executive profile if it doesn't exist
+    const executiveProfile = await db.select().from(permissionProfiles).where(sql`name = 'Executive'`);
+    if (executiveProfile.length === 0) {
+      await db.insert(permissionProfiles).values({
+        name: "Executive",
+        description: "Proposal Log, Project Log, Draft Review",
+        linkedRole: null,
+        features: [FEATURES.PROPOSAL_LOG, FEATURES.DRAFT_REVIEW],
+      });
+      console.log("[Permissions] Created Executive profile");
+    }
+
+    // Clean up duplicate users (keep the oldest, delete newer duplicates)
+    const allUsers = await db.select().from(users).orderBy(users.createdAt);
+    const emailMap = new Map<string, number>();
+    const duplicatesToDelete: number[] = [];
 
     for (const user of allUsers) {
+      const email = user.email.toLowerCase();
+      if (emailMap.has(email)) {
+        // This is a duplicate, mark for deletion
+        duplicatesToDelete.push(user.id);
+      } else {
+        emailMap.set(email, user.id);
+      }
+    }
+
+    if (duplicatesToDelete.length > 0) {
+      console.log(`[Permissions] Found ${duplicatesToDelete.length} duplicate users, deleting...`);
+      for (const userId of duplicatesToDelete) {
+        try {
+          // Delete user feature access first
+          await db.delete(userFeatureAccess).where(eq(userFeatureAccess.userId, userId));
+          // Then delete the user
+          await db.delete(users).where(eq(users.id, userId));
+          console.log(`[Permissions] Deleted duplicate user ID ${userId}`);
+        } catch (err: any) {
+          console.error(`[Permissions] Failed to delete user ${userId}:`, err.message);
+        }
+      }
+    }
+
+    // For each remaining user without permissions, assign default permissions based on their role
+    const remainingUsers = await db.select().from(users);
+
+    for (const user of remainingUsers) {
       const existingAccess = await db
         .select()
         .from(userFeatureAccess)
