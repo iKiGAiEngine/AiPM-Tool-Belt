@@ -591,6 +591,113 @@ export function registerAdminRoutes(app: Express) {
     }
   });
 
+  // ---- USER CLEANUP ----
+
+  // Check for duplicate users (dry run - shows what would be deleted)
+  app.get("/api/admin/cleanup/check-duplicates", requireAdmin, async (req: Request, res: Response) => {
+    try {
+      const allUsers = await db.select().from(users).orderBy(desc(users.createdAt));
+      const emailMap = new Map<string, typeof users.$inferSelect[]>();
+
+      // Group users by email
+      for (const user of allUsers) {
+        const email = user.email.toLowerCase();
+        if (!emailMap.has(email)) {
+          emailMap.set(email, []);
+        }
+        emailMap.get(email)!.push(user);
+      }
+
+      // Find duplicates
+      const duplicates = Array.from(emailMap.entries())
+        .filter(([_, userList]) => userList.length > 1)
+        .map(([email, userList]) => ({
+          email,
+          count: userList.length,
+          keeper: {
+            id: userList[userList.length - 1].id, // Last one (oldest by createdAt)
+            createdAt: userList[userList.length - 1].createdAt,
+            displayName: userList[userList.length - 1].displayName,
+          },
+          toDelete: userList.slice(0, -1).map((u) => ({
+            id: u.id,
+            createdAt: u.createdAt,
+            displayName: u.displayName,
+          })),
+        }));
+
+      res.json({
+        duplicateCount: duplicates.length,
+        totalUsersToDelete: duplicates.reduce((sum, d) => sum + d.toDelete.length, 0),
+        duplicates,
+      });
+    } catch (error) {
+      res.status(500).json({ message: "Failed to check for duplicates" });
+    }
+  });
+
+  // Actually delete duplicate users
+  app.post("/api/admin/cleanup/remove-duplicates", requireAdmin, async (req: Request, res: Response) => {
+    try {
+      const allUsers = await db.select().from(users).orderBy(desc(users.createdAt));
+      const emailMap = new Map<string, typeof users.$inferSelect[]>();
+
+      // Group users by email
+      for (const user of allUsers) {
+        const email = user.email.toLowerCase();
+        if (!emailMap.has(email)) {
+          emailMap.set(email, []);
+        }
+        emailMap.get(email)!.push(user);
+      }
+
+      // Find and delete duplicates
+      const actorId = (req.session as any)?.userId;
+      const deletedIds: number[] = [];
+
+      for (const [email, userList] of emailMap.entries()) {
+        if (userList.length > 1) {
+          // Keep the last one (oldest), delete the rest
+          const toDelete = userList.slice(0, -1);
+
+          for (const user of toDelete) {
+            try {
+              // Delete user feature access first
+              await db.delete(userFeatureAccess).where(eq(userFeatureAccess.userId, user.id));
+              // Then delete the user
+              await db.delete(users).where(eq(users.id, user.id));
+              deletedIds.push(user.id);
+            } catch (err: any) {
+              console.error(`Failed to delete duplicate user ${user.id}:`, err.message);
+            }
+          }
+        }
+      }
+
+      // Audit log
+      const [actor] = await db.select().from(users).where(eq(users.id, actorId));
+      await auditLog({
+        actionType: "cleanup_duplicates",
+        actorUserId: actorId,
+        actorEmail: actor?.email,
+        entityType: "system",
+        summary: `Removed ${deletedIds.length} duplicate users: ${deletedIds.join(", ")}`,
+        ipAddress: (req.headers["x-forwarded-for"] as string)?.split(",")[0] || req.socket.remoteAddress || "",
+        userAgent: req.headers["user-agent"] || "",
+        requestPath: req.path,
+        requestMethod: req.method,
+      });
+
+      res.json({
+        success: true,
+        deletedCount: deletedIds.length,
+        deletedIds,
+      });
+    } catch (error) {
+      res.status(500).json({ message: "Failed to remove duplicates" });
+    }
+  });
+
   // Link a profile to a role
   app.patch("/api/admin/profiles/:id/link-role", requireAdmin, async (req: Request, res: Response) => {
     try {
