@@ -74,6 +74,7 @@ export default function ProjectStartPage() {
   const [specs, setSpecs] = useState<UploadState>({ file: null, isDragging: false });
 
   const [screenshotPreview, setScreenshotPreview] = useState<string | null>(null);
+  const [screenshotFile, setScreenshotFile] = useState<File | null>(null);
   const [isExtracting, setIsExtracting] = useState(false);
   const [extractionResult, setExtractionResult] = useState<{
     projectName: string | null;
@@ -137,6 +138,7 @@ export default function ProjectStartPage() {
       return;
     }
 
+    setScreenshotFile(file);
     const reader = new FileReader();
     reader.onload = (e) => {
       setScreenshotPreview(e.target?.result as string);
@@ -258,6 +260,7 @@ export default function ProjectStartPage() {
 
   const clearScreenshot = useCallback(() => {
     setScreenshotPreview(null);
+    setScreenshotFile(null);
     setExtractionResult(null);
     if (screenshotInputRef.current) {
       screenshotInputRef.current.value = "";
@@ -369,16 +372,8 @@ export default function ProjectStartPage() {
     if (estimateStatus) formData.append("estimateStatus", estimateStatus);
     if (bcLink) formData.append("bcLink", bcLink);
 
-    if (screenshotPreview) {
-      try {
-        const parts = screenshotPreview.split(",");
-        const mime = parts[0].match(/:(.*?);/)?.[1] || "image/png";
-        const bstr = atob(parts[1]);
-        const u8arr = new Uint8Array(bstr.length);
-        for (let i = 0; i < bstr.length; i++) u8arr[i] = bstr.charCodeAt(i);
-        const blob = new Blob([u8arr], { type: mime });
-        formData.append("screenshot", blob, "project-screenshot.png");
-      } catch {}
+    if (screenshotFile) {
+      formData.append("screenshot", screenshotFile);
     }
 
     if (extractionResult?.location) {
