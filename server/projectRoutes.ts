@@ -53,6 +53,7 @@ import { db } from "./db";
 import { sendBidAssignmentEmail, getBidAssignmentTemplate, saveBidAssignmentTemplate, sendProjectWonEmail, getProjectWonTemplate, saveProjectWonTemplate } from "./emailService";
 import { QUICK_LOGIN_USERS } from "./authRoutes";
 import { createNotification } from "./notificationRoutes";
+import { userCanAccessProject } from "./projectAccessControl";
 
 const SCREENSHOTS_DIR = path.join(process.cwd(), "project_screenshots");
 
@@ -1835,8 +1836,9 @@ export function registerProjectRoutes(app: Express) {
         }
       }
 
+      const userId = (req.session as any)?.userId;
+
       if (req.body.estimateNumber !== undefined) {
-        const userId = (req.session as any)?.userId;
         if (!userId) {
           return res.status(401).json({ message: "Not authenticated" });
         }
@@ -1854,6 +1856,12 @@ export function registerProjectRoutes(app: Express) {
       const [existingEntry] = await db.select().from(proposalLogEntries).where(eq(proposalLogEntries.id, id));
       if (!existingEntry) {
         return res.status(404).json({ message: "Entry not found" });
+      }
+
+      // Check project ownership
+      const canAccess = await userCanAccessProject(userId, existingEntry.projectDbId);
+      if (!canAccess) {
+        return res.status(403).json({ message: "You do not have permission to modify this proposal" });
       }
 
       let oldEstimator: string | null = null;
@@ -1901,7 +1909,6 @@ export function registerProjectRoutes(app: Express) {
         }
       }
 
-      const userId = (req.session as any)?.userId;
       const changedByName = await resolveChangedByName(userId);
 
       const updated = await updateProposalLogEntryById(id, updates);
@@ -2078,6 +2085,19 @@ export function registerProjectRoutes(app: Express) {
       const id = parseInt(req.params.id);
       if (isNaN(id)) return res.status(400).json({ message: "Valid numeric id required" });
 
+      // Fetch entry to check project ownership
+      const [entry] = await db.select().from(proposalLogEntries).where(eq(proposalLogEntries.id, id));
+      if (!entry) {
+        return res.status(404).json({ message: "Entry not found" });
+      }
+
+      // Check project ownership
+      const userId = (req.session as any)?.userId;
+      const canAccess = await userCanAccessProject(userId, entry.projectDbId);
+      if (!canAccess) {
+        return res.status(403).json({ message: "You do not have permission to delete this proposal" });
+      }
+
       const deleted = await deleteProposalLogEntry(id);
       if (!deleted) {
         return res.status(404).json({ message: "Entry not found" });
@@ -2098,6 +2118,21 @@ export function registerProjectRoutes(app: Express) {
         return res.status(400).json({ message: "ids array required" });
       }
       const numericIds = ids.map((id: any) => parseInt(id)).filter((id: number) => !isNaN(id));
+      
+      const userId = (req.session as any)?.userId;
+
+      // Validate ownership for each entry before deletion
+      const entries = await db.select().from(proposalLogEntries).where(sql`id = ANY(${numericIds})`);
+      
+      for (const entry of entries) {
+        const canAccess = await userCanAccessProject(userId, entry.projectDbId);
+        if (!canAccess) {
+          return res.status(403).json({ 
+            message: `You do not have permission to delete proposal "${entry.projectName}" (ID: ${entry.id})` 
+          });
+        }
+      }
+
       const count = await deleteProposalLogEntries(numericIds);
       console.log(`[ProposalLog] Bulk deleted ${count} entries`);
       res.json({ success: true, deleted: count });
