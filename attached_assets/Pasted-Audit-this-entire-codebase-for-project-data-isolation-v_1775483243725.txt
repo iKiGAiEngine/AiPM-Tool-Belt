@@ -1,0 +1,44 @@
+Audit this entire codebase for project data isolation violations. AiPM’s #1 rule is that no data from one project can ever appear in, leak into, or be accessible from another project. A violation here is a critical bug.
+Step 1: Map the stack
+Read the codebase and tell me:
+	∙	What database is being used and where is the connection config
+	∙	List every table, collection, or data model you find
+	∙	For each one, does it have a project_id column or equivalent
+	∙	List every API route or server endpoint
+	∙	List any AI/LLM API calls (Anthropic, OpenAI, etc.)
+	∙	Where are files stored (if anywhere)
+Print this as a simple list before continuing.
+Step 2: Find violations
+Search every file for these problems. Be specific — give me the file path and line number for every finding.
+Database queries:
+	∙	Any query that reads or writes project-scoped data without filtering by project_id
+	∙	Any JOIN or aggregation that could pull records from multiple projects
+	∙	Any SELECT * on a project-scoped table without a project filter
+	∙	Missing RLS policies (if Supabase)
+	∙	Missing indexes on project_id columns
+API routes:
+	∙	Any endpoint that touches project data but doesn’t require project_id as a parameter
+	∙	Any endpoint that trusts project_id from the client without server-side validation
+	∙	Any endpoint that could return records from multiple projects
+	∙	Any endpoint missing permission checks for the requesting user’s access to that project
+Frontend:
+	∙	Any API call that doesn’t pass project_id
+	∙	Any state or cache that persists across project switches
+	∙	Any component that renders data without confirming it belongs to the active project
+AI agents:
+	∙	Any LLM prompt or context that doesn’t include project scoping
+	∙	Any agent that could access or reference data from other projects
+	∙	Any AI-generated content not tagged with its source project_id
+File storage:
+	∙	Files not organized by project
+	∙	File access not checking project ownership
+	∙	File URLs guessable across projects
+Step 3: Report
+For every finding, tell me:
+	∙	🔴 CRITICAL (data can leak now), 🟡 WARNING (missing safeguard), or 🟢 PASS
+	∙	Exact file and line
+	∙	What’s wrong in one sentence
+	∙	The fix in one sentence
+Then give me a priority-ordered fix list — what to change first, second, third.
+If the single biggest improvement is adding middleware, an RLS policy, or a query wrapper that would fix multiple issues at once, tell me that first and write the code for it.
+Start now with Step 1.
