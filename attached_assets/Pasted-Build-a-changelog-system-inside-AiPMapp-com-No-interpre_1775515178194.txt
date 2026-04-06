@@ -1,0 +1,48 @@
+Build a changelog system inside AiPMapp.com. No interpretation — follow exactly.
+
+1. CREATE FILE: `/docs/CHANGELOG.md`
+Format every entry exactly like this:
+```
+## [MM-DD-YYYY] v0.X.X
+### Added
+- [specific feature or file added]
+### Changed
+- [specific behavior that changed and why]
+### Fixed
+- [specific bug fixed, what it was doing wrong]
+### Notes
+- [any architectural decision or reason that isn't obvious]
+```
+Seed it with one entry dated today that documents everything currently built — auth system, RBAC roles, all 26 tables, existing modules, and known issues from AIPM_STATUS_DUMP.md.
+
+2. CREATE FILE: `/docs/DECISIONS.md`
+This is an architectural decision log. Format every entry exactly like this:
+```
+## [MM-DD-YYYY] — Decision Title
+**What:** One sentence describing the decision.
+**Why:** One to three sentences explaining the reasoning.
+**Alternatives rejected:** What else was considered and why it was not chosen.
+```
+Seed it with every major architectural decision already made: OTP over passwords, Drizzle ORM, PostgreSQL, Zod validation, project isolation rules, RBAC role structure.
+
+3. ENFORCE GIT COMMIT FORMAT
+Create a `CONTRIBUTING.md` file with this exact commit message rule that must be followed on every commit going forward:
+```
+[MM-DD-YYYY] [module] — what changed and why
+Examples:
+04-06-2026 [estimating] — extracted breakout validation to pure function for DB mirroring
+04-06-2026 [auth] — replaced hardcoded approver name with project.finalReviewer field
+04-06-2026 [db] — added estimate_line_items table with estimate_id FK NOT NULL
+```
+Vague messages like 'fix bug' or 'update' are not acceptable.
+
+4. ADD CHANGELOG ROUTE AT `/changelog`
+Add a read-only page inside the app that renders CHANGELOG.md. Build it exactly as follows:
+
+- Accessible to admin role only
+- Matches the existing AiPM dark theme
+- Each changelog entry renders as an expandable accordion card. Collapsed state shows only the date and version number. Expanded state shows all four sections: Added, Changed, Fixed, Notes
+- Every bullet point in each section has a plain-English tooltip on hover that explains what the technical term means in one simple sentence. Example: if a bullet says "added estimate_id FK NOT NULL constraint" the tooltip says "This means every estimate entry in the database is required to be linked to a real project — orphaned records are blocked."
+- At the top of the page, one dropdown labeled "Copy entry for AI session". It lists every changelog entry by date and version. Selecting one copies the full raw markdown of that entry to clipboard — formatted so it can be pasted directly into a Replit or Claude chat to bring that session up to speed on what was built that day.
+
+No editing from the UI. No auto-detection of changes. No automation. The changelog is updated manually at the end of every build session by telling Replit to update it. That is intentional.

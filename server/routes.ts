@@ -133,6 +133,33 @@ export async function registerRoutes(
   });
 
   registerAdminRoutes(app);
+
+  // Changelog API endpoint (admin only)
+  app.get("/api/changelog", async (req: Request, res: Response) => {
+    try {
+      const userId = (req.session as any)?.userId;
+      if (!userId) {
+        return res.status(401).json({ message: "Not authenticated" });
+      }
+
+      const user = await storage.getUserById(userId);
+      if (!user || user.role !== "admin") {
+        return res.status(403).json({ message: "Only admins can view changelog" });
+      }
+
+      const changelogPath = path.join(process.cwd(), "docs", "CHANGELOG.md");
+      if (!fs.existsSync(changelogPath)) {
+        return res.status(404).json({ message: "Changelog not found" });
+      }
+
+      const content = fs.readFileSync(changelogPath, "utf-8");
+      res.json({ content });
+    } catch (error) {
+      console.error("Failed to fetch changelog:", error);
+      res.status(500).json({ message: "Failed to fetch changelog" });
+    }
+  });
+
   registerPlanParserRoutes(app);
   registerQuoteParserRoutes(app);
   registerCentralSettingsRoutes(app);
