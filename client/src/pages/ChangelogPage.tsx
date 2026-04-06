@@ -42,11 +42,8 @@ export default function ChangelogPage() {
     queryFn: async () => {
       const res = await fetch("/api/changelog");
       if (!res.ok) {
-        if (res.status === 403) {
-          navigate("/");
-          throw new Error("Only admins can view changelog");
-        }
-        throw new Error("Failed to fetch changelog");
+        const errorData = await res.json().catch(() => null);
+        throw new Error(errorData?.message || `Failed to fetch changelog (${res.status})`);
       }
       return res.json();
     },
@@ -75,7 +72,9 @@ export default function ChangelogPage() {
       <div className="flex items-center justify-center min-h-screen bg-white dark:bg-zinc-950">
         <div className="text-center text-red-600 dark:text-red-400">
           <p className="text-lg font-semibold">Failed to load changelog</p>
-          <p className="text-sm mt-2">Only administrators can view the changelog.</p>
+          <p className="text-sm mt-2">
+            {error instanceof Error ? error.message : "Unable to fetch changelog"}
+          </p>
         </div>
       </div>
     );
