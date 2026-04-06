@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import {
   Home, Wrench, Receipt, FlaskConical, Loader2, Shield, LogOut,
-  FolderPlus, ScanSearch, ClipboardList, TableProperties, Settings, Users, ScrollText, type LucideIcon
+  FolderPlus, ScanSearch, ClipboardList, TableProperties, Settings, Users, type LucideIcon
 } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
@@ -116,17 +116,6 @@ export function Header() {
               >
                 <Home className="h-4 w-4" />
                 Home
-              </Link>
-            )}
-            {user && (
-              <Link
-                href="/changelog"
-                className="flex items-center gap-2 text-sm font-medium transition-colors font-heading"
-                style={{ color: "var(--text-dim)" }}
-                data-testid="link-nav-changelog"
-              >
-                <ScrollText className="h-4 w-4" />
-                Changelog
               </Link>
             )}
           </nav>

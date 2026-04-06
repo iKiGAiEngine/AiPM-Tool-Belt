@@ -42,6 +42,9 @@ import {
   AlertTriangle,
   CheckCircle,
   HardDrive,
+  BookOpen,
+  History,
+  FileText,
 } from "lucide-react";
 import { Link } from "wouter";
 import { queryClient, apiRequest } from "@/lib/queryClient";
@@ -273,17 +276,49 @@ export default function AdminPage() {
               <Shield className="w-5 h-5" style={{ color: "var(--gold)" }} />
               <h1 className="text-2xl font-heading font-semibold text-foreground">Admin Dashboard</h1>
             </div>
-            <div className="flex items-center gap-2">
-              <Link href="/admin/audit">
-                <Button variant="outline" size="sm" data-testid="link-audit-log">
-                  <ScrollText className="w-3.5 h-3.5 mr-1.5" />
-                  Audit Log
-                </Button>
-              </Link>
-            </div>
           </div>
           <p className="text-muted-foreground ml-12">Manage users, profiles, and access control.</p>
         </div>
+
+        {/* Logs & Audit Center — Admin Only */}
+        <Card className="card-accent-bar mb-6">
+          <div className="p-4 border-b">
+            <div className="flex items-center gap-2">
+              <FileText className="w-4 h-4" style={{ color: "var(--gold)" }} />
+              <h2 className="font-heading font-medium">Logs &amp; Audit Center</h2>
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">All log access is restricted to administrators only.</p>
+          </div>
+          <div className="p-4 grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <Link href="/changelog" data-testid="link-changelog">
+              <div className="flex items-start gap-3 p-3 rounded-md border border-border hover:border-primary/50 hover:bg-muted/40 transition-all cursor-pointer group">
+                <BookOpen className="w-4 h-4 mt-0.5 shrink-0" style={{ color: "var(--gold)" }} />
+                <div>
+                  <div className="font-medium text-sm font-heading group-hover:text-foreground">Changelog</div>
+                  <div className="text-xs text-muted-foreground">App version history, features added, bugs fixed</div>
+                </div>
+              </div>
+            </Link>
+            <Link href="/project-log" data-testid="link-proposal-change-log">
+              <div className="flex items-start gap-3 p-3 rounded-md border border-border hover:border-primary/50 hover:bg-muted/40 transition-all cursor-pointer group">
+                <History className="w-4 h-4 mt-0.5 shrink-0" style={{ color: "var(--gold)" }} />
+                <div>
+                  <div className="font-medium text-sm font-heading group-hover:text-foreground">Proposal Change Log</div>
+                  <div className="text-xs text-muted-foreground">Immutable record of all proposal field edits</div>
+                </div>
+              </div>
+            </Link>
+            <Link href="/admin/audit" data-testid="link-system-audit-log">
+              <div className="flex items-start gap-3 p-3 rounded-md border border-border hover:border-primary/50 hover:bg-muted/40 transition-all cursor-pointer group">
+                <ScrollText className="w-4 h-4 mt-0.5 shrink-0" style={{ color: "var(--gold)" }} />
+                <div>
+                  <div className="font-medium text-sm font-heading group-hover:text-foreground">System Audit Log</div>
+                  <div className="text-xs text-muted-foreground">Authentication, role changes, admin actions</div>
+                </div>
+              </div>
+            </Link>
+          </div>
+        </Card>
 
         <Card className="card-accent-bar">
           <div className="flex items-center justify-between gap-4 p-4 border-b flex-wrap">

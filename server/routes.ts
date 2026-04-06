@@ -142,7 +142,7 @@ export async function registerRoutes(
         return res.status(401).json({ message: "Not authenticated" });
       }
 
-      const user = await storage.getUserById(userId);
+      const [user] = await db.select().from(usersTable).where(eq(usersTable.id, userId)).limit(1);
       if (!user || user.role !== "admin") {
         return res.status(403).json({ message: "Only administrators can view the changelog" });
       }
