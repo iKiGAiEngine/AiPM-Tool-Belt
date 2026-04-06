@@ -48,7 +48,7 @@ function Router() {
       <Route path="/admin">{() => <AdminRoute component={AdminPage} />}</Route>
       <Route path="/admin/audit">{() => <AdminRoute component={AuditLogPage} />}</Route>
       <Route path="/admin/permissions">{() => <AdminRoute component={AdminUserPermissionsPage} />}</Route>
-      <Route path="/changelog">{() => <AdminRoute component={ChangelogPage} />}</Route>
+      <Route path="/changelog" component={ChangelogPage} />
       <Route path="/submittal-builder" component={SubmittalBuilderPage} />
       <Route path="/vendor-database" component={VendorDatabasePage} />
       <Route component={NotFound} />
