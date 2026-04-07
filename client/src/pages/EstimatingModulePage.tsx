@@ -250,6 +250,16 @@ export default function EstimatingModulePage() {
   const [newItemForm, setNewItemForm] = useState({ name: "", model: "", mfr: "", qty: 1, unitCost: 0, source: "manual" });
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // ── Fetch regions for dropdown ──
+  const { data: dbRegions = [] } = useQuery<{ id: number; code: string; name: string | null; isActive: boolean }[]>({
+    queryKey: ["/api/regions", "active"],
+    queryFn: async () => {
+      const res = await fetch("/api/regions?active=true", { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to load regions");
+      return res.json();
+    },
+  });
+
   // ── Fetch proposal log entry ──
   const { data: proposalEntry } = useQuery<any>({
     queryKey: ["/api/proposal-log/entry", proposalLogId],
@@ -797,6 +807,21 @@ export default function EstimatingModulePage() {
     }
   }, [proposalEntry, projInfoLoaded]);
 
+  // ── Sync scope changes from Proposal Log to existing estimate ──
+  useEffect(() => {
+    if (estimateData && proposalEntry?.nbsSelectedScopes) {
+      try {
+        const nbsLabels: string[] = JSON.parse(proposalEntry.nbsSelectedScopes);
+        const ids = nbsLabels
+          .map((label: string) => ALL_SCOPES.find(s => s.label === label)?.id)
+          .filter(Boolean) as string[];
+        if (JSON.stringify(ids.sort()) !== JSON.stringify(activeScopes.sort())) {
+          setActiveScopes(ids);
+        }
+      } catch { /* ignore parse errors */ }
+    }
+  }, [proposalEntry?.nbsSelectedScopes, estimateData]);
+
   // ── Scope toggle ──
   const toggleScope = useCallback((scopeId: string) => {
     setActiveScopes(prev => prev.includes(scopeId) ? prev.filter(s => s !== scopeId) : [...prev, scopeId]);
@@ -1031,25 +1056,67 @@ export default function EstimatingModulePage() {
                   {proposalEntry?.swinertonProject || "—"}
                 </div>
               </div>
-              {/* Editable fields */}
+              {/* Editable text fields */}
               {[
-                { key: "projectName",      label: "Project Name",    type: "text" },
-                { key: "gcEstimateLead",   label: "GC / Client",     type: "text" },
-                { key: "region",           label: "Region",          type: "text" },
-                { key: "nbsEstimator",     label: "NBS Estimator",   type: "text" },
-                { key: "dueDate",          label: "Due Date",        type: "text", placeholder: "MM/DD/YYYY" },
-                { key: "primaryMarket",    label: "Primary Market",  type: "text" },
-                { key: "estimateStatus",   label: "Status",          type: "text" },
-                { key: "owner",            label: "Owner",           type: "text" },
-                { key: "anticipatedStart", label: "Est. Start",      type: "text", placeholder: "MM/DD/YYYY" },
-                { key: "anticipatedFinish",label: "Est. Finish",     type: "text", placeholder: "MM/DD/YYYY" },
+                { key: "projectName",      label: "Project Name" },
+                { key: "gcEstimateLead",   label: "GC / Client" },
+                { key: "nbsEstimator",     label: "NBS Estimator" },
+                { key: "primaryMarket",    label: "Primary Market" },
+                { key: "owner",            label: "Owner" },
               ].map(f => (
                 <div key={f.key}>
                   <label className="text-xs block mb-1 uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>{f.label}</label>
                   <input
-                    type={f.type}
+                    type="text"
                     value={projInfo[f.key] ?? ""}
-                    placeholder={(f as any).placeholder || ""}
+                    onChange={e => { setProjInfo(prev => ({ ...prev, [f.key]: e.target.value })); markDirty(); }}
+                    className="w-full text-xs px-2 py-1.5 rounded outline-none"
+                    style={{ background: "var(--bg3)", border: "1px solid var(--border-ds)", color: "var(--text-primary)" }}
+                  />
+                </div>
+              ))}
+              {/* Region dropdown */}
+              <div>
+                <label className="text-xs block mb-1 uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>Region</label>
+                <select
+                  value={projInfo.region ?? ""}
+                  onChange={e => { setProjInfo(prev => ({ ...prev, region: e.target.value })); markDirty(); }}
+                  className="w-full text-xs px-2 py-1.5 rounded outline-none"
+                  style={{ background: "var(--bg3)", border: "1px solid var(--border-ds)", color: "var(--text-primary)" }}
+                >
+                  <option value="">— Select Region —</option>
+                  {dbRegions.map(r => (
+                    <option key={r.id} value={`${r.code} - ${r.name}`}>{r.code} - {r.name}</option>
+                  ))}
+                </select>
+              </div>
+              {/* Status dropdown */}
+              <div>
+                <label className="text-xs block mb-1 uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>Status</label>
+                <select
+                  value={projInfo.estimateStatus ?? ""}
+                  onChange={e => { setProjInfo(prev => ({ ...prev, estimateStatus: e.target.value })); markDirty(); }}
+                  className="w-full text-xs px-2 py-1.5 rounded outline-none"
+                  style={{ background: "var(--bg3)", border: "1px solid var(--border-ds)", color: "var(--text-primary)" }}
+                >
+                  <option value="">— Select Status —</option>
+                  {["Lead", "Estimating", "Submitted", "Won", "Lost", "No Bid"].map(s => (
+                    <option key={s} value={s}>{s}</option>
+                  ))}
+                </select>
+              </div>
+              {/* Date fields */}
+              {[
+                { key: "dueDate",          label: "Due Date" },
+                { key: "anticipatedStart", label: "Est. Start" },
+                { key: "anticipatedFinish",label: "Est. Finish" },
+              ].map(f => (
+                <div key={f.key}>
+                  <label className="text-xs block mb-1 uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>{f.label}</label>
+                  <input
+                    type="text"
+                    value={projInfo[f.key] ?? ""}
+                    placeholder="MM/DD/YYYY"
                     onChange={e => { setProjInfo(prev => ({ ...prev, [f.key]: e.target.value })); markDirty(); }}
                     className="w-full text-xs px-2 py-1.5 rounded outline-none"
                     style={{ background: "var(--bg3)", border: "1px solid var(--border-ds)", color: "var(--text-primary)" }}
