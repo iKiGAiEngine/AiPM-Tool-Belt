@@ -523,8 +523,12 @@ export default function ProjectLogPage() {
             </Button>
           </Link>
           <div className="flex-1">
-            <h1 className="text-2xl font-heading font-semibold" style={{ color: "var(--text)" }}>BC Bid Log</h1>
-            <p className="text-sm" style={{ color: "var(--text-dim)" }}>Immutable audit trail of all proposal log entries</p>
+            <h1 className="text-2xl font-heading font-semibold" style={{ color: "var(--text)" }}>Proposal Log</h1>
+            <p className="text-sm" style={{ color: "var(--text-dim)" }}>
+              {viewTab === "changes"
+                ? "Immutable audit trail of all field-level edits"
+                : "Active bids, pipeline tracking & estimating workflow"}
+            </p>
           </div>
           <div className="flex items-center gap-2">
             {isAdmin && bcStatus?.connected && (

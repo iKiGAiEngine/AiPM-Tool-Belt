@@ -303,8 +303,8 @@ export default function AdminPage() {
               <div className="flex items-start gap-3 p-3 rounded-md border border-border hover:border-primary/50 hover:bg-muted/40 transition-all cursor-pointer group">
                 <History className="w-4 h-4 mt-0.5 shrink-0" style={{ color: "var(--gold)" }} />
                 <div>
-                  <div className="font-medium text-sm font-heading group-hover:text-foreground">BC Bid Log</div>
-                  <div className="text-xs text-muted-foreground">Immutable record of all proposal field edits</div>
+                  <div className="font-medium text-sm font-heading group-hover:text-foreground">Proposal Log</div>
+                  <div className="text-xs text-muted-foreground">Bid tracking, pipeline & BC Bid Log audit trail</div>
                 </div>
               </div>
             </Link>
