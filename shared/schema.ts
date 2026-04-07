@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { pgTable, serial, text, timestamp, jsonb, boolean, integer, varchar, unique, customType } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, timestamp, jsonb, boolean, integer, varchar, unique, customType, numeric } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { sql } from "drizzle-orm";
 
@@ -1236,3 +1236,153 @@ export const insertPermissionProfileSchema = createInsertSchema(permissionProfil
 });
 export type InsertPermissionProfile = z.infer<typeof insertPermissionProfileSchema>;
 export type PermissionProfile = typeof permissionProfiles.$inferSelect;
+
+// =====================================================
+// ESTIMATING MODULE
+// =====================================================
+
+export const estimates = pgTable("estimates", {
+  id: serial("id").primaryKey(),
+  proposalLogId: integer("proposal_log_id").notNull(),
+  estimateNumber: varchar("estimate_number", { length: 50 }).notNull(),
+  projectName: varchar("project_name", { length: 255 }).notNull(),
+  activeScopes: jsonb("active_scopes").$type<string[]>().default([]),
+  defaultOh: numeric("default_oh", { precision: 5, scale: 2 }).default("10"),
+  defaultFee: numeric("default_fee", { precision: 5, scale: 2 }).default("5"),
+  defaultEsc: numeric("default_esc", { precision: 5, scale: 2 }).default("0"),
+  taxRate: numeric("tax_rate", { precision: 5, scale: 2 }).default("0"),
+  bondRate: numeric("bond_rate", { precision: 5, scale: 2 }).default("0"),
+  catOverrides: jsonb("cat_overrides").$type<Record<string, { oh?: number; fee?: number; esc?: number }>>().default({}),
+  catComplete: jsonb("cat_complete").$type<Record<string, boolean>>().default({}),
+  catQuals: jsonb("cat_quals").$type<Record<string, { inclusions?: string; exclusions?: string; qualifications?: string }>>().default({}),
+  assumptions: jsonb("assumptions").$type<string[]>().default([]),
+  risks: jsonb("risks").$type<string[]>().default([]),
+  checklist: jsonb("checklist").$type<any[]>().default([]),
+  reviewStatus: varchar("review_status", { length: 30 }).default("drafting"),
+  isTest: boolean("is_test").default(false),
+  createdBy: varchar("created_by", { length: 100 }),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+export const insertEstimateSchema = createInsertSchema(estimates).omit({ id: true, createdAt: true, updatedAt: true });
+export type InsertEstimate = z.infer<typeof insertEstimateSchema>;
+export type Estimate = typeof estimates.$inferSelect;
+
+export const estimateLineItems = pgTable("estimate_line_items", {
+  id: serial("id").primaryKey(),
+  estimateId: integer("estimate_id").notNull(),
+  category: varchar("category", { length: 50 }).notNull(),
+  name: varchar("name", { length: 255 }).notNull(),
+  model: varchar("model", { length: 100 }),
+  mfr: varchar("mfr", { length: 100 }),
+  qty: integer("qty").default(1).notNull(),
+  unitCost: numeric("unit_cost", { precision: 10, scale: 2 }).default("0").notNull(),
+  escOverride: numeric("esc_override", { precision: 5, scale: 2 }),
+  quoteId: integer("quote_id"),
+  source: varchar("source", { length: 30 }).default("manual"),
+  note: text("note"),
+  hasBackup: boolean("has_backup").default(false),
+  sortOrder: integer("sort_order").default(0),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const insertEstimateLineItemSchema = createInsertSchema(estimateLineItems).omit({ id: true, createdAt: true });
+export type InsertEstimateLineItem = z.infer<typeof insertEstimateLineItemSchema>;
+export type EstimateLineItem = typeof estimateLineItems.$inferSelect;
+
+export const estimateQuotes = pgTable("estimate_quotes", {
+  id: serial("id").primaryKey(),
+  estimateId: integer("estimate_id").notNull(),
+  category: varchar("category", { length: 50 }).notNull(),
+  vendor: varchar("vendor", { length: 100 }).notNull(),
+  note: text("note"),
+  freight: numeric("freight", { precision: 10, scale: 2 }).default("0"),
+  taxIncluded: boolean("tax_included").default(false),
+  pricingMode: varchar("pricing_mode", { length: 20 }).default("per_item"),
+  lumpSumTotal: numeric("lump_sum_total", { precision: 10, scale: 2 }).default("0"),
+  breakoutGroupId: integer("breakout_group_id"),
+  hasBackup: boolean("has_backup").default(false),
+  filePath: varchar("file_path", { length: 500 }),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const insertEstimateQuoteSchema = createInsertSchema(estimateQuotes).omit({ id: true, createdAt: true });
+export type InsertEstimateQuote = z.infer<typeof insertEstimateQuoteSchema>;
+export type EstimateQuote = typeof estimateQuotes.$inferSelect;
+
+export const estimateBreakoutGroups = pgTable("estimate_breakout_groups", {
+  id: serial("id").primaryKey(),
+  estimateId: integer("estimate_id").notNull(),
+  code: varchar("code", { length: 20 }).notNull(),
+  label: varchar("label", { length: 255 }).notNull(),
+  type: varchar("type", { length: 30 }).default("building"),
+  ohOverride: numeric("oh_override", { precision: 5, scale: 2 }),
+  feeOverride: numeric("fee_override", { precision: 5, scale: 2 }),
+  escOverride: numeric("esc_override", { precision: 5, scale: 2 }),
+  freightMethod: varchar("freight_method", { length: 20 }).default("proportional"),
+  manualFreight: numeric("manual_freight", { precision: 10, scale: 2 }),
+  sortOrder: integer("sort_order").default(0),
+});
+
+export const insertEstimateBreakoutGroupSchema = createInsertSchema(estimateBreakoutGroups).omit({ id: true });
+export type InsertEstimateBreakoutGroup = z.infer<typeof insertEstimateBreakoutGroupSchema>;
+export type EstimateBreakoutGroup = typeof estimateBreakoutGroups.$inferSelect;
+
+export const estimateBreakoutAllocations = pgTable("estimate_breakout_allocations", {
+  id: serial("id").primaryKey(),
+  estimateId: integer("estimate_id").notNull(),
+  lineItemId: integer("line_item_id").notNull(),
+  breakoutGroupId: integer("breakout_group_id").notNull(),
+  qty: integer("qty").default(0).notNull(),
+});
+
+export const insertEstimateBreakoutAllocationSchema = createInsertSchema(estimateBreakoutAllocations).omit({ id: true });
+export type InsertEstimateBreakoutAllocation = z.infer<typeof insertEstimateBreakoutAllocationSchema>;
+export type EstimateBreakoutAllocation = typeof estimateBreakoutAllocations.$inferSelect;
+
+export const estimateVersions = pgTable("estimate_versions", {
+  id: serial("id").primaryKey(),
+  estimateId: integer("estimate_id").notNull(),
+  version: integer("version").notNull(),
+  savedBy: varchar("saved_by", { length: 100 }),
+  notes: text("notes"),
+  grandTotal: numeric("grand_total", { precision: 12, scale: 2 }).default("0"),
+  snapshotData: jsonb("snapshot_data"),
+  savedAt: timestamp("saved_at").notNull().defaultNow(),
+});
+
+export const insertEstimateVersionSchema = createInsertSchema(estimateVersions).omit({ id: true, savedAt: true });
+export type InsertEstimateVersion = z.infer<typeof insertEstimateVersionSchema>;
+export type EstimateVersion = typeof estimateVersions.$inferSelect;
+
+export const estimateReviewComments = pgTable("estimate_review_comments", {
+  id: serial("id").primaryKey(),
+  estimateId: integer("estimate_id").notNull(),
+  author: varchar("author", { length: 100 }).notNull(),
+  comment: text("comment").notNull(),
+  resolved: boolean("resolved").default(false),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const insertEstimateReviewCommentSchema = createInsertSchema(estimateReviewComments).omit({ id: true, createdAt: true });
+export type InsertEstimateReviewComment = z.infer<typeof insertEstimateReviewCommentSchema>;
+export type EstimateReviewComment = typeof estimateReviewComments.$inferSelect;
+
+export const ohApprovalLog = pgTable("oh_approval_log", {
+  id: serial("id").primaryKey(),
+  estimateId: integer("estimate_id").notNull(),
+  catId: varchar("cat_id", { length: 50 }).notNull(),
+  catLabel: varchar("cat_label", { length: 100 }),
+  oldRate: numeric("old_rate", { precision: 5, scale: 2 }),
+  newRate: numeric("new_rate", { precision: 5, scale: 2 }),
+  requestedBy: varchar("requested_by", { length: 100 }),
+  requestedAt: timestamp("requested_at").notNull().defaultNow(),
+  approvedBy: varchar("approved_by", { length: 100 }),
+  approvedAt: timestamp("approved_at"),
+  status: varchar("status", { length: 20 }).default("pending"),
+});
+
+export const insertOhApprovalLogSchema = createInsertSchema(ohApprovalLog).omit({ id: true, requestedAt: true });
+export type InsertOhApprovalLog = z.infer<typeof insertOhApprovalLogSchema>;
+export type OhApprovalLog = typeof ohApprovalLog.$inferSelect;

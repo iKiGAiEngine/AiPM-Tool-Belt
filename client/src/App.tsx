@@ -24,6 +24,7 @@ import SubmittalBuilderPage from "@/submittal-builder/SubmittalBuilderPage";
 import VendorDatabasePage from "@/pages/VendorDatabasePage";
 import { AdminUserPermissionsPage } from "@/pages/AdminUserPermissionsPage";
 import ChangelogPage from "@/pages/ChangelogPage";
+import EstimatingModulePage from "@/pages/EstimatingModulePage";
 import NotFound from "@/pages/not-found";
 
 function AdminRoute({ component: Component }: { component: React.ComponentType }) {
@@ -51,6 +52,7 @@ function Router() {
       <Route path="/changelog">{() => <AdminRoute component={ChangelogPage} />}</Route>
       <Route path="/submittal-builder" component={SubmittalBuilderPage} />
       <Route path="/vendor-database" component={VendorDatabasePage} />
+      <Route path="/estimates/:id" component={EstimatingModulePage} />
       <Route component={NotFound} />
     </Switch>
   );

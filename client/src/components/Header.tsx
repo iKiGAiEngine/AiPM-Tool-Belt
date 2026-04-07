@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import {
   Home, Wrench, Receipt, FlaskConical, Loader2, Shield, LogOut,
-  FolderPlus, ScanSearch, ClipboardList, TableProperties, Settings, Users, type LucideIcon
+  FolderPlus, ScanSearch, ClipboardList, TableProperties, Settings, Users, Calculator, type LucideIcon
 } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
@@ -53,6 +53,9 @@ export function Header() {
   const isHome = location === "/";
 
   const activeToolRoute = useMemo(() => {
+    if (location.startsWith("/estimates/")) {
+      return { path: "/estimates", label: "Estimating Module", icon: Calculator };
+    }
     return toolRoutes.find(r => location.startsWith(r.path));
   }, [location]);
 

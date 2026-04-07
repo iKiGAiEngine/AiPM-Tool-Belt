@@ -26,6 +26,7 @@ import { registerBcSyncRoutes } from "./autodesk/bcSync";
 import { registerNotificationRoutes } from "./notificationRoutes";
 import { registerBackupRoutes } from "./backupRestore";
 import { registerVendorDatabaseRoutes } from "./vendorDatabaseRoutes";
+import { registerEstimateRoutes } from "./estimateRoutes";
 import { auditLog } from "./auditService";
 import { db } from "./db";
 import { users as usersTable } from "@shared/schema";
@@ -293,6 +294,7 @@ export async function registerRoutes(
   registerVendorDatabaseRoutes(app);
   registerBcSyncRoutes(app);
   registerBackupRoutes(app);
+  registerEstimateRoutes(app);
   
   app.post("/api/upload", upload.single("file"), async (req: Request, res: Response) => {
     try {

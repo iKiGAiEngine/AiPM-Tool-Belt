@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect, useRef } from "react";
 import { Link } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { ArrowLeft, Search, ChevronUp, ChevronDown, FileSpreadsheet, FileText, FlaskConical, Archive, Link2, CheckCircle2, RefreshCw, Check, X, FileEdit, Pencil, Download, FolderOpen, Loader2, MessageSquare, ListChecks, History } from "lucide-react";
+import { ArrowLeft, Search, ChevronUp, ChevronDown, FileSpreadsheet, FileText, FlaskConical, Archive, Link2, CheckCircle2, RefreshCw, Check, X, FileEdit, Pencil, Download, FolderOpen, Loader2, MessageSquare, ListChecks, History, Calculator } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -857,6 +857,19 @@ export default function ProjectLogPage() {
                                   <Archive className="w-3 h-3 mr-1" />
                                   DELETED
                                 </Badge>
+                              )}
+                              {!isDeleted && !isDraft && (
+                                <Link href={`/estimates/${entry.id}`}>
+                                  <span
+                                    className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium transition-colors cursor-pointer hover:opacity-80"
+                                    style={{ background: "var(--gold)15", color: "var(--gold)", border: "1px solid var(--gold)30" }}
+                                    onClick={(e) => e.stopPropagation()}
+                                    data-testid={`button-estimate-${entry.id}`}
+                                  >
+                                    <Calculator className="w-2.5 h-2.5" />
+                                    Estimate
+                                  </span>
+                                </Link>
                               )}
                             </div>
                             {isDraft && scopes.length > 0 && (
