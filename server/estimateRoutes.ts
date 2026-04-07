@@ -4,9 +4,192 @@ import { eq, and, desc } from "drizzle-orm";
 import {
   estimates, estimateLineItems, estimateQuotes, estimateBreakoutGroups,
   estimateBreakoutAllocations, estimateVersions, estimateReviewComments, ohApprovalLog,
-  proposalLogEntries,
+  proposalLogEntries, estimateSpecSections,
 } from "@shared/schema";
 import OpenAI from "openai";
+import multer from "multer";
+import { extractScheduleWithAI } from "./openaiScheduleExtractor";
+import { extractScheduleFromText } from "./openaiScheduleExtractor";
+
+const estimateImageUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 20 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    if (file.mimetype.startsWith("image/") || file.mimetype === "application/pdf") {
+      cb(null, true);
+    } else {
+      cb(new Error("Only image files are allowed"));
+    }
+  },
+});
+
+function handleEstimateImageUpload(req: Request, res: Response, next: Function) {
+  estimateImageUpload.array("images", 20)(req, res, (err: any) => {
+    if (err) {
+      if (err.code === "LIMIT_FILE_SIZE") return res.status(400).json({ message: "File too large (max 20MB each)" });
+      return res.status(400).json({ message: err.message || "Invalid file upload" });
+    }
+    next();
+  });
+}
+
+// ── SCOPE KEYWORD MAPPING for auto-assigning scope to extracted items ──
+const SCOPE_KEYWORDS: Record<string, string[]> = {
+  accessories: ["grab bar", "towel bar", "towel ring", "robe hook", "soap dispenser", "paper towel", "hand dryer", "waste receptacle", "mirror", "shelf", "shower seat", "sanitary napkin", "seat cover dispenser", "toilet paper holder", "hook strip", "mop holder", "diaper changing station", "baby changing", "changing station", "toilet accessory", "restroom accessory"],
+  partitions: ["partition", "urinal screen", "privacy screen", "pilaster", "panel", "headrail", "overhead braced", "floor mounted", "ceiling hung", "compartment", "stall", "toilet partition", "shower partition"],
+  fire_ext: ["fire extinguisher", "fire ext", "fec", "fire cabinet", "fire blanket", "extinguisher cabinet"],
+  corner_guards: ["corner guard", "wall guard", "bumper guard", "chair rail", "wall protection", "door protection", "kick plate", "push plate", "pull plate", "crash rail"],
+  lockers: ["locker", "storage locker", "employee locker", "gym locker", "phenolic locker"],
+  display_boards: ["whiteboard", "markerboard", "tackboard", "bulletin board", "display case", "directory board", "poster frame", "chalkboard", "marker board", "tack board"],
+  bike_racks: ["bike rack", "bicycle rack", "bike storage", "bicycle storage"],
+  wire_mesh: ["wire mesh", "wire partition", "security partition", "welded wire"],
+  cubicle_curtains: ["cubicle curtain", "privacy curtain", "cubicle track", "curtain track"],
+  med_equipment: ["medical equipment", "med equipment", "hospital equipment", "clinic equipment"],
+  expansion_joints: ["expansion joint", "expansion cover", "seismic joint", "floor joint", "wall joint", "ceiling joint"],
+  storage_units: ["shelving", "shelf unit", "storage shelving", "wire shelving", "storage rack", "storage unit"],
+  mailboxes: ["mailbox", "mail slot", "package locker", "parcel locker", "postal"],
+  flagpoles: ["flagpole", "flag pole", "flag staff"],
+  knox_box: ["knox box", "key box", "key cabinet"],
+  site_furnishing: ["bench", "picnic table", "bollard", "bike locker", "planter", "site furniture", "outdoor furniture"],
+  entrance_mats: ["entrance mat", "entry mat", "floor mat", "walk-off mat", "recessed mat"],
+  appliances: ["refrigerator", "dishwasher", "microwave", "oven", "range", "washer", "dryer", "appliance"],
+};
+
+// Map CSI code prefixes to scope IDs
+const CSI_TO_SCOPE: Record<string, string> = {
+  "10 28": "accessories",
+  "10 21": "partitions",
+  "10 44": "fire_ext",
+  "10 26": "corner_guards",
+  "10 51": "lockers",
+  "10 11": "display_boards",
+  "10 73": "bike_racks",
+  "10 22 13": "wire_mesh",
+  "12 48 00": "cubicle_curtains",
+  "10 55": "mailboxes",
+  "10 75": "flagpoles",
+  "08 71 13": "knox_box",
+  "12 93": "site_furnishing",
+  "12 48 13": "entrance_mats",
+  "11 31": "appliances",
+};
+
+function suggestScope(description: string, mfr: string): { scopeId: string | null; confidence: number } {
+  const text = `${description} ${mfr}`.toLowerCase();
+  let best: string | null = null;
+  let bestScore = 0;
+
+  for (const [scopeId, keywords] of Object.entries(SCOPE_KEYWORDS)) {
+    let score = 0;
+    for (const kw of keywords) {
+      if (text.includes(kw)) {
+        score += kw.split(" ").length * 20;
+      }
+    }
+    if (score > bestScore) {
+      bestScore = score;
+      best = scopeId;
+    }
+  }
+
+  const notDiv10 = ["plumbing", "electrical", "mechanical", "hvac", "sprinkler", "pipe", "duct", "conduit", "receptacle", "outlet", "fixture"].some(w => text.includes(w));
+  if (notDiv10 && bestScore < 40) return { scopeId: "not_div10", confidence: 70 };
+  if (!best) return { scopeId: null, confidence: 0 };
+  return { scopeId: best, confidence: Math.min(95, 50 + bestScore) };
+}
+
+function scopeIdToCsi(scopeId: string): string {
+  const ALL_SCOPES: Record<string, string> = {
+    accessories: "10 28 00", partitions: "10 21 00", fire_ext: "10 44 00",
+    corner_guards: "10 26 00", appliances: "11 31 00", lockers: "10 51 00",
+    display_boards: "10 11 00", bike_racks: "10 73 00", wire_mesh: "10 22 13",
+    cubicle_curtains: "12 48 00", med_equipment: "11 71 00", expansion_joints: "07 95 00",
+    storage_units: "10 51 13", equipment: "11 00 00", entrance_mats: "12 48 13",
+    mailboxes: "10 55 00", flagpoles: "10 75 00", knox_box: "08 71 13",
+    site_furnishing: "12 93 00",
+  };
+  return ALL_SCOPES[scopeId] || "";
+}
+
+// ── SPEC EXTRACTION AI FUNCTION ──
+const SPEC_EXTRACT_SYSTEM = `You are a construction specification analyzer specializing in Division 10 specialties. Extract specification sections from construction project documents.
+
+For each Division 10 specification section found, return structured data. Focus ONLY on Division 10 (section numbers starting with "10").
+
+Known Division 10 scope mappings:
+- "10 28 00" or "10 28" → scopeId: "accessories" (Toilet Accessories, Restroom Accessories)
+- "10 21 00", "10 21 13", "10 21" → scopeId: "partitions" (Toilet Compartments, Toilet Partitions)
+- "10 44 00", "10 44" → scopeId: "fire_ext" (Fire Extinguisher Cabinets, Fire Protection Specialties)
+- "10 26 00", "10 26" → scopeId: "corner_guards" (Wall and Door Protection, Corner Guards)
+- "10 51 00", "10 51" → scopeId: "lockers" (Lockers)
+- "10 11 00", "10 11" → scopeId: "display_boards" (Visual Display Boards, Markerboards)
+- "10 73 00" → scopeId: "bike_racks" (Bicycle Racks)
+- "10 22 13" → scopeId: "wire_mesh" (Wire Mesh Partitions)
+- "10 55 00", "10 55" → scopeId: "mailboxes" (Mailboxes)
+- "10 75 00" → scopeId: "flagpoles" (Flagpoles)
+- "12 93 00", "12 93" → scopeId: "site_furnishing" (Site Furnishings)
+- "12 48 13" → scopeId: "entrance_mats" (Entrance Mats)
+
+For each section, extract:
+- scopeId: matching ID from the list above (or "other" if not matched)
+- csiCode: the section number (e.g., "10 28 00")
+- specSectionNumber: exact section number from document
+- specSectionTitle: exact title as written
+- content: the full specification text for this section (verbatim, may be long)
+- manufacturers: array of manufacturer names listed as acceptable (look for "Basis of Design", "Acceptable Manufacturers", "or equal" sections)
+- keyRequirements: array of key technical requirements as bullet-point strings (look for material specs, performance requirements, ADA requirements, finish requirements)
+- substitutionPolicy: one of "no substitutions", "or equal", "as approved", or "basis of design" based on what the spec states
+- confidence: 0-100 extraction confidence
+- sourcePages: page numbers or reference where this section was found
+
+Return ONLY valid JSON:
+{ "sections": [{ "scopeId": string, "csiCode": string, "specSectionNumber": string, "specSectionTitle": string, "content": string, "manufacturers": string[], "keyRequirements": string[], "substitutionPolicy": string, "confidence": number, "sourcePages": string }] }
+
+If no Division 10 sections are found, return { "sections": [] }.`;
+
+async function extractSpecSectionsFromText(openai: OpenAI, text: string): Promise<any[]> {
+  const response = await openai.chat.completions.create({
+    model: "gpt-4o",
+    max_tokens: 8000,
+    messages: [
+      { role: "system", content: SPEC_EXTRACT_SYSTEM },
+      { role: "user", content: `Extract Division 10 specification sections from this text:\n\n${text.substring(0, 40000)}` },
+    ],
+  });
+  const content = response.choices[0]?.message?.content || "{}";
+  try {
+    const cleaned = content.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
+    const parsed = JSON.parse(cleaned);
+    return parsed.sections || [];
+  } catch {
+    return [];
+  }
+}
+
+async function extractSpecSectionsFromImages(openai: OpenAI, images: { base64: string; mime: string }[]): Promise<any[]> {
+  const imageContent: any[] = images.map(img => ({
+    type: "image_url",
+    image_url: { url: `data:${img.mime};base64,${img.base64}`, detail: "high" },
+  }));
+  imageContent.push({ type: "text", text: "Extract all Division 10 specification sections from these spec pages. Return ONLY the JSON object." });
+
+  const response = await openai.chat.completions.create({
+    model: "gpt-4o",
+    max_tokens: 8000,
+    messages: [
+      { role: "system", content: SPEC_EXTRACT_SYSTEM },
+      { role: "user", content: imageContent },
+    ],
+  });
+  const content = response.choices[0]?.message?.content || "{}";
+  try {
+    const cleaned = content.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
+    const parsed = JSON.parse(cleaned);
+    return parsed.sections || [];
+  } catch {
+    return [];
+  }
+}
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
@@ -516,6 +699,237 @@ Category context: ${catLabel || category || "Division 10 Specialties"}`;
     } catch (err) {
       console.error("GET pending OH error:", err);
       res.status(500).json({ message: "Failed to fetch pending approvals" });
+    }
+  });
+
+  // ── SCHEDULE EXTRACTION (Line Item Extraction) ──
+
+  // POST /api/estimates/:id/extract-images — extract from plan images
+  app.post("/api/estimates/:id/extract-images", (req: Request, res: Response, next: Function) => {
+    handleEstimateImageUpload(req, res, async () => {
+      try {
+        const estimateId = parseInt(req.params.id);
+        if (isNaN(estimateId)) return res.status(400).json({ message: "Invalid estimate id" });
+        const files = req.files as Express.Multer.File[];
+        if (!files || files.length === 0) return res.status(400).json({ message: "No images uploaded" });
+
+        const results: any[] = [];
+        for (const file of files) {
+          try {
+            const result = await extractScheduleWithAI(file.buffer, file.mimetype || "image/png");
+            results.push(...result.items);
+          } catch (e: any) {
+            console.error("Image extraction error:", e.message);
+          }
+        }
+
+        const enriched = results.map(item => {
+          const { scopeId, confidence } = suggestScope(item.description || "", item.manufacturer || "");
+          return {
+            ...item,
+            suggestedScope: scopeId,
+            suggestedScopeCsi: scopeId && scopeId !== "not_div10" ? scopeIdToCsi(scopeId) : null,
+            scopeConfidence: confidence,
+          };
+        });
+
+        res.json({ items: enriched, total: enriched.length });
+      } catch (err: any) {
+        console.error("POST extract-images error:", err);
+        res.status(500).json({ message: err.message || "Extraction failed" });
+      }
+    });
+  });
+
+  // POST /api/estimates/:id/extract-text — extract from pasted text
+  app.post("/api/estimates/:id/extract-text", async (req: Request, res: Response) => {
+    try {
+      const estimateId = parseInt(req.params.id);
+      if (isNaN(estimateId)) return res.status(400).json({ message: "Invalid estimate id" });
+      const { text } = req.body;
+      if (!text || !text.trim()) return res.status(400).json({ message: "text required" });
+
+      const result = await extractScheduleFromText(text.trim());
+      const enriched = result.items.map(item => {
+        const { scopeId, confidence } = suggestScope(item.description || "", item.manufacturer || "");
+        return {
+          ...item,
+          suggestedScope: scopeId,
+          suggestedScopeCsi: scopeId && scopeId !== "not_div10" ? scopeIdToCsi(scopeId) : null,
+          scopeConfidence: confidence,
+        };
+      });
+
+      res.json({ items: enriched, total: enriched.length });
+    } catch (err: any) {
+      console.error("POST extract-text error:", err);
+      res.status(500).json({ message: err.message || "Extraction failed" });
+    }
+  });
+
+  // POST /api/estimates/:id/import-items — create line items from extracted items
+  app.post("/api/estimates/:id/import-items", async (req: Request, res: Response) => {
+    try {
+      const estimateId = parseInt(req.params.id);
+      if (isNaN(estimateId)) return res.status(400).json({ message: "Invalid estimate id" });
+      const { items } = req.body;
+      if (!Array.isArray(items) || items.length === 0) return res.status(400).json({ message: "items array required" });
+
+      const created: any[] = [];
+      for (const item of items) {
+        if (!item.category || !item.name) continue;
+        const [row] = await db.insert(estimateLineItems).values({
+          estimateId,
+          category: item.category,
+          name: item.description || item.name,
+          model: item.modelNumber || item.model || null,
+          mfr: item.manufacturer || item.mfr || null,
+          qty: item.quantity || item.qty || 1,
+          unitCost: "0",
+          source: "extracted",
+          note: item.note || null,
+          hasBackup: false,
+          sortOrder: 0,
+          planCallout: item.planCallout || null,
+          extractionConfidence: item.confidence || null,
+        }).returning();
+        created.push(row);
+      }
+
+      res.status(201).json({ created: created.length, items: created });
+    } catch (err: any) {
+      console.error("POST import-items error:", err);
+      res.status(500).json({ message: err.message || "Failed to import items" });
+    }
+  });
+
+  // ── SPEC EXTRACTION ──
+
+  // POST /api/estimates/:id/extract-spec-images — extract spec sections from images
+  app.post("/api/estimates/:id/extract-spec-images", (req: Request, res: Response, next: Function) => {
+    handleEstimateImageUpload(req, res, async () => {
+      try {
+        const estimateId = parseInt(req.params.id);
+        if (isNaN(estimateId)) return res.status(400).json({ message: "Invalid estimate id" });
+        const files = req.files as Express.Multer.File[];
+        if (!files || files.length === 0) return res.status(400).json({ message: "No images uploaded" });
+
+        const images = files.map(f => ({
+          base64: f.buffer.toString("base64"),
+          mime: f.mimetype || "image/png",
+        }));
+
+        const sections = await extractSpecSectionsFromImages(openai, images);
+        res.json({ sections, total: sections.length });
+      } catch (err: any) {
+        console.error("POST extract-spec-images error:", err);
+        res.status(500).json({ message: err.message || "Spec extraction failed" });
+      }
+    });
+  });
+
+  // POST /api/estimates/:id/extract-spec-text — extract spec sections from pasted text
+  app.post("/api/estimates/:id/extract-spec-text", async (req: Request, res: Response) => {
+    try {
+      const estimateId = parseInt(req.params.id);
+      if (isNaN(estimateId)) return res.status(400).json({ message: "Invalid estimate id" });
+      const { text } = req.body;
+      if (!text || !text.trim()) return res.status(400).json({ message: "text required" });
+
+      const sections = await extractSpecSectionsFromText(openai, text.trim());
+      res.json({ sections, total: sections.length });
+    } catch (err: any) {
+      console.error("POST extract-spec-text error:", err);
+      res.status(500).json({ message: err.message || "Spec extraction failed" });
+    }
+  });
+
+  // POST /api/estimates/:id/save-spec-sections — save approved spec sections
+  app.post("/api/estimates/:id/save-spec-sections", async (req: Request, res: Response) => {
+    try {
+      const estimateId = parseInt(req.params.id);
+      if (isNaN(estimateId)) return res.status(400).json({ message: "Invalid estimate id" });
+      const { sections } = req.body;
+      if (!Array.isArray(sections) || sections.length === 0) return res.status(400).json({ message: "sections array required" });
+
+      const saved: any[] = [];
+      for (const sec of sections) {
+        if (!sec.scopeId) continue;
+
+        // Check if a spec section for this scope already exists
+        const existing = await db.select({ id: estimateSpecSections.id, content: estimateSpecSections.content })
+          .from(estimateSpecSections)
+          .where(and(eq(estimateSpecSections.estimateId, estimateId), eq(estimateSpecSections.scopeId, sec.scopeId)));
+
+        if (existing.length > 0) {
+          // Append to existing content
+          const appendedContent = `${existing[0].content || ""}\n\n--- Extracted from additional pages ---\n\n${sec.content || ""}`;
+          const [updated] = await db.update(estimateSpecSections)
+            .set({
+              content: appendedContent,
+              manufacturers: sec.manufacturers || [],
+              keyRequirements: sec.keyRequirements || [],
+              substitutionPolicy: sec.substitutionPolicy || null,
+              sourcePages: sec.sourcePages || null,
+              extractionConfidence: sec.confidence || 80,
+              updatedAt: new Date(),
+            })
+            .where(eq(estimateSpecSections.id, existing[0].id))
+            .returning();
+          saved.push(updated);
+        } else {
+          const [row] = await db.insert(estimateSpecSections).values({
+            estimateId,
+            scopeId: sec.scopeId,
+            csiCode: sec.csiCode || null,
+            specSectionNumber: sec.specSectionNumber || null,
+            specSectionTitle: sec.specSectionTitle || null,
+            content: sec.content || null,
+            manufacturers: sec.manufacturers || [],
+            keyRequirements: sec.keyRequirements || [],
+            substitutionPolicy: sec.substitutionPolicy || null,
+            sourcePages: sec.sourcePages || null,
+            extractionConfidence: sec.confidence || 80,
+          }).returning();
+          saved.push(row);
+        }
+      }
+
+      res.status(201).json({ saved: saved.length, sections: saved });
+    } catch (err: any) {
+      console.error("POST save-spec-sections error:", err);
+      res.status(500).json({ message: err.message || "Failed to save spec sections" });
+    }
+  });
+
+  // GET /api/estimates/:id/spec-sections — list all saved spec sections
+  app.get("/api/estimates/:id/spec-sections", async (req: Request, res: Response) => {
+    try {
+      const estimateId = parseInt(req.params.id);
+      if (isNaN(estimateId)) return res.status(400).json({ message: "Invalid estimate id" });
+      const sections = await db.select().from(estimateSpecSections)
+        .where(eq(estimateSpecSections.estimateId, estimateId))
+        .orderBy(estimateSpecSections.scopeId);
+      res.json(sections);
+    } catch (err: any) {
+      console.error("GET spec-sections error:", err);
+      res.status(500).json({ message: "Failed to fetch spec sections" });
+    }
+  });
+
+  // GET /api/estimates/:id/spec-sections/:scopeId — get spec section for a specific scope
+  app.get("/api/estimates/:id/spec-sections/:scopeId", async (req: Request, res: Response) => {
+    try {
+      const estimateId = parseInt(req.params.id);
+      if (isNaN(estimateId)) return res.status(400).json({ message: "Invalid estimate id" });
+      const { scopeId } = req.params;
+      const [section] = await db.select().from(estimateSpecSections)
+        .where(and(eq(estimateSpecSections.estimateId, estimateId), eq(estimateSpecSections.scopeId, scopeId)));
+      if (!section) return res.json(null);
+      res.json(section);
+    } catch (err: any) {
+      console.error("GET spec-section by scope error:", err);
+      res.status(500).json({ message: "Failed to fetch spec section" });
     }
   });
 }

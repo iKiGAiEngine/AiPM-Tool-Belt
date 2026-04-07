@@ -9,7 +9,8 @@ import { Button } from "@/components/ui/button";
 import {
   Calculator, ChevronRight, Plus, Trash2, FileText, Zap, X,
   CheckSquare, Square, AlertTriangle, BarChart3, Send, RotateCcw,
-  ClipboardList, Lock, Users, ChevronDown, ChevronUp, Copy
+  ClipboardList, Lock, Users, ChevronDown, ChevronUp, Copy,
+  Upload, ClipboardPaste, ImageIcon, BookOpen, Loader2
 } from "lucide-react";
 
 // ══════════════════════════════════════════════════
@@ -145,6 +146,59 @@ interface OhApprovalEntry {
   status: string;
 }
 
+interface ExtractedItem {
+  planCallout: string;
+  description: string;
+  manufacturer: string;
+  rawModel: string;
+  modelNumber: string;
+  quantity: number;
+  sourceSection: string;
+  confidence: number;
+  flags: string[];
+  needsReview: boolean;
+  suggestedScope: string | null;
+  suggestedScopeCsi: string | null;
+  scopeConfidence: number;
+  // UI state
+  _selected: boolean;
+  _assignedScope: string | null;
+  _id: string;
+}
+
+interface ExtractedSpecSection {
+  scopeId: string;
+  csiCode: string;
+  specSectionNumber: string;
+  specSectionTitle: string;
+  content: string;
+  manufacturers: string[];
+  keyRequirements: string[];
+  substitutionPolicy: string;
+  confidence: number;
+  sourcePages: string;
+  // UI state
+  _selected: boolean;
+  _id: string;
+}
+
+interface SavedSpecSection {
+  id: number;
+  estimateId: number;
+  scopeId: string;
+  csiCode: string | null;
+  specSectionNumber: string | null;
+  specSectionTitle: string | null;
+  content: string | null;
+  manufacturers: string[];
+  keyRequirements: string[];
+  substitutionPolicy: string | null;
+  sourcePages: string | null;
+  extractionConfidence: number | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
 interface FullEstimate {
   id: number;
   proposalLogId: number;
@@ -249,6 +303,23 @@ export default function EstimatingModulePage() {
   const [addingItem, setAddingItem] = useState(false);
   const [newItemForm, setNewItemForm] = useState({ name: "", model: "", mfr: "", qty: 1, unitCost: 0, source: "manual" });
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // ── Extraction panel state ──
+  const [showScheduleExtractor, setShowScheduleExtractor] = useState(false);
+  const [showSpecExtractor, setShowSpecExtractor] = useState(false);
+  const [extractorTab, setExtractorTab] = useState<"image" | "text">("image");
+  const [specExtractorTab, setSpecExtractorTab] = useState<"image" | "text">("image");
+  const [extractedItems, setExtractedItems] = useState<ExtractedItem[]>([]);
+  const [extractedSpecs, setExtractedSpecs] = useState<ExtractedSpecSection[]>([]);
+  const [extracting, setExtracting] = useState(false);
+  const [importingItems, setImportingItems] = useState(false);
+  const [savingSpecs, setSavingSpecs] = useState(false);
+  const [extractPasteText, setExtractPasteText] = useState("");
+  const [specPasteText, setSpecPasteText] = useState("");
+  const [expandedSpecSections, setExpandedSpecSections] = useState<Set<string>>(new Set());
+  const [expandedSpecPanels, setExpandedSpecPanels] = useState<Set<string>>(new Set());
+  const scheduleImageInputRef = useRef<HTMLInputElement>(null);
+  const specImageInputRef = useRef<HTMLInputElement>(null);
 
   // ── Fetch regions for dropdown ──
   const { data: dbRegions = [] } = useQuery<{ id: number; code: string; name: string | null; isActive: boolean }[]>({
@@ -870,6 +941,191 @@ ${html}
     markDirty();
   }, [markDirty]);
 
+  // ── Spec sections query ──
+  const { data: savedSpecSections = [], refetch: refetchSpecSections } = useQuery<SavedSpecSection[]>({
+    queryKey: ["/api/estimates", estimateId, "spec-sections"],
+    queryFn: async () => {
+      if (!estimateId) return [];
+      const r = await fetch(`/api/estimates/${estimateId}/spec-sections`);
+      if (!r.ok) return [];
+      return r.json();
+    },
+    enabled: !!estimateId,
+  });
+
+  const specSectionForScope = useCallback((scopeId: string) => {
+    return savedSpecSections.find(s => s.scopeId === scopeId) || null;
+  }, [savedSpecSections]);
+
+  // ── Schedule Extractor functions ──
+  const runScheduleExtractImages = useCallback(async (files: File[]) => {
+    if (!estimateId || files.length === 0) return;
+    setExtracting(true);
+    try {
+      const fd = new FormData();
+      files.forEach(f => fd.append("images", f));
+      const r = await fetch(`/api/estimates/${estimateId}/extract-images`, { method: "POST", body: fd, credentials: "include" });
+      if (!r.ok) throw new Error((await r.json()).message || "Extraction failed");
+      const data = await r.json();
+      const items: ExtractedItem[] = (data.items || []).map((item: any, i: number) => ({
+        ...item,
+        _selected: item.suggestedScope !== "not_div10",
+        _assignedScope: item.suggestedScope !== "not_div10" ? item.suggestedScope : null,
+        _id: `item-${Date.now()}-${i}`,
+      }));
+      setExtractedItems(items);
+    } catch (err: any) {
+      toast({ title: "Extraction failed", description: err.message, variant: "destructive" });
+    } finally {
+      setExtracting(false);
+    }
+  }, [estimateId, toast]);
+
+  const runScheduleExtractText = useCallback(async (text: string) => {
+    if (!estimateId || !text.trim()) return;
+    setExtracting(true);
+    try {
+      const r = await fetch(`/api/estimates/${estimateId}/extract-text`, {
+        method: "POST", credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text }),
+      });
+      if (!r.ok) throw new Error((await r.json()).message || "Extraction failed");
+      const data = await r.json();
+      const items: ExtractedItem[] = (data.items || []).map((item: any, i: number) => ({
+        ...item,
+        _selected: item.suggestedScope !== "not_div10",
+        _assignedScope: item.suggestedScope !== "not_div10" ? item.suggestedScope : null,
+        _id: `item-${Date.now()}-${i}`,
+      }));
+      setExtractedItems(items);
+    } catch (err: any) {
+      toast({ title: "Extraction failed", description: err.message, variant: "destructive" });
+    } finally {
+      setExtracting(false);
+    }
+  }, [estimateId, toast]);
+
+  const importExtractedItems = useCallback(async () => {
+    if (!estimateId) return;
+    const toImport = extractedItems.filter(i => i._selected && i._assignedScope);
+    const unassigned = extractedItems.filter(i => i._selected && !i._assignedScope);
+    if (unassigned.length > 0) {
+      toast({ title: "Unassigned items", description: `${unassigned.length} items have no scope assigned. Assign a scope or deselect them.`, variant: "destructive" });
+      return;
+    }
+    if (toImport.length === 0) {
+      toast({ title: "Nothing to import", description: "Select items to import." });
+      return;
+    }
+    setImportingItems(true);
+    try {
+      const r = await fetch(`/api/estimates/${estimateId}/import-items`, {
+        method: "POST", credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ items: toImport.map(i => ({ ...i, category: i._assignedScope, name: i.description, modelNumber: i.modelNumber, mfr: i.manufacturer, qty: i.quantity })) }),
+      });
+      if (!r.ok) throw new Error((await r.json()).message || "Import failed");
+      const data = await r.json();
+      // Auto-check scopes that received items
+      const newScopes = [...new Set(toImport.map(i => i._assignedScope!).filter(Boolean))];
+      setActiveScopes(prev => [...new Set([...prev, ...newScopes])]);
+      markDirty();
+      // Refresh estimate data
+      qc.invalidateQueries({ queryKey: ["/api/estimates/by-proposal", proposalLogId] });
+      setShowScheduleExtractor(false);
+      setExtractedItems([]);
+      const scopeBreakdown = newScopes.map(s => {
+        const scopeLabel = ALL_SCOPES.find(sc => sc.id === s)?.label || s;
+        const count = toImport.filter(i => i._assignedScope === s).length;
+        return `${scopeLabel} (${count})`;
+      }).join(", ");
+      toast({ title: `${data.created} items added`, description: scopeBreakdown });
+    } catch (err: any) {
+      toast({ title: "Import failed", description: err.message, variant: "destructive" });
+    } finally {
+      setImportingItems(false);
+    }
+  }, [estimateId, extractedItems, activeScopes, toast, qc, proposalLogId, markDirty]);
+
+  // ── Spec Extractor functions ──
+  const runSpecExtractImages = useCallback(async (files: File[]) => {
+    if (!estimateId || files.length === 0) return;
+    setExtracting(true);
+    try {
+      const fd = new FormData();
+      files.forEach(f => fd.append("images", f));
+      const r = await fetch(`/api/estimates/${estimateId}/extract-spec-images`, { method: "POST", body: fd, credentials: "include" });
+      if (!r.ok) throw new Error((await r.json()).message || "Spec extraction failed");
+      const data = await r.json();
+      const sections: ExtractedSpecSection[] = (data.sections || []).map((s: any, i: number) => ({
+        ...s,
+        _selected: true,
+        _id: `spec-${Date.now()}-${i}`,
+      }));
+      setExtractedSpecs(sections);
+    } catch (err: any) {
+      toast({ title: "Spec extraction failed", description: err.message, variant: "destructive" });
+    } finally {
+      setExtracting(false);
+    }
+  }, [estimateId, toast]);
+
+  const runSpecExtractText = useCallback(async (text: string) => {
+    if (!estimateId || !text.trim()) return;
+    setExtracting(true);
+    try {
+      const r = await fetch(`/api/estimates/${estimateId}/extract-spec-text`, {
+        method: "POST", credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text }),
+      });
+      if (!r.ok) throw new Error((await r.json()).message || "Spec extraction failed");
+      const data = await r.json();
+      const sections: ExtractedSpecSection[] = (data.sections || []).map((s: any, i: number) => ({
+        ...s,
+        _selected: true,
+        _id: `spec-${Date.now()}-${i}`,
+      }));
+      setExtractedSpecs(sections);
+    } catch (err: any) {
+      toast({ title: "Spec extraction failed", description: err.message, variant: "destructive" });
+    } finally {
+      setExtracting(false);
+    }
+  }, [estimateId, toast]);
+
+  const saveSpecSections = useCallback(async () => {
+    if (!estimateId) return;
+    const toSave = extractedSpecs.filter(s => s._selected);
+    if (toSave.length === 0) {
+      toast({ title: "Nothing to save", description: "Select spec sections to save." });
+      return;
+    }
+    setSavingSpecs(true);
+    try {
+      const r = await fetch(`/api/estimates/${estimateId}/save-spec-sections`, {
+        method: "POST", credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sections: toSave }),
+      });
+      if (!r.ok) throw new Error((await r.json()).message || "Save failed");
+      const data = await r.json();
+      // Auto-check scopes
+      const newScopes = [...new Set(toSave.map(s => s.scopeId).filter(s => s && s !== "other"))];
+      setActiveScopes(prev => [...new Set([...prev, ...newScopes])]);
+      markDirty();
+      refetchSpecSections();
+      setShowSpecExtractor(false);
+      setExtractedSpecs([]);
+      toast({ title: `${data.saved} spec sections saved`, description: "Spec reference panels are now available in each scope tab." });
+    } catch (err: any) {
+      toast({ title: "Save failed", description: err.message, variant: "destructive" });
+    } finally {
+      setSavingSpecs(false);
+    }
+  }, [estimateId, extractedSpecs, toast, markDirty, refetchSpecSections]);
+
   // ── RFQ email ──
   const generateRfqEmail = useCallback((mfr: string) => {
     const catLabel = ALL_SCOPES.find(s => s.id === activeCat)?.label || activeCat;
@@ -877,9 +1133,32 @@ ${html}
     const estimatorName = user?.name || "NBS Estimating";
     const subject = `RFQ — ${proposalEntry?.projectName || ""} — ${catLabel}`;
     const itemLines = catItems.map(i => `  - ${i.name}${i.model ? ` (${i.model})` : ""} — Qty: ${i.qty}`).join("\n");
-    const body = `Dear ${mfr} Sales Team,\n\nNational Building Specialties is requesting pricing for the following Division 10 items on the project below.\n\nPROJECT: ${proposalEntry?.projectName || ""}\nGC: ${proposalEntry?.gcEstimateLead || ""}\nBID DUE: ${proposalEntry?.dueDate || ""}\nNBS ESTIMATE #: ${estimateData?.estimateNumber || ""}\n\nITEMS REQUESTED:\n${itemLines}\n\nPlease provide:\n  1. MATERIAL ONLY unit pricing (NO labor or installation)\n  2. Freight cost to jobsite\n  3. Lead time / availability\n  4. Indicate if pricing includes or excludes sales tax\n\nIMPORTANT: NBS is a FURNISH ONLY subcontractor.\n\nPlease respond by: ${proposalEntry?.dueDate || "bid due date"}\n\nThank you,\n${estimatorName}\nNational Building Specialties\nA Division of Swinerton Builders`;
+
+    // Spec requirements block (if saved spec data exists for this scope)
+    const specRef = specSectionForScope(activeCat);
+    let specBlock = "";
+    if (specRef) {
+      const specLines: string[] = [];
+      if (specRef.csiCode || specRef.specSectionTitle) {
+        specLines.push(`SPECIFICATION REFERENCE: ${[specRef.csiCode, specRef.specSectionTitle].filter(Boolean).join(" — ")}`);
+      }
+      if (specRef.manufacturers && specRef.manufacturers.length > 0) {
+        specLines.push(`SPECIFIED MANUFACTURERS: ${specRef.manufacturers.join(", ")}`);
+      }
+      if (specRef.substitutionPolicy) {
+        specLines.push(`SUBSTITUTION POLICY: "${specRef.substitutionPolicy}"`);
+      }
+      if (specRef.keyRequirements && specRef.keyRequirements.length > 0) {
+        specLines.push(`KEY REQUIREMENTS:\n${specRef.keyRequirements.map(r => `  • ${r}`).join("\n")}`);
+      }
+      if (specLines.length > 0) {
+        specBlock = `\n\nSPECIFICATION REQUIREMENTS (from project specs):\n${specLines.join("\n")}`;
+      }
+    }
+
+    const body = `Dear ${mfr} Sales Team,\n\nNational Building Specialties is requesting pricing for the following Division 10 items on the project below.\n\nPROJECT: ${proposalEntry?.projectName || ""}\nGC: ${proposalEntry?.gcEstimateLead || ""}\nBID DUE: ${proposalEntry?.dueDate || ""}\nNBS ESTIMATE #: ${estimateData?.estimateNumber || ""}${specBlock}\n\nITEMS REQUESTED:\n${itemLines}\n\nPlease provide:\n  1. MATERIAL ONLY unit pricing (NO labor or installation)\n  2. Freight cost to jobsite\n  3. Lead time / availability\n  4. Indicate if pricing includes or excludes sales tax\n\nIMPORTANT: NBS is a FURNISH ONLY subcontractor.\n\nPlease respond by: ${proposalEntry?.dueDate || "bid due date"}\n\nThank you,\n${estimatorName}\nNational Building Specialties\nA Division of Swinerton Builders`;
     return { mfr, subject, body };
-  }, [lineItems, activeCat, proposalEntry, estimateData, user]);
+  }, [lineItems, activeCat, proposalEntry, estimateData, user, specSectionForScope]);
 
   // ── Proposal letter text ──
   const proposalText = useMemo(() => {
@@ -1181,8 +1460,8 @@ ${html}
 
           {/* Scope selector */}
           <div className="rounded-lg p-5" style={{ background: "var(--bg-card)", border: "1px solid var(--border-ds)", borderLeft: "3px solid var(--gold)" }}>
-            <div className="flex items-center justify-between mb-1">
-              <h3 className="text-sm font-semibold">Scope Sections Identified</h3>
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="text-sm font-semibold">Scope Sections for This Project</h3>
               {proposalEntry?.nbsSelectedScopes && (
                 <button
                   onClick={() => {
@@ -1203,13 +1482,46 @@ ${html}
                 </button>
               )}
             </div>
-            <p className="text-xs mb-3" style={{ color: "var(--text-muted)" }}>Select Division 10 scope sections to include. These become category tabs in Line Items. Saved selections sync back to the Proposal Log.</p>
+
+            {/* Extraction buttons */}
+            <div className="flex gap-2 mb-3">
+              <button
+                onClick={() => { setShowScheduleExtractor(true); setExtractedItems([]); setExtractorTab("image"); }}
+                disabled={!estimateId}
+                className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold transition-all"
+                style={{ background: "#06b6d410", border: "1px solid #06b6d440", color: "#06b6d4" }}
+                data-testid="btn-extract-schedules"
+              >
+                <ClipboardList className="w-3.5 h-3.5" /> Extract from Schedules
+              </button>
+              <button
+                onClick={() => { setShowSpecExtractor(true); setExtractedSpecs([]); setSpecExtractorTab("image"); }}
+                disabled={!estimateId}
+                className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold transition-all"
+                style={{ background: "var(--gold)10", border: "1px solid var(--gold)40", color: "var(--gold)" }}
+                data-testid="btn-extract-specs"
+              >
+                <BookOpen className="w-3.5 h-3.5" /> Extract from Specs
+              </button>
+            </div>
+
+            {activeScopes.length === 0 && (
+              <p className="text-xs mb-3 italic" style={{ color: "var(--text-muted)" }}>
+                No scope sections selected yet. Upload your plans and specs above to auto-detect scope, or manually select below.
+              </p>
+            )}
+            {activeScopes.length > 0 && (
+              <p className="text-xs mb-3" style={{ color: "var(--text-muted)" }}>Select Division 10 scope sections to include. These become category tabs in Line Items. Saved selections sync back to the Proposal Log.</p>
+            )}
+
             <div className="flex flex-wrap gap-2">
               {ALL_SCOPES.map(s => {
                 const active = activeScopes.includes(s.id);
+                const itemCount = lineItems.filter(i => i.category === s.id).length;
+                const hasSpec = savedSpecSections.some(ss => ss.scopeId === s.id);
                 return (
                   <button key={s.id} onClick={() => toggleScope(s.id)}
-                    className="px-3 py-1.5 rounded-lg text-xs transition-all"
+                    className="px-3 py-1.5 rounded-lg text-xs transition-all text-left"
                     style={{
                       background: active ? "#22c55e15" : "var(--bg3)",
                       border: `1px solid ${active ? "#22c55e50" : "var(--border-ds)"}`,
@@ -1218,12 +1530,19 @@ ${html}
                     }}>
                     {s.icon} {s.label}
                     <div className="text-xs mt-0.5" style={{ opacity: 0.7 }}>{s.csi}</div>
+                    {(itemCount > 0 || hasSpec) && (
+                      <div className="text-xs mt-0.5 flex gap-1 flex-wrap" style={{ color: active ? "#22c55e90" : "var(--text-muted)" }}>
+                        {itemCount > 0 && <span>{itemCount} items</span>}
+                        {itemCount > 0 && hasSpec && <span>•</span>}
+                        {hasSpec && <span>📄 spec</span>}
+                      </div>
+                    )}
                   </button>
                 );
               })}
             </div>
             {activeScopes.length === 0 && (
-              <p className="text-xs mt-2" style={{ color: "#f97316" }}>⚠ Select at least one scope section to continue.</p>
+              <p className="text-xs mt-3" style={{ color: "#f97316" }}>⚠ Select at least one scope section to continue.</p>
             )}
           </div>
 
@@ -1318,6 +1637,26 @@ ${html}
 
           {CATEGORIES.length > 0 && (
             <>
+              {/* Extraction buttons — Stage 2 secondary position */}
+              <div className="flex gap-2 mb-3">
+                <button
+                  onClick={() => { setShowScheduleExtractor(true); setExtractedItems([]); setExtractorTab("image"); }}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-semibold"
+                  style={{ background: "#06b6d410", border: "1px solid #06b6d440", color: "#06b6d4" }}
+                  data-testid="btn-extract-schedules-s2"
+                >
+                  <ClipboardList className="w-3 h-3" /> Extract from Schedules
+                </button>
+                <button
+                  onClick={() => { setShowSpecExtractor(true); setExtractedSpecs([]); setSpecExtractorTab("image"); }}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-semibold"
+                  style={{ background: "var(--gold)10", border: "1px solid var(--gold)40", color: "var(--gold)" }}
+                  data-testid="btn-extract-specs-s2"
+                >
+                  <BookOpen className="w-3 h-3" /> Extract from Specs
+                </button>
+              </div>
+
               {/* Category tabs */}
               <div className="flex gap-1.5 mb-4 overflow-x-auto pb-1">
                 {CATEGORIES.map(c => {
@@ -1502,6 +1841,83 @@ ${html}
                   </button>
                 </div>
               </div>
+
+              {/* Spec Reference Panel */}
+              {(() => {
+                const specRef = specSectionForScope(activeCat);
+                if (!specRef) return null;
+                const isExpanded = expandedSpecPanels.has(activeCat);
+                return (
+                  <div className="rounded-lg mb-3" style={{ background: "var(--bg-card)", border: "1px solid var(--gold)30", borderLeft: "3px solid var(--gold)" }}>
+                    <button
+                      className="w-full flex items-center justify-between px-4 py-3 text-sm font-semibold"
+                      style={{ color: "var(--gold)" }}
+                      onClick={() => setExpandedSpecPanels(prev => {
+                        const next = new Set(prev);
+                        if (next.has(activeCat)) next.delete(activeCat); else next.add(activeCat);
+                        return next;
+                      })}
+                    >
+                      <span className="flex items-center gap-2">
+                        <BookOpen className="w-3.5 h-3.5" />
+                        📄 Spec Reference — {specRef.csiCode} {specRef.specSectionTitle || ALL_SCOPES.find(s => s.id === activeCat)?.label}
+                      </span>
+                      {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                    </button>
+                    {isExpanded && (
+                      <div className="px-4 pb-4">
+                        <div className="h-px mb-3" style={{ background: "var(--gold)30" }} />
+                        {specRef.manufacturers && specRef.manufacturers.length > 0 && (
+                          <div className="mb-2">
+                            <span className="text-xs font-semibold" style={{ color: "var(--text-muted)" }}>Specified Manufacturers: </span>
+                            <span className="text-xs" style={{ color: "var(--text-secondary)" }}>{specRef.manufacturers.join(", ")}</span>
+                          </div>
+                        )}
+                        {specRef.substitutionPolicy && (
+                          <div className="mb-2">
+                            <span className="text-xs font-semibold" style={{ color: "var(--text-muted)" }}>Substitution Policy: </span>
+                            <span className="text-xs font-semibold" style={{ color: specRef.substitutionPolicy.includes("no sub") ? "#ef4444" : "#f97316" }}>"{specRef.substitutionPolicy}"</span>
+                          </div>
+                        )}
+                        {specRef.keyRequirements && specRef.keyRequirements.length > 0 && (
+                          <div className="mb-2">
+                            <div className="text-xs font-semibold mb-1" style={{ color: "var(--text-muted)" }}>Key Requirements:</div>
+                            <ul className="pl-3">
+                              {specRef.keyRequirements.map((req, i) => (
+                                <li key={i} className="text-xs mb-0.5" style={{ color: "var(--text-secondary)" }}>• {req}</li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                        {specRef.sourcePages && (
+                          <div className="text-xs mb-2" style={{ color: "var(--text-muted)" }}>Source: {specRef.sourcePages}</div>
+                        )}
+                        {specRef.content && (
+                          <div className="mt-2">
+                            <button
+                              className="text-xs flex items-center gap-1"
+                              style={{ color: "var(--gold)" }}
+                              onClick={() => setExpandedSpecSections(prev => {
+                                const next = new Set(prev);
+                                const key = `spec-${activeCat}`;
+                                if (next.has(key)) next.delete(key); else next.add(key);
+                                return next;
+                              })}
+                            >
+                              Full Spec Text {expandedSpecSections.has(`spec-${activeCat}`) ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                            </button>
+                            {expandedSpecSections.has(`spec-${activeCat}`) && (
+                              <pre className="mt-2 p-3 rounded text-xs whitespace-pre-wrap leading-relaxed" style={{ background: "var(--bg3)", border: "1px solid var(--border-ds)", color: "var(--text-secondary)", maxHeight: 300, overflow: "auto" }}>
+                                {specRef.content}
+                              </pre>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
 
               {/* Vendor Quotes */}
               <div className="rounded-lg p-4 mb-3" style={{ background: "var(--bg-card)", border: "1px solid var(--border-ds)", borderLeft: "3px solid #a855f7" }}>
@@ -2308,6 +2724,362 @@ ${html}
               style={{ background: "#06b6d4", color: "#fff" }}>
               <Send className="w-4 h-4" /> Mark as Submitted
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* ══════════════════════════════════════════════════ */}
+      {/* SCHEDULE EXTRACTOR OVERLAY PANEL */}
+      {/* ══════════════════════════════════════════════════ */}
+      {showScheduleExtractor && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center" style={{ background: "rgba(0,0,0,0.7)" }}>
+          <div className="w-full max-w-4xl max-h-[90vh] overflow-y-auto rounded-t-2xl sm:rounded-2xl flex flex-col" style={{ background: "var(--bg-card)", border: "1px solid #06b6d440" }}>
+            {/* Header */}
+            <div className="flex items-center justify-between px-5 py-4 sticky top-0" style={{ background: "var(--bg-card)", borderBottom: "1px solid var(--border-ds)", zIndex: 10 }}>
+              <div className="flex items-center gap-2">
+                <ClipboardList className="w-5 h-5" style={{ color: "#06b6d4" }} />
+                <h2 className="text-base font-bold" style={{ color: "#06b6d4" }}>Extract from Schedules</h2>
+                {extractedItems.length > 0 && <span className="text-xs px-2 py-0.5 rounded" style={{ background: "#06b6d420", color: "#06b6d4" }}>{extractedItems.length} items extracted</span>}
+              </div>
+              <button onClick={() => setShowScheduleExtractor(false)} className="text-xl leading-none" style={{ color: "var(--text-muted)" }}>×</button>
+            </div>
+
+            <div className="p-5 flex-1">
+              {/* Tabs */}
+              {extractedItems.length === 0 && (
+                <>
+                  <div className="flex gap-1 mb-4 p-1 rounded-lg" style={{ background: "var(--bg3)" }}>
+                    {[{ id: "image", label: "📷 Upload Images" }, { id: "text", label: "📋 Paste Text" }].map(t => (
+                      <button key={t.id} onClick={() => setExtractorTab(t.id as any)}
+                        className="flex-1 text-xs px-3 py-2 rounded font-semibold transition-all"
+                        style={{ background: extractorTab === t.id ? "#06b6d4" : "transparent", color: extractorTab === t.id ? "#fff" : "var(--text-muted)" }}>
+                        {t.label}
+                      </button>
+                    ))}
+                  </div>
+
+                  {extractorTab === "image" && (
+                    <div>
+                      <input ref={scheduleImageInputRef} type="file" multiple accept="image/*" className="hidden"
+                        onChange={e => { const f = Array.from(e.target.files || []); if (f.length > 0) runScheduleExtractImages(f); }} />
+                      <div
+                        onClick={() => scheduleImageInputRef.current?.click()}
+                        className="border-2 border-dashed rounded-xl p-10 text-center cursor-pointer transition-all"
+                        style={{ borderColor: "#06b6d440", background: "#06b6d408" }}
+                      >
+                        <Upload className="w-10 h-10 mx-auto mb-3" style={{ color: "#06b6d4" }} />
+                        <p className="text-sm font-semibold" style={{ color: "#06b6d4" }}>Click to upload plan images</p>
+                        <p className="text-xs mt-1" style={{ color: "var(--text-muted)" }}>PNG, JPG — screenshots or photos of schedule pages. Up to 20 files.</p>
+                      </div>
+                      {extracting && (
+                        <div className="flex items-center justify-center gap-2 mt-4" style={{ color: "#06b6d4" }}>
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                          <span className="text-sm">Extracting line items with AI…</span>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {extractorTab === "text" && (
+                    <div>
+                      <textarea
+                        value={extractPasteText} onChange={e => setExtractPasteText(e.target.value)}
+                        rows={10} placeholder="Paste schedule text here — tab-separated, copied from PDF, or typed..."
+                        className="w-full text-xs px-3 py-2.5 rounded-lg resize-none outline-none"
+                        style={{ background: "var(--bg3)", border: "1px solid var(--border-ds)", color: "var(--text)" }}
+                      />
+                      <button
+                        onClick={() => runScheduleExtractText(extractPasteText)}
+                        disabled={!extractPasteText.trim() || extracting}
+                        className="mt-2 w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-semibold"
+                        style={{ background: "#06b6d4", color: "#fff", opacity: (!extractPasteText.trim() || extracting) ? 0.5 : 1 }}
+                      >
+                        {extracting ? <><Loader2 className="w-4 h-4 animate-spin" /> Extracting…</> : "Extract Line Items"}
+                      </button>
+                    </div>
+                  )}
+                </>
+              )}
+
+              {/* Review table */}
+              {extractedItems.length > 0 && (
+                <div>
+                  {/* Summary + bulk actions */}
+                  <div className="flex flex-wrap gap-3 items-center mb-3 pb-3" style={{ borderBottom: "1px solid var(--border-ds)" }}>
+                    <span className="text-xs" style={{ color: "var(--text-muted)" }}>
+                      {extractedItems.filter(i => i._selected).length} of {extractedItems.length} selected •{" "}
+                      {extractedItems.filter(i => i._selected && i._assignedScope).length} assigned •{" "}
+                      <span style={{ color: extractedItems.filter(i => i._selected && !i._assignedScope).length > 0 ? "#ef4444" : "var(--text-muted)" }}>
+                        {extractedItems.filter(i => i._selected && !i._assignedScope).length} unassigned
+                      </span>
+                    </span>
+                    <button onClick={() => setExtractedItems(prev => prev.map(i => ({ ...i, _selected: true })))} className="text-xs px-2 py-1 rounded" style={{ background: "var(--bg3)", color: "var(--text-secondary)" }}>Select All</button>
+                    <button onClick={() => setExtractedItems(prev => prev.map(i => ({ ...i, _selected: false })))} className="text-xs px-2 py-1 rounded" style={{ background: "var(--bg3)", color: "var(--text-secondary)" }}>Deselect All</button>
+                    <button onClick={() => { setExtractedItems([]); }} className="text-xs px-2 py-1 rounded ml-auto" style={{ color: "var(--text-muted)" }}>← Start Over</button>
+                  </div>
+
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-xs">
+                      <thead>
+                        <tr style={{ borderBottom: "1px solid var(--border-ds)", color: "var(--text-muted)" }}>
+                          <th className="py-2 pr-2 text-left w-8">✓</th>
+                          <th className="py-2 pr-3 text-left">Callout</th>
+                          <th className="py-2 pr-3 text-left">Description</th>
+                          <th className="py-2 pr-3 text-left">Mfr</th>
+                          <th className="py-2 pr-3 text-left">Model</th>
+                          <th className="py-2 pr-3 text-right">Qty</th>
+                          <th className="py-2 pr-3 text-center">Conf</th>
+                          <th className="py-2 text-left">Scope</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {extractedItems.map((item, idx) => (
+                          <tr key={item._id} style={{ borderBottom: "1px solid var(--border-ds)20", opacity: item._selected ? 1 : 0.4 }}>
+                            <td className="py-2 pr-2">
+                              <input type="checkbox" checked={item._selected}
+                                onChange={() => setExtractedItems(prev => prev.map((i, j) => j === idx ? { ...i, _selected: !i._selected } : i))} />
+                            </td>
+                            <td className="py-2 pr-3" style={{ color: "var(--text-muted)" }}>{item.planCallout || "—"}</td>
+                            <td className="py-2 pr-3 max-w-xs">
+                              <input value={item.description} onChange={e => setExtractedItems(prev => prev.map((i, j) => j === idx ? { ...i, description: e.target.value } : i))}
+                                className="w-full bg-transparent outline-none" style={{ color: "var(--text)" }} />
+                            </td>
+                            <td className="py-2 pr-3">
+                              <input value={item.manufacturer} onChange={e => setExtractedItems(prev => prev.map((i, j) => j === idx ? { ...i, manufacturer: e.target.value } : i))}
+                                className="w-full bg-transparent outline-none" style={{ color: "var(--text-secondary)" }} />
+                            </td>
+                            <td className="py-2 pr-3">
+                              <input value={item.modelNumber} onChange={e => setExtractedItems(prev => prev.map((i, j) => j === idx ? { ...i, modelNumber: e.target.value } : i))}
+                                className="w-full bg-transparent outline-none" style={{ color: "var(--text-secondary)" }} />
+                            </td>
+                            <td className="py-2 pr-3 text-right">
+                              <input type="number" value={item.quantity} onChange={e => setExtractedItems(prev => prev.map((i, j) => j === idx ? { ...i, quantity: parseInt(e.target.value) || 0 } : i))}
+                                className="w-12 bg-transparent outline-none text-right" style={{ color: "var(--text)" }} />
+                            </td>
+                            <td className="py-2 pr-3 text-center">
+                              <span className="px-1.5 py-0.5 rounded" style={{
+                                background: item.confidence >= 80 ? "#22c55e15" : item.confidence >= 60 ? "#f9731615" : "#ef444415",
+                                color: item.confidence >= 80 ? "#22c55e" : item.confidence >= 60 ? "#f97316" : "#ef4444",
+                              }}>{item.confidence}%</span>
+                            </td>
+                            <td className="py-2">
+                              <select value={item._assignedScope || ""}
+                                onChange={e => setExtractedItems(prev => prev.map((i, j) => j === idx ? { ...i, _assignedScope: e.target.value || null } : i))}
+                                className="text-xs px-2 py-1 rounded"
+                                style={{
+                                  background: item._assignedScope ? "#22c55e15" : "#ef444415",
+                                  border: `1px solid ${item._assignedScope ? "#22c55e40" : "#ef444440"}`,
+                                  color: item._assignedScope ? "#22c55e" : "#ef4444",
+                                }}>
+                                <option value="">🔴 Unassigned</option>
+                                {(activeScopes.length > 0 ? ALL_SCOPES.filter(s => activeScopes.includes(s.id)) : ALL_SCOPES).map(s => (
+                                  <option key={s.id} value={s.id}>{s.label}</option>
+                                ))}
+                              </select>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Footer */}
+            {extractedItems.length > 0 && (
+              <div className="px-5 py-4 sticky bottom-0 flex items-center justify-between gap-3 flex-wrap" style={{ background: "var(--bg-card)", borderTop: "1px solid var(--border-ds)" }}>
+                <span className="text-xs" style={{ color: "var(--text-muted)" }}>
+                  {extractedItems.filter(i => i._selected && !i._assignedScope).length > 0
+                    ? `⚠ ${extractedItems.filter(i => i._selected && !i._assignedScope).length} items need a scope before import`
+                    : `Ready to import ${extractedItems.filter(i => i._selected).length} items`}
+                </span>
+                <div className="flex gap-2">
+                  <button onClick={() => setShowScheduleExtractor(false)} className="text-xs px-4 py-2 rounded" style={{ background: "var(--bg3)", color: "var(--text-muted)" }}>Cancel</button>
+                  <button
+                    onClick={importExtractedItems}
+                    disabled={importingItems || extractedItems.filter(i => i._selected).length === 0}
+                    className="text-xs px-4 py-2 rounded font-semibold flex items-center gap-1.5"
+                    style={{ background: "#06b6d4", color: "#fff", opacity: importingItems ? 0.7 : 1 }}>
+                    {importingItems ? <><Loader2 className="w-3 h-3 animate-spin" /> Importing…</> : `Send ${extractedItems.filter(i => i._selected).length} Items to Estimate`}
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ══════════════════════════════════════════════════ */}
+      {/* SPEC EXTRACTOR OVERLAY PANEL */}
+      {/* ══════════════════════════════════════════════════ */}
+      {showSpecExtractor && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center" style={{ background: "rgba(0,0,0,0.7)" }}>
+          <div className="w-full max-w-4xl max-h-[90vh] overflow-y-auto rounded-t-2xl sm:rounded-2xl flex flex-col" style={{ background: "var(--bg-card)", border: "1px solid var(--gold)40" }}>
+            {/* Header */}
+            <div className="flex items-center justify-between px-5 py-4 sticky top-0" style={{ background: "var(--bg-card)", borderBottom: "1px solid var(--border-ds)", zIndex: 10 }}>
+              <div className="flex items-center gap-2">
+                <BookOpen className="w-5 h-5" style={{ color: "var(--gold)" }} />
+                <h2 className="text-base font-bold" style={{ color: "var(--gold)" }}>Extract from Specs</h2>
+                {extractedSpecs.length > 0 && <span className="text-xs px-2 py-0.5 rounded" style={{ background: "var(--gold)20", color: "var(--gold)" }}>{extractedSpecs.length} sections extracted</span>}
+              </div>
+              <button onClick={() => setShowSpecExtractor(false)} className="text-xl leading-none" style={{ color: "var(--text-muted)" }}>×</button>
+            </div>
+
+            <div className="p-5 flex-1">
+              {/* Tabs */}
+              {extractedSpecs.length === 0 && (
+                <>
+                  <div className="flex gap-1 mb-4 p-1 rounded-lg" style={{ background: "var(--bg3)" }}>
+                    {[{ id: "image", label: "📷 Upload Spec Pages" }, { id: "text", label: "📋 Paste Spec Text" }].map(t => (
+                      <button key={t.id} onClick={() => setSpecExtractorTab(t.id as any)}
+                        className="flex-1 text-xs px-3 py-2 rounded font-semibold transition-all"
+                        style={{ background: specExtractorTab === t.id ? "var(--gold)" : "transparent", color: specExtractorTab === t.id ? "#000" : "var(--text-muted)" }}>
+                        {t.label}
+                      </button>
+                    ))}
+                  </div>
+
+                  {specExtractorTab === "image" && (
+                    <div>
+                      <input ref={specImageInputRef} type="file" multiple accept="image/*" className="hidden"
+                        onChange={e => { const f = Array.from(e.target.files || []); if (f.length > 0) runSpecExtractImages(f); }} />
+                      <div
+                        onClick={() => specImageInputRef.current?.click()}
+                        className="border-2 border-dashed rounded-xl p-10 text-center cursor-pointer transition-all"
+                        style={{ borderColor: "var(--gold)40", background: "var(--gold)08" }}
+                      >
+                        <Upload className="w-10 h-10 mx-auto mb-3" style={{ color: "var(--gold)" }} />
+                        <p className="text-sm font-semibold" style={{ color: "var(--gold)" }}>Click to upload spec page images</p>
+                        <p className="text-xs mt-1" style={{ color: "var(--text-muted)" }}>PNG, JPG — screenshots of Division 10 specification pages. Up to 20 files.</p>
+                      </div>
+                      {extracting && (
+                        <div className="flex items-center justify-center gap-2 mt-4" style={{ color: "var(--gold)" }}>
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                          <span className="text-sm">Analyzing spec pages with AI…</span>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {specExtractorTab === "text" && (
+                    <div>
+                      <textarea
+                        value={specPasteText} onChange={e => setSpecPasteText(e.target.value)}
+                        rows={10} placeholder="Paste specification text here — copy from your PDF or project specs..."
+                        className="w-full text-xs px-3 py-2.5 rounded-lg resize-none outline-none"
+                        style={{ background: "var(--bg3)", border: "1px solid var(--border-ds)", color: "var(--text)" }}
+                      />
+                      <button
+                        onClick={() => runSpecExtractText(specPasteText)}
+                        disabled={!specPasteText.trim() || extracting}
+                        className="mt-2 w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-semibold"
+                        style={{ background: "var(--gold)", color: "#000", opacity: (!specPasteText.trim() || extracting) ? 0.5 : 1 }}
+                      >
+                        {extracting ? <><Loader2 className="w-4 h-4 animate-spin" /> Analyzing…</> : "Extract Spec Sections"}
+                      </button>
+                    </div>
+                  )}
+                </>
+              )}
+
+              {/* Review — extracted spec sections */}
+              {extractedSpecs.length > 0 && (
+                <div>
+                  <div className="flex items-center justify-between mb-3 pb-3" style={{ borderBottom: "1px solid var(--border-ds)" }}>
+                    <span className="text-xs" style={{ color: "var(--text-muted)" }}>{extractedSpecs.filter(s => s._selected).length} of {extractedSpecs.length} sections selected</span>
+                    <button onClick={() => { setExtractedSpecs([]); }} className="text-xs px-2 py-1 rounded" style={{ color: "var(--text-muted)" }}>← Start Over</button>
+                  </div>
+
+                  {extractedSpecs.length === 0 && (
+                    <p className="text-sm text-center py-8" style={{ color: "var(--text-muted)" }}>No Division 10 sections found. Try a different image or paste the spec text directly.</p>
+                  )}
+
+                  <div className="space-y-3">
+                    {extractedSpecs.map((sec, idx) => (
+                      <div key={sec._id} className="rounded-lg p-4" style={{
+                        background: sec._selected ? "var(--bg3)" : "var(--bg-card)",
+                        border: `1px solid ${sec._selected ? "var(--gold)40" : "var(--border-ds)"}`,
+                        opacity: sec._selected ? 1 : 0.5,
+                      }}>
+                        <div className="flex items-start justify-between gap-3 mb-2">
+                          <div className="flex items-center gap-2">
+                            <input type="checkbox" checked={sec._selected}
+                              onChange={() => setExtractedSpecs(prev => prev.map((s, j) => j === idx ? { ...s, _selected: !s._selected } : s))} />
+                            <div>
+                              <span className="text-sm font-semibold" style={{ color: "var(--text)" }}>{sec.csiCode} — {sec.specSectionTitle}</span>
+                              {sec.sourcePages && <span className="text-xs ml-2" style={{ color: "var(--text-muted)" }}>Source: {sec.sourcePages}</span>}
+                            </div>
+                          </div>
+                          <span className="text-xs px-2 py-0.5 rounded flex-shrink-0" style={{
+                            background: sec.confidence >= 80 ? "#22c55e15" : "#f9731615",
+                            color: sec.confidence >= 80 ? "#22c55e" : "#f97316",
+                          }}>{sec.confidence}%</span>
+                        </div>
+
+                        {sec.manufacturers && sec.manufacturers.length > 0 && (
+                          <div className="text-xs mb-1.5">
+                            <span className="font-semibold" style={{ color: "var(--text-muted)" }}>Manufacturers: </span>
+                            <span style={{ color: "var(--text-secondary)" }}>{sec.manufacturers.join(", ")}</span>
+                          </div>
+                        )}
+                        {sec.substitutionPolicy && (
+                          <div className="text-xs mb-1.5">
+                            <span className="font-semibold" style={{ color: "var(--text-muted)" }}>Substitution: </span>
+                            <span className="font-semibold" style={{ color: sec.substitutionPolicy.includes("no sub") ? "#ef4444" : "#f97316" }}>"{sec.substitutionPolicy}"</span>
+                          </div>
+                        )}
+                        {sec.keyRequirements && sec.keyRequirements.length > 0 && (
+                          <div className="text-xs mb-1.5">
+                            <span className="font-semibold" style={{ color: "var(--text-muted)" }}>Key Requirements: </span>
+                            {sec.keyRequirements.slice(0, 3).map((r, i) => (
+                              <span key={i} style={{ color: "var(--text-secondary)" }}>• {r} </span>
+                            ))}
+                            {sec.keyRequirements.length > 3 && <span style={{ color: "var(--text-muted)" }}>+{sec.keyRequirements.length - 3} more</span>}
+                          </div>
+                        )}
+
+                        {sec.content && (
+                          <button
+                            onClick={() => setExpandedSpecSections(prev => {
+                              const next = new Set(prev);
+                              if (next.has(sec._id)) next.delete(sec._id); else next.add(sec._id);
+                              return next;
+                            })}
+                            className="text-xs mt-1 flex items-center gap-1"
+                            style={{ color: "var(--gold)" }}
+                          >
+                            View Full Spec Text {expandedSpecSections.has(sec._id) ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                          </button>
+                        )}
+                        {expandedSpecSections.has(sec._id) && sec.content && (
+                          <pre className="mt-2 p-3 rounded text-xs whitespace-pre-wrap leading-relaxed" style={{ background: "var(--bg-card)", border: "1px solid var(--border-ds)", color: "var(--text-secondary)", maxHeight: 200, overflow: "auto" }}>
+                            {sec.content}
+                          </pre>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Footer */}
+            {extractedSpecs.length > 0 && (
+              <div className="px-5 py-4 sticky bottom-0 flex items-center justify-between gap-3 flex-wrap" style={{ background: "var(--bg-card)", borderTop: "1px solid var(--border-ds)" }}>
+                <span className="text-xs" style={{ color: "var(--text-muted)" }}>Saving will auto-check the corresponding scope sections and make spec language available in each scope tab.</span>
+                <div className="flex gap-2">
+                  <button onClick={() => setShowSpecExtractor(false)} className="text-xs px-4 py-2 rounded" style={{ background: "var(--bg3)", color: "var(--text-muted)" }}>Cancel</button>
+                  <button
+                    onClick={saveSpecSections}
+                    disabled={savingSpecs || extractedSpecs.filter(s => s._selected).length === 0}
+                    className="text-xs px-4 py-2 rounded font-semibold flex items-center gap-1.5"
+                    style={{ background: "var(--gold)", color: "#000", opacity: savingSpecs ? 0.7 : 1 }}>
+                    {savingSpecs ? <><Loader2 className="w-3 h-3 animate-spin" /> Saving…</> : `Save ${extractedSpecs.filter(s => s._selected).length} Spec Sections to Estimate`}
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}

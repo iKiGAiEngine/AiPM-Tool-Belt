@@ -1284,12 +1284,35 @@ export const estimateLineItems = pgTable("estimate_line_items", {
   note: text("note"),
   hasBackup: boolean("has_backup").default(false),
   sortOrder: integer("sort_order").default(0),
+  planCallout: varchar("plan_callout", { length: 50 }),
+  extractionConfidence: integer("extraction_confidence"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
 export const insertEstimateLineItemSchema = createInsertSchema(estimateLineItems).omit({ id: true, createdAt: true });
 export type InsertEstimateLineItem = z.infer<typeof insertEstimateLineItemSchema>;
 export type EstimateLineItem = typeof estimateLineItems.$inferSelect;
+
+export const estimateSpecSections = pgTable("estimate_spec_sections", {
+  id: serial("id").primaryKey(),
+  estimateId: integer("estimate_id").notNull(),
+  scopeId: text("scope_id").notNull(),
+  csiCode: text("csi_code"),
+  specSectionNumber: text("spec_section_number"),
+  specSectionTitle: text("spec_section_title"),
+  content: text("content"),
+  manufacturers: jsonb("manufacturers").$type<string[]>().default([]),
+  keyRequirements: jsonb("key_requirements").$type<string[]>().default([]),
+  substitutionPolicy: text("substitution_policy"),
+  sourcePages: text("source_pages"),
+  extractionConfidence: integer("extraction_confidence").default(80),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+export const insertEstimateSpecSectionSchema = createInsertSchema(estimateSpecSections).omit({ id: true, createdAt: true, updatedAt: true });
+export type InsertEstimateSpecSection = z.infer<typeof insertEstimateSpecSectionSchema>;
+export type EstimateSpecSection = typeof estimateSpecSections.$inferSelect;
 
 export const estimateQuotes = pgTable("estimate_quotes", {
   id: serial("id").primaryKey(),
