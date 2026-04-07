@@ -27,8 +27,9 @@ const toolRoutes: ToolRoute[] = [
   { path: "/quoteparser", label: "Quote Parser", icon: Receipt },
   { path: "/schedule-converter", label: "Schedule Converter", icon: TableProperties },
   { path: "/spec-extractor", label: "Spec Extractor", icon: ClipboardList },
-  { path: "/settings", label: "Settings", icon: Settings },
   { path: "/project-log", label: "Proposal Log", icon: ClipboardList },
+  { path: "/estimates", label: "Estimator", icon: Calculator },
+  { path: "/settings", label: "Settings", icon: Settings },
   { path: "/admin", label: "Admin", icon: Shield },
 ];
 

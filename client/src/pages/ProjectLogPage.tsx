@@ -523,7 +523,7 @@ export default function ProjectLogPage() {
             </Button>
           </Link>
           <div className="flex-1">
-            <h1 className="text-2xl font-heading font-semibold" style={{ color: "var(--text)" }}>Change Log</h1>
+            <h1 className="text-2xl font-heading font-semibold" style={{ color: "var(--text)" }}>BC Bid Log</h1>
             <p className="text-sm" style={{ color: "var(--text-dim)" }}>Immutable audit trail of all proposal log entries</p>
           </div>
           <div className="flex items-center gap-2">
@@ -581,7 +581,7 @@ export default function ProjectLogPage() {
                   { key: "active" as ViewTab, label: "Active", count: activeCount },
                   { key: "drafts" as ViewTab, label: "Drafts", count: draftCount },
                   { key: "deleted" as ViewTab, label: "Deleted", count: deletedCount },
-                  { key: "changes" as ViewTab, label: "Changes", count: null },
+                  { key: "changes" as ViewTab, label: "BC Bid Log", count: null },
                 ]).map(tab => (
                   <button
                     key={tab.key}
@@ -858,7 +858,7 @@ export default function ProjectLogPage() {
                                   DELETED
                                 </Badge>
                               )}
-                              {!isDeleted && !isDraft && (
+                              {!isDeleted && !isDraft && viewTab !== "changes" && (
                                 <Link href={`/estimates/${entry.id}`}>
                                   <span
                                     className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium transition-colors cursor-pointer hover:opacity-80"
