@@ -544,7 +544,7 @@ export default function ProjectLogPage() {
             </Button>
           </Link>
           <div className="flex-1">
-            <h1 className="text-2xl font-heading font-semibold" style={{ color: "var(--text)" }}>Proposal Log</h1>
+            <h1 className="text-2xl font-heading font-semibold" style={{ color: "var(--text)" }}>BC Sync Table</h1>
             <p className="text-sm" style={{ color: "var(--text-dim)" }}>
               {viewTab === "changes"
                 ? "Immutable audit trail of all field-level edits"
@@ -772,7 +772,7 @@ export default function ProjectLogPage() {
                   <div className="text-center py-12">
                     <History className="w-10 h-10 mx-auto mb-3" style={{ color: "var(--text-dim)", opacity: 0.4 }} />
                     <p className="text-sm" style={{ color: "var(--text-dim)" }}>No changes recorded yet.</p>
-                    <p className="text-xs mt-1" style={{ color: "var(--text-dim)", opacity: 0.7 }}>Field-level changes will appear here as edits are made in the Proposal Log.</p>
+                    <p className="text-xs mt-1" style={{ color: "var(--text-dim)", opacity: 0.7 }}>Field-level changes will appear here as BC Sync projects are processed and approved into the Proposal Log.</p>
                   </div>
                 ) : (
                   <div className="overflow-x-auto">
