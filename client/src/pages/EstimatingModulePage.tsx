@@ -315,7 +315,9 @@ export default function EstimatingModulePage() {
   const [importingItems, setImportingItems] = useState(false);
   const [savingSpecs, setSavingSpecs] = useState(false);
   const [extractPasteText, setExtractPasteText] = useState("");
+  const [schedulePasteCount, setSchedulePasteCount] = useState(0);
   const [specPasteText, setSpecPasteText] = useState("");
+  const [specDropActive, setSpecDropActive] = useState(false);
   const [expandedSpecSections, setExpandedSpecSections] = useState<Set<string>>(new Set());
   const [expandedSpecPanels, setExpandedSpecPanels] = useState<Set<string>>(new Set());
   const scheduleImageInputRef = useRef<HTMLInputElement>(null);
@@ -1486,7 +1488,7 @@ ${html}
             {/* Extraction buttons */}
             <div className="flex gap-2 mb-3">
               <button
-                onClick={() => { setShowScheduleExtractor(true); setExtractedItems([]); setExtractorTab("image"); }}
+                onClick={() => { setShowScheduleExtractor(true); setExtractedItems([]); setExtractorTab("image"); setExtractPasteText(""); setSchedulePasteCount(0); }}
                 disabled={!estimateId}
                 className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold transition-all"
                 style={{ background: "#06b6d410", border: "1px solid #06b6d440", color: "#06b6d4" }}
@@ -1640,7 +1642,7 @@ ${html}
               {/* Extraction buttons — Stage 2 secondary position */}
               <div className="flex gap-2 mb-3">
                 <button
-                  onClick={() => { setShowScheduleExtractor(true); setExtractedItems([]); setExtractorTab("image"); }}
+                  onClick={() => { setShowScheduleExtractor(true); setExtractedItems([]); setExtractorTab("image"); setExtractPasteText(""); setSchedulePasteCount(0); }}
                   className="flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-semibold"
                   style={{ background: "#06b6d410", border: "1px solid #06b6d440", color: "#06b6d4" }}
                   data-testid="btn-extract-schedules-s2"
@@ -2782,9 +2784,50 @@ ${html}
 
                   {extractorTab === "text" && (
                     <div>
+                      {/* Click-to-paste button with accumulation */}
+                      <div className="flex items-center gap-2 mb-3">
+                        <button
+                          onClick={async () => {
+                            try {
+                              const text = await navigator.clipboard.readText();
+                              if (!text.trim()) return;
+                              setExtractPasteText(prev =>
+                                prev.trim()
+                                  ? prev + "\n\n--- Paste #" + (schedulePasteCount + 2) + " ---\n" + text
+                                  : text
+                              );
+                              setSchedulePasteCount(c => c + 1);
+                            } catch {
+                              toast({ title: "Paste blocked", description: "Click inside the text area and use Ctrl+V / Cmd+V instead.", variant: "destructive" });
+                            }
+                          }}
+                          className="flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-semibold flex-shrink-0"
+                          style={{ background: "#06b6d4", color: "#fff" }}
+                          data-testid="btn-clipboard-paste-schedule"
+                        >
+                          <ClipboardPaste className="w-4 h-4" /> Click to Paste from Clipboard
+                        </button>
+                        {schedulePasteCount > 0 && (
+                          <span className="text-xs px-2 py-0.5 rounded" style={{ background: "#06b6d420", color: "#06b6d4" }}>
+                            {schedulePasteCount} paste{schedulePasteCount !== 1 ? "s" : ""} accumulated
+                          </span>
+                        )}
+                        {extractPasteText.trim() && (
+                          <button
+                            onClick={() => { setExtractPasteText(""); setSchedulePasteCount(0); }}
+                            className="text-xs px-2 py-1 rounded ml-auto"
+                            style={{ color: "var(--text-muted)" }}
+                          >
+                            Clear All
+                          </button>
+                        )}
+                      </div>
+                      <p className="text-xs mb-2" style={{ color: "var(--text-muted)" }}>
+                        Each paste appends to the list. You can also type or edit directly below.
+                      </p>
                       <textarea
                         value={extractPasteText} onChange={e => setExtractPasteText(e.target.value)}
-                        rows={10} placeholder="Paste schedule text here — tab-separated, copied from PDF, or typed..."
+                        rows={8} placeholder="Paste schedule text here, or use the button above. Paste multiple times to combine pages into one list…"
                         className="w-full text-xs px-3 py-2.5 rounded-lg resize-none outline-none"
                         style={{ background: "var(--bg3)", border: "1px solid var(--border-ds)", color: "var(--text)" }}
                       />
@@ -2794,7 +2837,7 @@ ${html}
                         className="mt-2 w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-semibold"
                         style={{ background: "#06b6d4", color: "#fff", opacity: (!extractPasteText.trim() || extracting) ? 0.5 : 1 }}
                       >
-                        {extracting ? <><Loader2 className="w-4 h-4 animate-spin" /> Extracting…</> : "Extract Line Items"}
+                        {extracting ? <><Loader2 className="w-4 h-4 animate-spin" /> Extracting…</> : `Extract Line Items${schedulePasteCount > 1 ? ` (${schedulePasteCount} pages combined)` : ""}`}
                       </button>
                     </div>
                   )}
@@ -2946,11 +2989,26 @@ ${html}
                         onChange={e => { const f = Array.from(e.target.files || []); if (f.length > 0) runSpecExtractImages(f); }} />
                       <div
                         onClick={() => specImageInputRef.current?.click()}
+                        onDragOver={e => { e.preventDefault(); setSpecDropActive(true); }}
+                        onDragLeave={e => { e.preventDefault(); setSpecDropActive(false); }}
+                        onDrop={e => {
+                          e.preventDefault();
+                          setSpecDropActive(false);
+                          const files = Array.from(e.dataTransfer.files).filter(f => f.type.startsWith("image/"));
+                          if (files.length > 0) runSpecExtractImages(files);
+                          else toast({ title: "No images found", description: "Please drop image files (PNG, JPG).", variant: "destructive" });
+                        }}
                         className="border-2 border-dashed rounded-xl p-10 text-center cursor-pointer transition-all"
-                        style={{ borderColor: "var(--gold)40", background: "var(--gold)08" }}
+                        style={{
+                          borderColor: specDropActive ? "var(--gold)" : "var(--gold)40",
+                          background: specDropActive ? "var(--gold)18" : "var(--gold)08",
+                          transform: specDropActive ? "scale(1.01)" : "scale(1)",
+                        }}
                       >
                         <Upload className="w-10 h-10 mx-auto mb-3" style={{ color: "var(--gold)" }} />
-                        <p className="text-sm font-semibold" style={{ color: "var(--gold)" }}>Click to upload spec page images</p>
+                        <p className="text-sm font-semibold" style={{ color: "var(--gold)" }}>
+                          {specDropActive ? "Drop spec images here" : "Drag & drop or click to upload spec images"}
+                        </p>
                         <p className="text-xs mt-1" style={{ color: "var(--text-muted)" }}>PNG, JPG — screenshots of Division 10 specification pages. Up to 20 files.</p>
                       </div>
                       {extracting && (
