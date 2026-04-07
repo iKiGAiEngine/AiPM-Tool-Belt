@@ -1,0 +1,1506 @@
+# AiPM Estimating Module — Complete Replit Build Specification
+
+## Version 6 — Executive Suite Theme — Division 10 Furnish Only
+
+-----
+
+## CRITICAL BUILD INSTRUCTIONS
+
+**Do NOT copy the prototype code (estimating-module-v6.jsx).** That file is a single-file React prototype used for design validation. It contains 2,276 lines of inline styles, hardcoded sample data, and simulated backend calls.
+
+**Build from THIS SPEC using clean React/TypeScript components.** The prototype demonstrates the correct workflow, calculations, and UI behavior — use it as a visual reference. But the production code should be:
+
+- Proper component architecture (separate files for each stage, shared components for cards/inputs/pills)
+- TypeScript interfaces for all data models
+- TanStack React Query for server state management
+- Express API routes with Drizzle ORM for database operations
+- Proper error handling, loading states, and validation
+
+**Integration requirement:** This module integrates into the EXISTING AiPM Tool Belt codebase. It is NOT a standalone app. Follow the existing project structure, auth patterns, and component conventions already in the codebase.
+
+-----
+
+## 1. SYSTEM CONTEXT
+
+**What this is:** A Division 10 specialty subcontractor estimating module for National Building Specialties (NBS), a subsidiary of Swinerton Builders. This module is part of the AiPM Tool Belt platform.
+
+**What NBS does:** NBS furnishes (supplies) Division 10 materials ONLY. No labor, no installation, no handling, no field work. Every feature in this system must enforce the material-only constraint.
+
+**Tech stack (VERIFIED):**
+
+- Frontend: React/TypeScript, Wouter router, TanStack React Query, shadcn/ui components
+- Backend: Express on port 5000, serves both API and Vite frontend
+- Database: PostgreSQL via Replit built-in, connected via DATABASE_URL, Drizzle ORM with drizzle-kit push
+- Auth: express-session with connect-pg-simple (PostgreSQL session store), req.session.userId
+- Email: SendGrid (SENDGRID_API_KEY in Secrets), /server/emailService.ts
+- AI: OpenAI (OPENAI_API_KEY in Secrets) — NOTE: existing modules use OpenAI, but the Estimating Module’s AI Quote Parser should use Claude/Anthropic API. Add ANTHROPIC_API_KEY to Replit Secrets.
+- File storage: Multer with filesystem storage at /data/projects/{projectId}/
+- Outlook: NOT configured — use mailto: links for RFQ email generation
+
+**Users:** Gene Trabert (estimator), Gonzalo Martinez (estimator), Haley Kruseek (estimator/admin), Kenny Ruester (president/admin).
+
+**User roles in DB:** admin, user, accounting, project_manager (varchar on users table). Role check: `user.role === "admin"`. Feature-level access via `userFeatureAccess` table.
+
+-----
+
+## 1A. VERIFIED PROJECT STRUCTURE
+
+```
+/client/src/
+  pages/           — React page components (add EstimatingModulePage.tsx here)
+  components/      — shadcn/ui + custom components
+  lib/
+    queryClient.ts — apiRequest() fetch wrapper + TanStack Query setup
+
+/server/
+  index.ts         — Express app setup, session config
+  db.ts            — PostgreSQL pool + Drizzle instance
+  routes.ts        — Main API routes + Multer upload
+  projectRoutes.ts — Proposal Log CRUD (critical for integration)
+  adminRoutes.ts   — User/role management
+  emailService.ts  — SendGrid wrapper
+
+/shared/
+  schema.ts        — ALL Drizzle table definitions (add estimating tables here)
+```
+
+**Frontend routing:** Wouter. Add in /client/src/App.tsx:
+
+```tsx
+<Route path="/estimates/:id" component={EstimatingModulePage} />
+```
+
+**API calls from frontend:** Use existing `apiRequest()` wrapper:
+
+```typescript
+import { apiRequest } from "@/lib/queryClient";
+const data = await apiRequest("GET", `/api/estimates/${id}`);
+```
+
+**Navigation:** Add to Header.tsx toolRoutes array:
+
+```typescript
+{ path: "/estimates", label: "Estimating", icon: Calculator }
+```
+
+-----
+
+## 1B. PROPOSAL LOG INTEGRATION CONTRACT
+
+### The proposalLogEntries table (VERIFIED — exists at /shared/schema.ts lines 896-932):
+
+**CRITICAL: proposalTotal is stored as VARCHAR, not numeric.** Convert to number on read, convert to string on write.
+
+**Unique identifier:** Use `id` (serial integer) as the FK in the estimates table. Display `estimateNumber` (varchar, e.g. “PV-2026-0147”) to users.
+
+**activeScopes:** Does NOT exist in Proposal Log. Store exclusively on the `estimates` table. The Proposal Log has `nbsSelectedScopes` which can serve as initial seed data.
+
+### Reading from Proposal Log:
+
+Build a new endpoint (does not exist yet):
+
+```typescript
+// GET /api/proposal-log/entry/:id
+app.get("/api/proposal-log/entry/:id", async (req, res) => {
+  const [entry] = await db.select().from(proposalLogEntries)
+    .where(eq(proposalLogEntries.id, parseInt(req.params.id)));
+  if (!entry) return res.status(404).json({ message: "Not found" });
+  res.json(entry);
+});
+```
+
+### Writing back to Proposal Log:
+
+Use the EXISTING endpoint:
+
+```typescript
+// PATCH /api/proposal-log/entry/:id
+// Located at /server/projectRoutes.ts lines 1826-1850
+await apiRequest("PATCH", `/api/proposal-log/entry/${proposalLogEntryId}`, {
+  proposalTotal: grandTotal.toString(),  // MUST be string
+  // estimateStatus auto-updates to "Submitted" when proposalTotal > 0
+});
+
+// After write, invalidate the Proposal Log cache:
+queryClient.invalidateQueries({ queryKey: ["/api/proposal-log"] });
+```
+
+### Data ownership:
+
+- **Proposal Log owns (Estimating reads only):** projectName, estimateNumber, region, nbsEstimator, gcEstimateLead, dueDate, primaryMarket, inviteDate, anticipatedStart, anticipatedFinish, filePath, owner, finalReviewer, swinertonProject
+- **Estimating writes back:** proposalTotal (as string), estimateStatus (auto-set on total write)
+- **Estimating owns exclusively:** estimates table + all child tables (line items, quotes, categories, breakouts, versions, assumptions, checklists, review comments)
+
+### Snapshot approach: Load Proposal Log data ONCE when estimate is created. Changes in Proposal Log (due date, estimator reassignment) do NOT auto-sync. This is by design.
+
+### Navigation links to add:
+
+1. **In ProjectLogPage.tsx:** Add “Open in Estimating” button per entry → `<Link href={/estimates/${entry.id}}>`
+1. **In EstimatingModulePage.tsx:** “Back to Proposal Log” → `<Link href="/project-log">`
+1. **In EstimatingModulePage.tsx:** “Switch Project” dropdown fetching from `GET /api/proposal-log`
+1. **In Header.tsx:** Add Estimating to the toolRoutes array
+
+### File storage for vendor quote backups:
+
+```
+/data/projects/{projectId}/Estimate Folder/Quotes/{quoteId}_{filename}
+```
+
+Store the path in `estimate_quotes.backup_file_path` and `estimate_line_items.backup_file_path`.
+
+-----
+
+## 2. UI/UX THEME — EXECUTIVE SUITE
+
+**IMPORTANT:** The Estimating Module uses its OWN theme (Executive Suite) which is different from the current AiPM platform styling (Rajdhani/DM Sans). This is intentional. Do NOT match the existing platform fonts or colors. The full platform will be reskinned to match later in a separate update.
+
+**Use shadcn/ui components for structure** (Card, Button, Input, Select, Dialog, Table, etc.) but override their default styling with the Executive Suite colors and fonts below. Use CSS variables so the dark/light toggle works with one state change.
+
+**Default mode: LIGHT.** First-time visitors see the light theme. Persist preference to localStorage under key `aipm-estimating-theme`.
+
+### Light Mode (DEFAULT)
+
+- Background: #FEFCF8 (warm cream)
+- Surface/cards: #FFFFFF
+- Surface hover: #F9F7F2
+- Surface alt: #FEF9EF (inputs, table headers)
+- Border: #E8DCC8
+- Accent: #92700A (dark gold)
+- Accent glow: rgba(146,112,10,0.06)
+- Green: #15803D
+- Green soft: rgba(21,128,61,0.08)
+- Orange: #B45309
+- Orange soft: rgba(180,83,9,0.08)
+- Red: #B91C1C
+- Red soft: rgba(185,28,28,0.06)
+- Purple: #6D28D9
+- Purple soft: rgba(109,40,217,0.06)
+- Cyan: #0E7490
+- Text: #1C1917
+- Text muted: #78716C
+- Text dim: #A8A29E
+- Shadow: 0 2px 8px rgba(0,0,0,0.06)
+
+### Dark Mode
+
+- Background: #141210 (warm charcoal)
+- Surface/cards: #1E1C18
+- Surface hover: #28251E
+- Surface alt: #28251E
+- Border: #3D3830
+- Accent: #C8A44E (bright gold)
+- Accent glow: rgba(200,164,78,0.08)
+- Green: #4ADE80
+- Green soft: rgba(74,222,128,0.1)
+- Orange: #FBBF24
+- Orange soft: rgba(251,191,36,0.1)
+- Red: #F87171
+- Red soft: rgba(248,113,113,0.08)
+- Purple: #C4B5FD
+- Purple soft: rgba(196,181,253,0.08)
+- Cyan: #22D3EE
+- Text: #F5F0E8
+- Text muted: #A89F91
+- Text dim: #6B6358
+- Shadow: 0 2px 8px rgba(0,0,0,0.3)
+
+### Typography
+
+- Headings: Playfair Display (serif) — project name, section titles, stage labels, card headers
+- Body: Source Sans 3 (sans-serif) — all body text, inputs, buttons, table cells, labels
+- Import: `https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=Source+Sans+3:wght@400;500;600;700`
+
+### Layout Rules
+
+- Border radius: 6px on cards, 4px on buttons/inputs/pills, 3px on badges
+- Header: Editorial split layout — project name (Playfair Display large) on left, PV#/GC/estimator stacked on right
+- Light mode header: gold underline border (2px solid accent)
+- Dark mode header: subtle gradient background with 35% opacity gold border
+- Dark/light toggle button in the header next to the AiPM logo
+- AiPM logo: square with rounded corners (8px radius), gold gradient on dark mode, solid gold on light mode, “A” in Playfair Display
+
+-----
+
+## 3. DATABASE SCHEMA
+
+All tables use `estimate_id` as a NOT NULL foreign key for project isolation.
+
+### TABLE: estimates
+
+```
+id (uuid, primary key)
+proposal_log_entry_id (integer, FK → proposalLogEntries.id, unique)
+estimate_number (text — display field, e.g. "PV-2026-0147", copied from proposalLogEntries.estimateNumber)
+project_name (text)
+gc (text)
+region (text)
+primary_market (text)
+estimator (text)
+due_date (date)
+swinerton_project (boolean)
+invite_date (date)
+est_start (text)
+est_finish (text)
+owner (text)
+reviewer (text)
+active_scopes (jsonb — array of scope section IDs)
+default_oh (decimal, default 8) -- Overhead, requires exec approval to change
+  default_fee (decimal, default 12) -- Fee, estimator can adjust freely
+default_esc (decimal, default 0)
+tax_rate (decimal, default 8.75)
+bond_rate (decimal, default 0)
+status (enum: draft | estimating | ready_for_review | reviewed | submitted | awarded | lost)
+review_status (enum: drafting | ready_for_review | reviewed | submitted)
+grand_total (decimal — syncs back to proposal_log.proposal_total on submission)
+awarded_amount (decimal, nullable)
+competing_bid_amount (decimal, nullable)
+created_at (timestamp)
+updated_at (timestamp)
+submitted_at (timestamp, nullable)
+awarded_at (timestamp, nullable)
+```
+
+### TABLE: estimate_quotes
+
+```
+id (uuid, primary key)
+estimate_id (uuid, FK NOT NULL → estimates)
+vendor (text)
+category (text — scope section ID)
+note (text)
+freight (decimal — flat dollar amount, NOT percentage)
+pricing_mode (enum: per_item | lump_sum)
+lump_sum_total (decimal, default 0)
+tax_included (boolean — for accounting visibility, does NOT change tax calculation)
+has_backup (boolean)
+backup_file_path (text, nullable)
+is_material_only (boolean, default true)
+quote_comparison_group (text, nullable)
+breakout_group_id (uuid, FK nullable → estimate_breakout_groups)
+created_at (timestamp)
+```
+
+### TABLE: estimate_line_items
+
+```
+id (uuid, primary key)
+estimate_id (uuid, FK NOT NULL → estimates)
+quote_id (uuid, FK nullable → estimate_quotes)
+name (text)
+model (text)
+mfr (text — manufacturer)
+category (text — scope section ID)
+qty (integer)
+unit_cost (decimal)
+source (enum: vendor_quote | price_book | library)
+esc_override (decimal, nullable — item-level escalation override)
+note (text — qualification text, appears as sub-line in proposal)
+has_backup (boolean)
+backup_file_path (text, nullable)
+created_at (timestamp)
+priced_at (timestamp, nullable — when unit_cost first set > 0)
+```
+
+### TABLE: estimate_category_config
+
+```
+id (uuid, primary key)
+estimate_id (uuid, FK NOT NULL → estimates)
+category (text — scope section ID)
+oh_override (decimal, nullable -- requires exec approval)
+  fee_override (decimal, nullable -- estimator adjustable)
+esc_override (decimal, nullable)
+inclusions (text, nullable)
+exclusions (text, nullable)
+qualifications (text, nullable)
+is_complete (boolean, default false)
+completed_at (timestamp, nullable)
+```
+
+### TABLE: estimate_checklist
+
+```
+id (uuid, primary key)
+estimate_id (uuid, FK NOT NULL → estimates)
+checklist_item_id (text)
+is_done (boolean)
+is_auto (boolean — auto-derived from data state)
+checked_at (timestamp, nullable)
+```
+
+### TABLE: estimate_versions
+
+```
+id (uuid, primary key)
+estimate_id (uuid, FK NOT NULL → estimates)
+version_number (integer — auto-increment per estimate)
+saved_at (timestamp)
+saved_by (text)
+grand_total (decimal)
+category_totals (jsonb)
+notes (text, nullable)
+```
+
+### TABLE: estimate_assumptions
+
+```
+id (uuid, primary key)
+estimate_id (uuid, FK NOT NULL → estimates)
+type (enum: assumption | risk)
+text (text)
+created_at (timestamp)
+created_by (text)
+```
+
+### TABLE: estimate_review_comments
+
+```
+id (uuid, primary key)
+estimate_id (uuid, FK NOT NULL → estimates)
+comment_by (text)
+comment_text (text)
+action (enum: returned | approved | note)
+created_at (timestamp)
+```
+
+### TABLE: estimate_breakout_groups
+
+```
+id (uuid, primary key)
+estimate_id (uuid, FK NOT NULL → estimates)
+group_code (text — "B1", "B2", "PH1", etc.)
+label (text — "Building 1 - Main Tower")
+breakout_type (enum: building | phase | floor | scope_split | custom)
+ohp_override (decimal, nullable — null = inherit parent)
+esc_override (decimal, nullable — null = inherit parent)
+freight_allocation_method (enum: proportional | manual, default proportional)
+manual_freight (decimal, nullable)
+created_at (timestamp)
+updated_at (timestamp)
+```
+
+### TABLE: estimate_breakout_allocations
+
+```
+id (uuid, primary key)
+estimate_id (uuid, FK NOT NULL → estimates)
+line_item_id (uuid, FK NOT NULL → estimate_line_items)
+breakout_group_id (uuid, FK NOT NULL → estimate_breakout_groups)
+allocated_qty (integer, NOT NULL, >= 0)
+created_at (timestamp)
+updated_at (timestamp)
+```
+
+### TABLE: estimate_post_bid
+
+```
+id (uuid, primary key)
+estimate_id (uuid, FK NOT NULL → estimates)
+result (enum: awarded | lost)
+awarded_amount (decimal, nullable)
+competing_bid_amount (decimal, nullable)
+win_loss_reason (text)
+lessons_learned (text)
+pricing_feedback (text)
+created_at (timestamp)
+created_by (text)
+```
+
+-----
+
+## 4. PROPOSAL LOG INTEGRATION
+
+### Fields that flow FROM Proposal Log INTO Estimating Module (auto-populate on open):
+
+1. projectName
+1. estimateNumber (PV#)
+1. region
+1. nbsEstimator
+1. gcEstimateLead
+1. dueDate
+1. primaryMarket
+1. estimateStatus
+1. swinertonProject (Y/N)
+1. inviteDate
+1. anticipatedStart
+1. anticipatedFinish
+1. filePath
+1. owner
+1. finalReviewer
+
+### Fields that flow BACK from Estimating → Proposal Log on submission:
+
+- grand_total → proposal_log.proposal_total
+- estimateStatus → “Submitted”
+
+### Scope sections (activeScopes) drive which category tabs appear in Stage 2.
+
+-----
+
+## 5. SCOPE SECTIONS (Master List)
+
+These are the Division 10 scope categories. Each project selects which ones are in scope. Only selected scopes appear as tabs.
+
+|ID                 |Label              |
+|-------------------|-------------------|
+|accessories        |Toilet Accessories |
+|partitions         |Toilet Partitions  |
+|lockers            |Lockers            |
+|fire_ext           |Fire Protection    |
+|visual             |Visual Display     |
+|corner_guards      |Corner Guards      |
+|signage            |Signage            |
+|wall_protect       |Wall Protection    |
+|postal             |Postal Specialties |
+|window_shades      |Window Shades      |
+|operable_walls     |Operable Walls     |
+|toilet_compartments|Toilet Compartments|
+|storage            |Storage Assemblies |
+|other              |Other Div 10       |
+
+-----
+
+## 6. CALCULATION ENGINE
+
+### Order of operations (EXACT — do not deviate):
+
+```
+1. Material = SUM(unit_cost × qty) for all per-item line items
+2. Lump Sum Adjustment = For lump_sum quotes: MAX(0, lump_sum_total - sum of individual item costs in that quote)
+3. Effective Material = Material + Lump Sum Adjustment
+4. Escalation = For each item: (unit_cost × qty) × (esc_rate / 100)
+   - esc_rate cascades: item.escOverride ?? category.escOverride ?? default_esc
+   - Lump sum adjustment also gets escalation at the category rate
+5. Freight = SUM(quote.freight) for all quotes in category (flat dollar, NOT percentage)
+6. Subtotal = Effective Material + Escalation + Freight
+7. Overhead (OH) = Subtotal × (oh_rate / 100)
+   - oh_rate cascades: category.ohOverride ?? default_oh
+   - OH changes at any level require executive approval
+8. Fee = Subtotal × (fee_rate / 100)
+   - fee_rate cascades: category.feeOverride ?? default_fee
+   - Fee can be adjusted freely by the estimator
+
+8. Tax = Effective Material × (tax_rate / 100)
+   - Tax is on MATERIAL ONLY, not on subtotal, not on OH or Fee
+9. Bond = Subtotal × (bond_rate / 100)
+10. Category Total = Subtotal + OH + Fee + Tax + Bond
+11. Grand Total = SUM of all category totals
+```
+
+### Override impact reporting:
+
+When a category OH, Fee, or escalation is overridden, show the dollar impact: `Override impact: +$X vs default`
+
+### CRITICAL: Tax on material only, not on escalation, freight, OH, or Fee.
+
+CRITICAL: Overhead changes require executive approval. Fee is estimator-adjustable..
+
+-----
+
+## 7. VENDOR QUOTE STRUCTURE
+
+### Two pricing modes:
+
+- **per_item**: Each line item has its own unit_cost. Quote is a container for grouping items from one vendor.
+- **lump_sum**: Vendor quotes one total price for all items. Line items may have $0 unit_cost. The lump_sum_total is tracked on the quote record.
+
+### A single category can have multiple quotes mixing both modes.
+
+### taxIncluded flag:
+
+- Boolean on each quote
+- For ACCOUNTING VISIBILITY ONLY — so AP knows whether vendor’s price includes tax before paying
+- Does NOT change the tax calculation in the estimate (tax is always calculated on material)
+
+### Freight:
+
+- Flat dollar amount per vendor quote (NOT a percentage)
+- Stored on the quote record, not the line item
+
+### Breakout-scoped quotes:
+
+- breakout_group_id on quote (nullable)
+- NULL = parent-level quote (applies to all breakouts)
+- Set = quote is for that specific breakout group only (different pricing per building)
+
+-----
+
+## 8. LINE ITEM FEATURES
+
+### Each line item tracks:
+
+- name, model, mfr, qty, unit_cost
+- category (scope section ID)
+- quoteId (FK to vendor quote — nullable)
+- source: vendor_quote | price_book | library
+- escOverride (nullable — item-level escalation override)
+- note (qualification text — appears as sub-line in proposal)
+- hasBackup (boolean — must be true for scope completion)
+
+### Horizontal dots menu (⋯) per line item with:
+
+1. Edit Escalation — override escalation % for this item
+1. Add Qualification — opens inline editable text field below item
+1. Attach Backup — toggles hasBackup
+1. Remove Item — deletes with confirmation
+
+### Qualifications:
+
+- Editable inline text field below the line item
+- Appears in orange/amber with a 📝 icon
+- Carries through to the proposal letter as an indented sub-line under the item
+- Example: “▸ Model discontinued — substituting with newer model B-270-2”
+
+### Bulk select mode:
+
+- “Select Items” button in table header
+- Checkboxes appear on each row
+- Header checkbox for select all
+- Blue action bar: assign to quote, unassign, send RFQ
+
+-----
+
+## 9. AI QUOTE PARSER
+
+### Flow:
+
+1. User clicks “🤖 Paste Quote” on the vendor quotes section
+1. Textarea appears for pasting raw quote text
+1. User clicks “Parse” — sends to Claude Sonnet API
+1. API returns structured JSON: vendor, note, freight, taxIncluded, pricingMode, lumpSumTotal, items[]
+1. User reviews/edits parsed results inline
+1. User clicks “Accept” — creates quote record AND all line items in one action
+
+### API call:
+
+```javascript
+POST https://api.anthropic.com/v1/messages
+model: "claude-sonnet-4-20250514"
+max_tokens: 1000
+system: "You parse vendor quotes for Division 10 construction specialties. Respond ONLY with JSON, no markdown. Structure: {vendor, note, freight, taxIncluded, pricingMode, lumpSumTotal, items: [{name, model, mfr, unitCost, qty}]}. If lump sum with no unit prices, set pricingMode to lump_sum."
+```
+
+-----
+
+## 10. RFQ EMAIL GENERATOR
+
+### Flow:
+
+1. Select line items using bulk select
+1. Click “📧 Send RFQ” in the action bar
+1. RFQ panel opens showing selected items
+1. If breakout groups exist, show RFQ mode options (standard / combined with breakout / separate per group)
+1. Select manufacturers to send to (from vendor_profiles or MFR_CONTACTS)
+1. Click “Preview: [Manufacturer]” to see the full email
+1. Click “Open in Outlook” — creates mailto link (production: Microsoft Graph API creates Outlook draft)
+
+### Email template includes:
+
+- Project name, GC, region, bid due date, PV#
+- All selected items with model numbers and quantities
+- “MATERIAL ONLY — no labor or installation”
+- “Clearly indicate if pricing includes or excludes sales tax”
+- Estimator name and contact info in signature
+
+-----
+
+## 11. PROJECT ISOLATION RULES
+
+### RULE 1: ONE PROJECT PER SESSION
+
+- URL-based routing: /estimates/:pvNumber
+- All state loaded from DB for one estimate_id
+- Switching projects = full page navigation, all state reloads
+
+### RULE 2: EVERY ROW SCOPED TO ESTIMATE_ID
+
+- All tables have estimate_id FK with NOT NULL
+- API middleware validates estimate_id on every request
+- Query pattern: WHERE estimate_id = :currentEstimateId
+
+### RULE 3: ACCESS CONTROL
+
+- Write: estimator + admin only
+- Read: estimator + reviewer + admin
+- Reviewer can approve/return but not edit
+
+### RULE 4: DIRTY STATE + SAVE GATES
+
+- isDirty flag tracked on all mutations
+- Save creates version snapshot
+- Project switch blocked until save/discard confirmed
+- beforeunload event warns on tab close with dirty state
+
+### RULE 5: PRODUCT LIBRARY IS READ-ONLY SHARED
+
+- Pulling from library creates a COPY under current estimate
+
+### RULE 6: VENDOR QUOTES ARE PROJECT-SCOPED
+
+- Same vendor on 2 projects = 2 separate quote records
+
+-----
+
+## 12. PROGRESS TRACKING
+
+### Stage weights:
+
+- Intake: 10%
+- Line Items: 50%
+- Markups: 15%
+- Output: 25%
+
+### Intake progress: calculated from intake checklist completion (NOT hardcoded 100%)
+
+### Line Items progress: per category average of:
+
+- Items entered: 25%
+- Items priced: 25%
+- Backups attached: 25%
+- Scope marked complete: 25%
+
+### Markups progress: from calculations checklist items
+
+### Output progress: from output checklist items
+
+### Auto-derived checklist items:
+
+- “All line items priced” — auto-checks when no items have $0 unit_cost (excluding lump sum)
+- “All backup docs attached” — auto-checks when all items have hasBackup = true
+- Auto items show “(auto)” label and disabled checkbox
+
+-----
+
+## 13. CHECKLIST ITEMS
+
+### Intake:
+
+- Acknowledge all addenda
+- Review specs & drawings
+- All scope categories identified
+- Confirm scope is FURNISH ONLY — no labor, no install
+- Project assumptions & risks documented
+
+### Line Items:
+
+- All line items entered
+- All line items priced (AUTO)
+- All backup docs attached (AUTO)
+- All vendor quotes received
+- Verify all vendor quotes are MATERIAL ONLY — no labor included
+- All RFQs sent to manufacturers
+
+### Calculations:
+
+- Overhead, Fee & escalation reviewed
+- Tax rates confirmed for region
+- Freight confirmed — delivery to jobsite only
+- Confirm NO labor, install, or handling costs in bid
+
+### Output:
+
+- Proposal letter reviewed
+- All qualifications reviewed in proposal
+- Exclusions state: installation by others, blocking/backing by others
+- Documents filed to project folder
+- Mark as Ready for Review
+- Final review approved by reviewer
+
+-----
+
+## 14. VERSION HISTORY
+
+On each save, create a snapshot:
+
+- version_number (auto-increment)
+- saved_at, saved_by
+- grand_total
+- category_totals (jsonb)
+- notes
+
+Displayed on the Intake screen as a list showing version, user, timestamp, and total.
+
+-----
+
+## 15. ASSUMPTIONS & RISKS
+
+Editable lists on the Intake screen.
+
+Default assumptions:
+
+- “Pricing assumes delivery to jobsite — no offloading or distribution to floors”
+- “All items are FURNISH ONLY — installation by others”
+- “Vendor pricing valid through bid due date only”
+
+Assumptions appear in the proposal letter under “Assumptions:”
+Risks appear in the proposal letter under “Notes & Risks:” in amber
+
+-----
+
+## 16. REVIEW WORKFLOW
+
+### States: drafting → ready_for_review → reviewed → submitted
+
+### Actions:
+
+- Estimator: “Submit for Review” (drafting → ready_for_review)
+- Reviewer: “Approve” (ready_for_review → reviewed) OR “Return for Revisions” (ready_for_review → drafting, with comment)
+- Estimator: “Submit to GC” (reviewed → submitted) — only enabled after reviewer approval
+
+### All transitions are timestamped.
+
+### Return creates a review comment with the reason.
+
+-----
+
+## 17. BREAKOUT MANAGEMENT SYSTEM
+
+### Core concept:
+
+Breakouts are allocation layers on the parent estimate. Line items exist ONCE in the parent. Breakout groups define how quantities are distributed.
+
+### PV# convention: PV-2026-0147.B1, PV-2026-0147.B2 (views, not separate records)
+
+### UI: Hidden until needed
+
+- Small “Breakouts” button in Stage 2 header
+- No breakout UI visible in default flow
+- Can be added before OR after estimate is complete
+
+### Breakout groups:
+
+- code (B1, B2, PH1, FL3, etc.)
+- label (“Building 1 - Main Tower”)
+- type (building | phase | floor | scope_split | custom)
+- ohp_override (nullable — inherit parent by default)
+- esc_override (nullable — inherit parent by default)
+- freight_allocation_method (proportional | manual)
+
+### Allocations:
+
+- Per line item, per breakout group: allocated_qty
+- Zero allocation = item excluded from that breakout
+- HARD GATE: SUM(allocations) MUST = parent qty per item
+- Cannot save if violated
+
+### Validation engine:
+
+- Checks every item with any allocation
+- Flags over-allocation (“Parent: 10, Allocated: 12, +2 over”)
+- Flags under-allocation (“Parent: 10, Allocated: 8, 2 unallocated”)
+- Status indicator: “35/47 items allocated”
+
+### Bulk allocation tools:
+
+- “All → B1” — assigns full qty of all items in current category to one group
+- “Split Evenly” — distributes quantities across all groups
+
+### Breakout-scoped quotes:
+
+- Vendor quote can be scoped to a specific breakout group
+- breakout_group_id on the quote record (nullable)
+- NULL = parent-level (all breakouts), Set = that group only
+- When scoped quotes have different unit costs, parent shows weighted average
+
+### Breakout totals:
+
+- Each group calculates: material, escalation, freight (proportional or manual), OH&P, tax, bond, total
+- Reconciliation: SUM(breakout totals) should ≈ parent total
+- Variance allowed only from per-breakout markup overrides — flagged and explained
+
+### Proposal output with breakouts:
+
+- “Pricing Breakout Summary” table after grand total showing each group’s total and item count
+
+-----
+
+## 18. PROPOSAL OUTPUT
+
+### Standard Proposal (no breakouts):
+
+Itemized by scope section. Each category lists its line items with qty, pricing, and qualifications. One grand total.
+
+### Letterhead:
+
+- “NATIONAL BUILDING SPECIALTIES” in Playfair Display
+- “A Division of Swinerton Builders”
+- Date, Attn (GC), Re (project name), PV#
+
+### Per-category section:
+
+- Category name with CSI code in parentheses: “Toilet Accessories (10 28 00)”
+- Line items with name, model number, qty, extended price
+- Qualification sub-lines under affected items: “▸ note text” in amber italic
+- Category-level inclusions, exclusions, qualifications from catQuals
+- Category total
+
+### Grand total line: “TOTAL BID (Furnish Only — Material Only)”
+
+### Breakout Proposal (when breakout groups exist):
+
+When breakouts are active, the proposal reorganizes from “by scope section” to “by breakout group, then by scope section within each group.”
+
+**Structure:**
+
+```
+NATIONAL BUILDING SPECIALTIES
+A Division of Swinerton Builders
+Date | Attn: GC | Re: Project | PV#
+
+[Introduction paragraph]
+
+--- BREAKOUT GROUP B1 ---
+
+B1 — Building 1: Main Tower
+
+  Toilet Accessories (10 28 00)
+    Grab Bar - 42" (B-5806x42) — Qty: 10 .............. $485.00
+    Paper Towel Dispenser (B-2621) — Qty: 5 ............ $925.00
+    Soap Dispenser (B-2111) — Qty: 8 ................... $336.00
+
+  Toilet Partitions (10 21 13)
+    Partition - Overhead Braced — Qty: 20 .............. $9,000.00
+    Urinal Screen — Qty: 4 ............................ $1,100.00
+
+  Fire Protection (10 44 00)
+    Fire Ext. Cabinet — Qty: 6 ........................ LS
+    Fire Extinguisher 5lb — Qty: 6 .................... LS
+
+  Building 1 Total: $XX,XXX.XX
+
+--- BREAKOUT GROUP B2 ---
+
+B2 — Building 2: Parking Structure
+
+  Toilet Accessories (10 28 00)
+    Grab Bar - 42" (B-5806x42) — Qty: 8 .............. $388.00
+    [items with allocated qty > 0 only]
+
+  Toilet Partitions (10 21 13)
+    [items with allocated qty > 0 only]
+
+  Building 2 Total: $XX,XXX.XX
+
+--- BREAKOUT GROUP B3 ---
+
+B3 — Building 3: Amenity Center
+
+  Toilet Accessories (10 28 00)
+    Grab Bar - 42" (B-5806x42) — Qty: 6 .............. $291.00
+    Residential Towel Bar 24" (K-27924) — Qty: 8 ...... $1,000.00
+      ▸ Residential finish — amenity restrooms only
+    [items with allocated qty > 0 only]
+
+  Building 3 Total: $XX,XXX.XX
+  (Overhead: 10% — override from default 8%)
+
+--- COMBINED SUMMARY TABLE ---
+
+| Breakout | Items | Total |
+|----------|-------|-------|
+| B1 — Building 1: Main Tower | 7 | $XX,XXX.XX |
+| B2 — Building 2: Parking Structure | 5 | $XX,XXX.XX |
+| B3 — Building 3: Amenity Center | 7 | $XX,XXX.XX |
+| TOTAL BID (Furnish Only) | | $XX,XXX.XX |
+
+[Assumptions]
+[Inclusions]
+[Exclusions]
+[Risks]
+[Signature]
+```
+
+**Breakout proposal rendering rules:**
+
+1. Each breakout group is a top-level section with its code and label as the header
+1. Within each breakout, only scope sections that have items with allocated_qty > 0 appear
+1. Within each scope section, only items with allocated_qty > 0 for that breakout appear
+1. The qty shown is the ALLOCATED qty, not the parent qty
+1. The extended price = allocated_qty × unit_cost (not parent qty × unit_cost)
+1. Qualification sub-lines carry through to whichever breakout the item appears in
+1. Category-level qualifications appear in each breakout that has items in that category
+1. If a breakout has markup overrides (OH or Fee), note it under that breakout’s total
+1. Items with zero allocation to ALL groups appear in an “Unallocated” section at the end as a warning
+1. The combined summary table at the bottom shows each breakout total + grand total
+1. Grand total must equal parent estimate grand total (with rounding tolerance)
+1. Each breakout section includes its own subtotal breakdown (material, esc, freight, OH, fee, tax)
+
+### After the breakout sections:
+
+### Assumptions section (from project assumptions)
+
+### Inclusions: dynamic based on tax rate
+
+- When taxRate > 0: “Sales tax included (X%)”
+- When taxRate = 0: “Sales tax NOT included — excluded from this proposal”
+- Always: “Furnish all Division 10 materials per plans and specifications”
+- Always: “Freight to jobsite included”
+
+### Exclusions (expanded, in red):
+
+- Installation labor by others
+- Blocking, backing, and rough-in by others
+- Offloading, distribution, and handling by others
+- Items not specifically listed above
+- Any work beyond furnishing of materials
+
+### Risks section (amber, italic)
+
+### “Proposal valid 30 days.”
+
+### Signature: “National Building Specialties — A Division of Swinerton Builders — Furnish Only”
+
+### Unit pricing toggle: off by default, shows unit_cost/ea when enabled
+
+-----
+
+## 19. FURNISH ONLY ENFORCEMENT (17 touchpoints)
+
+1. Orange banner at top of Stage 1: “MATERIAL ONLY — FURNISH ONLY”
+1. Intake checklist: “Confirm scope is FURNISH ONLY”
+1. Line Items checklist: “Verify all vendor quotes are MATERIAL ONLY”
+1. Calculations checklist: “Confirm NO labor, install, or handling costs”
+1. RFQ emails: explicit “MATERIAL ONLY” and “no labor/installation”
+1. RFQ emails: “do not include field service costs”
+1. RFQ emails: ask vendor to indicate tax inclusion
+1. Proposal exclusions: 5 explicit exclusion lines
+1. Proposal total: “Furnish Only — Material Only”
+1. Proposal signature: “Furnish Only”
+1. Tax calculation: on material ONLY (not subtotal)
+1. OH&P: on material subtotal (not labor)
+1. Escalation: on material cost (not labor)
+1. is_material_only flag on vendor quotes
+1. Database RULE 0 documents the constraint
+1. No labor cost fields anywhere in the schema
+1. No installation-related fields anywhere
+
+-----
+
+## 20. CSI CODE TRACKING
+
+Every scope section and line item carries a CSI code for analytics and reporting.
+
+### Scope section CSI codes:
+
+|Scope              |CSI Code|
+|-------------------|--------|
+|Toilet Accessories |10 28 00|
+|Toilet Partitions  |10 21 13|
+|Lockers            |10 51 00|
+|Fire Protection    |10 44 00|
+|Visual Display     |10 11 00|
+|Corner Guards      |10 26 00|
+|Signage            |10 14 00|
+|Wall Protection    |10 26 00|
+|Postal Specialties |10 55 00|
+|Window Shades      |12 24 00|
+|Operable Walls     |10 22 00|
+|Toilet Compartments|10 21 00|
+|Storage Assemblies |10 56 00|
+
+Line items can have more specific CSI codes (e.g., “10 21 13.19” for urinal screens). The category CSI is the default; items can override with a more specific code.
+
+CSI codes appear:
+
+- As subtitle under category tabs in Stage 2
+- Next to category names in the proposal letter
+- In the database for all analytics queries
+
+### CSI Analytics:
+
+- Revenue volume by CSI code
+- Pricing trends by CSI code over time
+- Win rate by CSI code
+- CSI code frequency across bids
+
+-----
+
+## 21. TAX TRACKING & REPORTING
+
+### Tax calculation:
+
+- Tax is calculated on MATERIAL ONLY (effective material cost)
+- Tax is NOT applied to escalation, freight, overhead, or fee
+- When tax_rate = 0, the proposal says “Sales tax NOT included — excluded from this proposal”
+- When tax_rate > 0, the proposal says “Sales tax included (X%)”
+
+### Vendor tax status:
+
+- Every vendor quote has a `tax_included` boolean flag
+- AI Quote Parser auto-detects tax language in quotes
+- The Tax Summary card (Stage 4) shows:
+  - Current tax rate and total tax amount
+  - Count of vendor quotes with tax included vs excluded
+  - Warning when any vendor quotes include tax (double-payment risk)
+- This data flows to accounting for AP verification
+
+### Database fields for tax reporting:
+
+- `tax_rate` on estimates table
+- `tax_included` on estimate_quotes table
+- `tax_total` on estimates table (computed on save)
+- `tax_status` on estimates table (“included” | “excluded” | “partial”)
+- `vendor_tax_included_count` and `vendor_tax_excluded_count` on estimates table
+
+### Tax Analytics:
+
+- Tax inclusion rate by vendor
+- Tax exposure tracking (double-payment risk)
+- Tax rate by region
+- Total tax collected vs tax-included vendor quotes
+- Sales tax as % of bid total
+
+-----
+
+## 22. OVERHEAD & FEE APPROVAL WORKFLOW
+
+### Split markup structure:
+
+- **Overhead (OH)**: Default 8%. Applied to subtotal. Changes require executive approval.
+- **Fee**: Default 12%. Applied to subtotal. Estimator can adjust freely.
+
+### Approval rules:
+
+- Changing the OH default rate requires executive approval
+- Changing OH per-category override requires executive approval
+- Changing OH per-breakout-group override requires executive approval
+- Fee has no approval gate — estimators adjust as needed for competitiveness
+- All OH change requests are logged with: who requested, when, old rate, new rate, status (pending/approved/denied), who approved/denied, when
+
+### Database:
+
+```
+TABLE: oh_approval_log
+  id, estimate_id (FK)
+  category (nullable — null = default rate change)
+  breakout_group_id (nullable)
+  old_rate, new_rate
+  requested_by, requested_at
+  approved_by (nullable), approved_at (nullable)
+  status (enum: pending | approved | denied)
+```
+
+-----
+
+## 23. DATA FLOW DIAGRAM
+
+```
+BuildingConnected → Proposal Log → Project Start Hub → Estimating Module
+                                                        ↓
+                                                  Line Items + Quotes
+                                                        ↓
+                                                  Markups + Calcs
+                                                        ↓
+                                                  Proposal Output
+                                                        ↓
+                                              Proposal Log (total back)
+                                                        ↓
+                                              Database (analytics)
+                                                        ↓
+                                              Buyout Tool (on award)
+```
+
+-----
+
+## 24. API ROUTES
+
+Create a new file: `/server/estimateRoutes.ts` — register in /server/index.ts.
+
+All routes require authentication via `req.session.userId`. All estimate-scoped routes validate that the user has access to that estimate.
+
+```
+# Proposal Log integration (add to projectRoutes.ts)
+GET    /api/proposal-log/entry/:id           — fetch single entry (BUILD THIS — doesn't exist yet)
+PATCH  /api/proposal-log/entry/:id           — update entry (EXISTS — use for writing total back)
+GET    /api/proposal-log                     — list all entries (EXISTS — use for project switcher)
+
+# Estimating Module routes (new file: estimateRoutes.ts)
+GET    /api/estimates/:id                    — load estimate with all child data
+POST   /api/estimates                        — create estimate from proposal_log_entry_id
+PUT    /api/estimates/:id                    — save all estimate data + create version snapshot
+PUT    /api/estimates/:id/status             — update review/submission status
+GET    /api/estimates/:id/versions           — list version history
+
+CRUD   /api/estimates/:id/quotes
+CRUD   /api/estimates/:id/items
+CRUD   /api/estimates/:id/categories
+CRUD   /api/estimates/:id/checklist
+CRUD   /api/estimates/:id/assumptions
+CRUD   /api/estimates/:id/breakout-groups
+CRUD   /api/estimates/:id/breakout-allocations
+POST   /api/estimates/:id/review             — submit/approve/return
+
+POST   /api/estimates/:id/submit             — finalize bid:
+         1. Validate all checklist items
+         2. Validate breakout allocations (if groups exist)
+         3. PATCH /api/proposal-log/entry/:proposalLogEntryId with { proposalTotal: grandTotal.toString() }
+         4. Update estimate status to "submitted"
+         5. Create version snapshot
+         6. Invalidate Proposal Log cache
+
+POST   /api/ai/parse-quote                  — send to Anthropic Claude API (add ANTHROPIC_API_KEY to Secrets)
+
+# File upload (extend existing Multer setup)
+POST   /api/estimates/:id/upload             — upload backup doc
+         Storage: /data/projects/{projectId}/Estimate Folder/Quotes/{filename}
+         Returns: { filePath: "..." } — store in quote or line item record
+```
+
+**Auth middleware pattern (match existing codebase):**
+
+```typescript
+const userId = (req.session as any)?.userId;
+if (!userId) return res.status(401).json({ message: "Not authenticated" });
+const [user] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
+if (!user) return res.status(403).json({ message: "Access denied" });
+```
+
+All estimate endpoints additionally verify: user is the assigned estimator, reviewer, or admin.
+
+-----
+
+## 25. TESTING CHECKLIST
+
+After build, verify:
+
+### Stage 1 — Intake
+
+- [ ] All 14 Proposal Log fields populate correctly
+- [ ] Scope section toggles drive category tabs in Stage 2
+- [ ] Assumptions and risks editable, appear in proposal
+- [ ] Checklist calculates progress from actual items (not hardcoded 100%)
+- [ ] Furnish Only banner visible with correct text
+- [ ] Version history displays and updates on save
+- [ ] Review status bar shows correct state
+- [ ] Soft gate warns when advancing with incomplete checklist
+- [ ] Dark/light toggle switches all colors correctly
+
+### Stage 2 — Line Items
+
+- [ ] Only selected scope sections appear as tabs
+- [ ] CSI codes display under category tabs
+- [ ] Vendor quotes support per_item and lump_sum modes
+- [ ] Breakout group dropdown appears on quote form when groups exist
+- [ ] Breakout badge shows on scoped quotes
+- [ ] AI Quote Parser sends to Claude API and parses response
+- [ ] Parsed items are reviewable/editable before accepting
+- [ ] Accepted quote creates quote record AND line items
+- [ ] Qualification sub-lines editable inline via ⋯ menu
+- [ ] Qualifications appear in proposal letter
+- [ ] Horizontal dots menu: all 4 actions work (esc, qual, backup, remove)
+- [ ] Escalation override via prompt works and shows in calcs
+- [ ] Backup toggle works and gates scope completion
+- [ ] Bulk select mode: checkboxes appear, header checkbox works
+- [ ] Bulk assign to quote works
+- [ ] Bulk unassign works
+- [ ] Send RFQ button opens panel with selected items
+- [ ] RFQ breakout mode selector appears when groups exist
+- [ ] Manufacturer selection toggles work
+- [ ] Email preview generates correctly with MATERIAL ONLY language
+- [ ] Open in Outlook creates mailto link
+- [ ] Copy Email Body copies to clipboard
+- [ ] Next manufacturer button switches preview
+- [ ] Breakout panel: hidden by default, opens on click
+- [ ] Breakout groups can be created with code, label, type
+- [ ] Breakout groups can be deleted with confirmation
+- [ ] Per-item allocation inputs appear and validate against parent qty
+- [ ] Over/under allocation shows red warning
+- [ ] Bulk allocate and split evenly work
+- [ ] Breakout OH input triggers approval gate
+- [ ] Breakout Fee input adjusts freely
+- [ ] Breakout totals reconcile vs parent with variance explanation
+
+### Stage 3 — Markups
+
+- [ ] Overhead defaults to 8%, input locked with 🔐, triggers approval alert
+- [ ] Fee defaults to 12%, input adjustable freely
+- [ ] Escalation overridable at global, category, and item level
+- [ ] Override impact shows dollar difference vs default for OH, Fee, and Esc
+- [ ] Tax calculated on MATERIAL ONLY (verify by changing tax rate)
+- [ ] Freight is flat dollar sum from quotes
+- [ ] Calculation order: Material → Esc → Freight → Sub → OH → Fee → Tax → Bond → Total
+- [ ] Category cards show CSI codes, split OH/Fee pills, impact amounts
+- [ ] Markups checklist items toggle correctly
+
+### Stage 4 — Output
+
+- [ ] Proposal letter renders with NBS letterhead (Playfair Display)
+- [ ] CSI codes appear next to category names in proposal
+- [ ] Qualifications appear as indented sub-lines under items
+- [ ] Category-level qualifications render in inclusions/exclusions
+- [ ] Breakout summary table appears when groups exist
+- [ ] Tax language is dynamic: “included (X%)” or “NOT included”
+- [ ] Assumptions section appears in proposal
+- [ ] Risks section appears in amber
+- [ ] Exclusions list all 5 furnish-only items
+- [ ] Unit pricing toggle shows/hides unit prices
+- [ ] Export PDF button shows production description
+- [ ] Log to Proposal Log button shows sync description
+- [ ] Email to GC button opens mailto with bid summary
+- [ ] Tax Summary card shows rate, amount, and vendor tax status
+- [ ] Review workflow: Submit for Review → Approve/Return → Submit to GC
+- [ ] Return for Revisions prompts for comment, logs it
+- [ ] Submit to GC only enabled after approval
+- [ ] All transitions timestamped
+
+### Cross-Cutting
+
+- [ ] Save creates version snapshot with totals
+- [ ] Dirty state indicator (orange dot) appears on any change
+- [ ] Save gate blocks project switch until saved/discarded
+- [ ] beforeunload warns on tab close with unsaved changes
+- [ ] One project per session enforced
+- [ ] All API queries scoped to estimate_id
+- [ ] Progress bar reflects actual state across all 4 stages
+- [ ] Auto-derived checklist items update in real time
+
+-----
+
+## 26. PRODUCTION BUTTON REQUIREMENTS
+
+These buttons work as placeholders in the prototype. Here is exactly what each needs in the Replit production build:
+
+### Export PDF
+
+- **Trigger:** Click “Export PDF” in Stage 4
+- **Action:** Generate a PDF using the proposal letter HTML content
+- **Technology:** Puppeteer (headless Chrome) on the server, or reportlab (Python)
+- **Output:** PDF file named `{PV#}_Proposal_{date}.pdf` with NBS letterhead, all itemized content, qualifications, breakout summary, assumptions, exclusions
+- **Delivery:** Download link in browser
+
+### Log to Proposal Log
+
+- **Trigger:** Click “Log to Proposal Log” in Stage 4
+- **Action:** PUT /api/proposal-log/{pvNumber} with { proposalTotal: grandTotal, estimateStatus: “Submitted” }
+- **Validation:** Confirm dialog before executing. Must be in “reviewed” status.
+- **Side effects:** Updates proposal_log.proposal_total, sets status to “Submitted”, timestamps submitted_at
+
+### Email to GC
+
+- **Trigger:** Click “Email to GC” in Stage 4
+- **Action:** Create email draft via Microsoft Graph API in estimator’s Outlook
+- **Fallback:** mailto: link if Graph API not configured
+- **Content:** Subject line with project name + PV#, body with bid total, attachment placeholder for PDF
+- **Reply-to:** Estimator’s work email
+
+### Open in Outlook (RFQ)
+
+- **Trigger:** Click “Open in Outlook” in RFQ panel
+- **Action:** Microsoft Graph API creates draft email in estimator’s Outlook mailbox
+- **Fallback:** mailto: link (current prototype behavior)
+- **Content:** Full RFQ email with MATERIAL ONLY language
+
+### File Upload (Backup)
+
+- **Trigger:** Click file upload area or drag-drop on quote form
+- **Action:** Upload to Replit storage or S3 bucket
+- **Storage:** /uploads/{estimate_id}/{quote_id or item_id}/{filename}
+- **Database:** Update backup_file_path on quote or line item record
+- **Display:** Show filename with download link after upload
+
+### OH Approval Workflow
+
+- **Trigger:** Estimator changes OH rate at any level
+- **Action:** Creates oh_approval_log record with status “pending”
+- **Notification:** SendGrid email to executive (Kenny) with project name, old rate, new rate, estimator name
+- **Admin UI:** Executive sees pending approvals in a dashboard or notification panel
+- **Approve/Deny:** Executive clicks approve or deny, updates log, applies or reverts rate change
+
+-----
+
+## 27. PRE-REPLIT READINESS ASSESSMENT
+
+### Design & Architecture — READY ✓
+
+- [x] Complete database schema (12 tables + 1 approval log)
+- [x] Full calculation engine with exact formula
+- [x] Project isolation rules documented (7 rules + 5 breakout rules)
+- [x] UI/UX theme finalized (Executive Suite light/dark)
+- [x] Proposal Log field mapping (14 fields in, totals back)
+- [x] Breakout management architecture complete
+- [x] Review workflow states defined
+- [x] Furnish-only enforcement documented (17 touchpoints)
+- [x] CSI code mapping for all scope sections
+- [x] Tax tracking and reporting model defined
+- [x] OH/Fee split with approval workflow
+
+### API Design — READY ✓
+
+- [x] REST endpoints defined for all CRUD operations
+- [x] Middleware pattern for estimate_id scoping
+- [x] AI integration endpoint for quote parsing
+- [x] No cross-estimate data access by design
+
+### What Replit Needs From You Before Starting
+
+1. **Confirm PostgreSQL connection** — Is the database already set up in Replit, or does it need to be provisioned?
+1. **Confirm auth system** — Is session-based auth already working in AiPM, or does the estimating module need its own?
+1. **Confirm Proposal Log integration** — Is the proposal_log table already in the DB with the 14 fields, or does it need to be created?
+1. **Microsoft Graph API credentials** — If you want native Outlook integration for RFQs and email-to-GC, you’ll need an Azure AD app registration. Otherwise, mailto: links work as fallback.
+1. **File storage** — Decide between Replit storage (simpler) or S3 (scalable) for backup document uploads.
+1. **Claude API key** — Already in Replit Secrets for the AI Quote Parser?
+1. **SendGrid API key** — Already configured for email notifications (OH approval alerts)?
+
+### Recommended Build Order in Replit
+
+```
+Phase 1: Foundation (Week 1-2)
+  → Database schema (drizzle-kit push all 13 tables)
+  → Express API routes with estimate_id middleware
+  → Proposal Log integration (read 14 fields, write total back)
+  → Basic CRUD: estimates, line items, quotes, categories
+  → Session-based project isolation
+
+Phase 2: Core Estimating (Week 2-3)
+  → Line item entry with quote assignment
+  → Calculation engine (exact formula from spec)
+  → Category overrides (OH, Fee, Escalation) with impact reporting
+  → OH approval workflow with logging
+  → Checklist system with auto-derived items
+  → Progress tracking
+
+Phase 3: AI & Automation (Week 3-4)
+  → AI Quote Parser (Claude API integration)
+  → RFQ email generator (mailto fallback, Graph API if ready)
+  → Version history snapshots on save
+  → Assumptions & risks with proposal integration
+
+Phase 4: Breakouts (Week 4-5)
+  → Breakout group CRUD
+  → Allocation table with validation engine
+  → Breakout-scoped quotes
+  → Breakout totals calculation with reconciliation
+  → Breakout summary in proposal
+
+Phase 5: Output & Polish (Week 5-6)
+  → Proposal letter generation (HTML → PDF)
+  → Review workflow (submit/approve/return/submit to GC)
+  → Export PDF
+  → Log to Proposal Log (write-back)
+  → Email to GC
+  → File upload for backup documents
+  → Tax summary tracking
+  → CSI code display and storage
+
+Phase 6: Testing & Hardening (Week 6-7)
+  → Run full testing checklist (65 items)
+  → Cross-project isolation stress test
+  → Calculation accuracy verification
+  → Review workflow end-to-end test
+  → Breakout allocation validation edge cases
+  → Mobile responsiveness check
+```
+
+### Known Integration Dependencies
+
+|Dependency           |Status         |Required For                       |
+|---------------------|---------------|-----------------------------------|
+|Proposal Log table   |Must exist     |Field mapping, total sync-back     |
+|BuildingConnected API|Separate module|Feeds Proposal Log (not estimating)|
+|Microsoft Graph API  |Optional       |Native Outlook RFQ drafts          |
+|Claude API (Sonnet)  |Required       |AI Quote Parser                    |
+|SendGrid             |Required       |OH approval email notifications    |
+|File storage         |Required       |Backup document uploads            |
+|Google Sheets sync   |Existing       |Proposal Log bidirectional sync    |
+
+### Risk Items
+
+1. **OH approval email** — If SendGrid isn’t configured, fall back to in-app notification only
+1. **PDF generation** — Puppeteer can be heavy on Replit; test memory limits. Alternative: use reportlab (Python) or react-pdf
+1. **File uploads** — Replit storage has limits; monitor usage if many bids are active
+1. **Concurrent editing** — Two estimators opening the same project simultaneously is prevented by session lock, but verify this works with the actual auth system
+1. **Mobile view** — The prototype is desktop-first; verify critical workflows (line item entry, quote parsing) work on tablet for jobsite use
+
+-----
+
+## 28. REQUIRED SETUP BEFORE TESTING
+
+### Add ANTHROPIC_API_KEY to Replit Secrets
+
+The AI Quote Parser uses Claude Sonnet (not OpenAI). Before testing that feature:
+
+1. Go to Replit Secrets
+1. Add key: `ANTHROPIC_API_KEY`
+1. Value: your Anthropic API key
+1. The endpoint at `POST /api/ai/parse-quote` reads this key to call `https://api.anthropic.com/v1/messages`
+
+The rest of the app uses OPENAI_API_KEY (already configured) — leave that in place for the other modules.
+
+-----
+
+## 29. TEST DATA SEED SCRIPT
+
+Include a seed script that creates one complete test project with sample data across all features. This lets the team test the full workflow immediately after the build.
+
+### Requirements:
+
+- All test data must be clearly marked with `isTest: true` flag (add this boolean column to the `estimates` table)
+- Include a “Clear Test Data” button on the admin page or the estimating module’s settings that deletes ALL records where `isTest = true` with a single click and confirmation dialog
+- Test data must NOT interfere with real Proposal Log entries — create one test entry in proposalLogEntries with `isTest: true` and `projectName` prefixed with “[TEST]”
+
+### Test data to seed:
+
+**Proposal Log entry:**
+
+```
+projectName: "[TEST] Mesa Gateway Medical Office"
+estimateNumber: "PV-TEST-0001"
+region: "OCLA (LAX)"
+primaryMarket: "Healthcare"
+nbsEstimator: "Gene Trabert"
+gcEstimateLead: "Swinerton Builders"
+dueDate: (30 days from today)
+estimateStatus: "Estimating"
+swinertonProject: true
+owner: "Haley Kruseek"
+finalReviewer: "Kenny Ruester"
+isTest: true
+```
+
+**Estimate record with activeScopes:** `["accessories", "partitions", "fire_ext"]`
+
+**3 vendor quotes:**
+
+1. Bobrick — accessories, per_item, freight $850, taxIncluded: false
+1. Bradley — accessories, per_item, freight $650, taxIncluded: true
+1. Amerex — fire_ext, lump_sum, lumpSumTotal $3,850, freight $320
+
+**11 line items across 3 scope sections:**
+
+- 7 accessories items (grab bars, dispensers, towel bars, robe hooks, ADA items)
+- 2 partition items (overhead braced, urinal screens)
+- 2 fire protection items (cabinet, extinguisher) — lump sum pricing
+
+**Category config:**
+
+- Accessories: default OH/Fee/Esc
+- Partitions: default OH/Fee/Esc, hasBackup: false on both items (to test the gate)
+- Fire Protection: escalation override at 6% (to test override display in Stage 3)
+
+**3 breakout groups:**
+
+- B1: “Building 1 - Main Tower” (building type)
+- B2: “Building 2 - Parking Structure” (building type)
+- B3: “Building 3 - Amenity Center” (building type, OH override: 10%)
+
+**Sample allocations for the first 5 accessories items** (to test validation — leave the rest unallocated to test the warning)
+
+**3 assumptions and 2 risks** (pre-populated)
+
+**1 version history entry** (initial save)
+
+**Checklist:** All items unchecked (so progress starts at 0% and the team can test the full workflow from intake to submission)
+
+### Clear Test Data function:
+
+```typescript
+// DELETE /api/estimates/clear-test-data
+// Requires admin role
+// 1. Find all estimates where isTest = true
+// 2. Delete all child records (line items, quotes, categories, checklist, versions, assumptions, review comments, breakout groups, breakout allocations, OH approval log)
+// 3. Delete the estimate record
+// 4. Delete the proposalLogEntries record where isTest = true
+// 5. Return count of deleted records
+```
+
+The UI should show a red “Clear Test Data” button (admin only) with a confirmation dialog: “This will permanently delete all test data (X estimates, X items, X quotes). This cannot be undone.”
