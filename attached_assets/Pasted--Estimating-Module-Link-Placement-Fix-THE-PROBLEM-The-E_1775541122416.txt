@@ -1,0 +1,86 @@
+# Estimating Module Link — Placement Fix
+
+## THE PROBLEM
+
+The “Estimate” link is currently in the WRONG location. It’s showing in the BC Bid Log audit trail view instead of the main Proposal Log working table. Things are also mislabeled and doubled up with the same name, causing confusion.
+
+I need you to answer these questions so we can fix this precisely.
+
+-----
+
+## DIAGNOSTIC QUESTIONS
+
+### Question 1: Component mapping
+
+List EVERY React component that renders on the `/tools/proposal-log` route. Include sub-components, tab views, and child components. For each one, tell me:
+
+- Component file name and path
+- What it renders (table, list, dashboard, etc.)
+- Whether it has the “Estimate” link on it right now (yes/no)
+
+### Question 2: Tab structure
+
+The `/tools/proposal-log` page has multiple tabs/views. List ALL of them in order. For example, I can see:
+
+- “PROPOSAL LOG” tab
+- “DASHBOARD” tab
+- And within the BC Bid Log view: “All (361)” / “Active (14)” / “Drafts (0)” / “Deleted (347)” / “BC Bid Log” tabs
+
+Tell me the exact component name that renders for EACH tab.
+
+### Question 3: Which component has the Estimate link right now?
+
+Tell me the EXACT file name, line number, and code snippet where the “Estimate” link currently lives. Show me the JSX that renders it.
+
+### Question 4: Main Proposal Log table identity
+
+The main Proposal Log table is the one that has ALL of the following characteristics — confirm which component renders it:
+
+- Gold/amber colored sortable column headers (PROJECT NAME, REGION, PRIMARY MARKET, INVITE DATE, DUE DATE, NBS ESTIMATOR, GC ESTIMATE LEAD)
+- Checkbox column on the far left for row selection
+- Filter dropdowns at the top (All Regions, All Statuses)
+- A filter row below the column headers with text inputs and date pickers
+- A “+ ADD PROPOSAL” button in the top right corner
+- Role toggle buttons showing “ESTIMATOR” and “LEADERSHIP” in the top nav
+- It does NOT say “BC Bid Log” or “Immutable audit trail” anywhere
+
+What is the component file name for THIS table?
+
+### Question 5: Naming conflicts
+
+Are there multiple components or tables with similar names like “ProposalLog”, “BidLog”, “ProposalTable”, “BidTable”, “ProposalList”? List all of them with their file paths so I can see where the naming confusion is coming from.
+
+-----
+
+## WHERE THE ESTIMATE LINK MUST GO
+
+After you answer the questions above, here is EXACTLY what needs to happen:
+
+### REMOVE the Estimate link from:
+
+- The BC Bid Log view (the audit trail table)
+- Any changelog, sync log, or history view
+- Any component that shows “Immutable audit trail” or “Sync from BC”
+
+### ADD the Estimate link to:
+
+- The MAIN Proposal Log table — the one with gold column headers, checkboxes, filter dropdowns, and the “+ ADD PROPOSAL” button
+- It should appear on EACH ROW in this table
+- It should be a small button or link, either:
+  - As a new column in the table, OR
+  - Under the project name in each row (like how it currently appears in the BC Bid Log — same visual treatment, just in the correct table), OR
+  - In a row action menu if one exists
+
+### The link URL:
+
+`/estimates/{entry.id}` where `entry.id` is the `proposalLogEntries.id` (integer primary key) for that row.
+
+### Visibility rule:
+
+Only show the Estimate link on rows where `estimateStatus` is “Lead” or “Estimating”. Do NOT show it on “Submitted”, “Awarded”, “Lost”, “Not Bidding”, or “Superseded” rows. Those projects are past the estimating phase.
+
+-----
+
+## NAMING FIX
+
+If there are components or labels that share the same name and cause confusion, rename them so each one is distinct. Every table, tab, and view should have a unique, descriptive name that makes it obvious what it contains. No two things should be called “Proposal Log” if they show different data.

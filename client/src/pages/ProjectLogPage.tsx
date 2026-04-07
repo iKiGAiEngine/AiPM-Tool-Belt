@@ -72,13 +72,16 @@ export default function ProjectLogPage() {
   const notesPopupRef = useRef<HTMLDivElement>(null);
   const { isTestMode } = useTestMode();
   const { toast } = useToast();
-  const { isAdmin } = useAuth();
+  const { isAdmin, user } = useAuth();
 
   const [changeHistorySearch, setChangeHistorySearch] = useState("");
   const [changeFieldFilter, setChangeFieldFilter] = useState("");
   const [changeUserFilter, setChangeUserFilter] = useState("");
   const [changeDateFrom, setChangeDateFrom] = useState("");
   const [changeDateTo, setChangeDateTo] = useState("");
+  const [regionFilter, setRegionFilter] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
+  const [roleView, setRoleView] = useState<"my" | "all">("all");
 
   interface ChangeLogRecord {
     id: number;
@@ -376,11 +379,29 @@ export default function ProjectLogPage() {
     }
   };
 
+  const uniqueRegions = useMemo(() => {
+    const regions = new Set<string>();
+    entries.forEach(e => { if (e.region) regions.add(e.region); });
+    return Array.from(regions).sort();
+  }, [entries]);
+
   const filteredEntries = useMemo(() => {
     let filtered = [...entries];
 
     if (!isTestMode) {
       filtered = filtered.filter(e => !e.isTest);
+    }
+
+    if (roleView === "my" && user?.initials) {
+      filtered = filtered.filter(e => (e.nbsEstimator || "").toUpperCase() === user.initials!.toUpperCase());
+    }
+
+    if (regionFilter) {
+      filtered = filtered.filter(e => e.region === regionFilter);
+    }
+
+    if (statusFilter) {
+      filtered = filtered.filter(e => (e.estimateStatus || "Estimating") === statusFilter);
     }
 
     if (searchQuery) {
@@ -567,6 +588,58 @@ export default function ProjectLogPage() {
 
         <div className="rounded-xl card-accent-bar" style={{ background: "var(--bg-card)", border: "1px solid var(--border-ds)" }}>
           <div className="pb-4 p-6">
+            {viewTab !== "changes" && (
+              <div className="flex items-center gap-2 mb-3 flex-wrap">
+                <div className="flex items-center gap-1 rounded-lg p-1" style={{ background: "var(--bg-input)" }}>
+                  <button
+                    onClick={() => setRoleView("all")}
+                    className="px-3 py-1.5 rounded-md text-xs font-semibold tracking-wide transition-colors"
+                    style={{
+                      background: roleView === "all" ? "var(--gold)" : "transparent",
+                      color: roleView === "all" ? "#000" : "var(--text-dim)",
+                    }}
+                    data-testid="button-view-all"
+                  >
+                    LEADERSHIP
+                  </button>
+                  <button
+                    onClick={() => setRoleView("my")}
+                    className="px-3 py-1.5 rounded-md text-xs font-semibold tracking-wide transition-colors"
+                    style={{
+                      background: roleView === "my" ? "var(--gold)" : "transparent",
+                      color: roleView === "my" ? "#000" : "var(--text-dim)",
+                    }}
+                    data-testid="button-view-my"
+                  >
+                    ESTIMATOR
+                  </button>
+                </div>
+                <select
+                  value={regionFilter}
+                  onChange={(e) => setRegionFilter(e.target.value)}
+                  className="text-xs h-8 rounded-md px-2 border"
+                  style={{ background: "var(--bg-input)", borderColor: "var(--border-ds)", color: "var(--text)" }}
+                  data-testid="select-region-filter"
+                >
+                  <option value="">All Regions</option>
+                  {uniqueRegions.map(r => (
+                    <option key={r} value={r}>{r}</option>
+                  ))}
+                </select>
+                <select
+                  value={statusFilter}
+                  onChange={(e) => setStatusFilter(e.target.value)}
+                  className="text-xs h-8 rounded-md px-2 border"
+                  style={{ background: "var(--bg-input)", borderColor: "var(--border-ds)", color: "var(--text)" }}
+                  data-testid="select-status-filter"
+                >
+                  <option value="">All Statuses</option>
+                  {["Lead", "Estimating", "Submitted", "Revising", "Won", "Awarded", "Lost", "No Bid", "Undecided", "Declined"].map(s => (
+                    <option key={s} value={s}>{s}</option>
+                  ))}
+                </select>
+              </div>
+            )}
             <div className="flex items-center gap-4 flex-wrap">
               <div className="relative flex-1 min-w-[200px]">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: "var(--text-dim)" }} />
@@ -759,61 +832,61 @@ export default function ProjectLogPage() {
               <div className="overflow-x-auto">
                 <table className="w-full text-sm" style={{ color: "var(--text)" }}>
                   <thead>
-                    <tr style={{ borderBottom: "1px solid var(--border-ds)" }}>
+                    <tr style={{ borderBottom: "2px solid var(--gold)40" }}>
                       <th
-                        className="text-left py-3 px-3 font-medium cursor-pointer select-none"
-                        style={{ color: "var(--text-dim)" }}
+                        className="text-left py-3 px-3 font-semibold cursor-pointer select-none text-xs tracking-wide uppercase"
+                        style={{ color: "var(--gold)" }}
                         onClick={() => toggleSort("projectName")}
                         data-testid="th-project-name"
                       >
                         <span className="flex items-center gap-1">Project Name <SortIcon field="projectName" /></span>
                       </th>
                       <th
-                        className="text-left py-3 px-3 font-medium cursor-pointer select-none"
-                        style={{ color: "var(--text-dim)" }}
+                        className="text-left py-3 px-3 font-semibold cursor-pointer select-none text-xs tracking-wide uppercase"
+                        style={{ color: "var(--gold)" }}
                         onClick={() => toggleSort("region")}
                         data-testid="th-region"
                       >
                         <span className="flex items-center gap-1">Region <SortIcon field="region" /></span>
                       </th>
                       <th
-                        className="text-left py-3 px-3 font-medium cursor-pointer select-none"
-                        style={{ color: "var(--text-dim)" }}
+                        className="text-left py-3 px-3 font-semibold cursor-pointer select-none text-xs tracking-wide uppercase"
+                        style={{ color: "var(--gold)" }}
                         onClick={() => toggleSort("dueDate")}
                         data-testid="th-due-date"
                       >
                         <span className="flex items-center gap-1">Due Date <SortIcon field="dueDate" /></span>
                       </th>
                       <th
-                        className="text-left py-3 px-3 font-medium cursor-pointer select-none"
-                        style={{ color: "var(--text-dim)" }}
+                        className="text-left py-3 px-3 font-semibold cursor-pointer select-none text-xs tracking-wide uppercase"
+                        style={{ color: "var(--gold)" }}
                         onClick={() => toggleSort("estimateStatus")}
                         data-testid="th-status"
                       >
                         <span className="flex items-center gap-1">Status <SortIcon field="estimateStatus" /></span>
                       </th>
                       <th
-                        className="text-left py-3 px-3 font-medium cursor-pointer select-none"
-                        style={{ color: "var(--text-dim)" }}
+                        className="text-left py-3 px-3 font-semibold cursor-pointer select-none text-xs tracking-wide uppercase"
+                        style={{ color: "var(--gold)" }}
                         onClick={() => toggleSort("nbsEstimator")}
                         data-testid="th-estimator"
                       >
-                        <span className="flex items-center gap-1">Estimator <SortIcon field="nbsEstimator" /></span>
+                        <span className="flex items-center gap-1">NBS Estimator <SortIcon field="nbsEstimator" /></span>
                       </th>
-                      <th className="text-left py-3 px-3 font-medium" style={{ color: "var(--text-dim)" }}>GC Lead</th>
-                      <th className="text-left py-3 px-3 font-medium" style={{ color: "var(--text-dim)" }} data-testid="th-nbs-scopes">NBS Scopes</th>
-                      <th className="text-left py-3 px-3 font-medium" style={{ color: "var(--text-dim)" }} data-testid="th-notes">Notes</th>
-                      <th className="text-left py-3 px-3 font-medium" style={{ color: "var(--text-dim)" }} data-testid="th-bc-link">BC Link</th>
+                      <th className="text-left py-3 px-3 font-semibold text-xs tracking-wide uppercase" style={{ color: "var(--gold)" }}>GC Est. Lead</th>
+                      <th className="text-left py-3 px-3 font-semibold text-xs tracking-wide uppercase" style={{ color: "var(--gold)" }} data-testid="th-nbs-scopes">NBS Scopes</th>
+                      <th className="text-left py-3 px-3 font-semibold text-xs tracking-wide uppercase" style={{ color: "var(--gold)" }} data-testid="th-notes">Notes</th>
+                      <th className="text-left py-3 px-3 font-semibold text-xs tracking-wide uppercase" style={{ color: "var(--gold)" }} data-testid="th-bc-link">BC Link</th>
                       <th
-                        className="text-left py-3 px-3 font-medium cursor-pointer select-none"
-                        style={{ color: "var(--text-dim)" }}
+                        className="text-left py-3 px-3 font-semibold cursor-pointer select-none text-xs tracking-wide uppercase"
+                        style={{ color: "var(--gold)" }}
                         onClick={() => toggleSort("createdAt")}
                         data-testid="th-created-at"
                       >
                         <span className="flex items-center gap-1">Created <SortIcon field="createdAt" /></span>
                       </th>
                       {viewTab === "drafts" && isAdmin && (
-                        <th className="text-left py-3 px-3 font-medium" style={{ color: "var(--text-dim)" }}>Actions</th>
+                        <th className="text-left py-3 px-3 font-semibold text-xs tracking-wide uppercase" style={{ color: "var(--gold)" }}>Actions</th>
                       )}
                     </tr>
                   </thead>
@@ -862,7 +935,7 @@ export default function ProjectLogPage() {
                                   DELETED
                                 </Badge>
                               )}
-                              {!isDeleted && !isDraft && viewTab !== "changes" && (
+                              {!isDeleted && !isDraft && viewTab !== "changes" && (entry.estimateStatus === null || entry.estimateStatus === "Lead" || entry.estimateStatus === "Estimating") && (
                                 <Link href={`/estimates/${entry.id}`}>
                                   <span
                                     className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium transition-colors cursor-pointer hover:opacity-80"
@@ -929,7 +1002,7 @@ export default function ProjectLogPage() {
                                   <SelectValue />
                                 </SelectTrigger>
                                 <SelectContent>
-                                  {["Estimating", "Submitted", "Revising", "Won", "Awarded", "Lost", "No Bid", "Undecided", "Declined"].map((s) => (
+                                  {["Lead", "Estimating", "Submitted", "Revising", "Won", "Awarded", "Lost", "No Bid", "Undecided", "Declined"].map((s) => (
                                     <SelectItem key={s} value={s} data-testid={`option-status-${s.toLowerCase().replace(/\s/g, "-")}`}>{s}</SelectItem>
                                   ))}
                                 </SelectContent>
