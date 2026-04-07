@@ -789,6 +789,47 @@ export default function EstimatingModulePage() {
     } catch { toast({ title: "Error", description: "Could not add comment.", variant: "destructive" }); }
   }, [estimateId, newComment, user]);
 
+  const handlePrint = useCallback(() => {
+    const el = document.getElementById("proposal-print-area");
+    if (!el) return;
+    const html = el.innerHTML;
+    const projectName = estimateData?.projectName ?? "Proposal";
+    const win = window.open("", "_blank", "width=820,height=1000,scrollbars=yes");
+    if (!win) { toast({ title: "Popup blocked", description: "Allow popups for this site and try again.", variant: "destructive" }); return; }
+    win.document.write(`<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Proposal — ${projectName}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700&display=swap" rel="stylesheet" />
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: Georgia, serif;
+      font-size: 11pt;
+      line-height: 1.65;
+      color: #1a1a1a;
+      background: #fff;
+      padding: 48px 56px;
+    }
+    p { margin: 6px 0; }
+    @media print {
+      body { padding: 24px 32px; }
+      @page { margin: 0.75in 0.75in; size: letter portrait; }
+    }
+  </style>
+</head>
+<body>
+${html}
+<script>
+  window.onload = function() { window.print(); };
+</script>
+</body>
+</html>`);
+    win.document.close();
+  }, [estimateData, toast]);
+
   useEffect(() => {
     if (proposalEntry && !projInfoLoaded) {
       setProjInfo({
@@ -2119,7 +2160,7 @@ export default function EstimatingModulePage() {
                   Show unit pricing
                 </label>
               </div>
-              <div className="p-5 rounded-lg overflow-y-auto" style={{ background: "#fff", color: "#1a1a1a", maxHeight: 500, fontFamily: "Georgia, serif", fontSize: 11, lineHeight: 1.6 }}>
+              <div id="proposal-print-area" className="p-5 rounded-lg overflow-y-auto" style={{ background: "#fff", color: "#1a1a1a", maxHeight: 500, fontFamily: "Georgia, serif", fontSize: 11, lineHeight: 1.6 }}>
                 <div style={{ fontWeight: 700, fontSize: 14, color: "#1a365d", fontFamily: "'Playfair Display', serif", letterSpacing: 1 }}>NATIONAL BUILDING SPECIALTIES</div>
                 <div style={{ fontSize: 9, color: "#666", marginBottom: 16 }}>A Division of Swinerton Builders</div>
                 <div style={{ marginBottom: 14, fontSize: 10 }}>
@@ -2188,7 +2229,7 @@ export default function EstimatingModulePage() {
                   style={{ background: "var(--bg3)", border: "1px solid var(--border-ds)", color: "var(--text-secondary)" }}>
                   <Copy className="w-3 h-3" /> Copy Text
                 </button>
-                <button onClick={() => { window.print(); }}
+                <button onClick={handlePrint}
                   className="text-xs px-3 py-2 rounded flex items-center gap-1"
                   style={{ background: "#ef444415", border: "1px solid #ef444440", color: "#ef4444" }}>
                   <FileText className="w-3 h-3" /> Print / PDF
