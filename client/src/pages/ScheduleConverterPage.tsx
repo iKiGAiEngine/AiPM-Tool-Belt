@@ -29,6 +29,7 @@ import {
   Type,
   X,
   Plus,
+  ClipboardPaste,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Link } from "wouter";
@@ -72,6 +73,7 @@ export default function ScheduleConverterPage() {
   const [inputMode, setInputMode] = useState<"image" | "text">("image");
   const [imageQueue, setImageQueue] = useState<QueuedImage[]>([]);
   const [scheduleText, setScheduleText] = useState<string>("");
+  const [pasteCount, setPasteCount] = useState(0);
   const [result, setResult] = useState<ExtractionResult | null>(null);
   const [editedItems, setEditedItems] = useState<ScheduleItem[]>([]);
   const [editingCell, setEditingCell] = useState<{ row: number; col: string } | null>(null);
@@ -563,28 +565,76 @@ export default function ScheduleConverterPage() {
               <Type className="w-5 h-5" style={{ color: "var(--gold)" }} />
               <h2 className="font-medium font-heading">Schedule Text</h2>
             </div>
-            <textarea
-              value={scheduleText}
-              onChange={(e) => setScheduleText(e.target.value)}
-              placeholder={"Paste your schedule text here...\n\nSupports tab-separated, comma-separated, pipe-separated, or free-form text.\n\nExample:\nTA-01\tPaper Towel Dispenser\tBobrick\tB-2621\t12\nTA-02\tSoap Dispenser\tASI\t0361\t8"}
-              className="w-full min-h-[200px] rounded-md border border-border p-4 text-sm font-mono resize-y transition-colors focus:border-[var(--gold)] focus:outline-none focus:ring-2 focus:ring-[rgba(200,164,78,0.3)]"
-              style={{ background: "var(--bg-input)", color: "var(--text)" }}
-              data-testid="textarea-schedule-text"
-            />
-            <div className="flex items-center justify-between mt-3">
-              <p className="text-xs text-muted-foreground">
-                {scheduleText.trim() ? `${scheduleText.trim().split('\n').length} line${scheduleText.trim().split('\n').length !== 1 ? 's' : ''}` : 'No text entered'}
-              </p>
+
+            {/* Click-to-paste button row */}
+            <div className="flex items-center gap-2 mb-3 flex-wrap">
+              <Button
+                size="sm"
+                onClick={async () => {
+                  try {
+                    const text = await navigator.clipboard.readText();
+                    if (!text.trim()) return;
+                    setScheduleText(prev =>
+                      prev.trim()
+                        ? prev + "\n\n--- Paste #" + (pasteCount + 2) + " ---\n" + text
+                        : text
+                    );
+                    setPasteCount(c => c + 1);
+                  } catch {
+                    toast({
+                      title: "Paste blocked",
+                      description: "Click inside the text area below and use Ctrl+V / Cmd+V instead.",
+                      variant: "destructive",
+                    });
+                  }
+                }}
+                className="flex items-center gap-2"
+                style={{ background: "var(--gold)", color: "#000" }}
+                data-testid="button-click-to-paste"
+              >
+                <ClipboardPaste className="w-4 h-4" />
+                Click to Paste from Clipboard
+              </Button>
+
+              {pasteCount > 0 && (
+                <span
+                  className="text-xs px-2 py-1 rounded-full"
+                  style={{ background: "rgba(200,164,78,0.15)", color: "var(--gold)" }}
+                  data-testid="badge-paste-count"
+                >
+                  {pasteCount} paste{pasteCount !== 1 ? "s" : ""} accumulated
+                </span>
+              )}
+
               {scheduleText.trim() && (
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={() => { setScheduleText(""); setResult(null); setEditedItems([]); }}
+                  onClick={() => { setScheduleText(""); setPasteCount(0); setResult(null); setEditedItems([]); }}
+                  className="ml-auto text-muted-foreground"
                   data-testid="button-clear-text"
                 >
-                  Clear
+                  Clear All
                 </Button>
               )}
+            </div>
+
+            <p className="text-xs text-muted-foreground mb-2">
+              Each paste appends to the list below — paste from multiple pages to combine them, then extract.
+            </p>
+
+            <textarea
+              value={scheduleText}
+              onChange={(e) => setScheduleText(e.target.value)}
+              placeholder={"Paste schedule text here, or use the button above. Supports tab-separated, comma-separated, or free-form text.\n\nExample:\nTA-01\tPaper Towel Dispenser\tBobrick\tB-2621\t12\nTA-02\tSoap Dispenser\tASI\t0361\t8"}
+              className="w-full min-h-[200px] rounded-md border border-border p-4 text-sm font-mono resize-y transition-colors focus:border-[var(--gold)] focus:outline-none focus:ring-2 focus:ring-[rgba(200,164,78,0.3)]"
+              style={{ background: "var(--bg-input)", color: "var(--text)" }}
+              data-testid="textarea-schedule-text"
+            />
+            <div className="flex items-center justify-between mt-2">
+              <p className="text-xs text-muted-foreground">
+                {scheduleText.trim() ? `${scheduleText.trim().split('\n').length} line${scheduleText.trim().split('\n').length !== 1 ? 's' : ''}` : 'No text entered'}
+              </p>
             </div>
           </Card>
         )}
@@ -620,6 +670,8 @@ export default function ScheduleConverterPage() {
                   <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                   Extracting...
                 </>
+              ) : pasteCount > 1 ? (
+                `Extract Schedule (${pasteCount} pages combined)`
               ) : (
                 "Extract Schedule"
               )}

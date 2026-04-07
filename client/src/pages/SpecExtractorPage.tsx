@@ -574,7 +574,7 @@ export default function SpecExtractorPage() {
                 onDragLeave={handleDragLeave}
                 onDrop={handleDrop}
                 className={cn(
-                  "mx-auto max-w-2xl rounded-lg border-2 border-dashed p-12 text-center transition-colors cursor-pointer",
+                  "mx-auto max-w-2xl rounded-lg border-2 border-dashed p-12 text-center transition-all cursor-pointer",
                   isDragging
                     ? "border-[var(--gold)]"
                     : "border-border hover:border-muted-foreground/50",
@@ -583,7 +583,10 @@ export default function SpecExtractorPage() {
                 onClick={() => {
                   if (!isUploading) document.getElementById("se-file-input")?.click();
                 }}
-                style={isDragging ? { background: "rgba(200,164,78,0.06)" } : undefined}
+                style={{
+                  background: isDragging ? "rgba(200,164,78,0.10)" : undefined,
+                  transform: isDragging ? "scale(1.01)" : "scale(1)",
+                }}
                 data-testid="dropzone-spec-extractor"
               >
                 <input
@@ -643,15 +646,15 @@ export default function SpecExtractorPage() {
                   </div>
                 ) : (
                   <div className="space-y-4">
-                    <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-muted">
-                      <Upload className="h-6 w-6 text-muted-foreground" />
+                    <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-muted" style={{ background: isDragging ? "rgba(200,164,78,0.15)" : undefined }}>
+                      <Upload className="h-6 w-6 text-muted-foreground" style={{ color: isDragging ? "var(--gold)" : undefined }} />
                     </div>
                     <div>
-                      <p className="font-medium text-foreground">
-                        Drop your specification PDF here
+                      <p className="font-medium text-foreground" style={{ color: isDragging ? "var(--gold)" : undefined }}>
+                        {isDragging ? "Drop your spec PDF here" : "Drop your specification PDF here"}
                       </p>
                       <p className="text-sm text-muted-foreground">
-                        or click to browse (PDF, up to 100MB)
+                        {isDragging ? "Release to begin extraction" : "or click to browse (PDF, up to 100MB)"}
                       </p>
                     </div>
                   </div>
