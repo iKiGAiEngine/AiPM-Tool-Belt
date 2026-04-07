@@ -17,21 +17,25 @@ import {
 // ══════════════════════════════════════════════════
 
 const ALL_SCOPES = [
-  { id: "accessories", label: "Toilet Accessories", csi: "10 28 00", icon: "🧴" },
-  { id: "partitions", label: "Toilet Partitions", csi: "10 21 00", icon: "🚪" },
-  { id: "fire_ext", label: "Fire Extinguishers", csi: "10 44 00", icon: "🧯" },
-  { id: "lockers", label: "Lockers", csi: "10 51 00", icon: "🔒" },
-  { id: "operable_walls", label: "Operable Walls", csi: "10 22 00", icon: "🗂️" },
-  { id: "mailboxes", label: "Mailboxes", csi: "10 55 00", icon: "📬" },
-  { id: "signs", label: "Signage", csi: "10 14 00", icon: "🪧" },
-  { id: "display_boards", label: "Visual Display", csi: "10 11 00", icon: "📋" },
-  { id: "corner_guards", label: "Wall Protection", csi: "10 26 00", icon: "🛡️" },
-  { id: "flagpoles", label: "Flagpoles", csi: "10 75 00", icon: "🚩" },
-  { id: "access_floor", label: "Access Flooring", csi: "10 35 00", icon: "⬜" },
-  { id: "wire_mesh", label: "Wire Mesh Partitions", csi: "10 22 13", icon: "🔗" },
-  { id: "storage_units", label: "Storage Specialties", csi: "10 51 13", icon: "📦" },
-  { id: "postal", label: "Postal Specialties", csi: "10 55 23", icon: "✉️" },
-  { id: "demountable", label: "Demountable Partitions", csi: "10 22 16", icon: "🧱" },
+  { id: "accessories",      label: "Toilet Accessories",   csi: "10 28 00", icon: "🧴" },
+  { id: "partitions",       label: "Toilet Compartments",  csi: "10 21 00", icon: "🚪" },
+  { id: "fire_ext",         label: "FEC",                  csi: "10 44 00", icon: "🧯" },
+  { id: "corner_guards",    label: "Wall Protection",      csi: "10 26 00", icon: "🛡️" },
+  { id: "appliances",       label: "Appliances",           csi: "11 31 00", icon: "🍽️" },
+  { id: "lockers",          label: "Lockers",              csi: "10 51 00", icon: "🔒" },
+  { id: "display_boards",   label: "Visual Displays",      csi: "10 11 00", icon: "📋" },
+  { id: "bike_racks",       label: "Bike Racks",           csi: "10 73 00", icon: "🚲" },
+  { id: "wire_mesh",        label: "Wire Mesh Partitions", csi: "10 22 13", icon: "🔗" },
+  { id: "cubicle_curtains", label: "Cubicle Curtains",     csi: "12 48 00", icon: "🏥" },
+  { id: "med_equipment",    label: "Med Equipment",        csi: "11 71 00", icon: "⚕️" },
+  { id: "expansion_joints", label: "Expansion Joints",     csi: "07 95 00", icon: "↔️" },
+  { id: "storage_units",    label: "Shelving",             csi: "10 51 13", icon: "📦" },
+  { id: "equipment",        label: "Equipment",            csi: "11 00 00", icon: "⚙️" },
+  { id: "entrance_mats",    label: "Entrance Mats",        csi: "12 48 13", icon: "🚪" },
+  { id: "mailboxes",        label: "Mailbox",              csi: "10 55 00", icon: "📬" },
+  { id: "flagpoles",        label: "Flagpole",             csi: "10 75 00", icon: "🚩" },
+  { id: "knox_box",         label: "Knox Box",             csi: "08 71 13", icon: "🔑" },
+  { id: "site_furnishing",  label: "Site Furnishing",      csi: "12 93 00", icon: "🌳" },
 ];
 
 const CHECKLIST_TEMPLATE = [
@@ -310,12 +314,20 @@ export default function EstimatingModulePage() {
 
   useEffect(() => {
     if (estimateData === null && proposalEntry) {
+      // Seed activeScopes from proposal log's nbsSelectedScopes if available
+      let seedScopes: string[] = [];
+      try {
+        const nbsLabels: string[] = proposalEntry.nbsSelectedScopes ? JSON.parse(proposalEntry.nbsSelectedScopes) : [];
+        seedScopes = nbsLabels
+          .map((label: string) => ALL_SCOPES.find(s => s.label === label)?.id)
+          .filter(Boolean) as string[];
+      } catch { seedScopes = []; }
       // Create estimate from proposal log entry
       createMutation.mutate({
         proposalLogId,
         estimateNumber: proposalEntry.estimateNumber || proposalEntry.pvNumber || `PV-${proposalLogId}`,
         projectName: proposalEntry.projectName || "Untitled Project",
-        activeScopes: [],
+        activeScopes: seedScopes,
         createdBy: user?.name || user?.email || null,
       });
     } else if (estimateData) {
@@ -504,6 +516,18 @@ export default function EstimatingModulePage() {
       await apiRequest("POST", `/api/estimates/${estimateId}/sync-to-proposal`, {
         grandTotal: calcData.grandTotal, reviewStatus,
       });
+      // Sync Project Info edits + scope selections back to Proposal Log
+      if (proposalLogId) {
+        const scopeLabels = activeScopes
+          .map(id => ALL_SCOPES.find(s => s.id === id)?.label)
+          .filter(Boolean) as string[];
+        await apiRequest("PATCH", `/api/proposal-log/entry/${proposalLogId}`, {
+          ...projInfo,
+          nbsSelectedScopes: JSON.stringify(scopeLabels),
+        });
+        qc.invalidateQueries({ queryKey: ["/api/proposal-log/entry", proposalLogId] });
+        qc.invalidateQueries({ queryKey: ["/api/proposal-log/all-entries"] });
+      }
       qc.invalidateQueries({ queryKey: ["/api/estimates/by-proposal", proposalLogId] });
       setVersions(v => [{ id: Date.now(), estimateId: estimateId!, version: (v[0]?.version || 0) + 1, savedBy: userName, notes: "Manual save", grandTotal: String(calcData.grandTotal), savedAt: new Date().toISOString() }, ...v]);
       setIsDirty(false);
@@ -513,7 +537,7 @@ export default function EstimatingModulePage() {
       toast({ title: "Save failed", description: "Could not save estimate.", variant: "destructive" });
     }
     setIsSaving(false);
-  }, [estimateId, activeScopes, defaultOh, defaultFee, defaultEsc, taxRate, bondRate, catOverrides, catComplete, catQuals, assumptions, risks, effectiveChecklist, reviewStatus, calcData, lineItems, user, proposalLogId]);
+  }, [estimateId, activeScopes, defaultOh, defaultFee, defaultEsc, taxRate, bondRate, catOverrides, catComplete, catQuals, assumptions, risks, effectiveChecklist, reviewStatus, calcData, lineItems, user, proposalLogId, projInfo]);
 
   // ── Line item mutations ──
   const addLineItem = useCallback(async () => {
@@ -752,6 +776,29 @@ export default function EstimatingModulePage() {
     } catch { toast({ title: "Error", description: "Could not add comment.", variant: "destructive" }); }
   }, [estimateId, newComment, user]);
 
+  // ── Editable Project Info (syncs back to Proposal Log on save) ──
+  const [projInfo, setProjInfo] = useState<Record<string, string>>({});
+  const [projInfoLoaded, setProjInfoLoaded] = useState(false);
+
+  useEffect(() => {
+    if (proposalEntry && !projInfoLoaded) {
+      setProjInfo({
+        projectName:       proposalEntry.projectName       || "",
+        gcEstimateLead:    proposalEntry.gcEstimateLead    || "",
+        region:            proposalEntry.region            || "",
+        nbsEstimator:      proposalEntry.nbsEstimator      || "",
+        dueDate:           proposalEntry.dueDate           || "",
+        primaryMarket:     proposalEntry.primaryMarket     || "",
+        estimateStatus:    proposalEntry.estimateStatus    || "",
+        owner:             proposalEntry.owner             || "",
+        anticipatedStart:  proposalEntry.anticipatedStart  || "",
+        anticipatedFinish: proposalEntry.anticipatedFinish || "",
+        notes:             proposalEntry.notes             || "",
+      });
+      setProjInfoLoaded(true);
+    }
+  }, [proposalEntry, projInfoLoaded]);
+
   // ── Scope toggle ──
   const toggleScope = useCallback((scopeId: string) => {
     setActiveScopes(prev => prev.includes(scopeId) ? prev.filter(s => s !== scopeId) : [...prev, scopeId]);
@@ -966,37 +1013,90 @@ export default function EstimatingModulePage() {
 
           {/* Project info */}
           <div className="rounded-lg p-5" style={{ background: "var(--bg-card)", border: "1px solid var(--border-ds)", borderLeft: "3px solid var(--gold)" }}>
-            <h2 style={{ fontFamily: "'Playfair Display', serif", fontSize: 16, fontWeight: 700, marginBottom: 4 }}>Project Info</h2>
-            <p className="text-xs mb-4" style={{ color: "var(--text-muted)" }}>Populated from Proposal Log — {estimateData?.estimateNumber}</p>
+            <div className="flex items-center justify-between mb-1">
+              <h2 style={{ fontFamily: "'Playfair Display', serif", fontSize: 16, fontWeight: 700 }}>Project Info</h2>
+              <span className="text-xs px-2 py-0.5 rounded" style={{ background: "var(--gold)20", color: "var(--gold)", border: "1px solid var(--gold)40" }}>Syncs to Proposal Log on Save</span>
+            </div>
+            <p className="text-xs mb-4" style={{ color: "var(--text-muted)" }}>Edit fields below — changes are written back to the Proposal Log when you save. — {estimateData?.estimateNumber}</p>
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+              {/* Read-only: Estimate # */}
+              <div>
+                <label className="text-xs block mb-1 uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>Estimate / PV#</label>
+                <div className="text-xs px-2 py-1.5 rounded" style={{ background: "var(--bg3)", border: "1px solid var(--border-ds)", color: "var(--text-secondary)" }}>
+                  {estimateData?.estimateNumber || proposalEntry?.estimateNumber || "—"}
+                </div>
+              </div>
+              {/* Read-only: Swinerton Project */}
+              <div>
+                <label className="text-xs block mb-1 uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>Swinerton Project</label>
+                <div className="text-xs px-2 py-1.5 rounded" style={{ background: "var(--bg3)", border: "1px solid var(--border-ds)", color: "var(--text-secondary)" }}>
+                  {proposalEntry?.swinertonProject || "—"}
+                </div>
+              </div>
+              {/* Editable fields */}
               {[
-                { key: "projectName", label: "Project Name" },
-                { key: "estimateNumber", label: "Estimate / PV#" },
-                { key: "gcEstimateLead", label: "GC / Client" },
-                { key: "region", label: "Region" },
-                { key: "nbsEstimator", label: "NBS Estimator" },
-                { key: "dueDate", label: "Due Date" },
-                { key: "primaryMarket", label: "Primary Market" },
-                { key: "estimateStatus", label: "Status" },
-                { key: "swinertonProject", label: "Swinerton Project" },
-                { key: "owner", label: "Owner" },
-                { key: "anticipatedStart", label: "Est. Start" },
-                { key: "anticipatedFinish", label: "Est. Finish" },
+                { key: "projectName",      label: "Project Name",    type: "text" },
+                { key: "gcEstimateLead",   label: "GC / Client",     type: "text" },
+                { key: "region",           label: "Region",          type: "text" },
+                { key: "nbsEstimator",     label: "NBS Estimator",   type: "text" },
+                { key: "dueDate",          label: "Due Date",        type: "text", placeholder: "MM/DD/YYYY" },
+                { key: "primaryMarket",    label: "Primary Market",  type: "text" },
+                { key: "estimateStatus",   label: "Status",          type: "text" },
+                { key: "owner",            label: "Owner",           type: "text" },
+                { key: "anticipatedStart", label: "Est. Start",      type: "text", placeholder: "MM/DD/YYYY" },
+                { key: "anticipatedFinish",label: "Est. Finish",     type: "text", placeholder: "MM/DD/YYYY" },
               ].map(f => (
                 <div key={f.key}>
                   <label className="text-xs block mb-1 uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>{f.label}</label>
-                  <div className="text-xs px-2 py-1.5 rounded" style={{ background: "var(--bg3)", border: "1px solid var(--border-ds)" }}>
-                    {proposalEntry?.[f.key] || "—"}
-                  </div>
+                  <input
+                    type={f.type}
+                    value={projInfo[f.key] ?? ""}
+                    placeholder={(f as any).placeholder || ""}
+                    onChange={e => { setProjInfo(prev => ({ ...prev, [f.key]: e.target.value })); markDirty(); }}
+                    className="w-full text-xs px-2 py-1.5 rounded outline-none"
+                    style={{ background: "var(--bg3)", border: "1px solid var(--border-ds)", color: "var(--text-primary)" }}
+                  />
                 </div>
               ))}
+              {/* Notes — full width */}
+              <div className="col-span-2 md:col-span-3 lg:col-span-4">
+                <label className="text-xs block mb-1 uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>Notes</label>
+                <textarea
+                  rows={2}
+                  value={projInfo.notes ?? ""}
+                  onChange={e => { setProjInfo(prev => ({ ...prev, notes: e.target.value })); markDirty(); }}
+                  className="w-full text-xs px-2 py-1.5 rounded outline-none resize-none"
+                  style={{ background: "var(--bg3)", border: "1px solid var(--border-ds)", color: "var(--text-primary)" }}
+                />
+              </div>
             </div>
           </div>
 
           {/* Scope selector */}
           <div className="rounded-lg p-5" style={{ background: "var(--bg-card)", border: "1px solid var(--border-ds)", borderLeft: "3px solid var(--gold)" }}>
-            <h3 className="text-sm font-semibold mb-1">Scope Sections Identified</h3>
-            <p className="text-xs mb-3" style={{ color: "var(--text-muted)" }}>Select Division 10 scope sections to include. These become category tabs in Line Items.</p>
+            <div className="flex items-center justify-between mb-1">
+              <h3 className="text-sm font-semibold">Scope Sections Identified</h3>
+              {proposalEntry?.nbsSelectedScopes && (
+                <button
+                  onClick={() => {
+                    try {
+                      const nbsLabels: string[] = JSON.parse(proposalEntry.nbsSelectedScopes);
+                      const ids = nbsLabels
+                        .map((label: string) => ALL_SCOPES.find(s => s.label === label)?.id)
+                        .filter(Boolean) as string[];
+                      setActiveScopes(ids);
+                      markDirty();
+                      toast({ title: "Scopes refreshed", description: "Loaded scope selections from the Proposal Log." });
+                    } catch { toast({ title: "Error", description: "Could not parse Proposal Log scopes.", variant: "destructive" }); }
+                  }}
+                  className="text-xs px-2 py-0.5 rounded"
+                  style={{ background: "var(--gold)15", color: "var(--gold)", border: "1px solid var(--gold)40" }}
+                >
+                  ↻ Pull from Proposal Log
+                </button>
+              )}
+            </div>
+            <p className="text-xs mb-3" style={{ color: "var(--text-muted)" }}>Select Division 10 scope sections to include. These become category tabs in Line Items. Saved selections sync back to the Proposal Log.</p>
             <div className="flex flex-wrap gap-2">
               {ALL_SCOPES.map(s => {
                 const active = activeScopes.includes(s.id);

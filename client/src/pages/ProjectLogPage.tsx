@@ -244,7 +244,7 @@ export default function ProjectLogPage() {
     "Toilet Accessories", "Toilet Compartments", "FEC", "Wall Protection",
     "Appliances", "Lockers", "Visual Displays", "Bike Racks",
     "Wire Mesh Partitions", "Cubicle Curtains", "Med Equipment", "Expansion Joints",
-    "Shelving", "Equipment", "Window Shades", "Entrance Mats",
+    "Shelving", "Equipment", "Entrance Mats",
     "Mailbox", "Flagpole", "Knox Box", "Site Furnishing",
   ];
 
