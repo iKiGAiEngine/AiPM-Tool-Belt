@@ -43,7 +43,7 @@ async function getCachedPages(sessionId: string): Promise<string[]> {
 
 const upload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 100 * 1024 * 1024 },
+  limits: { fileSize: 500 * 1024 * 1024 },
   fileFilter: (req, file, cb) => {
     if (file.mimetype === "application/pdf") {
       cb(null, true);
@@ -89,7 +89,17 @@ function buildFolderName(sectionNumber: string, title: string): string {
 }
 
 export function registerSpecExtractorRoutes(app: Express) {
-  app.post("/api/spec-extractor/upload", upload.single("file"), async (req: Request, res: Response) => {
+  app.post("/api/spec-extractor/upload", (req, res, next) => {
+    upload.single("file")(req, res, (err: any) => {
+      if (err) {
+        if (err.code === "LIMIT_FILE_SIZE") {
+          return res.status(413).json({ message: "File is too large. Maximum upload size is 500 MB. Please reduce the PDF size and try again." });
+        }
+        return res.status(400).json({ message: err.message || "File upload error" });
+      }
+      next();
+    });
+  }, async (req: Request, res: Response) => {
     try {
       if (!req.file) {
         return res.status(400).json({ message: "No file uploaded" });
