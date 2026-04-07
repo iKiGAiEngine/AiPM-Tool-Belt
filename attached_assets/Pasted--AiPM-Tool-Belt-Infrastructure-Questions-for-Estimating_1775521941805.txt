@@ -1,0 +1,107 @@
+# AiPM Tool Belt — Infrastructure Questions for Estimating Module Build
+
+I’m about to build the Estimating Module into the AiPM Tool Belt. Before I paste the full build spec, I need to understand the current state of the codebase and infrastructure. Please answer each question below so I can configure the build correctly.
+
+-----
+
+## DATABASE
+
+1. Is PostgreSQL already provisioned and connected in this Replit project? If yes, what’s the connection method — environment variable (DATABASE_URL), Replit’s built-in PostgreSQL, or an external provider like Neon/Supabase?
+1. Are we using Drizzle ORM with drizzle-kit push (no migration files), or is there a different ORM/migration setup?
+1. Can you list all existing database tables? Specifically, does a `proposal_log` table already exist? If yes, what are its column names and types? I need to confirm these 14 fields exist: projectName, estimateNumber, region, nbsEstimator, gcEstimateLead, dueDate, primaryMarket, estimateStatus, swinertonProject, inviteDate, anticipatedStart, anticipatedFinish, filePath, owner, finalReviewer, proposalTotal.
+1. Is there a `users` table with roles (admin, estimator, reviewer)? What does the user record look like?
+
+-----
+
+## AUTHENTICATION & SESSIONS
+
+1. Is session-based authentication already working in the app? If yes, what library is it using (express-session, Lucia, etc.) and where is the session middleware configured?
+1. How do I get the currently logged-in user in an Express route handler? Is it `req.session.user`, `req.user`, or something else?
+1. Is there role-based access control already implemented? If yes, how do I check if a user is an admin vs estimator vs reviewer?
+
+-----
+
+## PROJECT STRUCTURE
+
+1. What is the current folder structure? Specifically:
+- Where do React page components live? (e.g., `/client/src/pages/`)
+- Where do Express API routes live? (e.g., `/server/routes/`)
+- Where is the Drizzle schema defined? (e.g., `/shared/schema.ts`)
+- Is there a shared types file?
+- Where do reusable UI components live?
+1. How is client-side routing set up — React Router, Wouter, TanStack Router, or something else? How do I add a new route for `/estimates/:pvNumber`?
+1. Is there a shared API client or fetch wrapper for making requests from the React frontend to the Express backend? Or do components call fetch() directly?
+
+-----
+
+## API KEYS & SECRETS
+
+1. Is there an Anthropic/Claude API key already stored in Replit Secrets? If yes, what is the secret name (e.g., ANTHROPIC_API_KEY)? The Estimating Module needs it for the AI Quote Parser feature.
+1. Is SendGrid configured for sending emails? If yes, what is the secret name for the API key? If not, is there another email service configured? The module needs to send notification emails for overhead approval requests.
+1. Is there a Microsoft Graph API / Azure AD app registration set up for Outlook integration? If not, I’ll use mailto: links as a fallback for the RFQ email generator. This is not a blocker — just determines which approach I take.
+
+-----
+
+## FILE STORAGE
+
+1. Is there a file upload system already in place in the app? If yes, where do uploaded files get stored (Replit storage, S3 bucket, local /uploads directory)?
+1. If no file upload exists yet, what’s the preferred approach — Replit’s built-in object storage, or should I set up an S3-compatible solution? The Estimating Module needs to store vendor quote backup documents (PDFs and images) linked to specific line items and quotes.
+
+-----
+
+## EXISTING MODULES
+
+1. Which AiPM modules are currently live and functional in the codebase? (e.g., Proposal Log, Project Start Hub, Knowledge Agent, etc.) I need to know what’s available for integration.
+1. Is there an existing Proposal Log UI component that I can link to from the Estimating Module? (The estimator needs a “Switch Project” dropdown that pulls active estimates from the Proposal Log and an “Open Full Proposal Log” link.)
+
+-----
+
+## PROPOSAL LOG ↔ ESTIMATING MODULE INTEGRATION (CRITICAL)
+
+The Estimating Module reads FROM and writes BACK TO the Proposal Log. These questions define the exact integration contract so both modules stay in sync without manual intervention.
+
+### Reading from Proposal Log → Estimating Module
+
+1. When the estimator opens a project from the Proposal Log, how should the Estimating Module fetch that project’s data? Is there an existing API endpoint like `GET /api/proposal-log/:pvNumber` that returns the full record? If yes, what does the response JSON look like — exact field names, types, and nesting?
+1. What is the unique identifier for a Proposal Log entry — is it `estimateNumber`, `pvNumber`, `id`, or something else? The Estimating Module uses this as the foreign key (`estimate_number`) to link back to the Proposal Log.
+1. How is `estimateStatus` stored — as a string enum (“Lead”, “Not Bidding”, “On-Hold”, “Estimating”, “Submitted”, “Awarded”, “Lost”, “Superseded”), or as a numeric code, or something else? The Estimating Module needs to filter for projects in “Estimating” status and update the status to “Submitted” when a bid is finalized.
+1. Is the `activeScopes` field (which Division 10 scope sections are included in this project) already stored in the Proposal Log, or does it need to be added? This is a JSON array like `["accessories", "partitions", "fire_ext"]` that drives which category tabs appear in the estimating workspace. If it doesn’t exist in the Proposal Log, where should it be stored — on the Proposal Log record or on the new `estimates` table?
+1. Are there any computed or derived fields in the Proposal Log that I should NOT overwrite? For example, if `proposalTotal` is calculated from other fields, I need to know before I write the grand total back to it.
+
+### Writing from Estimating Module → Proposal Log
+
+1. When the estimator submits a bid, the Estimating Module needs to write the grand total back to the Proposal Log. What is the exact API endpoint and field name to update? For example, is it `PUT /api/proposal-log/:pvNumber` with `{ proposalTotal: 85000.00 }`, or is there a different method?
+1. Should the Estimating Module also update the `estimateStatus` field to “Submitted” when the bid is finalized, or does the Proposal Log handle its own status transitions?
+1. Is there a webhook, event system, or callback pattern in the codebase? For example, when the Proposal Log creates a new entry, does it emit an event that the Estimating Module could listen to? Or when the Estimating Module submits a bid, should it emit an event that the Proposal Log picks up?
+
+### Navigation between modules
+
+1. How does a user currently navigate between modules in the AiPM Tool Belt? Is there a sidebar, a top nav, a module switcher dropdown, or direct URL routing? I need to add:
+
+- A button on each Proposal Log entry to open that project in the Estimating Module
+- A “Switch Project” dropdown inside the Estimating Module that shows all active Proposal Log entries
+- An “Open Full Proposal Log” link from within the Estimating Module
+
+1. What URL pattern should the Estimating Module use? I’m planning `/estimates/:pvNumber` (e.g., `/estimates/PV-2026-0147`). Does this conflict with any existing routes?
+
+### Data ownership boundaries
+
+1. Which fields are “owned” by the Proposal Log vs the Estimating Module? Here’s what I’m assuming — please correct anything wrong:
+
+- **Proposal Log owns (Estimating reads only):** projectName, estimateNumber, region, nbsEstimator, gcEstimateLead, dueDate, primaryMarket, inviteDate, anticipatedStart, anticipatedFinish, filePath, owner, finalReviewer, swinertonProject
+- **Estimating Module owns (writes back to Proposal Log):** proposalTotal (grand total), estimateStatus (when bid is submitted)
+- **Estimating Module owns exclusively (not in Proposal Log):** all line items, vendor quotes, category configs, breakouts, assumptions, checklists, version history
+
+1. If the Proposal Log fields change (e.g., due date is extended, estimator is reassigned, GC name is corrected), does the Estimating Module need to reflect those changes in real-time? Or is it acceptable to load the Proposal Log data once when the estimate is created and treat it as a snapshot?
+1. Is there a scenario where multiple Proposal Log entries could share the same estimateNumber/PV#? Or is PV# always unique? The Estimating Module creates a 1:1 relationship between an estimate record and a Proposal Log entry via PV#.
+
+-----
+
+## DEPLOYMENT
+
+1. Are there any Replit-specific constraints I should know about — memory limits, domain configuration, environment variables that need to be set, or build commands that need to run?
+1. Is the app currently deployed and accessible at a URL? If yes, is there a staging/preview environment for testing, or does everything go straight to production?
+
+-----
+
+Once I have these answers, I’ll paste the full Estimating Module build specification (1,000+ lines covering database schema, calculation engine, UI/UX theme, breakout management, review workflow, and testing checklist) and we can start building. The answers to questions 18-30 (Proposal Log integration) are the most critical — they define how the two modules share data and avoid any sync issues.
