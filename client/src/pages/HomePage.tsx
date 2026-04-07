@@ -504,7 +504,11 @@ export default function HomePage() {
                         >
                           <Check style={{ width: 11, height: 11 }} />
                         </button>
-                        <div className="bid-name" data-testid={`text-bid-name-new-${i}`}>{p.projectName}</div>
+                        {p._serverDbId ? (
+                          <a className="bid-name bid-name-link" href={`/estimates/${p._serverDbId}`} title="Open Estimate" data-testid={`text-bid-name-new-${i}`}>{p.projectName}</a>
+                        ) : (
+                          <div className="bid-name" data-testid={`text-bid-name-new-${i}`}>{p.projectName}</div>
+                        )}
                         {p._serverDbId ? (
                           <a
                             className="bid-estimate"
@@ -550,7 +554,11 @@ export default function HomePage() {
                     return (
                       <div key={stableId} className="bid-row">
                         <span className="ack-btn-spacer" />
-                        <div className="bid-name" data-testid={`text-bid-name-due-${i}`}>{p.projectName}</div>
+                        {p._serverDbId ? (
+                          <a className="bid-name bid-name-link" href={`/estimates/${p._serverDbId}`} title="Open Estimate" data-testid={`text-bid-name-due-${i}`}>{p.projectName}</a>
+                        ) : (
+                          <div className="bid-name" data-testid={`text-bid-name-due-${i}`}>{p.projectName}</div>
+                        )}
                         {p._serverDbId ? (
                           <a
                             className="bid-estimate"
@@ -596,7 +604,11 @@ export default function HomePage() {
                     return (
                       <div key={stableId} className="bid-row">
                         <span className="ack-btn-spacer" />
-                        <div className="bid-name" data-testid={`text-bid-name-pipe-${i}`}>{p.projectName}</div>
+                        {p._serverDbId ? (
+                          <a className="bid-name bid-name-link" href={`/estimates/${p._serverDbId}`} title="Open Estimate" data-testid={`text-bid-name-pipe-${i}`}>{p.projectName}</a>
+                        ) : (
+                          <div className="bid-name" data-testid={`text-bid-name-pipe-${i}`}>{p.projectName}</div>
+                        )}
                         {p._serverDbId ? (
                           <a
                             className="bid-estimate"
