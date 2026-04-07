@@ -533,8 +533,9 @@ export default function EstimatingModulePage() {
         const scopeLabels = activeScopes
           .map(id => ALL_SCOPES.find(s => s.id === id)?.label)
           .filter(Boolean) as string[];
+        const { nbsEstimator: _skip, ...projInfoPatch } = projInfo;
         await apiRequest("PATCH", `/api/proposal-log/entry/${proposalLogId}`, {
-          ...projInfo,
+          ...projInfoPatch,
           nbsSelectedScopes: JSON.stringify(scopeLabels),
         });
         qc.invalidateQueries({ queryKey: ["/api/proposal-log/entry", proposalLogId] });
