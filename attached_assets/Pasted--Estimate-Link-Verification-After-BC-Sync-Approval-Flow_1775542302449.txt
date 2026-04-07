@@ -1,0 +1,69 @@
+# Estimate Link Verification — After BC Sync Approval Flow
+
+## CONTEXT
+
+When a project comes in from BuildingConnected, the flow is:
+
+1. “Sync from BC” → BuildingConnected Sync Preview modal → select projects → “Sync Selected”
+1. Project lands as a draft → “Review Draft” modal → edit fields → “Approve & Create Project”
+1. Project is created with Estimate #, folder is generated
+
+After step 3, the project needs to be accessible from the Estimating Module. I need to verify the Estimate link appears everywhere it should.
+
+-----
+
+## QUESTIONS
+
+### Question 1: What status does a newly approved BC project get?
+
+After clicking “Approve & Create Project” in the Review Draft modal, what value is written to `proposalLogEntries.estimateStatus` for the new record? Show me the exact code that sets this value. The Estimate link only appears on rows where status is null, “Lead”, or “Estimating” — if the approved project gets a different status, the link won’t show.
+
+### Question 2: Where does the approved project appear?
+
+After approval, list EVERY view/page/list in the entire app where this new project entry is visible. Check all of these:
+
+- Main Proposal Log table (gold headers, filters, checkboxes) — yes/no?
+- BC Bid Log tab (audit trail) — yes/no?
+- Home page — is there a dashboard, recent projects list, or activity feed? If yes, does the project show there?
+- Any “My Projects” or “Assigned to Me” view?
+- Any other page that lists proposalLogEntries records?
+
+For EACH location where the project appears, tell me: does the Estimate link currently show there? Yes or no?
+
+### Question 3: Does the Estimate link show on the new project’s row?
+
+Go to the main Proposal Log table after approving a BC project. Find the newly created row. Is the Estimate link (the small “Estimate” button/link under the project name) visible on that row? If NOT visible, what is the `estimateStatus` value on that row — check the database directly.
+
+### Question 4: Manual project creation path
+
+If someone clicks “+ ADD PROPOSAL” on the Proposal Log (instead of syncing from BC), does the manually created entry also get the Estimate link? What status does a manually added proposal start with?
+
+### Question 5: Project folder structure
+
+When “Approve & Create Project” runs, it creates a folder at `/data/projects/{something}/`. What is the exact folder path and naming convention? I need to confirm the Estimating Module can store vendor quote backups at:
+
+```
+/data/projects/{projectId}/Estimate Folder/Quotes/
+```
+
+Does `{projectId}` match `proposalLogEntries.id`, `proposalLogEntries.projectDbId`, or something else?
+
+### Question 6: Complete list of all project-listing views
+
+Search the entire codebase. Find every React component that renders a list or table of `proposalLogEntries` records. For each one, give me:
+
+- File path
+- Route/URL where it appears
+- Whether the Estimate link is present on rows (yes/no)
+
+I need this to make sure there are no orphaned lists where a user sees projects but has no way to open the Estimating Module.
+
+-----
+
+## WHAT NEEDS TO HAPPEN
+
+After answering the questions above:
+
+1. **Every list/table/view that shows proposalLogEntries rows with status null, “Lead”, or “Estimating” must have the Estimate link.** No exceptions. If an estimator can see a project, they need to be able to open it in the Estimating Module from that same view.
+1. **The Home page (if it has a dashboard or recent projects section) must also link to the Estimating Module** for active projects. An estimator should be able to go Home → click a project → land in the Estimating Module without having to navigate to the Proposal Log first.
+1. **Confirm the status value set by “Approve & Create Project”** falls within the Estimate link visibility rule (null, “Lead”, or “Estimating”). If it doesn’t, either change the default status on approval OR expand the visibility rule to include whatever status is set.

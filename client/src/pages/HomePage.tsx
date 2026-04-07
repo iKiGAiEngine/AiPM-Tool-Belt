@@ -5,7 +5,7 @@ import {
   ScanSearch, Receipt, FolderPlus, ClipboardList,
   Loader2, FlaskConical,
   TableProperties, Sparkles, Users, Activity, FileBarChart,
-  FolderOpenDot, Check, PackageCheck, Shield
+  FolderOpenDot, Check, PackageCheck, Shield, Calculator
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
@@ -292,7 +292,7 @@ export default function HomePage() {
   const userInitials = user?.initials || (user ? getUserInitials(user) : "HK");
   const userEstimatorCode = (user?.initials || "").toUpperCase();
 
-  const activeStatuses = ["Estimating"];
+  const activeStatuses = ["Lead", "Estimating"];
 
   const activeBids = useMemo(() => {
     return proposals
@@ -505,6 +505,19 @@ export default function HomePage() {
                           <Check style={{ width: 11, height: 11 }} />
                         </button>
                         <div className="bid-name" data-testid={`text-bid-name-new-${i}`}>{p.projectName}</div>
+                        {p._serverDbId ? (
+                          <a
+                            className="bid-estimate"
+                            href={`/estimates/${p._serverDbId}`}
+                            title="Open in Estimating Module"
+                            onClick={(e) => e.stopPropagation()}
+                            data-testid={`button-estimate-hud-new-${stableId}`}
+                          >
+                            <Calculator style={{ width: 11, height: 11 }} />
+                          </a>
+                        ) : (
+                          <span />
+                        )}
                         {p.filePath ? (
                           <a
                             className="bid-folder"
@@ -538,6 +551,19 @@ export default function HomePage() {
                       <div key={stableId} className="bid-row">
                         <span className="ack-btn-spacer" />
                         <div className="bid-name" data-testid={`text-bid-name-due-${i}`}>{p.projectName}</div>
+                        {p._serverDbId ? (
+                          <a
+                            className="bid-estimate"
+                            href={`/estimates/${p._serverDbId}`}
+                            title="Open in Estimating Module"
+                            onClick={(e) => e.stopPropagation()}
+                            data-testid={`button-estimate-hud-due-${stableId}`}
+                          >
+                            <Calculator style={{ width: 11, height: 11 }} />
+                          </a>
+                        ) : (
+                          <span />
+                        )}
                         {p.filePath ? (
                           <a
                             className="bid-folder"
@@ -571,6 +597,19 @@ export default function HomePage() {
                       <div key={stableId} className="bid-row">
                         <span className="ack-btn-spacer" />
                         <div className="bid-name" data-testid={`text-bid-name-pipe-${i}`}>{p.projectName}</div>
+                        {p._serverDbId ? (
+                          <a
+                            className="bid-estimate"
+                            href={`/estimates/${p._serverDbId}`}
+                            title="Open in Estimating Module"
+                            onClick={(e) => e.stopPropagation()}
+                            data-testid={`button-estimate-hud-pipe-${stableId}`}
+                          >
+                            <Calculator style={{ width: 11, height: 11 }} />
+                          </a>
+                        ) : (
+                          <span />
+                        )}
                         {p.filePath ? (
                           <a
                             className="bid-folder"

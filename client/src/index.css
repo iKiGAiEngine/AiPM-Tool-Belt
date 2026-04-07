@@ -916,12 +916,33 @@
 }
 .bid-row {
   display: grid;
-  grid-template-columns: 26px 1fr 24px auto;
+  grid-template-columns: 26px 1fr 24px 24px auto;
   align-items: center;
   gap: 8px;
   padding: 6px 20px;
   background: transparent;
   transition: background .15s, transform .2s;
+}
+.bid-estimate {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 3px;
+  background: rgba(201,168,76,0.10);
+  border: 1px solid rgba(201,168,76,0.20);
+  font-size: 11px;
+  cursor: pointer;
+  text-decoration: none;
+  color: var(--gold);
+  transition: all .15s;
+  justify-self: center;
+}
+.bid-estimate:hover {
+  background: rgba(201,168,76,0.25);
+  border-color: rgba(201,168,76,0.6);
+  color: #C9A84C;
 }
 .bid-row:hover { background: rgba(255,255,255,0.03); }
 .pl-card:hover .bid-row { transform: translateX(2px); }
