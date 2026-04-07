@@ -33,9 +33,9 @@ export default function CentralSettingsPage() {
           <p className="text-muted-foreground">Manage vendors, products, scope dictionaries, regions, templates, spec extraction, and email notifications</p>
         </div>
         <Link href="/tools/proposal-log">
-          <Button variant="outline" className="gap-2" data-testid="button-project-log">
+          <Button variant="outline" className="gap-2" data-testid="button-bc-sync-table">
             <ClipboardList className="w-4 h-4" />
-            Proposal Log
+            BC Sync Table
           </Button>
         </Link>
       </div>
