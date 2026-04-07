@@ -1,0 +1,101 @@
+https://f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.dev/tools/proposal-log
+
+1.	
+attributeStyleMap: StylePropertyMap {size: 0}
+2.	attributes: NamedNodeMap {length: 0}
+3.	baseURI: "https://f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.dev/tools/proposal-log"
+4.	childElementCount: 2
+5.	childNodes: NodeList(9) [text, comment, text, div#view-dash.view, text, comment, text, div#view-log.view.active, text]
+6.	children: HTMLCollection(2) [div#view-dash.view, div#view-log.view.active, view-dash: div#view-dash.view, view-log: div#view-log.view.active]
+7.	classList: DOMTokenList [value: '']
+8.	clientHeight: 600
+9.	clientWidth: 870
+10.	contentEditable: "inherit"
+11.	currentCSSZoom: 1
+12.	customElementRegistry: CustomElementRegistry {}
+13.	dataset: DOMStringMap {}
+14.	firstChild: text
+15.	firstElementChild: div#view-dash.view
+16.	innerHTML: "\n  <!-- DASHBOARD -->\n  <div class=\"view\" id=
+17.	innerText: "🔍\nAll Regions\nATL - Atlanta\nAUS - Austin\nCLT - S Carolina\nCLT - N Carolina\nDEN - Colorado\nDFW - Dallas\nEXT - Jacobs\nEXT - CBU\nEXT - BN Builders\nEXT - Hensel Phelps\nEXT - McCarthy\nEXT - PCL\nEXT - Bristol Industries\nGEG - Spokane & Boise\nHNL - Hawaii\nLAX - SPD\nLAX - FS\nLAX - OCLA\nLAX - TM\nLGA - New York\nPDX - Idaho\nPDX - Portland\nSAN - SD\nSEA - Washington\nSFO - Nor Cal\nAll Statuses\nEstimating\nRevising\nSubmitted\nAwarded\nWon\nLost\nNo Bid\nUndecided\nDeclined\nLost - Note Why in Comments\n☰ More\n+ ADD PROPOSAL\n\t\nPROJECT NAME\n↕\n\t\n⠇\nDUE DATE\n↑\n\t\n⠇\nNBS ESTIMATOR\n↕\n\t\n⠇\nPROPOSAL TOTAL\n↕\n\t\n⠇\nREGION\n↕\n\t\n⠇\nSP ESTIMATOR\n↕\n\t\n⠇\nSTATUS\n↕\n\t\n⠇\nEST. START\n↕\n\t\n⠇\nEST. END\n↕\n\t\n⠇\nPRIMARY MARKET\n↕\n\t\n⠇\nINVITE DATE\n↕\n\t\n⠇\nGC ESTIMATE LEAD\n↕\n\t\n⠇\nFINAL REVIEWER\n↕\n\t\n⠇\nSWINERTON\n↕\n\t\n⠇\nOWNER\n↕\n\t\n⠇\nFILE PATH\n↕\n\t\nSOURCE\n\t\n⠇\nNOTES\n↕\n\t\n⠇\nBC LINK\n↕\n\t\n⠇\nNBS SCOPES\n↕\n\t\n\t\t\t\t\t\nATL - Atlanta\nAUS - Austin\nCLT - S Carolina\nCLT - N Carolina\nDEN - Colorado\nDFW - Dallas\nEXT - Jacobs\nEXT - CBU\nEXT - BN Builders\nEXT - Hensel Phelps\nEXT - McCarthy\nEXT - PCL\nEXT - Bristol Industries\nGEG - Spokane & Boise\nHNL - Hawaii\nLAX - SPD\nLAX - FS\nLAX - OCLA\nLAX - TM\nLGA - New York\nPDX - Idaho\nPDX - Portland\nSAN - SD\nSEA - Washington\nSFO - Nor Cal\n\t\t\nEstimating\nRevising\nSubmitted\nAwarded\nWon\nLost\nNo Bid\nUndecided\nDeclined\nLost - Note Why in Comments\n\t\t\t\nAviation\nEducation\nEntertainment\nHealthcare\nHospitality\nResidential\nRetail\nOffice\nParking Structure\nPublic Facility\nSpecial Projects\n\t\t\t\t\nY\nN\n\t\t\t\t\t\t\t\n\t\nArrowhead Regional Med Ctr. (ARMC) DB PS (REBID)\n\t\n03/24/2026\n✏\n\t\nGT\n✏\n\t\n—\n✏\n\t\nLAX - SPD\n✏\n\t\n—\n✏\n\t\nESTIMATING\n✏\n\t\n—\n✏\n\t\n—\n✏\n\t\n—\n✏\n\t\n03/27/2026\n✏\n\t\nGabriel Frota\n✏\n\t\n—\n✏\n\t—\n✏\n\tSwinerton Builders\t\n📂 Open\n✏\n\t\t\n💬 Add\n\t\n🔗 Open\n✏\n\t\n☰ Select\n\t\n✏️\n🗑\n\n\t\nUWMC ML TRU Pathology Lab\n\t\n04/07/2026\n✏\n\t\n—\n✏\n\t\n—\n✏\n\t\nSEA - Washington\n✏\n\t\n—\n✏\n\t\nESTIMATING\n✏\n\t\n—\n✏\n\t\n—\n✏\n\t\n—\n✏\n\t\n04/03/2026\n✏\n\t\nNick Jennings\n✏\n\t\n—\n✏\n\t—\n✏\n\tSwinerton Builders\t\n📂 Open\n✏\n\t\t\n💬 Add\n\t\n🔗 Open\n✏\n\t\n☰ Select\n\t\n✏️\n🗑\n\n\t\nAdidas Tanger Deer Park\n\t\n04/08/2026\n✏\n\t\n—\n✏\n\t\n—\n✏\n\t\nLGA - New York\n✏\n\t\n—\n✏\n\t\nESTIMATING\n✏\n\t\n—\n✏\n\t\n—\n✏\n\t\n—\n✏\n\t\n04/01/2026\n✏\n\t\nJoseph Dinielli\n✏\n\t\n—\n✏\n\t—\n✏\n\tSwinerton Builders\t\n📂 Open\n✏\n\t\t\n💬 Add\n\t\n🔗 Open\n✏\n\t\n☰ Select\n\t\n✏️\n🗑\n\n\t\nAmazon SEA Legacy Space Refresh Medium GC Bid\n\t\n04/09/2026\n✏\n\t\n—\n✏\n\t\n—\n✏\n\t\nSEA - Washington\n✏\n\t\n—\n✏\n\t\nESTIMATING\n✏\n\t\n—\n✏\n\t\n—\n✏\n\t\n—\n✏\n\t\n04/01/2026\n✏\n\t\nMerci Keathley\n✏\n\t\n—\n✏\n\t—\n✏\n\tSwinerton Builders\t\n📂 Open\n✏\n\t\t\n💬 Add\n\t\n🔗 Open\n✏\n\t\n☰ Select\n\t\n✏️\n🗑\n\n\t\nInglewood Transit Connector RFQ\n\t\n04/11/2026\n✏\n\t\nGT\n✏\n\t\n—\n✏\n\t\nLAX - SPD\n✏\n\t\n—\n✏\n\t\nESTIMATING\n✏\n\t\n—\n✏\n\t\n—\n✏\n\t\nRetail\n✏\n\t\n03/25/2026\n✏\n\t\nNilda Puno\n✏\n\t\n—\n✏\n\t—\n✏\n\tSwinerton Builders\t\n📂 Open\n✏\n\t\t\n💬 Add\n\t\n🔗 Open\n✏\n\t\n☰ Select\n\t\n✏️\n🗑\n\n\t\nFlying Pickle Idaho Falls\n\t\n04/13/2026\n✏\n\t\n—\n✏\n\t\n—\n✏\n\t\nGEG - Spokane & Boise\n✏\n\t\n—\n✏\n\t\nESTIMATING\n✏\n\t\n—\n✏\n\t\n—\n✏\n\t\nSpecial Projects\n✏\n\t\n03/31/2026\n✏\n\t\nJake Marrujo\n✏\n\t\n—\n✏\n\t—\n✏\n\tSwinerton Builders\t\n📂 Open\n✏\n\t\t\n💬 Add\n\t\n🔗 Open\n✏\n\t\n☰ Select\n\t\n✏️\n🗑\n\n\t\n33P Affordable Housing Multi-Family Devlopment\n\t\n04/15/2026\n✏\n\t\n—\n✏\n\t\n—\n✏\n\t\nPDX - Idaho\n✏\n\t\n—\n✏\n\t\nESTIMATING\n✏\n\t\n—\n✏\n\t\n—\n✏\n\t\nResidential\n✏\n\t\n04/03/2026\n✏\n\t\nJon Smith\n✏\n\t\n—\n✏\n\t—\n✏\n\tSwinerton Builders\t\n📂 Open\n✏\n\t\t\n💬 Add\n\t\n🔗 Open\n✏\n\t\n☰ Select\n\t\n✏️\n🗑\n\n\t\nIllumina Project SOL\n\t\n04/21/2026\n✏\n\t\nHK\n✏\n\t\n—\n✏\n\t\nSAN - SD\n✏\n\t\n—\n✏\n\t\nESTIMATING\n✏\n\t\n06/26\n✏\n\t\n11/26\n✏\n\t\nSpecial Projects\n✏\n\t\n03/27/2026\n✏\n\t\nVahid Balali\n✏\n\t\n—\n✏\n\t—\n✏\n\tSwinerton Builders\t\n📂 Open\n✏\n\t\t\n💬 Add\n\t\n🔗 Open\n✏\n\t\n☰ 8 selected\n\t\n✏️\n🗑\n\n\t\nGoCary Bus Operations & Maintenance Facility (BOMF)\n\t\n04/21/2026\n✏\n\t\n—\n✏\n\t\n—\n✏\n\t\nCLT - S Carolina\n✏\n\t\n—\n✏\n\t\nESTIMATING\n✏\n\t\n—\n✏\n\t\n—\n✏\n\t\nSpecial Projects\n✏\n\t\n04/06/2026\n✏\n\t\nDeShaun Taylor\n✏\n\t\n—\n✏\n\t—\n✏\n\tSwinerton Builders\t\n📂 Open\n✏\n\t\t\n💬 Add\n\t\n🔗 Open\n✏\n\t\n☰ Select\n\t\n✏️\n🗑\n\n\t\nGoCary Bus Operations & Maintenance Facility (BOMF)\n\t\n04/21/2026\n✏\n\t\n—\n✏\n\t\n—\n✏\n\t\nCLT - S Carolina\n✏\n\t\n—\n✏\n\t\nESTIMATING\n✏\n\t\n—\n✏\n\t\n—\n✏\n\t\nSpecial Projects\n✏\n\t\n04/06/2026\n✏\n\t\nDeShaun Taylor\n✏\n\t\n—\n✏\n\t—\n✏\n\tSwinerton Builders\t\n📂 Open\n✏\n\t\t\n💬 Add\n\t\n🔗 Open\n✏\n\t\n☰ Select\n\t\n✏️\n🗑\n\n\t\nTRA General Office Complex\n\t\n04/23/2026\n✏\n\t\n—\n✏\n\t\n—\n✏\n\t\nDFW - Dallas\n✏\n\t\n—\n✏\n\t\nESTIMATING\n✏\n\t\n—\n✏\n\t\n—\n✏\n\t\nOffice\n✏\n\t\n04/02/2026\n✏\n\t\nChristman Weeks\n✏\n\t\n—\n✏\n\t—\n✏\n\tSwinerton Builders\t\n📂 Open\n✏\n\t\t\n💬 Add\n\t\n🔗 Open\n✏\n\t\n☰ Select\n\t\n✏️\n🗑"
+18.	isConnected: true
+19.	lastChild: text
+20.	lastElementChild: div#view-log.view.active
+21.	localName: "main"
+22.	namespaceURI: "http://www.w3.org/1999/xhtml"
+23.	nextElementSibling: div#import-modal.modal-overlay
+24.	nextSibling: text
+25.	nodeName: "MAIN"
+26.	nodeType: 1
+27.	offsetHeight: 600
+28.	offsetParent: body
+29.	offsetTop: 95
+30.	offsetWidth: 870
+31.	outerHTML: "<main>\n  <!-- DASHBOARD -->\n  <div class=\"view
+32.	outerText: "🔍\nAll Regions\nATL - Atlanta\nAUS - Austin\nCLT - S Carolina\nCLT - N Carolina\nDEN - Colorado\nDFW - Dallas\nEXT - Jacobs\nEXT - CBU\nEXT - BN Builders\nEXT - Hensel Phelps\nEXT - McCarthy\nEXT - PCL\nEXT - Bristol Industries\nGEG - Spokane & Boise\nHNL - Hawaii\nLAX - SPD\nLAX - FS\nLAX - OCLA\nLAX - TM\nLGA - New York\nPDX - Idaho\nPDX - Portland\nSAN - SD\nSEA - Washington\nSFO - Nor Cal\nAll Statuses\nEstimating\nRevising\nSubmitted\nAwarded\nWon\nLost\nNo Bid\nUndecided\nDeclined\nLost - Note Why in Comments\n☰ More\n+ ADD PROPOSAL\n\t\nPROJECT NAME\n↕\n\t\n⠇\nDUE DATE\n↑\n\t\n⠇\nNBS ESTIMATOR\n↕\n\t\n⠇\nPROPOSAL TOTAL\n↕\n\t\n⠇\nREGION\n↕\n\t\n⠇\nSP ESTIMATOR\n↕\n\t\n⠇\nSTATUS\n↕\n\t\n⠇\nEST. START\n↕\n\t\n⠇\nEST. END\n↕\n\t\n⠇\nPRIMARY MARKET\n↕\n\t\n⠇\nINVITE DATE\n↕\n\t\n⠇\nGC ESTIMATE LEAD\n↕\n\t\n⠇\nFINAL REVIEWER\n↕\n\t\n⠇\nSWINERTON\n↕\n\t\n⠇\nOWNER\n↕\n\t\n⠇\nFILE PATH\n↕\n\t\nSOURCE\n\t\n⠇\nNOTES\n↕\n\t\n⠇\nBC LINK\n↕\n\t\n⠇\nNBS SCOPES\n↕\n\t\n\t\t\t\t\t\nATL - Atlanta\nAUS - Austin\nCLT - S Carolina\nCLT - N Carolina\nDEN - Colorado\nDFW - Dallas\nEXT - Jacobs\nEXT - CBU\nEXT - BN Builders\nEXT - Hensel Phelps\nEXT - McCarthy\nEXT - PCL\nEXT - Bristol Industries\nGEG - Spokane & Boise\nHNL - Hawaii\nLAX - SPD\nLAX - FS\nLAX - OCLA\nLAX - TM\nLGA - New York\nPDX - Idaho\nPDX - Portland\nSAN - SD\nSEA - Washington\nSFO - Nor Cal\n\t\t\nEstimating\nRevising\nSubmitted\nAwarded\nWon\nLost\nNo Bid\nUndecided\nDeclined\nLost - Note Why in Comments\n\t\t\t\nAviation\nEducation\nEntertainment\nHealthcare\nHospitality\nResidential\nRetail\nOffice\nParking Structure\nPublic Facility\nSpecial Projects\n\t\t\t\t\nY\nN\n\t\t\t\t\t\t\t\n\t\nArrowhead Regional Med Ctr. (ARMC) DB PS (REBID)\n\t\n03/24/2026\n✏\n\t\nGT\n✏\n\t\n—\n✏\n\t\nLAX - SPD\n✏\n\t\n—\n✏\n\t\nESTIMATING\n✏\n\t\n—\n✏\n\t\n—\n✏\n\t\n—\n✏\n\t\n03/27/2026\n✏\n\t\nGabriel Frota\n✏\n\t\n—\n✏\n\t—\n✏\n\tSwinerton Builders\t\n📂 Open\n✏\n\t\t\n💬 Add\n\t\n🔗 Open\n✏\n\t\n☰ Select\n\t\n✏️\n🗑\n\n\t\nUWMC ML TRU Pathology Lab\n\t\n04/07/2026\n✏\n\t\n—\n✏\n\t\n—\n✏\n\t\nSEA - Washington\n✏\n\t\n—\n✏\n\t\nESTIMATING\n✏\n\t\n—\n✏\n\t\n—\n✏\n\t\n—\n✏\n\t\n04/03/2026\n✏\n\t\nNick Jennings\n✏\n\t\n—\n✏\n\t—\n✏\n\tSwinerton Builders\t\n📂 Open\n✏\n\t\t\n💬 Add\n\t\n🔗 Open\n✏\n\t\n☰ Select\n\t\n✏️\n🗑\n\n\t\nAdidas Tanger Deer Park\n\t\n04/08/2026\n✏\n\t\n—\n✏\n\t\n—\n✏\n\t\nLGA - New York\n✏\n\t\n—\n✏\n\t\nESTIMATING\n✏\n\t\n—\n✏\n\t\n—\n✏\n\t\n—\n✏\n\t\n04/01/2026\n✏\n\t\nJoseph Dinielli\n✏\n\t\n—\n✏\n\t—\n✏\n\tSwinerton Builders\t\n📂 Open\n✏\n\t\t\n💬 Add\n\t\n🔗 Open\n✏\n\t\n☰ Select\n\t\n✏️\n🗑\n\n\t\nAmazon SEA Legacy Space Refresh Medium GC Bid\n\t\n04/09/2026\n✏\n\t\n—\n✏\n\t\n—\n✏\n\t\nSEA - Washington\n✏\n\t\n—\n✏\n\t\nESTIMATING\n✏\n\t\n—\n✏\n\t\n—\n✏\n\t\n—\n✏\n\t\n04/01/2026\n✏\n\t\nMerci Keathley\n✏\n\t\n—\n✏\n\t—\n✏\n\tSwinerton Builders\t\n📂 Open\n✏\n\t\t\n💬 Add\n\t\n🔗 Open\n✏\n\t\n☰ Select\n\t\n✏️\n🗑\n\n\t\nInglewood Transit Connector RFQ\n\t\n04/11/2026\n✏\n\t\nGT\n✏\n\t\n—\n✏\n\t\nLAX - SPD\n✏\n\t\n—\n✏\n\t\nESTIMATING\n✏\n\t\n—\n✏\n\t\n—\n✏\n\t\nRetail\n✏\n\t\n03/25/2026\n✏\n\t\nNilda Puno\n✏\n\t\n—\n✏\n\t—\n✏\n\tSwinerton Builders\t\n📂 Open\n✏\n\t\t\n💬 Add\n\t\n🔗 Open\n✏\n\t\n☰ Select\n\t\n✏️\n🗑\n\n\t\nFlying Pickle Idaho Falls\n\t\n04/13/2026\n✏\n\t\n—\n✏\n\t\n—\n✏\n\t\nGEG - Spokane & Boise\n✏\n\t\n—\n✏\n\t\nESTIMATING\n✏\n\t\n—\n✏\n\t\n—\n✏\n\t\nSpecial Projects\n✏\n\t\n03/31/2026\n✏\n\t\nJake Marrujo\n✏\n\t\n—\n✏\n\t—\n✏\n\tSwinerton Builders\t\n📂 Open\n✏\n\t\t\n💬 Add\n\t\n🔗 Open\n✏\n\t\n☰ Select\n\t\n✏️\n🗑\n\n\t\n33P Affordable Housing Multi-Family Devlopment\n\t\n04/15/2026\n✏\n\t\n—\n✏\n\t\n—\n✏\n\t\nPDX - Idaho\n✏\n\t\n—\n✏\n\t\nESTIMATING\n✏\n\t\n—\n✏\n\t\n—\n✏\n\t\nResidential\n✏\n\t\n04/03/2026\n✏\n\t\nJon Smith\n✏\n\t\n—\n✏\n\t—\n✏\n\tSwinerton Builders\t\n📂 Open\n✏\n\t\t\n💬 Add\n\t\n🔗 Open\n✏\n\t\n☰ Select\n\t\n✏️\n🗑\n\n\t\nIllumina Project SOL\n\t\n04/21/2026\n✏\n\t\nHK\n✏\n\t\n—\n✏\n\t\nSAN - SD\n✏\n\t\n—\n✏\n\t\nESTIMATING\n✏\n\t\n06/26\n✏\n\t\n11/26\n✏\n\t\nSpecial Projects\n✏\n\t\n03/27/2026\n✏\n\t\nVahid Balali\n✏\n\t\n—\n✏\n\t—\n✏\n\tSwinerton Builders\t\n📂 Open\n✏\n\t\t\n💬 Add\n\t\n🔗 Open\n✏\n\t\n☰ 8 selected\n\t\n✏️\n🗑\n\n\t\nGoCary Bus Operations & Maintenance Facility (BOMF)\n\t\n04/21/2026\n✏\n\t\n—\n✏\n\t\n—\n✏\n\t\nCLT - S Carolina\n✏\n\t\n—\n✏\n\t\nESTIMATING\n✏\n\t\n—\n✏\n\t\n—\n✏\n\t\nSpecial Projects\n✏\n\t\n04/06/2026\n✏\n\t\nDeShaun Taylor\n✏\n\t\n—\n✏\n\t—\n✏\n\tSwinerton Builders\t\n📂 Open\n✏\n\t\t\n💬 Add\n\t\n🔗 Open\n✏\n\t\n☰ Select\n\t\n✏️\n🗑\n\n\t\nGoCary Bus Operations & Maintenance Facility (BOMF)\n\t\n04/21/2026\n✏\n\t\n—\n✏\n\t\n—\n✏\n\t\nCLT - S Carolina\n✏\n\t\n—\n✏\n\t\nESTIMATING\n✏\n\t\n—\n✏\n\t\n—\n✏\n\t\nSpecial Projects\n✏\n\t\n04/06/2026\n✏\n\t\nDeShaun Taylor\n✏\n\t\n—\n✏\n\t—\n✏\n\tSwinerton Builders\t\n📂 Open\n✏\n\t\t\n💬 Add\n\t\n🔗 Open\n✏\n\t\n☰ Select\n\t\n✏️\n🗑\n\n\t\nTRA General Office Complex\n\t\n04/23/2026\n✏\n\t\n—\n✏\n\t\n—\n✏\n\t\nDFW - Dallas\n✏\n\t\n—\n✏\n\t\nESTIMATING\n✏\n\t\n—\n✏\n\t\n—\n✏\n\t\nOffice\n✏\n\t\n04/02/2026\n✏\n\t\nChristman Weeks\n✏\n\t\n—\n✏\n\t—\n✏\n\tSwinerton Builders\t\n📂 Open\n✏\n\t\t\n💬 Add\n\t\n🔗 Open\n✏\n\t\n☰ Select\n\t\n✏️\n🗑"
+33.	ownerDocument: document
+34.	parentElement: body
+35.	parentNode: body
+36.	part: DOMTokenList [value: '']
+37.	previousElementSibling: div.nav-tabs
+38.	previousSibling: text
+39.	scrollHeight: 600
+40.	scrollWidth: 870
+41.	spellcheck: true
+42.	style: CSSStyleDeclaration {accentColor: '', additiveSymbols: '', alignContent: '', alignItems: '', alignSelf: '', …}
+43.	tabIndex: -1
+44.	tagName: "MAIN"
+45.	textContent: "\n  \n  \n    \n      Filter Dashboard\n      \n 
+46.	translate: true
+47.	writingSuggestions: "true"
+
+
+https://f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.dev/tools/proposal-log
+
+1.	
+__reactFiber$unolspiu81i: FiberNode {tag: 5, key: null, elementType: 'div', type: 'div', stateNode: div.container.max-w-7xl.mx-auto.py-8.px-4, …}
+2.	__reactProps$unolspiu81i: {data-replit-metadata: 'client/src/pages/ProjectLogPage.tsx:539:6', data-component-name: 'div', className: 'container max-w-7xl mx-auto py-8 px-4', children: Array(2)}
+3.	attributeStyleMap: StylePropertyMap {size: 0}
+4.	attributes: NamedNodeMap {0: data-replit-metadata, 1: data-component-name, 2: class, data-replit-metadata: data-replit-metadata, data-component-name: data-component-name, class: class, length: 3}
+5.	baseURI: "https://f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.dev/tools/proposal-log"
+6.	childElementCount: 2
+7.	childNodes: NodeList(2) [div.flex.items-center.gap-4.mb-8, div.rounded-xl.card-accent-bar]
+8.	children: HTMLCollection(2) [div.flex.items-center.gap-4.mb-8, div.rounded-xl.card-accent-bar]
+9.	classList: DOMTokenList(5) ['container', 'max-w-7xl', 'mx-auto', 'py-8', 'px-4', value: 'container max-w-7xl mx-auto py-8 px-4']
+10.	className: "container max-w-7xl mx-auto py-8 px-4"
+11.	clientHeight: 39419
+12.	clientWidth: 865
+13.	contentEditable: "inherit"
+14.	currentCSSZoom: 1
+15.	customElementRegistry: CustomElementRegistry {}
+16.	dataset: DOMStringMap {replitMetadata: 'client/src/pages/ProjectLogPage.tsx:539:6', componentName: 'div'}
+17.	firstChild: div.flex.items-center.gap-4.mb-8
+18.	firstElementChild: div.flex.items-center.gap-4.mb-8
+19.	innerHTML: "<div data-replit-metadata=\"client/src/pages/Proj
+20.	innerText: "Proposal Log\n\nActive bids, pipeline tracking & 
+21.	isConnected: true
+22.	lastChild: div.rounded-xl.card-accent-bar
+23.	lastElementChild: div.rounded-xl.card-accent-bar
+24.	localName: "div"
+25.	namespaceURI: "http://www.w3.org/1999/xhtml"
+26.	nodeName: "DIV"
+27.	nodeType: 1
+28.	offsetHeight: 39419
+29.	offsetParent: body
+30.	offsetTop: 56
+31.	offsetWidth: 865
+32.	outerHTML: "<div data-replit-metadata=\"client/src/pages/Proj
+33.	outerText: "Proposal Log\n\nActive bids, pipeline tracking & 
+34.	ownerDocument: document
+35.	parentElement: div.min-h-screen
+36.	parentNode: div.min-h-screen
+37.	part: DOMTokenList [value: '']
+38.	scrollHeight: 39419
+39.	scrollWidth: 865
+40.	spellcheck: true
+41.	style: CSSStyleDeclaration {accentColor: '', additiveSymbols: '', alignContent: '', alignItems: '', alignSelf: '', …}
+42.	tabIndex: -1
+43.	tagName: "DIV"
+44.	textContent: "Proposal LogActive bids, pipeline tracking & esti
+45.	translate: true
+46.	writingSuggestions: "true"
