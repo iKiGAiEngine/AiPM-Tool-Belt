@@ -141,7 +141,7 @@ export function NotificationBell() {
                   onClick={() => {
                     if (!item.isRead) markReadMutation.mutate(item.id);
                     setOpen(false);
-                    navigate("/project-log");
+                    navigate("/tools/proposal-log");
                   }}
                   data-testid={`notification-item-${item.id}`}
                 >

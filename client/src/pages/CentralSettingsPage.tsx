@@ -32,7 +32,7 @@ export default function CentralSettingsPage() {
           <h1 className="text-2xl font-semibold text-foreground font-heading">Settings</h1>
           <p className="text-muted-foreground">Manage vendors, products, scope dictionaries, regions, templates, spec extraction, and email notifications</p>
         </div>
-        <Link href="/project-log">
+        <Link href="/tools/proposal-log">
           <Button variant="outline" className="gap-2" data-testid="button-project-log">
             <ClipboardList className="w-4 h-4" />
             Proposal Log

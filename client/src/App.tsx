@@ -43,7 +43,8 @@ function Router() {
       <Route path="/settings">{() => <AdminRoute component={CentralSettingsPage} />}</Route>
       <Route path="/project-start" component={ProjectStartPage} />
       <Route path="/projects/:id" component={ProjectDetailPage} />
-      <Route path="/project-log">{() => <AdminRoute component={ProjectLogPage} />}</Route>
+      <Route path="/tools/proposal-log">{() => <AdminRoute component={ProjectLogPage} />}</Route>
+      <Route path="/project-log">{() => { window.location.replace("/tools/proposal-log"); return null; }}</Route>
       <Route path="/schedule-converter" component={ScheduleConverterPage} />
       <Route path="/spec-extractor" component={SpecExtractorPage} />
       <Route path="/admin">{() => <AdminRoute component={AdminPage} />}</Route>
