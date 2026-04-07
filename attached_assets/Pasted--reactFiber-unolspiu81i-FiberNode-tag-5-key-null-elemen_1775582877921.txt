@@ -1,0 +1,138 @@
+__reactFiber$unolspiu81i
+: 
+FiberNode {tag: 5, key: null, elementType: 'div', type: 'div', stateNode: div.container.max-w-7xl.mx-auto.py-8.px-4, …}
+__reactProps$unolspiu81i
+: 
+{data-replit-metadata: 'client/src/pages/ProjectLogPage.tsx:539:6', data-component-name: 'div', className: 'container max-w-7xl mx-auto py-8 px-4', children: Array(2)}
+attributeStyleMap
+: 
+StylePropertyMap {size: 0}
+attributes
+: 
+NamedNodeMap {0: data-replit-metadata, 1: data-component-name, 2: class, data-replit-metadata: data-replit-metadata, data-component-name: data-component-name, class: class, length: 3}
+baseURI
+: 
+"https://f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.dev/tools/proposal-log"
+childElementCount
+: 
+2
+childNodes
+: 
+NodeList(2) [div.flex.items-center.gap-4.mb-8, div.rounded-xl.card-accent-bar]
+children
+: 
+HTMLCollection(2) [div.flex.items-center.gap-4.mb-8, div.rounded-xl.card-accent-bar]
+classList
+: 
+DOMTokenList(5) ['container', 'max-w-7xl', 'mx-auto', 'py-8', 'px-4', value: 'container max-w-7xl mx-auto py-8 px-4']
+className
+: 
+"container max-w-7xl mx-auto py-8 px-4"
+clientHeight
+: 
+39419
+clientWidth
+: 
+865
+contentEditable
+: 
+"inherit"
+currentCSSZoom
+: 
+1
+customElementRegistry
+: 
+CustomElementRegistry {}
+dataset
+: 
+DOMStringMap {replitMetadata: 'client/src/pages/ProjectLogPage.tsx:539:6', componentName: 'div'}
+firstChild
+: 
+div.flex.items-center.gap-4.mb-8
+firstElementChild
+: 
+div.flex.items-center.gap-4.mb-8
+innerHTML
+: 
+"<div data-replit-metadata=\"client/src/pages/Proj
+innerText
+: 
+"Proposal Log\n\nActive bids, pipeline tracking & 
+isConnected
+: 
+true
+lastChild
+: 
+div.rounded-xl.card-accent-bar
+lastElementChild
+: 
+div.rounded-xl.card-accent-bar
+localName
+: 
+"div"
+namespaceURI
+: 
+"http://www.w3.org/1999/xhtml"
+nodeName
+: 
+"DIV"
+nodeType
+: 
+1
+offsetHeight
+: 
+39419
+offsetParent
+: 
+body
+offsetTop
+: 
+56
+offsetWidth
+: 
+865
+outerHTML
+: 
+"<div data-replit-metadata=\"client/src/pages/Proj
+outerText
+: 
+"Proposal Log\n\nActive bids, pipeline tracking & 
+ownerDocument
+: 
+document
+parentElement
+: 
+div.min-h-screen
+parentNode
+: 
+div.min-h-screen
+part
+: 
+DOMTokenList [value: '']
+scrollHeight
+: 
+39419
+scrollWidth
+: 
+865
+spellcheck
+: 
+true
+style
+: 
+CSSStyleDeclaration {accentColor: '', additiveSymbols: '', alignContent: '', alignItems: '', alignSelf: '', …}
+tabIndex
+: 
+-1
+tagName
+: 
+"DIV"
+textContent
+: 
+"Proposal LogActive bids, pipeline tracking & esti
+translate
+: 
+true
+writingSuggestions
+: 
+"true"
