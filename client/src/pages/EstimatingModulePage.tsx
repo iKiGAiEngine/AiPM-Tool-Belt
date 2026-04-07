@@ -227,6 +227,8 @@ export default function EstimatingModulePage() {
   const [risks, setRisks] = useState<string[]>([]);
   const [checklist, setChecklist] = useState(CHECKLIST_TEMPLATE.map(c => ({ ...c })));
   const [reviewStatus, setReviewStatus] = useState("drafting");
+  const [projInfo, setProjInfo] = useState<Record<string, string>>({});
+  const [projInfoLoaded, setProjInfoLoaded] = useState(false);
 
   // ── UI state ──
   const [showNewQuote, setShowNewQuote] = useState(false);
@@ -775,10 +777,6 @@ export default function EstimatingModulePage() {
       setNewComment("");
     } catch { toast({ title: "Error", description: "Could not add comment.", variant: "destructive" }); }
   }, [estimateId, newComment, user]);
-
-  // ── Editable Project Info (syncs back to Proposal Log on save) ──
-  const [projInfo, setProjInfo] = useState<Record<string, string>>({});
-  const [projInfoLoaded, setProjInfoLoaded] = useState(false);
 
   useEffect(() => {
     if (proposalEntry && !projInfoLoaded) {

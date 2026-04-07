@@ -1,0 +1,24 @@
+Download the React DevTools for a better development experience: https://reactjs.org/link/react-devtools
+2
+EstimatingModulePage.tsx:540 Uncaught ReferenceError: Cannot access 'projInfo' before initialization
+    at EstimatingModulePage (EstimatingModulePage.tsx:540:220)
+chunk-LPF6KSF2.js?v=7dfba68d:14080 The above error occurred in the <EstimatingModulePage> component:
+
+    at EstimatingModulePage (https://f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.dev/src/pages/EstimatingModulePage.tsx:82:36)
+    at Route (https://f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.d…/home/runner/workspace/node_modules/.vite/deps/wouter.js?v=7dfba68d:322:16)
+    at Switch (https://f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.d…/home/runner/workspace/node_modules/.vite/deps/wouter.js?v=7dfba68d:378:17)
+    at Router
+    at div
+    at TestModeProvider (https://f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.dev/src/lib/testMode.tsx:25:36)
+    at AuthGate (https://f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.dev/src/App.tsx:197:51)
+    at AuthProvider (https://f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.dev/src/lib/auth.tsx:29:32)
+    at Provider (https://f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.d…unner/workspace/node_modules/.vite/deps/chunk-6BRII5CC.js?v=7dfba68d:37:15)
+    at TooltipProvider (https://f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.d…kspace/node_modules/.vite/deps/@radix-ui_react-tooltip.js?v=7dfba68d:159:5)
+    at ThemeProvider (https://f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.dev/src/lib/theme.tsx:20:33)
+    at QueryClientProvider (https://f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.d…rkspace/node_modules/.vite/deps/@tanstack_react-query.js?v=7dfba68d:2747:3)
+    at App
+
+Consider adding an error boundary to your tree to customize error handling behavior.
+Visit https://reactjs.org/link/error-boundaries to learn more about error boundaries.
+chunk-LPF6KSF2.js?v=7dfba68d:9176 Uncaught ReferenceError: Cannot access 'projInfo' before initialization
+    at EstimatingModulePage (EstimatingModulePage.tsx:540:220)
