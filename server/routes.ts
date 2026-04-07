@@ -160,6 +160,127 @@ export async function registerRoutes(
     }
   });
 
+  // Generate changelog draft from git commits since last entry
+  app.get("/api/changelog/generate-draft", async (req: Request, res: Response) => {
+    try {
+      const userId = (req.session as any)?.userId;
+      if (!userId) return res.status(401).json({ message: "Not authenticated" });
+      const [user] = await db.select().from(usersTable).where(eq(usersTable.id, userId)).limit(1);
+      if (!user || user.role !== "admin") return res.status(403).json({ message: "Admins only" });
+
+      const changelogPath = path.join(process.cwd(), "docs", "CHANGELOG.md");
+      const content = fs.existsSync(changelogPath) ? fs.readFileSync(changelogPath, "utf-8") : "";
+
+      // Parse last entry date from format: ## [MM-DD-YYYY] vX.X.X
+      const lastEntryMatch = content.match(/^## \[(\d{2}-\d{2}-\d{4})\]\s+v(\d+)\.(\d+)\.(\d+)/m);
+      let sinceDate = "";
+      let nextVersion = "v0.1.1";
+      if (lastEntryMatch) {
+        const [, datePart, major, minor, patch] = lastEntryMatch;
+        // Convert MM-DD-YYYY to YYYY-MM-DD for git
+        const [mm, dd, yyyy] = datePart.split("-");
+        sinceDate = `${yyyy}-${mm}-${dd}`;
+        nextVersion = `v${major}.${minor}.${parseInt(patch) + 1}`;
+      }
+
+      // Get git commits since last entry
+      let commits: string[] = [];
+      try {
+        const gitArgs = sinceDate
+          ? `git log --since="${sinceDate}" --pretty=format:"%s" --no-merges`
+          : `git log -20 --pretty=format:"%s" --no-merges`;
+        const raw = execSync(gitArgs, { cwd: process.cwd() }).toString().trim();
+        commits = raw.split("\n").filter((c) => c.trim().length > 0);
+      } catch (_) {
+        commits = [];
+      }
+
+      // Categorize each commit into Added / Changed / Fixed / Notes
+      const added: string[] = [];
+      const changed: string[] = [];
+      const fixed: string[] = [];
+      const notes: string[] = [];
+
+      const addedRe = /^(add|new|create|build|implement|introduce|support|enable|generate)/i;
+      const fixedRe = /^(fix|resolve|correct|repair|patch|bug|revert)/i;
+      const notesRe = /^(docs|document|decision|note|changelog|architecture|deprecat|replit\.md|readme)/i;
+
+      for (const commit of commits) {
+        const msg = commit.replace(/^"|"$/g, "").trim();
+        if (!msg) continue;
+        if (notesRe.test(msg)) {
+          notes.push(msg);
+        } else if (fixedRe.test(msg)) {
+          fixed.push(msg);
+        } else if (addedRe.test(msg)) {
+          added.push(msg);
+        } else {
+          changed.push(msg);
+        }
+      }
+
+      // Build the draft markdown
+      const today = new Date();
+      const mm = String(today.getMonth() + 1).padStart(2, "0");
+      const dd = String(today.getDate()).padStart(2, "0");
+      const yyyy = today.getFullYear();
+      const dateStr = `${mm}-${dd}-${yyyy}`;
+
+      let draft = `## [${dateStr}] ${nextVersion}\n`;
+      if (added.length) {
+        draft += `### Added\n${added.map((c) => `- ${c}`).join("\n")}\n`;
+      }
+      if (changed.length) {
+        draft += `### Changed\n${changed.map((c) => `- ${c}`).join("\n")}\n`;
+      }
+      if (fixed.length) {
+        draft += `### Fixed\n${fixed.map((c) => `- ${c}`).join("\n")}\n`;
+      }
+      if (notes.length) {
+        draft += `### Notes\n${notes.map((c) => `- ${c}`).join("\n")}\n`;
+      }
+      if (!added.length && !changed.length && !fixed.length && !notes.length) {
+        draft += `### Changed\n- No commits found since last entry\n`;
+      }
+
+      res.json({ draft, nextVersion, sinceDate, commitCount: commits.length });
+    } catch (error) {
+      console.error("Failed to generate changelog draft:", error);
+      res.status(500).json({ message: "Failed to generate changelog draft" });
+    }
+  });
+
+  // Save a new changelog entry — prepend to CHANGELOG.md
+  app.post("/api/changelog/save", async (req: Request, res: Response) => {
+    try {
+      const userId = (req.session as any)?.userId;
+      if (!userId) return res.status(401).json({ message: "Not authenticated" });
+      const [user] = await db.select().from(usersTable).where(eq(usersTable.id, userId)).limit(1);
+      if (!user || user.role !== "admin") return res.status(403).json({ message: "Admins only" });
+
+      const { markdown } = req.body;
+      if (!markdown || typeof markdown !== "string" || !markdown.trim()) {
+        return res.status(400).json({ message: "No markdown content provided" });
+      }
+
+      const changelogPath = path.join(process.cwd(), "docs", "CHANGELOG.md");
+      const existing = fs.existsSync(changelogPath) ? fs.readFileSync(changelogPath, "utf-8") : "";
+
+      // Separate the title line from the rest
+      const headerMatch = existing.match(/^(# .+?\n\n?)/);
+      const header = headerMatch ? headerMatch[1] : "# AiPM Tool Belt — Changelog\n\n";
+      const body = headerMatch ? existing.slice(header.length) : existing;
+
+      const updated = `${header}${markdown.trim()}\n\n${body}`;
+      fs.writeFileSync(changelogPath, updated, "utf-8");
+
+      res.json({ message: "Changelog updated successfully" });
+    } catch (error) {
+      console.error("Failed to save changelog:", error);
+      res.status(500).json({ message: "Failed to save changelog" });
+    }
+  });
+
   registerPlanParserRoutes(app);
   registerQuoteParserRoutes(app);
   registerCentralSettingsRoutes(app);
