@@ -299,7 +299,7 @@ export default function AdminPage() {
                 </div>
               </div>
             </Link>
-            <Link href="/tools/bc-sync-table" data-testid="link-proposal-change-log">
+            <Link href="/tools/proposal-log" data-testid="link-proposal-change-log">
               <div className="flex items-start gap-3 p-3 rounded-md border border-border hover:border-primary/50 hover:bg-muted/40 transition-all cursor-pointer group">
                 <History className="w-4 h-4 mt-0.5 shrink-0" style={{ color: "var(--gold)" }} />
                 <div>

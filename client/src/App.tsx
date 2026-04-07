@@ -44,7 +44,6 @@ function Router() {
       <Route path="/project-start" component={ProjectStartPage} />
       <Route path="/projects/:id" component={ProjectDetailPage} />
       <Route path="/tools/bc-sync-table">{() => <AdminRoute component={ProjectLogPage} />}</Route>
-      <Route path="/tools/proposal-log">{() => { window.location.replace("/tools/bc-sync-table"); return null; }}</Route>
       <Route path="/project-log">{() => { window.location.replace("/tools/bc-sync-table"); return null; }}</Route>
       <Route path="/schedule-converter" component={ScheduleConverterPage} />
       <Route path="/spec-extractor" component={SpecExtractorPage} />

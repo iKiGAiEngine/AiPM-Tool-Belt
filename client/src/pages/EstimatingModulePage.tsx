@@ -870,7 +870,7 @@ export default function EstimatingModulePage() {
       <div className="min-h-screen flex items-center justify-center" style={{ background: "var(--bg-page)" }}>
         <div className="text-center">
           <p style={{ color: "var(--text-secondary)" }}>Proposal log entry not found.</p>
-          <Button onClick={() => navigate("/tools/bc-sync-table")} className="mt-4">Back to BC Sync Table</Button>
+          <Button onClick={() => navigate("/tools/proposal-log")} className="mt-4">Back to Proposal Log</Button>
         </div>
       </div>
     );
@@ -933,7 +933,7 @@ export default function EstimatingModulePage() {
                 </button>
                 {lastSaved && <span className="text-xs" style={{ color: "var(--text-muted)" }}>{lastSaved.toLocaleTimeString()}</span>}
               </div>
-              <button onClick={() => navigate("/tools/bc-sync-table")} className="text-xs px-2 py-1 rounded" style={{ background: "var(--bg-card)", border: "1px solid var(--border-ds)", color: "var(--text-secondary)" }}>
+              <button onClick={() => navigate("/tools/proposal-log")} className="text-xs px-2 py-1 rounded" style={{ background: "var(--bg-card)", border: "1px solid var(--border-ds)", color: "var(--text-secondary)" }}>
                 ← Back
               </button>
             </div>

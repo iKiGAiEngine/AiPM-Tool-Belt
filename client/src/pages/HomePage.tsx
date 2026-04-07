@@ -31,7 +31,7 @@ const tools: ToolTile[] = [
     title: "Proposal Log",
     description: "NBS bid tracking, pipeline analytics & estimating workflow",
     icon: FileBarChart,
-    href: "/tools/bc-sync-table",
+    href: "/tools/proposal-log",
     available: true,
     isExternal: true,
   },
@@ -453,7 +453,7 @@ export default function HomePage() {
         <div className="hud-col">
           <div
             className="pl-card"
-            onClick={() => { window.location.href = "/tools/bc-sync-table"; }}
+            onClick={() => { window.location.href = "/tools/proposal-log"; }}
             data-testid="card-proposal-log-hud"
           >
             <div className="pl-glow" />
