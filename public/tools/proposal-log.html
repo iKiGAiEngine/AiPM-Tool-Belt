@@ -367,6 +367,8 @@ thead .col-frozen{background:var(--bg3);z-index:11;}
 tbody tr:hover .col-frozen{background:var(--bg3);}
 
 .proj-name{font-weight:500;white-space:normal;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;line-height:1.35;}
+.proj-name-link{color:inherit;text-decoration:none;transition:color .15s;}
+.proj-name-link:hover{color:var(--gold);text-decoration:underline;text-underline-offset:2px;}
 .badge{display:inline-flex;align-items:center;gap:3px;padding:2px 7px;border-radius:20px;font-size:10px;font-weight:600;font-family:'Rajdhani',sans-serif;letter-spacing:.5px;text-transform:uppercase;white-space:nowrap;}
 .badge::before{content:'';width:4px;height:4px;border-radius:50%;background:currentColor;flex-shrink:0;}
 .s-lead{background:rgba(100,149,237,.15);color:#6495ED;border:1px solid rgba(100,149,237,.3);}
@@ -1367,7 +1369,8 @@ function buildRows() {
       switch(key) {
         case 'projectName': {
           const testBadge = p._isTest ? '<span style="display:inline-block;font-size:9px;font-weight:700;font-family:Rajdhani,sans-serif;letter-spacing:.5px;background:rgba(201,168,76,.18);color:var(--gold);border:1px solid var(--gold-dim);padding:0 4px;border-radius:3px;margin-right:5px;vertical-align:middle;line-height:16px">TEST</span>' : '';
-          val=`<div class="proj-name" title="${p.projectName||''}">${testBadge}${p.projectName||'\u2014'}</div>`;
+          const estimateLink = p._serverDbId ? `<a class="proj-name-link" href="/estimates/${p._serverDbId}" title="Open Estimate Module">${testBadge}${p.projectName||'\u2014'}</a>` : `${testBadge}${p.projectName||'\u2014'}`;
+          val=`<div class="proj-name" title="${p.projectName||''}">${estimateLink}</div>`;
           break;
         }
         case 'proposalTotal':
