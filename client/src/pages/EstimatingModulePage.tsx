@@ -3280,7 +3280,7 @@ ${html}
                           <div className="text-xs mb-1.5">
                             <span className="font-semibold" style={{ color: "var(--text-muted)" }}>Key Requirements: </span>
                             {sec.keyRequirements.slice(0, 3).map((r, i) => (
-                              <span key={i} style={{ color: "var(--text-secondary)" }}>• {r} </span>
+                              <span key={`${sec._id}-req-${i}`} style={{ color: "var(--text-secondary)" }}>• {r} </span>
                             ))}
                             {sec.keyRequirements.length > 3 && <span style={{ color: "var(--text-muted)" }}>+{sec.keyRequirements.length - 3} more</span>}
                           </div>

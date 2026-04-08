@@ -1,0 +1,123 @@
+Failed to load resource: net::ERR_CACHE_OPERATION_NOT_SUPPORTEDUnderstand this error
+20.c2_6mvda6b4.js:21 Haven't heard from the server in a while, resetting connection...
+(anonymous) @ 0.c2_6mvda6b4.js:21Understand this warning
+5stallwart.build.js:1 stallwart: failed ping 1
+stallwart.build.js:1 stallwart: failed ping 2
+stallwart.build.js:1 stallwart: failed ping 1
+stallwart.build.js:1 stallwart: failed ping 2
+stallwart.build.js:1 stallwart: failed ping 1
+0.c2_6mvda6b4.js:21 Haven't heard from the server in a while, resetting connection...
+(anonymous) @ 0.c2_6mvda6b4.js:21Understand this warning
+stallwart.build.js:1 stallwart: failed ping 1
+1170.c2_6mvda6b4.js:21 Haven't heard from the server in a while, resetting connection...
+(anonymous) @ 0.c2_6mvda6b4.js:21Understand this warning
+stallwart.build.js:1 stallwart: failed ping 1
+stallwart.build.js:1 stallwart: failed ping 2
+stallwart.build.js:1 stallwart: failed ping 3
+5stallwart.build.js:1 stallwart: failed ping 1
+0.c2_6mvda6b4.js:21 Haven't heard from the server in a while, resetting connection...
+(anonymous) @ 0.c2_6mvda6b4.js:21Understand this warning
+stallwart.build.js:1 stallwart: failed ping 1
+stallwart.build.js:1 stallwart: failed ping 2
+stallwart.build.js:1 stallwart: failed ping 1
+stallwart.build.js:1 stallwart: failed ping 2
+0.c2_6mvda6b4.js:21 Haven't heard from the server in a while, resetting connection...
+(anonymous) @ 0.c2_6mvda6b4.js:21Understand this warning
+3stallwart.build.js:1 stallwart: failed ping 1
+0.c2_6mvda6b4.js:21 Haven't heard from the server in a while, resetting connection...
+(anonymous) @ 0.c2_6mvda6b4.js:21Understand this warning
+2stallwart.build.js:1 stallwart: failed ping 1
+stallwart.build.js:1 stallwart: failed ping 2
+stallwart.build.js:1 stallwart: failed ping 1
+150.c2_6mvda6b4.js:21 Haven't heard from the server in a while, resetting connection...
+(anonymous) @ 0.c2_6mvda6b4.js:21Understand this warning
+2stallwart.build.js:1 stallwart: failed ping 1
+stallwart.build.js:1 stallwart: failed ping 2
+stallwart.build.js:1 stallwart: failed ping 3
+stallwart.build.js:1 stallwart: failed ping 4
+stallwart.build.js:1 stallwart: failed ping 5
+1440.c2_6mvda6b4.js:21 Haven't heard from the server in a while, resetting connection...
+(anonymous) @ 0.c2_6mvda6b4.js:21Understand this warning
+sp.replit.com/v1/m:1  Failed to load resource: net::ERR_NETWORK_IO_SUSPENDEDUnderstand this error
+0.c2_6mvda6b4.js:21 Error sending segment performance metrics TypeError: Failed to fetch
+    at 0.c2_6mvda6b4.js:21:10057
+    at o (sdk.min.js:1:23763)
+    at t.<anonymous> (remote-metrics.ts:138:12)
+    at tslib.es6.js:103:23
+    at Object.next (tslib.es6.js:108:37)
+    at tslib.es6.js:80:8
+    at new Promise (<anonymous>)
+    at u (tslib.es6.js:72:27)
+    at t.send (sdk.min.js:1:22021)
+    at t.<anonymous> (remote-metrics.ts:125:16)
+    at tslib.es6.js:103:23
+    at Object.next (tslib.es6.js:108:37)
+    at tslib.es6.js:80:8
+    at new Promise (<anonymous>)
+    at u (tslib.es6.js:72:27)
+    at t.flush (sdk.min.js:1:21754)
+    at l (remote-metrics.ts:83:14)
+    at r (0.c2_6mvda6b4.js:21:3266)
+(anonymous) @ 0.c2_6mvda6b4.js:21Understand this error
+logs.browser-intake-us5-datadoghq.com/api/v2/logs?ddsource=browser&ddtags=sdk_version%3A4.46.0%2Capi%3Afetch%2Cenv%3Aproduction%2Cservice%3Awebsite%2Cversion%3Ad034ca6e&dd-api-key=pub31a5047a3a4692afb84a423db984dc57&dd-evp-origin-version=4.46.0&dd-evp-origin=browser&dd-request-id=7f2eb7f6-bd87-4387-a4d3-b9bcaf8ca532:1  Failed to load resource: net::ERR_NETWORK_IO_SUSPENDEDUnderstand this error
+0bhpsw88sm2d5.js:2 WebSocket connection to 'wss://eval.spock.platform.replit.com/wsv2/v2.public.Q2dZSStlalZ6Z1lTQmdpWWhkYk9CaUlGYzNCdlkyc3dBRHF3QWdva1pqZGpaRGN3WmpFdFpHVmtZaTAwWmpJM0xUaGpPRFV0T1RZek0yWmxORGhtTVRObEVnTnVhWGdhRjNKbGNHeHBkQzF5WlhCc0xXWnBiR1Z6TFhOd2IyTnJJZzVCYVZCTkxWUnZiMnd0UW1Wc2RDb0phR3RyY25WelpXVnJRbEVLR0hKbGNHeHBkQzF5WlhCc0xXSnNiMk5yY3kxemNHOWpheElXY21Wd2JHbDBMWEpsY0d3dGJXVjBZUzF6Y0c5amF4b2RjbVZ3YkdsMExXMWhjbWRoY21sdVpTMWliRzlqYTNNdGMzQnZZMnRLQndpR2xZb1dFQUZRQUZvUGFXNTBaVzUwWDJKMWMybHVaWE56V2hKdmJtSnZZWEprYVc1blgycHZZbDlpYVhwYUYyOXV...G1SSFJWVjFCVVJFUldlV3g0Y1doV1ozQnRVMDlIYmtWYU16SlJjVlZFV2tJNWNVUmhRemRMVXpnbE1rSkxTMHRpYUd3MGFIcFFSa3dsTWtKbmEyVlJlRFZVY1dFbE1rSXlaRE16V21RbE1rSlFWMjgyWW01bGRGRlVObGx4TW1ocVVHaElUVEZSUVVoRE9YRnNUMU55SlRKR2QydDBRV2d3U1c5b2FYTkxUMDVHYTJJeWVYVldZblp6UzNoWGJVbGhhRTVUTWs4d0pUSkNTVTh3TVU1TU1uVlpSMmhZUVZZNVRuZHFkak15VWsxSFoyZEhZalJYVFdsa2FDVXlSa2MxVDJwalQyc3paSEk1UXpWR1MwY3dkM3BSSlRORUpUTkXTZ1MYQJWP4V3lX6-HWINz6YDTnAz842USmivJsHBTeV-eYepYDTvq5q4-N3f7UxiI2KGhxFL3ovj8DOcS7AQN.Q2dad2NtOWtPak1pQ25KbGNHeHBkQzVqYjIwPQ' failed: 
+connect @ 0bhpsw88sm2d5.js:2Understand this error
+logs.browser-intake-us5-datadoghq.com/api/v2/logs?ddsource=browser&ddtags=sdk_version%3A4.46.0%2Capi%3Axhr%2Cenv%3Aproduction%2Cservice%3Awebsite%2Cversion%3Ad034ca6e&dd-api-key=pub31a5047a3a4692afb84a423db984dc57&dd-evp-origin-version=4.46.0&dd-evp-origin=browser&dd-request-id=13e9718a-e6a3-47e9-ba1a-7ebcf96aa165:1  Failed to load resource: net::ERR_NETWORK_IO_SUSPENDEDUnderstand this error
+520.c2_6mvda6b4.js:21 Haven't heard from the server in a while, resetting connection...
+(anonymous) @ 0.c2_6mvda6b4.js:21Understand this warning
+t1.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=http://f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.dev&size=32:1  Failed to load resource: the server responded with a status of 404 ()Understand this error
+t1.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=https://f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.dev/&size=32:1  Failed to load resource: the server responded with a status of 404 ()Understand this error
+workspace_iframe.html?initialPath=%2F&id=default-start-application:32 Unrecognized feature: 'ambient-light-sensor'.Understand this warning
+workspace_iframe.html?initialPath=%2F&id=default-start-application:32 Unrecognized feature: 'battery'.Understand this warning
+workspace_iframe.html?initialPath=%2F&id=default-start-application:32 Unrecognized feature: 'execution-while-not-rendered'.Understand this warning
+workspace_iframe.html?initialPath=%2F&id=default-start-application:32 Unrecognized feature: 'execution-while-out-of-viewport'.Understand this warning
+workspace_iframe.html?initialPath=%2F&id=default-start-application:32 Unrecognized feature: 'layout-animations'.Understand this warning
+workspace_iframe.html?initialPath=%2F&id=default-start-application:32 Unrecognized feature: 'legacy-image-formats'.Understand this warning
+workspace_iframe.html?initialPath=%2F&id=default-start-application:32 Unrecognized feature: 'navigation-override'.Understand this warning
+workspace_iframe.html?initialPath=%2F&id=default-start-application:32 Unrecognized feature: 'oversized-images'.Understand this warning
+workspace_iframe.html?initialPath=%2F&id=default-start-application:32 Unrecognized feature: 'publickey-credentials'.Understand this warning
+workspace_iframe.html?initialPath=%2F&id=default-start-application:32 Unrecognized feature: 'speaker-selection'.Understand this warning
+workspace_iframe.html?initialPath=%2F&id=default-start-application:32 Unrecognized feature: 'unoptimized-images'.Understand this warning
+workspace_iframe.html?initialPath=%2F&id=default-start-application:32 Unrecognized feature: 'unsized-media'.Understand this warning
+workspace_iframe.html?initialPath=%2F&id=default-start-application:32 Allow attribute will take precedence over 'allowfullscreen'.Understand this warning
+workspace_iframe.html?initialPath=%2F&id=default-start-application:32 Allow attribute will take precedence over 'allowpaymentrequest'.Understand this warning
+injected.js:37 Warning: Each child in a list should have a unique "key" prop.%s%s See https://reactjs.org/link/warning-keys for more information.%s 
+
+Check the render method of `EstimatingModulePage`.  
+    at EstimatingModulePage (f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.dev/src/pages/EstimatingModulePage.tsx:87:36)
+    at Route (wouter.js:322:16)
+    at Switch (wouter.js:378:17)
+    at f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.dev/__replco/Router
+    at f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.dev/__replco/div
+    at TestModeProvider (f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.dev/src/lib/testMode.tsx:25:36)
+    at AuthGate (f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.dev/src/App.tsx:197:51)
+    at AuthProvider (f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.dev/src/lib/auth.tsx:29:32)
+    at Provider (chunk-6BRII5CC.js:37:15)
+    at TooltipProvider (@radix-ui_react-tooltip.js:159:5)
+    at ThemeProvider (f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.dev/src/lib/theme.tsx:20:33)
+    at QueryClientProvider (@tanstack_react-query.js:2747:3)
+    at f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.dev/__replco/App
+(anonymous) @ injected.js:37Understand this error
+injected.js:37 Warning: Each child in a list should have a unique "key" prop.
+
+Check the render method of `EstimatingModulePage`. See https://reactjs.org/link/warning-keys for more information.
+    at EstimatingModulePage (https://f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.dev/src/pages/EstimatingModulePage.tsx?t=1775665167229:87:36)
+    at Route (https://f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/wouter.js?v=7dfba68d:322:16)
+    at Switch (https://f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/wouter.js?v=7dfba68d:378:17)
+    at Router
+    at div
+    at TestModeProvider (https://f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.dev/src/lib/testMode.tsx:25:36)
+    at AuthGate (https://f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.dev/src/App.tsx?t=1775665167229:197:51)
+    at AuthProvider (https://f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.dev/src/lib/auth.tsx:29:32)
+    at Provider (https://f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/chunk-6BRII5CC.js?v=7dfba68d:37:15)
+    at TooltipProvider (https://f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/@radix-ui_react-tooltip.js?v=7dfba68d:159:5)
+    at ThemeProvider (https://f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.dev/src/lib/theme.tsx:20:33)
+    at QueryClientProvider (https://f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/@tanstack_react-query.js?v=7dfba68d:2747:3)
+    at App
+(anonymous) @ injected.js:37Understand this error
+f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.dev/api/estimates/line-items/21:1  Failed to load resource: the server responded with a status of 500 (Internal Server Error)Understand this error
+f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.dev/api/estimates/line-items/21:1  Failed to load resource: the server responded with a status of 500 (Internal Server Error)Understand this error
+f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.dev/api/estimates/line-items/21:1  Failed to load resource: the server responded with a status of 500 (Internal Server Error)Understand this error
+f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.dev/api/estimates/line-items/21:1  Failed to load resource: the server responded with a status of 500 (Internal Server Error)Understand this error
+f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.dev/api/estimates/line-items/21:1  Failed to load resource: the server responded with a status of 500 (Internal Server Error)Understand this error
+f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.dev/api/estimates/line-items/21:1  Failed to load resource: the server responded with a status of 500 (Internal Server Error)

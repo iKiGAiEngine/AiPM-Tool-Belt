@@ -434,7 +434,9 @@ export function registerEstimateRoutes(app: Express) {
           }
         }
       }
+      if (Object.keys(updates).length === 0) return res.status(400).json({ message: "No valid fields to update" });
       const [item] = await db.update(estimateLineItems).set(updates).where(eq(estimateLineItems.id, itemId)).returning();
+      if (!item) return res.status(404).json({ message: "Line item not found" });
       res.json(item);
     } catch (err) {
       console.error("PATCH line item error:", err);
