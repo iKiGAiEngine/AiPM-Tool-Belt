@@ -45,11 +45,13 @@ import {
   BookOpen,
   History,
   FileText,
+  KeyRound,
 } from "lucide-react";
 import { Link } from "wouter";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import type { User } from "@shared/schema";
+import { ROLE_LABELS } from "@shared/schema";
 
 function UserFormDialog({
   open,
@@ -285,11 +287,20 @@ export default function AdminPage() {
           <div className="p-4 border-b">
             <div className="flex items-center gap-2">
               <FileText className="w-4 h-4" style={{ color: "var(--gold)" }} />
-              <h2 className="font-heading font-medium">Logs &amp; Audit Center</h2>
+              <h2 className="font-heading font-medium">Admin Tools</h2>
             </div>
-            <p className="text-xs text-muted-foreground mt-1">All log access is restricted to administrators only.</p>
+            <p className="text-xs text-muted-foreground mt-1">Feature access, logs, and audit tools — restricted to administrators only.</p>
           </div>
-          <div className="p-4 grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div className="p-4 grid grid-cols-1 sm:grid-cols-4 gap-3">
+            <Link href="/admin/permissions" data-testid="link-user-permissions">
+              <div className="flex items-start gap-3 p-3 rounded-md border border-border hover:border-primary/50 hover:bg-muted/40 transition-all cursor-pointer group">
+                <KeyRound className="w-4 h-4 mt-0.5 shrink-0" style={{ color: "var(--gold)" }} />
+                <div>
+                  <div className="font-medium text-sm font-heading group-hover:text-foreground">Feature Access</div>
+                  <div className="text-xs text-muted-foreground">Control which tools each user can access</div>
+                </div>
+              </div>
+            </Link>
             <Link href="/changelog" data-testid="link-changelog">
               <div className="flex items-start gap-3 p-3 rounded-md border border-border hover:border-primary/50 hover:bg-muted/40 transition-all cursor-pointer group">
                 <BookOpen className="w-4 h-4 mt-0.5 shrink-0" style={{ color: "var(--gold)" }} />
@@ -376,9 +387,9 @@ export default function AdminPage() {
                           data-testid={`badge-role-${u.id}`}
                         >
                           {u.role === "admin" ? (
-                            <><ShieldCheck className="w-3 h-3 mr-1" /> Admin</>
+                            <><ShieldCheck className="w-3 h-3 mr-1" />Admin</>
                           ) : (
-                            "User"
+                            ROLE_LABELS[u.role] || u.role
                           )}
                         </Badge>
                       </TableCell>
@@ -405,6 +416,16 @@ export default function AdminPage() {
                           >
                             <Pencil className="w-4 h-4 text-muted-foreground" />
                           </Button>
+                          <Link href="/admin/permissions">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              title="Manage feature access"
+                              data-testid={`button-permissions-${u.id}`}
+                            >
+                              <KeyRound className="w-4 h-4 text-muted-foreground" />
+                            </Button>
+                          </Link>
                           <Button
                             variant="ghost"
                             size="icon"
@@ -429,7 +450,7 @@ export default function AdminPage() {
                               })
                             }
                             disabled={changeRoleMutation.isPending}
-                            title={u.role === "admin" ? "Demote to user" : "Promote to admin"}
+                            title={u.role === "admin" ? "Demote to Estimator" : "Promote to Admin"}
                             data-testid={`button-change-role-${u.id}`}
                           >
                             {u.role === "admin" ? (

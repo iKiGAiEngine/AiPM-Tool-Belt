@@ -415,6 +415,42 @@ export function registerAdminRoutes(app: Express) {
     }
   });
 
+  // Grant a single feature to a user
+  app.post("/api/admin/users/:id/permissions/grant", requireAdmin, async (req: Request, res: Response) => {
+    try {
+      const userId = parseInt(req.params.id);
+      const { feature } = req.body as { feature: string };
+      const validFeatures = Object.values(FEATURES);
+      if (!feature || !validFeatures.includes(feature as any)) {
+        return res.status(400).json({ message: "Invalid feature" });
+      }
+      const current = await storage.getUserFeatureAccess(userId);
+      const next = Array.from(new Set([...current, feature])) as Feature[];
+      await storage.setUserFeatureAccess(userId, next);
+      res.json({ success: true, features: next });
+    } catch (error) {
+      res.status(500).json({ message: "Failed to grant permission" });
+    }
+  });
+
+  // Revoke a single feature from a user
+  app.post("/api/admin/users/:id/permissions/revoke", requireAdmin, async (req: Request, res: Response) => {
+    try {
+      const userId = parseInt(req.params.id);
+      const { feature } = req.body as { feature: string };
+      const validFeatures = Object.values(FEATURES);
+      if (!feature || !validFeatures.includes(feature as any)) {
+        return res.status(400).json({ message: "Invalid feature" });
+      }
+      const current = await storage.getUserFeatureAccess(userId);
+      const next = current.filter((f) => f !== feature);
+      await storage.setUserFeatureAccess(userId, next);
+      res.json({ success: true, features: next });
+    } catch (error) {
+      res.status(500).json({ message: "Failed to revoke permission" });
+    }
+  });
+
   // Get all available features
   app.get("/api/admin/features", requireAdmin, async (req: Request, res: Response) => {
     try {
