@@ -8,6 +8,8 @@ import {
 } from "@shared/schema";
 import OpenAI from "openai";
 import multer from "multer";
+import * as pdfParseModule from "pdf-parse";
+const pdfParse = (pdfParseModule as any).default || pdfParseModule;
 import { extractScheduleWithAI } from "./openaiScheduleExtractor";
 import { extractScheduleFromText } from "./openaiScheduleExtractor";
 
@@ -20,6 +22,15 @@ const estimateImageUpload = multer({
     } else {
       cb(new Error("Only image files are allowed"));
     }
+  },
+});
+
+const estimatePdfUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 150 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    if (file.mimetype === "application/pdf") cb(null, true);
+    else cb(new Error("Only PDF files are allowed"));
   },
 });
 
@@ -842,6 +853,32 @@ Category context: ${catLabel || category || "Division 10 Specialties"}`;
       console.error("POST extract-spec-text error:", err);
       res.status(500).json({ message: err.message || "Spec extraction failed" });
     }
+  });
+
+  // POST /api/estimates/:id/extract-spec-pdf — extract spec sections from a PDF file
+  app.post("/api/estimates/:id/extract-spec-pdf", (req: Request, res: Response, next: Function) => {
+    estimatePdfUpload.single("pdf")(req, res, async (err: any) => {
+      if (err) {
+        if (err.code === "LIMIT_FILE_SIZE") return res.status(400).json({ message: "PDF too large (max 150MB)" });
+        return res.status(400).json({ message: err.message || "Invalid file upload" });
+      }
+      try {
+        const estimateId = parseInt(req.params.id);
+        if (isNaN(estimateId)) return res.status(400).json({ message: "Invalid estimate id" });
+        const file = req.file as Express.Multer.File | undefined;
+        if (!file) return res.status(400).json({ message: "No PDF uploaded" });
+
+        const parsed = await pdfParse(file.buffer);
+        const text = parsed.text || "";
+        if (!text.trim()) return res.status(422).json({ message: "Could not extract text from this PDF. Try the image upload mode instead." });
+
+        const sections = await extractSpecSectionsFromText(openai, text.trim());
+        res.json({ sections, total: sections.length, pageCount: parsed.numpages });
+      } catch (err: any) {
+        console.error("POST extract-spec-pdf error:", err);
+        res.status(500).json({ message: err.message || "Spec extraction failed" });
+      }
+    });
   });
 
   // POST /api/estimates/:id/save-spec-sections — save approved spec sections

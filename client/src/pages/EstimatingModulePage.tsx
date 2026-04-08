@@ -308,7 +308,7 @@ export default function EstimatingModulePage() {
   const [showScheduleExtractor, setShowScheduleExtractor] = useState(false);
   const [showSpecExtractor, setShowSpecExtractor] = useState(false);
   const [extractorTab, setExtractorTab] = useState<"image" | "text">("image");
-  const [specExtractorTab, setSpecExtractorTab] = useState<"image" | "text">("image");
+  const [specExtractorTab, setSpecExtractorTab] = useState<"image" | "text" | "pdf">("pdf");
   const [extractedItems, setExtractedItems] = useState<ExtractedItem[]>([]);
   const [extractedSpecs, setExtractedSpecs] = useState<ExtractedSpecSection[]>([]);
   const [extracting, setExtracting] = useState(false);
@@ -318,10 +318,13 @@ export default function EstimatingModulePage() {
   const [schedulePasteCount, setSchedulePasteCount] = useState(0);
   const [specPasteText, setSpecPasteText] = useState("");
   const [specDropActive, setSpecDropActive] = useState(false);
+  const [specPdfDropActive, setSpecPdfDropActive] = useState(false);
+  const [specPdfFile, setSpecPdfFile] = useState<File | null>(null);
   const [expandedSpecSections, setExpandedSpecSections] = useState<Set<string>>(new Set());
   const [expandedSpecPanels, setExpandedSpecPanels] = useState<Set<string>>(new Set());
   const scheduleImageInputRef = useRef<HTMLInputElement>(null);
   const specImageInputRef = useRef<HTMLInputElement>(null);
+  const specPdfInputRef = useRef<HTMLInputElement>(null);
 
   // ── Fetch regions for dropdown ──
   const { data: dbRegions = [] } = useQuery<{ id: number; code: string; name: string | null; isActive: boolean }[]>({
@@ -1082,6 +1085,28 @@ ${html}
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ text }),
       });
+      if (!r.ok) throw new Error((await r.json()).message || "Spec extraction failed");
+      const data = await r.json();
+      const sections: ExtractedSpecSection[] = (data.sections || []).map((s: any, i: number) => ({
+        ...s,
+        _selected: true,
+        _id: `spec-${Date.now()}-${i}`,
+      }));
+      setExtractedSpecs(sections);
+    } catch (err: any) {
+      toast({ title: "Spec extraction failed", description: err.message, variant: "destructive" });
+    } finally {
+      setExtracting(false);
+    }
+  }, [estimateId, toast]);
+
+  const runSpecExtractPdf = useCallback(async (file: File) => {
+    if (!estimateId) return;
+    setExtracting(true);
+    try {
+      const fd = new FormData();
+      fd.append("pdf", file);
+      const r = await fetch(`/api/estimates/${estimateId}/extract-spec-pdf`, { method: "POST", body: fd, credentials: "include" });
       if (!r.ok) throw new Error((await r.json()).message || "Spec extraction failed");
       const data = await r.json();
       const sections: ExtractedSpecSection[] = (data.sections || []).map((s: any, i: number) => ({
@@ -2974,7 +2999,7 @@ ${html}
               {extractedSpecs.length === 0 && (
                 <>
                   <div className="flex gap-1 mb-4 p-1 rounded-lg" style={{ background: "var(--bg3)" }}>
-                    {[{ id: "image", label: "📷 Upload Spec Pages" }, { id: "text", label: "📋 Paste Spec Text" }].map(t => (
+                    {[{ id: "pdf", label: "📄 Upload PDF" }, { id: "image", label: "📷 Spec Screenshots" }, { id: "text", label: "📋 Paste Text" }].map(t => (
                       <button key={t.id} onClick={() => setSpecExtractorTab(t.id as any)}
                         className="flex-1 text-xs px-3 py-2 rounded font-semibold transition-all"
                         style={{ background: specExtractorTab === t.id ? "var(--gold)" : "transparent", color: specExtractorTab === t.id ? "#000" : "var(--text-muted)" }}>
@@ -2982,6 +3007,72 @@ ${html}
                       </button>
                     ))}
                   </div>
+
+                  {specExtractorTab === "pdf" && (
+                    <div>
+                      <input ref={specPdfInputRef} type="file" accept=".pdf,application/pdf" className="hidden"
+                        onChange={e => {
+                          const f = e.target.files?.[0];
+                          if (f) { setSpecPdfFile(f); }
+                          e.target.value = "";
+                        }} />
+                      {!specPdfFile ? (
+                        <div
+                          onClick={() => specPdfInputRef.current?.click()}
+                          onDragOver={e => { e.preventDefault(); setSpecPdfDropActive(true); }}
+                          onDragLeave={e => { e.preventDefault(); setSpecPdfDropActive(false); }}
+                          onDrop={e => {
+                            e.preventDefault();
+                            setSpecPdfDropActive(false);
+                            const f = Array.from(e.dataTransfer.files).find(f => f.type === "application/pdf" || f.name.toLowerCase().endsWith(".pdf"));
+                            if (f) setSpecPdfFile(f);
+                            else toast({ title: "Not a PDF", description: "Please drop a PDF file.", variant: "destructive" });
+                          }}
+                          className="border-2 border-dashed rounded-xl p-10 text-center cursor-pointer transition-all"
+                          style={{
+                            borderColor: specPdfDropActive ? "var(--gold)" : "var(--gold)40",
+                            background: specPdfDropActive ? "rgba(200,164,78,0.12)" : "rgba(200,164,78,0.05)",
+                            transform: specPdfDropActive ? "scale(1.01)" : "scale(1)",
+                          }}
+                        >
+                          <FileText className="w-10 h-10 mx-auto mb-3" style={{ color: specPdfDropActive ? "var(--gold)" : "var(--gold)99" }} />
+                          <p className="text-sm font-semibold" style={{ color: "var(--gold)" }}>
+                            {specPdfDropActive ? "Drop your spec PDF here" : "Drag & drop spec PDF, or click to browse"}
+                          </p>
+                          <p className="text-xs mt-1" style={{ color: "var(--text-muted)" }}>
+                            {specPdfDropActive ? "Release to load" : "Full project spec books supported — up to 150 MB"}
+                          </p>
+                        </div>
+                      ) : (
+                        <div className="rounded-xl p-5" style={{ background: "rgba(200,164,78,0.08)", border: "1px solid rgba(200,164,78,0.3)" }}>
+                          <div className="flex items-start gap-3">
+                            <FileText className="w-8 h-8 flex-shrink-0 mt-0.5" style={{ color: "var(--gold)" }} />
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-semibold truncate" style={{ color: "var(--text)" }}>{specPdfFile.name}</p>
+                              <p className="text-xs mt-0.5" style={{ color: "var(--text-muted)" }}>
+                                {(specPdfFile.size / 1024 / 1024).toFixed(1)} MB — ready to extract
+                              </p>
+                            </div>
+                            <button onClick={() => setSpecPdfFile(null)} className="text-lg leading-none px-1" style={{ color: "var(--text-muted)" }}>×</button>
+                          </div>
+                          <button
+                            onClick={() => runSpecExtractPdf(specPdfFile)}
+                            disabled={extracting}
+                            className="mt-4 w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-semibold"
+                            style={{ background: "var(--gold)", color: "#000", opacity: extracting ? 0.6 : 1 }}
+                          >
+                            {extracting ? <><Loader2 className="w-4 h-4 animate-spin" /> Extracting Division 10 sections…</> : "Extract Spec Sections from PDF"}
+                          </button>
+                        </div>
+                      )}
+                      {extracting && (
+                        <div className="flex items-center justify-center gap-2 mt-4" style={{ color: "var(--gold)" }}>
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                          <span className="text-sm">Reading PDF and finding Division 10 sections…</span>
+                        </div>
+                      )}
+                    </div>
+                  )}
 
                   {specExtractorTab === "image" && (
                     <div>
