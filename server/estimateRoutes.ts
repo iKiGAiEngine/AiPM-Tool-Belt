@@ -164,7 +164,7 @@ async function extractSpecSectionsFromText(openai: OpenAI, text: string): Promis
     max_tokens: 8000,
     messages: [
       { role: "system", content: SPEC_EXTRACT_SYSTEM },
-      { role: "user", content: `Extract Division 10 specification sections from this text:\n\n${text.substring(0, 40000)}` },
+      { role: "user", content: `Extract Division 10 specification sections from this text:\n\n${text.substring(0, 50000)}` },
     ],
   });
   const content = response.choices[0]?.message?.content || "{}";
@@ -200,6 +200,72 @@ async function extractSpecSectionsFromImages(openai: OpenAI, images: { base64: s
   } catch {
     return [];
   }
+}
+
+/**
+ * For large spec books (full bid packs), Division 10 sections are buried deep.
+ * This function scans the full PDF text, finds every Division 10 section marker,
+ * and returns only those segments (up to ~50 000 chars) for the AI to analyze.
+ * Falls back to the first 50 000 chars when no markers are found.
+ */
+function extractDiv10Segments(fullText: string, maxChars = 50000): string {
+  // Match common patterns for Division 10 CSI section numbers and headers
+  const div10Markers = [
+    /\bDIVISION\s+10\b/gi,
+    /\bSECTION\s+10\s*[\d\s]/gi,
+    /\b10\s+\d{2}\s+\d{2}\b/g,   // e.g. "10 28 00"
+    /\b10\s+\d{2}\s+00\b/g,
+    /\b102[1-9]\d{2}\b/g,         // compact: 10280, 10210, etc.
+  ];
+
+  const positions: number[] = [];
+  for (const pattern of div10Markers) {
+    let m: RegExpExecArray | null;
+    while ((m = pattern.exec(fullText)) !== null) {
+      positions.push(m.index);
+    }
+  }
+
+  if (positions.length === 0) {
+    // No Division 10 markers found — sample across doc so AI has something to work with
+    const len = fullText.length;
+    if (len <= maxChars) return fullText;
+    const chunk = Math.floor(maxChars / 3);
+    return [
+      fullText.substring(0, chunk),
+      fullText.substring(Math.max(0, Math.floor(len / 2) - Math.floor(chunk / 2)), Math.floor(len / 2) + Math.floor(chunk / 2)),
+      fullText.substring(Math.max(0, len - chunk)),
+    ].join("\n\n--- (sampled from document) ---\n\n");
+  }
+
+  // Sort and build merged segments with context around each match
+  const sorted = [...new Set(positions)].sort((a, b) => a - b);
+  const BEFORE = 400;
+  const AFTER = 4000;
+  const segments: Array<{ start: number; end: number }> = [];
+
+  for (const pos of sorted) {
+    const start = Math.max(0, pos - BEFORE);
+    const end = Math.min(fullText.length, pos + AFTER);
+    const last = segments[segments.length - 1];
+    if (last && start <= last.end) {
+      last.end = Math.max(last.end, end);
+    } else {
+      segments.push({ start, end });
+    }
+  }
+
+  const parts: string[] = [];
+  let total = 0;
+  for (const seg of segments) {
+    if (total >= maxChars) break;
+    const remaining = maxChars - total;
+    const chunk = fullText.substring(seg.start, Math.min(seg.end, seg.start + remaining));
+    parts.push(chunk);
+    total += chunk.length;
+  }
+
+  return parts.join("\n\n--- Section Break ---\n\n");
 }
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
@@ -868,11 +934,17 @@ Category context: ${catLabel || category || "Division 10 Specialties"}`;
         const file = req.file as Express.Multer.File | undefined;
         if (!file) return res.status(400).json({ message: "No PDF uploaded" });
 
-        const parsed = await pdfParse(file.buffer);
-        const text = parsed.text || "";
-        if (!text.trim()) return res.status(422).json({ message: "Could not extract text from this PDF. Try the image upload mode instead." });
+        const parsed = await pdfParse(file.buffer, { max: 0 });
+        const fullText = parsed.text || "";
+        if (!fullText.trim()) return res.status(422).json({ message: "Could not extract text from this PDF. Try uploading spec page screenshots instead." });
 
-        const sections = await extractSpecSectionsFromText(openai, text.trim());
+        // For large spec books / full bid packs, Division 10 sections are buried deep in the document.
+        // We find Division 10 markers and extract the relevant segments rather than blindly
+        // truncating to the first 40 000 chars (which would only cover the front matter).
+        const div10Text = extractDiv10Segments(fullText);
+        console.log(`[SpecPDF] ${file.originalname}: ${parsed.numpages} pages, ${Math.round(fullText.length / 1000)}k chars extracted, ${Math.round(div10Text.length / 1000)}k chars of Div 10 content sent to AI`);
+
+        const sections = await extractSpecSectionsFromText(openai, div10Text);
         res.json({ sections, total: sections.length, pageCount: parsed.numpages });
       } catch (err: any) {
         console.error("POST extract-spec-pdf error:", err);
