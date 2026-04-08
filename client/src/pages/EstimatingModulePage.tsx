@@ -316,6 +316,8 @@ export default function EstimatingModulePage() {
   const [savingSpecs, setSavingSpecs] = useState(false);
   const [extractPasteText, setExtractPasteText] = useState("");
   const [schedulePasteCount, setSchedulePasteCount] = useState(0);
+  const [scheduleClipboardImages, setScheduleClipboardImages] = useState<File[]>([]);
+  const [scheduleImagePasteCount, setScheduleImagePasteCount] = useState(0);
   const [specPasteText, setSpecPasteText] = useState("");
   const [specDropActive, setSpecDropActive] = useState(false);
   const [specPdfDropActive, setSpecPdfDropActive] = useState(false);
@@ -1040,6 +1042,10 @@ ${html}
       qc.invalidateQueries({ queryKey: ["/api/estimates/by-proposal", proposalLogId] });
       setShowScheduleExtractor(false);
       setExtractedItems([]);
+      setScheduleClipboardImages([]);
+      setScheduleImagePasteCount(0);
+      setExtractPasteText("");
+      setSchedulePasteCount(0);
       const scopeBreakdown = newScopes.map(s => {
         const scopeLabel = ALL_SCOPES.find(sc => sc.id === s)?.label || s;
         const count = toImport.filter(i => i._assignedScope === s).length;
@@ -2768,7 +2774,7 @@ ${html}
                 <h2 className="text-base font-bold" style={{ color: "#06b6d4" }}>Extract from Schedules</h2>
                 {extractedItems.length > 0 && <span className="text-xs px-2 py-0.5 rounded" style={{ background: "#06b6d420", color: "#06b6d4" }}>{extractedItems.length} items extracted</span>}
               </div>
-              <button onClick={() => setShowScheduleExtractor(false)} className="text-xl leading-none" style={{ color: "var(--text-muted)" }}>×</button>
+              <button onClick={() => { setShowScheduleExtractor(false); setScheduleClipboardImages([]); setScheduleImagePasteCount(0); }} className="text-xl leading-none" style={{ color: "var(--text-muted)" }}>×</button>
             </div>
 
             <div className="p-5 flex-1">
@@ -2787,18 +2793,110 @@ ${html}
 
                   {extractorTab === "image" && (
                     <div>
+                      {/* Hidden file input — adds to queue instead of extracting immediately */}
                       <input ref={scheduleImageInputRef} type="file" multiple accept="image/*" className="hidden"
-                        onChange={e => { const f = Array.from(e.target.files || []); if (f.length > 0) runScheduleExtractImages(f); }} />
+                        onChange={e => {
+                          const files = Array.from(e.target.files || []);
+                          if (files.length > 0) {
+                            setScheduleClipboardImages(prev => [...prev, ...files]);
+                            setScheduleImagePasteCount(c => c + files.length);
+                          }
+                          e.target.value = "";
+                        }} />
+
+                      {/* Primary CTA — clipboard paste */}
+                      <div className="flex items-center gap-2 mb-3">
+                        <button
+                          onClick={async () => {
+                            try {
+                              const clipItems = await navigator.clipboard.read();
+                              let found = false;
+                              for (const clipItem of clipItems) {
+                                for (const type of clipItem.types) {
+                                  if (type.startsWith("image/")) {
+                                    const blob = await clipItem.getType(type);
+                                    const ext = type.split("/")[1] || "png";
+                                    const file = new File([blob], `schedule-paste-${Date.now()}.${ext}`, { type });
+                                    setScheduleClipboardImages(prev => [...prev, file]);
+                                    setScheduleImagePasteCount(c => c + 1);
+                                    found = true;
+                                  }
+                                }
+                              }
+                              if (!found) toast({ title: "No image in clipboard", description: "Take a screenshot first, then paste here.", variant: "destructive" });
+                            } catch {
+                              toast({ title: "Paste blocked", description: "Allow clipboard access or use the file upload below.", variant: "destructive" });
+                            }
+                          }}
+                          className="flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-semibold flex-shrink-0"
+                          style={{ background: "#06b6d4", color: "#fff" }}
+                          data-testid="btn-clipboard-paste-schedule-image"
+                        >
+                          <ClipboardPaste className="w-4 h-4" /> Paste from Clipboard
+                        </button>
+                        {scheduleImagePasteCount > 0 && (
+                          <span className="text-xs px-2 py-0.5 rounded" style={{ background: "#06b6d420", color: "#06b6d4" }}>
+                            {scheduleImagePasteCount} image{scheduleImagePasteCount !== 1 ? "s" : ""} accumulated
+                          </span>
+                        )}
+                        {scheduleClipboardImages.length > 0 && (
+                          <button
+                            onClick={() => { setScheduleClipboardImages([]); setScheduleImagePasteCount(0); }}
+                            className="text-xs px-2 py-1 rounded ml-auto"
+                            style={{ color: "var(--text-muted)" }}
+                          >
+                            Clear All
+                          </button>
+                        )}
+                      </div>
+
+                      <p className="text-xs mb-3" style={{ color: "var(--text-muted)" }}>
+                        Each paste appends to the batch. Paste multiple schedule pages before extracting.
+                      </p>
+
+                      {/* Queue preview */}
+                      {scheduleClipboardImages.length > 0 && (
+                        <div className="mb-3 rounded-lg p-3 space-y-1" style={{ background: "var(--bg3)", border: "1px solid #06b6d430" }}>
+                          {scheduleClipboardImages.map((f, i) => (
+                            <div key={i} className="flex items-center justify-between text-xs" style={{ color: "var(--text-secondary)" }}>
+                              <span>📷 {f.name}</span>
+                              <button
+                                onClick={() => {
+                                  setScheduleClipboardImages(prev => prev.filter((_, j) => j !== i));
+                                  setScheduleImagePasteCount(c => Math.max(0, c - 1));
+                                }}
+                                className="text-xs ml-2" style={{ color: "var(--text-muted)" }}>×</button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Secondary — file upload dropzone */}
                       <div
                         onClick={() => scheduleImageInputRef.current?.click()}
-                        className="border-2 border-dashed rounded-xl p-10 text-center cursor-pointer transition-all"
-                        style={{ borderColor: "#06b6d440", background: "#06b6d408" }}
+                        className="border-2 border-dashed rounded-xl p-5 text-center cursor-pointer transition-all mb-3"
+                        style={{ borderColor: "#06b6d430", background: "#06b6d405" }}
                       >
-                        <Upload className="w-10 h-10 mx-auto mb-3" style={{ color: "#06b6d4" }} />
-                        <p className="text-sm font-semibold" style={{ color: "#06b6d4" }}>Click to upload plan images</p>
-                        <p className="text-xs mt-1" style={{ color: "var(--text-muted)" }}>PNG, JPG — screenshots or photos of schedule pages. Up to 20 files.</p>
+                        <Upload className="w-6 h-6 mx-auto mb-1" style={{ color: "#06b6d480" }} />
+                        <p className="text-xs" style={{ color: "var(--text-muted)" }}>Or click to upload image files — PNG, JPG, up to 20 at once</p>
                       </div>
-                      {extracting && (
+
+                      {/* Extract button — only visible once images are queued */}
+                      {scheduleClipboardImages.length > 0 && (
+                        <button
+                          onClick={() => runScheduleExtractImages(scheduleClipboardImages)}
+                          disabled={extracting}
+                          className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-semibold"
+                          style={{ background: "#06b6d4", color: "#fff", opacity: extracting ? 0.6 : 1 }}
+                          data-testid="btn-extract-schedule-images"
+                        >
+                          {extracting
+                            ? <><Loader2 className="w-4 h-4 animate-spin" /> Extracting…</>
+                            : `Extract Line Items (${scheduleClipboardImages.length} image${scheduleClipboardImages.length !== 1 ? "s" : ""} combined)`}
+                        </button>
+                      )}
+
+                      {extracting && scheduleClipboardImages.length === 0 && (
                         <div className="flex items-center justify-center gap-2 mt-4" style={{ color: "#06b6d4" }}>
                           <Loader2 className="w-4 h-4 animate-spin" />
                           <span className="text-sm">Extracting line items with AI…</span>
@@ -2883,7 +2981,7 @@ ${html}
                     </span>
                     <button onClick={() => setExtractedItems(prev => prev.map(i => ({ ...i, _selected: true })))} className="text-xs px-2 py-1 rounded" style={{ background: "var(--bg3)", color: "var(--text-secondary)" }}>Select All</button>
                     <button onClick={() => setExtractedItems(prev => prev.map(i => ({ ...i, _selected: false })))} className="text-xs px-2 py-1 rounded" style={{ background: "var(--bg3)", color: "var(--text-secondary)" }}>Deselect All</button>
-                    <button onClick={() => { setExtractedItems([]); }} className="text-xs px-2 py-1 rounded ml-auto" style={{ color: "var(--text-muted)" }}>← Start Over</button>
+                    <button onClick={() => { setExtractedItems([]); setScheduleClipboardImages([]); setScheduleImagePasteCount(0); setExtractPasteText(""); setSchedulePasteCount(0); }} className="text-xs px-2 py-1 rounded ml-auto" style={{ color: "var(--text-muted)" }}>← Start Over</button>
                   </div>
 
                   <div className="overflow-x-auto">
@@ -2963,7 +3061,7 @@ ${html}
                     : `Ready to import ${extractedItems.filter(i => i._selected).length} items`}
                 </span>
                 <div className="flex gap-2">
-                  <button onClick={() => setShowScheduleExtractor(false)} className="text-xs px-4 py-2 rounded" style={{ background: "var(--bg3)", color: "var(--text-muted)" }}>Cancel</button>
+                  <button onClick={() => { setShowScheduleExtractor(false); setScheduleClipboardImages([]); setScheduleImagePasteCount(0); }} className="text-xs px-4 py-2 rounded" style={{ background: "var(--bg3)", color: "var(--text-muted)" }}>Cancel</button>
                   <button
                     onClick={importExtractedItems}
                     disabled={importingItems || extractedItems.filter(i => i._selected).length === 0}
