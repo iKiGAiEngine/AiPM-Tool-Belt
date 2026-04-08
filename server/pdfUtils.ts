@@ -1,16 +1,12 @@
 /**
  * Shared PDF text extraction using pdfjs-dist (the real underlying engine).
- * Replaces the broken pdf-parse v2 wrapper which changed its API entirely.
  */
 
-let _pdfjsLib: typeof import("pdfjs-dist") | null = null;
+let _pdfjsLib: any = null;
 
 async function getPdfjs() {
   if (!_pdfjsLib) {
-    // Use legacy build for Node.js (no canvas / DOM dependency)
-    _pdfjsLib = await import("pdfjs-dist/legacy/build/pdf.mjs" as any) as unknown as typeof import("pdfjs-dist");
-    // Disable web worker — we're in Node.js
-    (_pdfjsLib as any).GlobalWorkerOptions.workerSrc = "";
+    _pdfjsLib = await import("pdfjs-dist/legacy/build/pdf.mjs");
   }
   return _pdfjsLib;
 }
@@ -20,24 +16,17 @@ export interface PdfResult {
   numpages: number;
 }
 
-/**
- * Extract all text from a PDF buffer. Processes up to `maxPages` pages
- * (default 800) to avoid hanging on extremely large documents.
- */
-export async function extractPdfText(
-  buffer: Buffer,
-  maxPages = 800,
-): Promise<PdfResult> {
+export async function extractPdfText(buffer: Buffer, maxPages = 800): Promise<PdfResult> {
   const pdfjsLib = await getPdfjs();
   const data = new Uint8Array(buffer);
-
-  const doc = await (pdfjsLib as any).getDocument({
+  const loadingTask = pdfjsLib.getDocument({
     data,
     verbosity: 0,
     disableFontFace: true,
     useSystemFonts: false,
-  }).promise;
-
+    isEvalSupported: false,
+  });
+  const doc = await loadingTask.promise;
   const numpages: number = doc.numPages;
   const limit = Math.min(numpages, maxPages);
   const pageParts: string[] = [];
@@ -54,6 +43,5 @@ export async function extractPdfText(
   }
 
   await doc.destroy();
-
   return { text: pageParts.join("\n"), numpages };
 }
