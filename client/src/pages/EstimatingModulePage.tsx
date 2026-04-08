@@ -1298,7 +1298,7 @@ ${html}
             <span className="text-xs font-bold" style={{ color: progress.overall >= 100 ? "#22c55e" : "var(--gold)", minWidth: 40 }}>
               {Math.round(progress.overall)}%
             </span>
-            {[
+              {[
               { label: "Intake", pct: progress.intakePct, color: "var(--gold)" },
               { label: "Line Items", pct: progress.lineItemsPct, color: "#22c55e" },
               { label: "Markups", pct: progress.calcsPct, color: "#f97316" },
@@ -1319,7 +1319,7 @@ ${html}
 
           {/* Stage nav */}
           <div className="flex gap-2 mt-3 overflow-x-auto pb-1">
-            {[
+              {[
               { id: "intake", num: "1", label: "Project Intake", color: "var(--gold)" },
               { id: "lineItems", num: "2", label: "Line Items", color: "#22c55e" },
               { id: "calculations", num: "3", label: "Markups & Totals", color: "#f97316" },
@@ -2858,7 +2858,7 @@ ${html}
                       {scheduleClipboardImages.length > 0 && (
                         <div className="mb-3 rounded-lg p-3 space-y-1" style={{ background: "var(--bg3)", border: "1px solid #06b6d430" }}>
                           {scheduleClipboardImages.map((f, i) => (
-                            <div key={i} className="flex items-center justify-between text-xs" style={{ color: "var(--text-secondary)" }}>
+                            <div key={`${f.name}-${i}`} className="flex items-center justify-between text-xs" style={{ color: "var(--text-secondary)" }}>
                               <span>📷 {f.name}</span>
                               <button
                                 onClick={() => {
@@ -3244,7 +3244,7 @@ ${html}
 
                   <div className="space-y-3">
                     {extractedSpecs.map((sec, idx) => (
-                      <div key={sec._id} className="rounded-lg p-4" style={{
+                      <div key={sec._id || `sec-${idx}`} className="rounded-lg p-4" style={{
                         background: sec._selected ? "var(--bg3)" : "var(--bg-card)",
                         border: `1px solid ${sec._selected ? "var(--gold)40" : "var(--border-ds)"}`,
                         opacity: sec._selected ? 1 : 0.5,
