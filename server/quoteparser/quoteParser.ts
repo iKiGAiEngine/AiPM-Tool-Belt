@@ -1,5 +1,4 @@
-import * as pdfParseModule from "pdf-parse";
-const pdfParse = (pdfParseModule as any).default || pdfParseModule;
+import { extractPdfText } from "../pdfUtils";
 import { createWorker, Worker } from "tesseract.js";
 import sharp from "sharp";
 import { execSync } from "child_process";
@@ -43,7 +42,7 @@ export async function extractTextFromFile(
 
   if (mimeType === "application/pdf") {
     try {
-      const data = await pdfParse(buffer);
+      const data = await extractPdfText(buffer);
       if (data.text.trim().length < 50) {
         warnings.push("PDF has minimal text, attempting OCR");
         const ocrText = await performOcrOnPdf(buffer);

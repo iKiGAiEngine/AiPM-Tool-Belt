@@ -8,8 +8,7 @@ import {
 } from "@shared/schema";
 import OpenAI from "openai";
 import multer from "multer";
-import * as pdfParseModule from "pdf-parse";
-const pdfParse = (pdfParseModule as any).default || pdfParseModule;
+import { extractPdfText } from "./pdfUtils";
 import { extractScheduleWithAI } from "./openaiScheduleExtractor";
 import { extractScheduleFromText } from "./openaiScheduleExtractor";
 
@@ -934,7 +933,7 @@ Category context: ${catLabel || category || "Division 10 Specialties"}`;
         const file = req.file as Express.Multer.File | undefined;
         if (!file) return res.status(400).json({ message: "No PDF uploaded" });
 
-        const parsed = await pdfParse(file.buffer, { max: 0 });
+        const parsed = await extractPdfText(file.buffer);
         const fullText = parsed.text || "";
         if (!fullText.trim()) return res.status(422).json({ message: "Could not extract text from this PDF. Try uploading spec page screenshots instead." });
 
