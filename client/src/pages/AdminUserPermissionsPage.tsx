@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -6,6 +6,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, RotateCcw, Zap } from "lucide-react";
+import { ROLE_LABELS } from "@shared/schema";
 
 interface UserWithPermissions {
   id: number;
@@ -53,8 +54,9 @@ export function AdminUserPermissionsPage() {
   });
 
   // Deduplicate users by id
-  const users = Array.from(
-    new Map(rawUsers.map((user) => [user.id, user])).values()
+  const users = useMemo(
+    () => Array.from(new Map(rawUsers.map((user) => [user.id, user])).values()),
+    [rawUsers]
   );
 
   const { data: profiles = [], isLoading: profilesLoading } = useQuery({
@@ -87,19 +89,65 @@ export function AdminUserPermissionsPage() {
     },
   });
 
+  const grantFeatureMutation = useMutation({
+    mutationFn: async ({ userId, feature }: { userId: number; feature: string }) => {
+      const res = await apiRequest("POST", `/api/admin/users/${userId}/permissions/grant`, { feature });
+      return res;
+    },
+    onSuccess: async (_, { userId }) => {
+      const res = await fetch("/api/admin/users/permissions/matrix");
+      const data = (await res.json()) as UserWithPermissions[];
+      const user = data.find((u) => u.id === userId);
+      if (user) {
+        setUserFeatures((prev) => ({
+          ...prev,
+          [userId]: new Set(user.features),
+        }));
+      }
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/users/permissions/matrix"] });
+      toast({ title: "Permission granted" });
+    },
+    onError: () => {
+      toast({ title: "Failed to grant permission", variant: "destructive" });
+    },
+  });
+
+  const revokeFeatureMutation = useMutation({
+    mutationFn: async ({ userId, feature }: { userId: number; feature: string }) => {
+      const res = await apiRequest("POST", `/api/admin/users/${userId}/permissions/revoke`, { feature });
+      return res;
+    },
+    onSuccess: async (_, { userId }) => {
+      const res = await fetch("/api/admin/users/permissions/matrix");
+      const data = (await res.json()) as UserWithPermissions[];
+      const user = data.find((u) => u.id === userId);
+      if (user) {
+        setUserFeatures((prev) => ({
+          ...prev,
+          [userId]: new Set(user.features),
+        }));
+      }
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/users/permissions/matrix"] });
+      toast({ title: "Permission revoked" });
+    },
+    onError: () => {
+      toast({ title: "Failed to revoke permission", variant: "destructive" });
+    },
+  });
+
   // Initialize userFeatures state
   useEffect(() => {
-    if (users.length > 0) {
+    if (users.length === 0) return;
+    setUserFeatures((prev) => {
+      if (Object.keys(prev).length > 0) return prev;
       const initialFeatures: Record<number, Set<string>> = {};
       users.forEach((user) => {
         initialFeatures[user.id] = new Set(user.features);
       });
-      setUserFeatures(initialFeatures);
-      if (!selectedUser) {
-        setSelectedUser(users[0].id);
-      }
-    }
-  }, [users, selectedUser]);
+      return initialFeatures;
+    });
+    setSelectedUser((current) => current ?? users[0].id);
+  }, [users]);
 
   const updatePermissionsMutation = useMutation({
     mutationFn: async ({ userId, features }: { userId: number; features: string[] }) => {
@@ -203,7 +251,7 @@ export function AdminUserPermissionsPage() {
                       className="w-full text-left font-medium text-sm hover:text-gold transition"
                       data-testid={`button-profile-${profile.id}`}
                     >
-                      {profile.name}
+                      {profile.name === "Standard User" ? "Estimator" : profile.name === "Full Access" || profile.name === "Ful Access" ? "Admin" : profile.name}
                     </button>
                     {expandedProfile === profile.id && (
                       <div className="mt-2 space-y-2 pt-2 border-t">
@@ -240,7 +288,7 @@ export function AdminUserPermissionsPage() {
 
         {/* User List */}
         <Card className="col-span-1" data-testid="card-user-list">
-          <CardHeader>
+        <CardHeader>
             <CardTitle>Users</CardTitle>
           </CardHeader>
           <CardContent>
@@ -257,7 +305,7 @@ export function AdminUserPermissionsPage() {
                   data-testid={`user-button-${user.id}`}
                 >
                   <div className="font-medium text-sm">{user.displayName || user.email}</div>
-                  <div className="text-xs text-muted-foreground">{user.role}</div>
+                  <div className="text-xs text-muted-foreground">{ROLE_LABELS[user.role] || user.role}</div>
                 </button>
               ))}
             </div>
@@ -270,7 +318,7 @@ export function AdminUserPermissionsPage() {
             <div className="flex justify-between items-center">
               <div>
                 <CardTitle>{selectedUserData?.displayName || selectedUserData?.email}</CardTitle>
-                <p className="text-sm text-muted-foreground mt-1">Role: {selectedUserData?.role}</p>
+                <p className="text-sm text-muted-foreground mt-1">Role: {ROLE_LABELS[selectedUserData?.role || ""] || selectedUserData?.role}</p>
               </div>
               {selectedUser && (
                 <Button
@@ -304,6 +352,19 @@ export function AdminUserPermissionsPage() {
                       >
                         {FEATURE_LABELS[feature] || feature}
                       </label>
+                      <Button
+                        size="sm"
+                        variant={currentFeatures.has(feature) ? "outline" : "default"}
+                        onClick={() =>
+                          currentFeatures.has(feature)
+                            ? revokeFeatureMutation.mutate({ userId: selectedUser!, feature })
+                            : grantFeatureMutation.mutate({ userId: selectedUser!, feature })
+                        }
+                        disabled={grantFeatureMutation.isPending || revokeFeatureMutation.isPending}
+                        data-testid={`button-toggle-feature-${feature}`}
+                      >
+                        {currentFeatures.has(feature) ? "Revoke" : "Grant"}
+                      </Button>
                     </div>
                   ))}
                 </div>

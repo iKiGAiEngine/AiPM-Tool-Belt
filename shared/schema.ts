@@ -1204,6 +1204,13 @@ export const DEFAULT_ROLE_FEATURES: Record<string, Feature[]> = {
   user: [FEATURES.PROPOSAL_LOG, FEATURES.SUBMITTAL_BUILDER],
 };
 
+export const ROLE_LABELS: Record<string, string> = {
+  admin: "Admin",
+  user: "Estimator",
+  accounting: "Accounting",
+  project_manager: "Project Manager",
+};
+
 export const userFeatureAccess = pgTable("user_feature_access", {
   id: serial("id").primaryKey(),
   userId: integer("user_id").notNull(),
