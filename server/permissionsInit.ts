@@ -162,41 +162,8 @@ export async function initializePermissions() {
       console.log(`[Permissions] Removed submittal-builder from ${estimatorUsers.length} Estimator user(s)`);
     }
 
-    // estimating-module: admin-only feature.
-    // Step 1 — one-time normalization: on first boot after this feature was introduced,
-    //   revoke estimating-module from any non-admin user who may have inherited it via
-    //   an earlier catch-all seed. We track completion in the system_settings table
-    //   (not in the user-managed permission_profiles table) so admins cannot accidentally
-    //   re-trigger it. After normalization runs once, manual grants via the Permissions UI persist.
-    const normKey = "estimating_module_normalized_v1";
-    const normFlag = await db.execute(sql`
-      SELECT value FROM system_settings WHERE key = ${normKey} LIMIT 1
-    `);
-    if (normFlag.rows.length === 0) {
-      // First-time normalization: revoke from non-admins so role defaults are authoritative.
-      const result = await db.execute(sql`
-        DELETE FROM user_feature_access
-        WHERE feature = 'estimating-module'
-          AND user_id IN (
-            SELECT id FROM users WHERE role != 'admin'
-          )
-        RETURNING user_id
-      `);
-      const revokedCount = result.rows.length;
-      if (revokedCount > 0) {
-        console.log(`[Permissions] One-time normalization: removed estimating-module from ${revokedCount} non-admin user(s)`);
-      }
-      // Persist the completion flag so this never runs again.
-      await db.execute(sql`
-        INSERT INTO system_settings (key, value)
-        VALUES (${normKey}, 'done')
-        ON CONFLICT (key) DO NOTHING
-      `);
-      console.log("[Permissions] estimating-module normalization complete");
-    }
-
-    // Step 2 — seed: grant estimating-module to any admin who doesn't have it yet.
-    //   This handles new admin users created after the normalization ran.
+    // estimating-module: admin-only. Grant to admins who lack it; revoke from non-admins.
+    // Follows the same pattern as submittal-builder above.
     const estimatingAdmins = await db.select({ id: users.id }).from(users).where(eq(users.role, "admin"));
     let grantedEstimatingCount = 0;
     for (const au of estimatingAdmins) {
@@ -215,6 +182,21 @@ export async function initializePermissions() {
     }
     if (grantedEstimatingCount > 0) {
       console.log(`[Permissions] Granted estimating-module to ${grantedEstimatingCount} Admin user(s)`);
+    }
+
+    // Remove estimating-module from all non-admin users (idempotent role-based reconciliation).
+    const nonAdminUsers = await db.select({ id: users.id }).from(users).where(sql`role != 'admin'`);
+    let revokedEstimatingCount = 0;
+    for (const nu of nonAdminUsers) {
+      const result = await db.execute(sql`
+        DELETE FROM user_feature_access
+        WHERE user_id = ${nu.id} AND feature = 'estimating-module'
+        RETURNING id
+      `);
+      revokedEstimatingCount += result.rows.length;
+    }
+    if (revokedEstimatingCount > 0) {
+      console.log(`[Permissions] Removed estimating-module from ${revokedEstimatingCount} non-admin user(s)`);
     }
 
     // For each remaining user without permissions, assign default permissions based on their role
