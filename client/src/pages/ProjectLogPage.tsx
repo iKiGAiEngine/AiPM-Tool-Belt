@@ -904,7 +904,7 @@ export default function ProjectLogPage() {
                           style={{ borderBottom: "1px solid var(--border-ds)" }}
                           data-testid={`row-entry-${entry.id}`}
                         >
-                          <td className="py-3 px-3">
+                          <td className="py-3 px-3" style={{ background: "var(--bg)" }}>
                             <div className="flex items-center gap-2 flex-wrap">
                               <span className={isDeleted ? "line-through" : ""} style={{ color: isDeleted ? "var(--text-dim)" : "var(--text)" }} data-testid={`text-name-${entry.id}`}>
                                 {entry.projectName}
@@ -970,7 +970,7 @@ export default function ProjectLogPage() {
                               </div>
                             )}
                           </td>
-                          <td className="py-3 px-3">
+                          <td className="py-3 px-3" style={{ background: "var(--bg)" }}>
                             <Badge variant="secondary" className="text-xs" data-testid={`text-region-${entry.id}`}>
                               {entry.region || "\u2014"}
                             </Badge>
