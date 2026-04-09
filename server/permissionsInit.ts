@@ -154,9 +154,44 @@ export async function initializePermissions() {
       console.log(`[Permissions] Removed submittal-builder from ${estimatorUsers.length} Estimator user(s)`);
     }
 
-    // estimating-module: seed the feature for admin users who don't have it yet.
-    // We only grant to admins that are missing it — we do NOT revoke from non-admins
-    // so that manual grants made through the Permissions UI persist across restarts.
+    // estimating-module: admin-only feature.
+    // Step 1 — one-time normalization: on first boot after this feature was introduced,
+    //   revoke estimating-module from any non-admin user who may have inherited it via
+    //   an earlier catch-all seed. We track whether normalization has already run by
+    //   checking for a sentinel profile named "system:estimating-module-init".
+    //   After normalization runs once, manual grants made via the Permissions UI persist.
+    const sentinelName = "system:estimating-module-init";
+    const sentinel = await db.select().from(permissionProfiles).where(sql`name = ${sentinelName}`);
+    if (sentinel.length === 0) {
+      // First-time normalization: revoke from non-admins so role defaults are authoritative.
+      const nonAdminEstimatingRows = await db.execute(sql`
+        SELECT ufa.user_id FROM user_feature_access ufa
+        JOIN users u ON u.id = ufa.user_id
+        WHERE ufa.feature = 'estimating-module' AND u.role != 'admin'
+      `);
+      let revokedCount = 0;
+      for (const row of nonAdminEstimatingRows.rows as { user_id: number }[]) {
+        await db.execute(sql`
+          DELETE FROM user_feature_access
+          WHERE user_id = ${row.user_id} AND feature = 'estimating-module'
+        `);
+        revokedCount++;
+      }
+      if (revokedCount > 0) {
+        console.log(`[Permissions] One-time normalization: removed estimating-module from ${revokedCount} non-admin user(s)`);
+      }
+      // Save sentinel so this block never runs again.
+      await db.insert(permissionProfiles).values({
+        name: sentinelName,
+        description: "System marker — do not delete. Tracks one-time estimating-module role normalization.",
+        linkedRole: null,
+        features: [],
+      });
+      console.log("[Permissions] estimating-module normalization complete");
+    }
+
+    // Step 2 — seed: grant estimating-module to any admin who doesn't have it yet.
+    //   This handles new admin users created after the normalization ran.
     const estimatingAdmins = await db.select({ id: users.id }).from(users).where(eq(users.role, "admin"));
     let grantedEstimatingCount = 0;
     for (const au of estimatingAdmins) {
