@@ -3339,12 +3339,19 @@ ${html}
 // FEATURE GATE — default export
 // ══════════════════════════════════════════════════
 export default function EstimatingModulePage() {
-  const { hasFeature, features } = useFeatureAccess();
+  const { hasFeature, isLoading: featuresLoading } = useFeatureAccess();
   const { user } = useAuth();
   const [, navigate] = useLocation();
-  const featuresLoaded = features.length > 0 || !!user;
 
-  if (featuresLoaded && !hasFeature("estimating-module")) {
+  if (featuresLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  if (!featuresLoading && !hasFeature("estimating-module")) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4 text-center px-6">
         <div

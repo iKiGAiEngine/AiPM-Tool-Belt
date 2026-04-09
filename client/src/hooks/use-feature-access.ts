@@ -4,7 +4,7 @@ import { useAuth } from "@/lib/auth";
 export function useFeatureAccess() {
   const { user } = useAuth();
 
-  const { data: features = [] } = useQuery({
+  const { data: features = [], isLoading } = useQuery({
     queryKey: ["/api/user/features", user?.id ?? null],
     queryFn: async () => {
       const res = await fetch("/api/user/features");
@@ -19,5 +19,5 @@ export function useFeatureAccess() {
     return features.includes(feature);
   };
 
-  return { features, hasFeature };
+  return { features, hasFeature, isLoading };
 }

@@ -15,6 +15,14 @@ export async function initializePermissions() {
     `);
 
     await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS system_settings (
+        key VARCHAR(100) PRIMARY KEY,
+        value TEXT NOT NULL,
+        updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    await db.execute(sql`
       CREATE TABLE IF NOT EXISTS permission_profiles (
         id SERIAL PRIMARY KEY,
         name VARCHAR(100) NOT NULL UNIQUE,
@@ -157,36 +165,33 @@ export async function initializePermissions() {
     // estimating-module: admin-only feature.
     // Step 1 — one-time normalization: on first boot after this feature was introduced,
     //   revoke estimating-module from any non-admin user who may have inherited it via
-    //   an earlier catch-all seed. We track whether normalization has already run by
-    //   checking for a sentinel profile named "system:estimating-module-init".
-    //   After normalization runs once, manual grants made via the Permissions UI persist.
-    const sentinelName = "system:estimating-module-init";
-    const sentinel = await db.select().from(permissionProfiles).where(sql`name = ${sentinelName}`);
-    if (sentinel.length === 0) {
+    //   an earlier catch-all seed. We track completion in the system_settings table
+    //   (not in the user-managed permission_profiles table) so admins cannot accidentally
+    //   re-trigger it. After normalization runs once, manual grants via the Permissions UI persist.
+    const normKey = "estimating_module_normalized_v1";
+    const normFlag = await db.execute(sql`
+      SELECT value FROM system_settings WHERE key = ${normKey} LIMIT 1
+    `);
+    if (normFlag.rows.length === 0) {
       // First-time normalization: revoke from non-admins so role defaults are authoritative.
-      const nonAdminEstimatingRows = await db.execute(sql`
-        SELECT ufa.user_id FROM user_feature_access ufa
-        JOIN users u ON u.id = ufa.user_id
-        WHERE ufa.feature = 'estimating-module' AND u.role != 'admin'
+      const result = await db.execute(sql`
+        DELETE FROM user_feature_access
+        WHERE feature = 'estimating-module'
+          AND user_id IN (
+            SELECT id FROM users WHERE role != 'admin'
+          )
+        RETURNING user_id
       `);
-      let revokedCount = 0;
-      for (const row of nonAdminEstimatingRows.rows as { user_id: number }[]) {
-        await db.execute(sql`
-          DELETE FROM user_feature_access
-          WHERE user_id = ${row.user_id} AND feature = 'estimating-module'
-        `);
-        revokedCount++;
-      }
+      const revokedCount = result.rows.length;
       if (revokedCount > 0) {
         console.log(`[Permissions] One-time normalization: removed estimating-module from ${revokedCount} non-admin user(s)`);
       }
-      // Save sentinel so this block never runs again.
-      await db.insert(permissionProfiles).values({
-        name: sentinelName,
-        description: "System marker — do not delete. Tracks one-time estimating-module role normalization.",
-        linkedRole: null,
-        features: [],
-      });
+      // Persist the completion flag so this never runs again.
+      await db.execute(sql`
+        INSERT INTO system_settings (key, value)
+        VALUES (${normKey}, 'done')
+        ON CONFLICT (key) DO NOTHING
+      `);
       console.log("[Permissions] estimating-module normalization complete");
     }
 
