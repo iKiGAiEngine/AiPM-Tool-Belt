@@ -1,6 +1,6 @@
 import type { Express, Request, Response, NextFunction } from "express";
 import { db } from "./db";
-import { users, authTokens, DEFAULT_ROLE_FEATURES } from "@shared/schema";
+import { users, authTokens, DEFAULT_ROLE_FEATURES, userFeatureAccess } from "@shared/schema";
 import { eq, and, gt, isNull } from "drizzle-orm";
 import { createHash, randomInt } from "crypto";
 import { sendOTPEmail } from "./emailService";
@@ -232,7 +232,11 @@ export function registerAuthRoutes(app: Express) {
       const existingPermissions = await storage.getUserFeatureAccess(user.id);
       if (existingPermissions.length === 0) {
         const defaultFeatures = DEFAULT_ROLE_FEATURES[user.role] || DEFAULT_ROLE_FEATURES.user;
-        await storage.setUserFeatureAccess(user.id, defaultFeatures);
+        if (defaultFeatures.length > 0) {
+          await db.insert(userFeatureAccess).values(
+            defaultFeatures.map((feature) => ({ userId: user.id, feature }))
+          );
+        }
       }
 
       (req.session as any).userId = user.id;

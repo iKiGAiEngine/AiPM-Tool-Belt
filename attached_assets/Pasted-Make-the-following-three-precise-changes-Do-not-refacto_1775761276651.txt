@@ -1,0 +1,52 @@
+Make the following three precise changes. Do not refactor anything else.
+Change 1 — shared/schema.ts, line 1194
+Remove estimating-module from DEFAULT_ROLE_FEATURES.admin so that role seeding never auto-grants it. The permissionsInit.ts admin seeding block already handles this explicitly. Change:
+tsadmin: Object.values(FEATURES),
+to:
+tsadmin: [
+  FEATURES.PROPOSAL_LOG,
+  FEATURES.VENDOR_DATABASE,
+  FEATURES.SUBMITTAL_BUILDER,
+  FEATURES.SCHEDULE_CONVERTER,
+  FEATURES.SPEC_EXTRACTOR,
+  FEATURES.QUOTE_PARSER,
+  FEATURES.PLAN_PARSER,
+  FEATURES.BC_SYNC,
+  FEATURES.DRAFT_REVIEW,
+  FEATURES.CENTRAL_SETTINGS,
+  FEATURES.PROJECT_START,
+  // ESTIMATING_MODULE is intentionally excluded here.
+  // It is seeded explicitly in permissionsInit.ts for admins
+  // and managed per-user via the Permissions UI.
+],
+Change 2 — server/authRoutes.ts, around line 233
+The auth route must never overwrite existing permissions. The current check if (existingPermissions.length === 0) is correct in intent, but setUserFeatureAccess deletes before inserting, so a race or retry can wipe rows. Replace the setUserFeatureAccess call with direct inserts that don't delete first:
+Replace:
+tsif (existingPermissions.length === 0) {
+  const defaultFeatures = DEFAULT_ROLE_FEATURES[user.role] || DEFAULT_ROLE_FEATURES.user;
+  await storage.setUserFeatureAccess(user.id, defaultFeatures);
+}
+With:
+tsif (existingPermissions.length === 0) {
+  const defaultFeatures = DEFAULT_ROLE_FEATURES[user.role] || DEFAULT_ROLE_FEATURES.user;
+  if (defaultFeatures.length > 0) {
+    await db.insert(userFeatureAccess).values(
+      defaultFeatures.map((feature) => ({ userId: user.id, feature }))
+    );
+  }
+}
+This inserts only — it will never wipe existing permissions.
+Change 3 — server/storage.ts, setUserFeatureAccess (lines 265–274)
+This function is dangerous as written because it deletes all features before re-inserting. It should only be called intentionally from the Permissions UI, not from boot paths. Add a clear comment and keep the implementation, but make sure no boot-time code calls it going forward (Change 2 above addresses the auth route):
+tsasync setUserFeatureAccess(userId: number, features: Feature[]): Promise<void> {
+  // WARNING: This performs a full replace (DELETE + INSERT).
+  // Only call this from the Permissions UI where the full intended
+  // feature set is known. Never call from boot or auth paths.
+  await db.delete(userFeatureAccess).where(eq(userFeatureAccess.userId, userId));
+  if (features.length > 0) {
+    await db.insert(userFeatureAccess).values(
+      features.map((feature) => ({ userId, feature }))
+    );
+  }
+}
+No other changes. After applying, restart the app and confirm that manually revoked features survive a reboot and a fresh login.

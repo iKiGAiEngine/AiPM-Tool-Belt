@@ -263,10 +263,10 @@ export class DatabaseStorage implements IStorage {
   }
 
   async setUserFeatureAccess(userId: number, features: Feature[]): Promise<void> {
-    // Delete existing access for this user
+    // WARNING: This performs a full replace (DELETE + INSERT).
+    // Only call this from the Permissions UI where the full intended
+    // feature set is known. Never call from boot or auth paths.
     await db.delete(userFeatureAccess).where(eq(userFeatureAccess.userId, userId));
-    
-    // Add new access entries
     if (features.length > 0) {
       await db.insert(userFeatureAccess).values(
         features.map((feature) => ({ userId, feature }))
