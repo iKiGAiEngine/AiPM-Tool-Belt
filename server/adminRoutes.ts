@@ -1,6 +1,6 @@
 import type { Express, Request, Response } from "express";
 import { db } from "./db";
-import { users, auditLogs, FEATURES, DEFAULT_ROLE_FEATURES, Feature, permissionProfiles } from "@shared/schema";
+import { users, auditLogs, FEATURES, DEFAULT_ROLE_FEATURES, Feature, permissionProfiles, userFeatureAccess } from "@shared/schema";
 import { eq, desc, and, gte, lte, like, or, sql } from "drizzle-orm";
 import { requireAdmin, isAllowedDomain } from "./authRoutes";
 import { auditLog } from "./auditService";
@@ -250,6 +250,72 @@ export function registerAdminRoutes(app: Express) {
     } catch (error) {
       console.error("[Admin] Update profile error:", error);
       res.status(500).json({ message: "Failed to update profile" });
+    }
+  });
+
+  app.delete("/api/admin/users/:id", requireAdmin, async (req: Request, res: Response) => {
+    try {
+      const userId = parseInt(req.params.id);
+      const actorId = (req.session as any)?.userId;
+      if (userId === actorId) {
+        return res.status(400).json({ message: "You cannot delete yourself" });
+      }
+      const [target] = await db.select().from(users).where(eq(users.id, userId));
+      if (!target) return res.status(404).json({ message: "User not found" });
+      await db.delete(userFeatureAccess).where(eq(userFeatureAccess.userId, userId));
+      await db.delete(users).where(eq(users.id, userId));
+      const [actor] = await db.select().from(users).where(eq(users.id, actorId));
+      await auditLog({
+        actionType: "user_deleted",
+        actorUserId: actorId,
+        actorEmail: actor?.email,
+        entityType: "user",
+        entityId: String(userId),
+        summary: `Deleted user ${target.email}`,
+        ipAddress: (req.headers["x-forwarded-for"] as string)?.split(",")[0] || req.socket.remoteAddress || "",
+        userAgent: req.headers["user-agent"] || "",
+        requestPath: req.path,
+        requestMethod: req.method,
+      });
+      res.json({ success: true, deleted: target.email });
+    } catch (error) {
+      console.error("[Admin] Delete user error:", error);
+      res.status(500).json({ message: "Failed to delete user" });
+    }
+  });
+
+  app.post("/api/admin/cleanup/remove-inactive", requireAdmin, async (req: Request, res: Response) => {
+    try {
+      const actorId = (req.session as any)?.userId;
+      const inactiveUsers = await db.select().from(users).where(
+        and(eq(users.isActive, false), sql`${users.id} != ${actorId}`)
+      );
+      const deletedEmails: string[] = [];
+      for (const u of inactiveUsers) {
+        try {
+          await db.delete(userFeatureAccess).where(eq(userFeatureAccess.userId, u.id));
+          await db.delete(users).where(eq(users.id, u.id));
+          deletedEmails.push(u.email);
+        } catch (err: any) {
+          console.error(`Failed to delete inactive user ${u.id}:`, err.message);
+        }
+      }
+      const [actor] = await db.select().from(users).where(eq(users.id, actorId));
+      await auditLog({
+        actionType: "cleanup_inactive_users",
+        actorUserId: actorId,
+        actorEmail: actor?.email,
+        entityType: "system",
+        summary: `Deleted ${deletedEmails.length} inactive users: ${deletedEmails.join(", ")}`,
+        ipAddress: (req.headers["x-forwarded-for"] as string)?.split(",")[0] || req.socket.remoteAddress || "",
+        userAgent: req.headers["user-agent"] || "",
+        requestPath: req.path,
+        requestMethod: req.method,
+      });
+      res.json({ success: true, deleted: deletedEmails.length, emails: deletedEmails });
+    } catch (error) {
+      console.error("[Admin] Remove inactive users error:", error);
+      res.status(500).json({ message: "Failed to remove inactive users" });
     }
   });
 

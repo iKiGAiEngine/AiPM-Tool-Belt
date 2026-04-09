@@ -47,6 +47,7 @@ import {
   FileText,
   KeyRound,
   ClipboardList,
+  Trash2,
 } from "lucide-react";
 import { Link } from "wouter";
 import { queryClient, apiRequest } from "@/lib/queryClient";
@@ -255,6 +256,48 @@ export default function AdminPage() {
     },
   });
 
+  const deleteUserMutation = useMutation({
+    mutationFn: async (userId: number) => {
+      await apiRequest("DELETE", `/api/admin/users/${userId}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
+      toast({ title: "User deleted" });
+    },
+    onError: (err: Error) => {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const deleteInactiveMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", "/api/admin/cleanup/remove-inactive");
+      return res as any;
+    },
+    onSuccess: (data: any) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
+      toast({ title: `Deleted ${data.deleted} inactive user${data.deleted !== 1 ? "s" : ""}` });
+    },
+    onError: (err: Error) => {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const handleDeleteUser = (u: User) => {
+    if (!window.confirm(`Delete user "${u.displayName || u.email}"? This cannot be undone.`)) return;
+    deleteUserMutation.mutate(u.id);
+  };
+
+  const handleDeleteAllInactive = () => {
+    const inactiveCount = usersList.filter((u) => !u.isActive).length;
+    if (inactiveCount === 0) {
+      toast({ title: "No inactive users to delete" });
+      return;
+    }
+    if (!window.confirm(`Delete all ${inactiveCount} inactive user${inactiveCount !== 1 ? "s" : ""}? This cannot be undone.`)) return;
+    deleteInactiveMutation.mutate();
+  };
+
   const openCreateDialog = () => {
     setEditingUser(null);
     setFormOpen(true);
@@ -344,10 +387,29 @@ export default function AdminPage() {
         <Card className="card-accent-bar">
           <div className="flex items-center justify-between gap-4 p-4 border-b flex-wrap">
             <h2 className="font-heading font-medium">Users</h2>
-            <Button size="sm" onClick={openCreateDialog} data-testid="button-add-user">
-              <Plus className="w-3.5 h-3.5 mr-1.5" />
-              Add User
-            </Button>
+            <div className="flex items-center gap-2">
+              {usersList.some((u) => !u.isActive) && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={handleDeleteAllInactive}
+                  disabled={deleteInactiveMutation.isPending}
+                  className="text-red-600 border-red-600/30 hover:bg-red-500/10"
+                  data-testid="button-delete-inactive-users"
+                >
+                  {deleteInactiveMutation.isPending ? (
+                    <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
+                  ) : (
+                    <Trash2 className="w-3.5 h-3.5 mr-1.5" />
+                  )}
+                  Delete All Inactive
+                </Button>
+              )}
+              <Button size="sm" onClick={openCreateDialog} data-testid="button-add-user">
+                <Plus className="w-3.5 h-3.5 mr-1.5" />
+                Add User
+              </Button>
+            </div>
           </div>
           <div className="overflow-x-auto">
             <Table>
@@ -468,6 +530,16 @@ export default function AdminPage() {
                             ) : (
                               <ShieldCheck className="w-4 h-4" style={{ color: "var(--gold)" }} />
                             )}
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleDeleteUser(u)}
+                            disabled={deleteUserMutation.isPending}
+                            title="Delete user"
+                            data-testid={`button-delete-${u.id}`}
+                          >
+                            <Trash2 className="w-4 h-4 text-red-500/70 hover:text-red-600" />
                           </Button>
                         </div>
                       </TableCell>
