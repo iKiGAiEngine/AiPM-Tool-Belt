@@ -1844,29 +1844,19 @@ export function registerProjectRoutes(app: Express) {
         "anticipatedStart",
         "anticipatedFinish",
         "dueDate",
+        "inviteDate",
         "notes",
         "bcLink",
         "nbsSelectedScopes",
+        "scopeList",
         "finalReviewer",
         "swinertonProject",
         "region",
         "primaryMarket",
-        "inviteDate",
         "filePath",
-        "estimateNumber",
-        "projectDbId",
         "screenshotPath",
-        "isTest",
-        "syncedToLocal",
-        "isDraft",
+        "projectDbId",
         "bcProjectId",
-        "bcOpportunityIds",
-        "scopeList",
-        "draftApprovedBy",
-        "draftApprovedAt",
-        "bcUpdateFlag",
-        "bcChangeLog",
-        "deletedAt",
       ];
       const updates: Record<string, string> = {};
       for (const field of allowedFields) {
@@ -1877,24 +1867,33 @@ export function registerProjectRoutes(app: Express) {
 
       const userId = (req.session as any)?.userId;
 
-      if (req.body.estimateNumber !== undefined) {
-        if (!userId) {
-          return res.status(401).json({ message: "Not authenticated" });
-        }
-        const [u] = await db.select().from(users).where(eq(users.id, userId));
-        if (!u || u.role !== "admin") {
-          return res.status(403).json({ message: "Only admins can change estimate numbers" });
-        }
-        updates.estimateNumber = req.body.estimateNumber;
-      }
-
-      if (Object.keys(updates).length === 0) {
+      if (Object.keys(updates).length === 0 && req.body.estimateNumber === undefined) {
         return res.status(400).json({ message: "No valid fields to update" });
       }
 
       const [existingEntry] = await db.select().from(proposalLogEntries).where(eq(proposalLogEntries.id, id));
       if (!existingEntry) {
         return res.status(404).json({ message: "Entry not found" });
+      }
+
+      // estimateNumber is admin-only — only enforce if the value is actually changing
+      if (req.body.estimateNumber !== undefined) {
+        const incomingEstNum = String(req.body.estimateNumber || "").trim();
+        const currentEstNum = String(existingEntry.estimateNumber || "").trim();
+        if (incomingEstNum !== currentEstNum) {
+          if (!userId) {
+            return res.status(401).json({ message: "Not authenticated" });
+          }
+          const [u] = await db.select().from(users).where(eq(users.id, userId));
+          if (!u || u.role !== "admin") {
+            return res.status(403).json({ message: "Only admins can change estimate numbers" });
+          }
+          updates.estimateNumber = req.body.estimateNumber;
+        }
+      }
+
+      if (Object.keys(updates).length === 0) {
+        return res.status(400).json({ message: "No valid fields to update" });
       }
 
       // Check project ownership
@@ -1906,7 +1905,11 @@ export function registerProjectRoutes(app: Express) {
       let oldEstimator: string | null = null;
       if (updates.nbsEstimator !== undefined) {
         oldEstimator = existingEntry.nbsEstimator;
-        await clearAcknowledgementsForEntry(id);
+        const oldEst = (oldEstimator || "").trim();
+        const newEst = (updates.nbsEstimator || "").trim();
+        if (newEst !== oldEst) {
+          await clearAcknowledgementsForEntry(id);
+        }
       }
 
       if (updates.region !== undefined && updates.selfPerformEstimator === undefined) {
@@ -1939,12 +1942,16 @@ export function registerProjectRoutes(app: Express) {
         }
       }
 
+      const TERMINAL_STATUSES = ["Won", "Awarded", "Lost", "Lost - Note Why in Comments", "No Bid", "Declined"];
       if (updates.proposalTotal !== undefined && updates.estimateStatus === undefined) {
-        const hasTotal = updates.proposalTotal.replace(/[^0-9.]/g, '');
-        if (hasTotal && Number(hasTotal) > 0) {
-          updates.estimateStatus = "Submitted";
-        } else {
-          updates.estimateStatus = "Estimating";
+        const currentStatus = existingEntry.estimateStatus || "";
+        if (!TERMINAL_STATUSES.includes(currentStatus)) {
+          const hasTotal = updates.proposalTotal.replace(/[^0-9.]/g, '');
+          if (hasTotal && Number(hasTotal) > 0) {
+            updates.estimateStatus = "Submitted";
+          } else {
+            updates.estimateStatus = "Estimating";
+          }
         }
       }
 

@@ -217,6 +217,8 @@ export async function getAllProposalLogEntries() {
 }
 
 export async function updateProposalLogEntryById(id: number, updates: Partial<{
+  projectName: string;
+  owner: string;
   nbsEstimator: string;
   estimateStatus: string;
   proposalTotal: string;
@@ -227,16 +229,20 @@ export async function updateProposalLogEntryById(id: number, updates: Partial<{
   estimateNumber: string;
   notes: string;
   dueDate: string;
+  inviteDate: string;
   bcLink: string;
   nbsSelectedScopes: string;
+  scopeList: string;
   finalReviewer: string;
   swinertonProject: string;
   region: string;
   primaryMarket: string;
-  inviteDate: string;
   filePath: string;
+  screenshotPath: string;
 }>) {
   const cleanUpdates: Record<string, any> = {};
+  if (updates.projectName !== undefined) cleanUpdates.projectName = updates.projectName;
+  if (updates.owner !== undefined) cleanUpdates.owner = updates.owner;
   if (updates.nbsEstimator !== undefined) cleanUpdates.nbsEstimator = updates.nbsEstimator;
   if (updates.estimateStatus !== undefined) cleanUpdates.estimateStatus = updates.estimateStatus;
   if (updates.proposalTotal !== undefined) cleanUpdates.proposalTotal = updates.proposalTotal;
@@ -247,14 +253,16 @@ export async function updateProposalLogEntryById(id: number, updates: Partial<{
   if (updates.estimateNumber !== undefined) cleanUpdates.estimateNumber = updates.estimateNumber;
   if (updates.notes !== undefined) cleanUpdates.notes = updates.notes;
   if (updates.dueDate !== undefined) cleanUpdates.dueDate = updates.dueDate;
+  if (updates.inviteDate !== undefined) cleanUpdates.inviteDate = updates.inviteDate;
   if (updates.bcLink !== undefined) cleanUpdates.bcLink = updates.bcLink;
   if (updates.nbsSelectedScopes !== undefined) cleanUpdates.nbsSelectedScopes = updates.nbsSelectedScopes;
+  if (updates.scopeList !== undefined) cleanUpdates.scopeList = updates.scopeList;
   if (updates.finalReviewer !== undefined) cleanUpdates.finalReviewer = updates.finalReviewer;
   if (updates.swinertonProject !== undefined) cleanUpdates.swinertonProject = updates.swinertonProject;
   if (updates.region !== undefined) cleanUpdates.region = updates.region;
   if (updates.primaryMarket !== undefined) cleanUpdates.primaryMarket = updates.primaryMarket;
-  if (updates.inviteDate !== undefined) cleanUpdates.inviteDate = updates.inviteDate;
   if (updates.filePath !== undefined) cleanUpdates.filePath = updates.filePath;
+  if (updates.screenshotPath !== undefined) cleanUpdates.screenshotPath = updates.screenshotPath;
 
   if (Object.keys(cleanUpdates).length === 0) return null;
 

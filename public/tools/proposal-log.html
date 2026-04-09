@@ -1762,7 +1762,7 @@ function saveProposal(){
     Object.assign(existing, formVals);
     if(existing._serverDbId){
       const serverUpdates={};
-      ['nbsEstimator','estimateStatus','proposalTotal','gcEstimateLead','selfPerformEstimator','anticipatedStart','anticipatedFinish','nbsSelectedScopes','notes','region'].forEach(f=>{
+      ['projectName','owner','nbsEstimator','estimateStatus','proposalTotal','gcEstimateLead','selfPerformEstimator','anticipatedStart','anticipatedFinish','nbsSelectedScopes','notes','region','dueDate','inviteDate','primaryMarket','finalReviewer','swinertonProject','bcLink','filePath','estimateNumber'].forEach(f=>{
         if(formVals[f]!==undefined) serverUpdates[f]=formVals[f];
       });
       if(Object.keys(serverUpdates).length){
