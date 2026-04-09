@@ -162,11 +162,12 @@ export async function initializePermissions() {
       console.log(`[Permissions] Removed submittal-builder from ${estimatorUsers.length} Estimator user(s)`);
     }
 
-    // estimating-module: admin-only. Grant to admins who lack it; revoke from non-admins.
-    // Follows the same pattern as submittal-builder above.
-    const estimatingAdmins = await db.select({ id: users.id }).from(users).where(eq(users.role, "admin"));
+    // estimating-module: seed this feature for admin users who don't have it yet.
+    // Non-admin roles are not included in DEFAULT_ROLE_FEATURES so they won't receive
+    // it from the catch-all below. Per-user grants are managed via the Permissions UI.
+    const allAdmins = await db.select({ id: users.id }).from(users).where(eq(users.role, "admin"));
     let grantedEstimatingCount = 0;
-    for (const au of estimatingAdmins) {
+    for (const au of allAdmins) {
       const existing = await db.execute(sql`
         SELECT id FROM user_feature_access
         WHERE user_id = ${au.id} AND feature = 'estimating-module'
@@ -182,21 +183,6 @@ export async function initializePermissions() {
     }
     if (grantedEstimatingCount > 0) {
       console.log(`[Permissions] Granted estimating-module to ${grantedEstimatingCount} Admin user(s)`);
-    }
-
-    // Remove estimating-module from all non-admin users (idempotent role-based reconciliation).
-    const nonAdminUsers = await db.select({ id: users.id }).from(users).where(sql`role != 'admin'`);
-    let revokedEstimatingCount = 0;
-    for (const nu of nonAdminUsers) {
-      const result = await db.execute(sql`
-        DELETE FROM user_feature_access
-        WHERE user_id = ${nu.id} AND feature = 'estimating-module'
-        RETURNING id
-      `);
-      revokedEstimatingCount += result.rows.length;
-    }
-    if (revokedEstimatingCount > 0) {
-      console.log(`[Permissions] Removed estimating-module from ${revokedEstimatingCount} non-admin user(s)`);
     }
 
     // For each remaining user without permissions, assign default permissions based on their role
