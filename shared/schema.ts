@@ -928,6 +928,9 @@ export const proposalLogEntries = pgTable("proposal_log_entries", {
   finalReviewer: varchar("final_reviewer", { length: 200 }),
   swinertonProject: varchar("swinerton_project", { length: 10 }),
   deletedAt: timestamp("deleted_at"),
+  pendingDeletion: boolean("pending_deletion").default(false),
+  pendingDeletionBy: varchar("pending_deletion_by", { length: 200 }),
+  pendingDeletionAt: timestamp("pending_deletion_at"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 

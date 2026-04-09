@@ -44,15 +44,15 @@ import ExcelJS from "exceljs";
 import { extractProjectDetailsFromScreenshot } from "./screenshotExtractor";
 import { matchRegionWithFallback } from "./regionMatcher";
 import { isSwinerton, matchSwinertonOffice, matchExtRegion } from "./swinertonOffices";
-import { guessMarket, createProposalLogEntry, bulkCreateProposalLogEntries, getUnsyncedEntries, markEntriesSynced, getActiveProposalLogEntries, getAllProposalLogEntries, updateProposalLogEntryById, deleteProposalLogEntry, deleteProposalLogEntries, getAcknowledgedEntryIds, acknowledgeEntry, unacknowledgeEntry, clearAcknowledgementsForEntry } from "./proposalLogService";
+import { guessMarket, createProposalLogEntry, bulkCreateProposalLogEntries, getUnsyncedEntries, markEntriesSynced, getActiveProposalLogEntries, getAllProposalLogEntries, updateProposalLogEntryById, deleteProposalLogEntry, deleteProposalLogEntries, getAcknowledgedEntryIds, acknowledgeEntry, unacknowledgeEntry, clearAcknowledgementsForEntry, requestDeleteEntry, cancelDeleteRequest, approveDeleteEntry, rejectDeleteEntry } from "./proposalLogService";
 import { getSheetUrl, syncProposalLogToSheet, pullRepairAndPush, isGoogleSheetConfigured } from "./googleSheetSync";
 import { users, proposalLogEntries, regions, proposalChangeLog, estimateTemplates } from "@shared/schema";
 import { eq, sql } from "drizzle-orm";
-import { resolveChangedByName, recordFieldChanges, recordEntryCreation, recordEntryDeletion } from "./changeLogger";
+import { resolveChangedByName, recordFieldChanges, recordEntryCreation, recordEntryDeletion, recordDeletionRequested, recordDeletionRejected, recordDeleteCancelled } from "./changeLogger";
 import { db } from "./db";
 import { sendBidAssignmentEmail, getBidAssignmentTemplate, saveBidAssignmentTemplate, sendProjectWonEmail, getProjectWonTemplate, saveProjectWonTemplate } from "./emailService";
 import { QUICK_LOGIN_USERS } from "./authRoutes";
-import { createNotification } from "./notificationRoutes";
+import { createNotification, createNotificationForAdmins } from "./notificationRoutes";
 import { userCanAccessProject } from "./projectAccessControl";
 
 const SCREENSHOTS_DIR = path.join(process.cwd(), "project_screenshots");
@@ -2189,6 +2189,135 @@ export function registerProjectRoutes(app: Express) {
     } catch (error) {
       console.error("Failed to bulk delete proposal log entries:", error);
       res.status(500).json({ message: "Failed to bulk delete entries" });
+    }
+  });
+
+  // Request deletion (any authenticated user)
+  app.post("/api/proposal-log/entry/:id/request-delete", async (req: Request, res: Response) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) return res.status(400).json({ message: "Valid numeric id required" });
+
+      const userId = (req.session as any)?.userId;
+      if (!userId) return res.status(401).json({ message: "Authentication required" });
+
+      const [u] = await db.select().from(users).where(eq(users.id, userId));
+      if (!u) return res.status(401).json({ message: "User not found" });
+
+      const [entry] = await db.select().from(proposalLogEntries).where(eq(proposalLogEntries.id, id));
+      if (!entry) return res.status(404).json({ message: "Entry not found" });
+      if (entry.pendingDeletion) return res.status(409).json({ message: "Deletion already requested for this entry" });
+
+      const requestedBy = u.initials || u.displayName || u.email;
+      const updated = await requestDeleteEntry(id, requestedBy);
+      if (!updated) return res.status(404).json({ message: "Entry not found" });
+
+      await recordDeletionRequested(id, entry.projectName || "", entry.estimateNumber, requestedBy).catch(() => {});
+
+      await createNotificationForAdmins({
+        type: "deletion_request",
+        title: "Deletion Request",
+        message: `${requestedBy} requested deletion of "${entry.projectName || entry.estimateNumber || `Entry #${id}`}"`,
+        metadata: { entryId: id, projectName: entry.projectName, estimateNumber: entry.estimateNumber, requestedBy },
+      }).catch(() => {});
+
+      console.log(`[ProposalLog] Deletion requested for entry id=${id} by ${requestedBy}`);
+      res.json({ success: true, pendingDeletion: true, pendingDeletionBy: requestedBy });
+    } catch (error) {
+      console.error("Failed to request deletion:", error);
+      res.status(500).json({ message: "Failed to request deletion" });
+    }
+  });
+
+  // Cancel deletion request (requester or admin)
+  app.post("/api/proposal-log/entry/:id/cancel-delete", async (req: Request, res: Response) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) return res.status(400).json({ message: "Valid numeric id required" });
+
+      const userId = (req.session as any)?.userId;
+      if (!userId) return res.status(401).json({ message: "Authentication required" });
+
+      const [u] = await db.select().from(users).where(eq(users.id, userId));
+      if (!u) return res.status(401).json({ message: "User not found" });
+
+      const [entry] = await db.select().from(proposalLogEntries).where(eq(proposalLogEntries.id, id));
+      if (!entry) return res.status(404).json({ message: "Entry not found" });
+
+      const cancelledBy = u.initials || u.displayName || u.email;
+      // Admins can cancel any request; users can only cancel their own
+      if (u.role !== "admin" && entry.pendingDeletionBy !== cancelledBy) {
+        return res.status(403).json({ message: "You can only cancel your own deletion requests" });
+      }
+
+      const updated = await cancelDeleteRequest(id);
+      if (!updated) return res.status(404).json({ message: "Entry not found" });
+
+      await recordDeleteCancelled(id, entry.projectName || "", entry.estimateNumber, cancelledBy).catch(() => {});
+
+      console.log(`[ProposalLog] Deletion request cancelled for entry id=${id} by ${cancelledBy}`);
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Failed to cancel deletion request:", error);
+      res.status(500).json({ message: "Failed to cancel deletion request" });
+    }
+  });
+
+  // Approve deletion (admin only)
+  app.post("/api/proposal-log/entry/:id/approve-delete", async (req: Request, res: Response) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) return res.status(400).json({ message: "Valid numeric id required" });
+
+      const userId = (req.session as any)?.userId;
+      if (!userId) return res.status(401).json({ message: "Authentication required" });
+
+      const [u] = await db.select().from(users).where(eq(users.id, userId));
+      if (!u || u.role !== "admin") return res.status(403).json({ message: "Admin access required" });
+
+      const [entry] = await db.select().from(proposalLogEntries).where(eq(proposalLogEntries.id, id));
+      if (!entry) return res.status(404).json({ message: "Entry not found" });
+
+      const deleted = await approveDeleteEntry(id);
+      if (!deleted) return res.status(404).json({ message: "Entry not found" });
+
+      const approvedBy = u.initials || u.displayName || u.email;
+      await recordEntryDeletion(id, deleted.projectName || "", deleted.estimateNumber, approvedBy).catch(() => {});
+
+      console.log(`[ProposalLog] Deletion approved for entry id=${id} by ${approvedBy}`);
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Failed to approve deletion:", error);
+      res.status(500).json({ message: "Failed to approve deletion" });
+    }
+  });
+
+  // Reject deletion (admin only)
+  app.post("/api/proposal-log/entry/:id/reject-delete", async (req: Request, res: Response) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) return res.status(400).json({ message: "Valid numeric id required" });
+
+      const userId = (req.session as any)?.userId;
+      if (!userId) return res.status(401).json({ message: "Authentication required" });
+
+      const [u] = await db.select().from(users).where(eq(users.id, userId));
+      if (!u || u.role !== "admin") return res.status(403).json({ message: "Admin access required" });
+
+      const [entry] = await db.select().from(proposalLogEntries).where(eq(proposalLogEntries.id, id));
+      if (!entry) return res.status(404).json({ message: "Entry not found" });
+
+      const updated = await rejectDeleteEntry(id);
+      if (!updated) return res.status(404).json({ message: "Entry not found" });
+
+      const rejectedBy = u.initials || u.displayName || u.email;
+      await recordDeletionRejected(id, entry.projectName || "", entry.estimateNumber, rejectedBy).catch(() => {});
+
+      console.log(`[ProposalLog] Deletion rejected for entry id=${id} by ${rejectedBy}`);
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Failed to reject deletion:", error);
+      res.status(500).json({ message: "Failed to reject deletion" });
     }
   });
 

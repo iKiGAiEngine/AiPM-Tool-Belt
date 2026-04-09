@@ -24,6 +24,9 @@ interface ChangeRecord {
 const FIELD_LABELS: Record<string, string> = {
   entry_created: "Entry Created",
   entry_deleted: "Entry Deleted",
+  deletion_requested: "Deletion Requested",
+  deletion_rejected: "Deletion Rejected",
+  deletion_cancelled: "Request Cancelled",
   nbsEstimator: "Estimator",
   estimateStatus: "Status",
   proposalTotal: "Proposal Total",
@@ -83,6 +86,9 @@ function formatDate(iso: string): string {
 function fieldBadgeColor(fieldName: string): string {
   if (fieldName === "entry_created") return "bg-emerald-500/15 text-emerald-400 border-emerald-500/30";
   if (fieldName === "entry_deleted") return "bg-red-500/15 text-red-400 border-red-500/30";
+  if (fieldName === "deletion_requested") return "bg-orange-500/15 text-orange-400 border-orange-500/30";
+  if (fieldName === "deletion_rejected") return "bg-sky-500/15 text-sky-400 border-sky-500/30";
+  if (fieldName === "deletion_cancelled") return "bg-slate-500/15 text-slate-400 border-slate-500/30";
   if (fieldName === "estimateStatus") return "bg-blue-500/15 text-blue-400 border-blue-500/30";
   if (fieldName === "proposalTotal") return "bg-amber-500/15 text-amber-400 border-amber-500/30";
   if (fieldName === "nbsEstimator") return "bg-purple-500/15 text-purple-400 border-purple-500/30";
@@ -305,13 +311,22 @@ export default function ProposalChangeLogPage() {
                   {rows.map((row, i) => {
                     const isCreate = row.fieldName === "entry_created";
                     const isDelete = row.fieldName === "entry_deleted";
-                    const isSpecial = isCreate || isDelete;
+                    const isDeletionReq = row.fieldName === "deletion_requested";
+                    const isDeletionRej = row.fieldName === "deletion_rejected";
+                    const isDeletionCan = row.fieldName === "deletion_cancelled";
+                    const isSpecial = isCreate || isDelete || isDeletionReq || isDeletionRej || isDeletionCan;
                     const isLong = (row.oldValue?.length ?? 0) > 60 || (row.newValue?.length ?? 0) > 60;
                     const isExp = expanded.has(row.id);
+                    let rowBg = i % 2 === 0 ? "" : "bg-muted/20";
+                    if (isCreate) rowBg = "bg-emerald-500/5";
+                    else if (isDelete) rowBg = "bg-red-500/5";
+                    else if (isDeletionReq) rowBg = "bg-orange-500/5";
+                    else if (isDeletionRej) rowBg = "bg-sky-500/5";
+                    else if (isDeletionCan) rowBg = "bg-slate-500/5";
                     return (
                       <tr
                         key={row.id}
-                        className={`border-b last:border-0 transition-colors ${isCreate ? "bg-emerald-500/5" : isDelete ? "bg-red-500/5" : i % 2 === 0 ? "" : "bg-muted/20"} hover:bg-muted/30`}
+                        className={`border-b last:border-0 transition-colors ${rowBg} hover:bg-muted/30`}
                         data-testid={`row-change-${row.id}`}
                       >
                         <td className="px-4 py-2.5 text-xs text-muted-foreground whitespace-nowrap align-top">
@@ -338,6 +353,18 @@ export default function ProposalChangeLogPage() {
                         ) : isDelete ? (
                           <td colSpan={2} className="px-4 py-2.5 align-top text-xs text-red-400 font-medium">
                             {row.oldValue || "Entry removed"}
+                          </td>
+                        ) : isDeletionReq ? (
+                          <td colSpan={2} className="px-4 py-2.5 align-top text-xs text-orange-400 font-medium">
+                            Requested by {row.newValue || row.changedBy || "—"}
+                          </td>
+                        ) : isDeletionRej ? (
+                          <td colSpan={2} className="px-4 py-2.5 align-top text-xs text-sky-400 font-medium">
+                            Rejected by {row.newValue || row.changedBy || "—"}
+                          </td>
+                        ) : isDeletionCan ? (
+                          <td colSpan={2} className="px-4 py-2.5 align-top text-xs text-slate-400 font-medium">
+                            Cancelled by {row.newValue || row.changedBy || "—"}
                           </td>
                         ) : (
                           <>

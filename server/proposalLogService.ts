@@ -294,6 +294,30 @@ export async function deleteProposalLogEntries(ids: number[]) {
   return deleted.length;
 }
 
+export async function requestDeleteEntry(id: number, requestedByName: string) {
+  const [updated] = await db.update(proposalLogEntries)
+    .set({ pendingDeletion: true, pendingDeletionBy: requestedByName, pendingDeletionAt: new Date() })
+    .where(and(eq(proposalLogEntries.id, id), isNull(proposalLogEntries.deletedAt)))
+    .returning();
+  return updated || null;
+}
+
+export async function cancelDeleteRequest(id: number) {
+  const [updated] = await db.update(proposalLogEntries)
+    .set({ pendingDeletion: false, pendingDeletionBy: null, pendingDeletionAt: null })
+    .where(eq(proposalLogEntries.id, id))
+    .returning();
+  return updated || null;
+}
+
+export async function approveDeleteEntry(id: number) {
+  return deleteProposalLogEntry(id);
+}
+
+export async function rejectDeleteEntry(id: number) {
+  return cancelDeleteRequest(id);
+}
+
 export async function getScreenshotPathByProjectId(projectDbId: number): Promise<string | null> {
   const [entry] = await db.select({ screenshotPath: proposalLogEntries.screenshotPath })
     .from(proposalLogEntries)

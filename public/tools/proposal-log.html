@@ -1213,6 +1213,11 @@ function getFiltered() {
   const ft=document.getElementById('f-to').value;
 
   return data.filter(p=>{
+    if(p._pendingDeletion){
+      const isAdm = currentUser?.role==='admin';
+      const myIdent = currentUser?.initials||currentUser?.displayName||'';
+      if(!isAdm && p._pendingDeletionBy !== myIdent) return false;
+    }
     if(s && ![p.projectName,p.estimateNumber,p.nbsEstimator,p.gcEstimateLead,p.region,p.primaryMarket,p.owner,p.estimateNumber].some(v=>v&&v.toLowerCase().includes(s))) return false;
     if(fr && p.region!==fr) return false;
     if(fs && p.estimateStatus!==fs) return false;
@@ -1359,9 +1364,25 @@ function buildRows() {
     const cells = visKeys.map(key=>{
       if(key==='_actions') {
         if(mode==='leadership') return `<td></td>`;
+        if(p._pendingDeletion){
+          const isAdm=currentUser?.role==='admin';
+          const myId=currentUser?.initials||currentUser?.displayName||'';
+          const isReq=p._pendingDeletionBy===myId;
+          if(isAdm){
+            return `<td><div class="row-actions">
+              <button class="btn-row approve-del" onclick="approveDeletion(${oi})" title="Approve deletion" style="color:var(--win);border-color:var(--win)">&#10003;</button>
+              <button class="btn-row reject-del" onclick="rejectDeletion(${oi})" title="Reject deletion" style="color:var(--loss);border-color:var(--loss)">&#10005;</button>
+            </div></td>`;
+          } else if(isReq){
+            return `<td><div class="row-actions">
+              <button class="btn-row" onclick="cancelDeletion(${oi})" title="Cancel deletion request" style="font-size:13px">&#8617;</button>
+            </div></td>`;
+          }
+          return `<td></td>`;
+        }
         return `<td><div class="row-actions">
           ${can('editRow')   ? `<button class="btn-row" onclick="openModal(${oi})" title="Edit">&#9999;&#65039;</button>` : ''}
-          ${can('deleteRow') ? `<button class="btn-row del" onclick="del(${oi})" title="Delete">&#128465;</button>` : ''}
+          ${can('requestDelete') ? `<button class="btn-row del" onclick="del(${oi})" title="Request deletion">&#128465;</button>` : ''}
         </div></td>`;
       }
       const w=layout.widths[key]||getColDef(key)?.w||100;
@@ -1369,8 +1390,10 @@ function buildRows() {
       switch(key) {
         case 'projectName': {
           const testBadge = p._isTest ? '<span style="display:inline-block;font-size:9px;font-weight:700;font-family:Rajdhani,sans-serif;letter-spacing:.5px;background:rgba(201,168,76,.18);color:var(--gold);border:1px solid var(--gold-dim);padding:0 4px;border-radius:3px;margin-right:5px;vertical-align:middle;line-height:16px">TEST</span>' : '';
-          const estimateLink = p._serverDbId ? `<a class="proj-name-link" href="/estimates/${p._serverDbId}" title="Open Estimate Module">${testBadge}${p.projectName||'\u2014'}</a>` : `${testBadge}${p.projectName||'\u2014'}`;
-          val=`<div class="proj-name" title="${p.projectName||''}">${estimateLink}</div>`;
+          const pendingBadge = p._pendingDeletion ? `<span style="display:inline-block;font-size:9px;font-weight:700;font-family:Rajdhani,sans-serif;letter-spacing:.5px;background:rgba(234,88,12,.18);color:#f97316;border:1px solid rgba(234,88,12,.35);padding:0 5px;border-radius:3px;margin-right:5px;vertical-align:middle;line-height:16px">\u23f3 PENDING DELETION${p._pendingDeletionBy?' by '+p._pendingDeletionBy:''}</span>` : '';
+          const nameText = p._pendingDeletion ? `<span style="text-decoration:line-through;opacity:.6">${p.projectName||'\u2014'}</span>` : (p.projectName||'\u2014');
+          const estimateLink = p._serverDbId && !p._pendingDeletion ? `<a class="proj-name-link" href="/estimates/${p._serverDbId}" title="Open Estimate Module">${testBadge}${nameText}</a>` : `${testBadge}${nameText}`;
+          val=`<div class="proj-name" title="${p.projectName||''}">${pendingBadge}${estimateLink}</div>`;
           break;
         }
         case 'proposalTotal':
@@ -1546,7 +1569,8 @@ function buildRows() {
       ? `<td class="row-check-col"><input type="checkbox" class="row-select-cb" data-oi="${oi}" ${isSelected?'checked':''} onchange="onRowCheckChange(${oi},this.checked)"></td>`
       : `<td class="row-check-col"></td>`;
     const testStyle = p._isTest ? ';border-left:3px solid var(--gold-dim);opacity:.75' : '';
-    return `<tr style="animation-delay:${fi*.02}s${isSelected?';background:rgba(201,168,76,.06)':''}${testStyle}">${checkCell}${cells.join('')}</tr>`;
+    const pendingStyle = p._pendingDeletion ? ';background:rgba(234,88,12,.05);border-left:3px solid rgba(234,88,12,.5);opacity:.8' : '';
+    return `<tr style="animation-delay:${fi*.02}s${isSelected?';background:rgba(201,168,76,.06)':''}${testStyle}${pendingStyle}">${checkCell}${cells.join('')}</tr>`;
   }).join('');
 }
 
@@ -1784,19 +1808,58 @@ function autoPromoteStatus(){
   }
 }
 async function del(i){
-  if(!confirm('Delete this proposal?'))return;
   const entry=data[i];
-  if(entry&&entry._serverDbId){
-    let ok=false;
-    try{
-      const r=await fetch('/api/proposal-log/entry/'+entry._serverDbId,{method:'DELETE',credentials:'include'});
-      if(r.ok){ok=true;}
-      else{let m='Delete failed ('+r.status+')';try{const j=await r.json();if(j.message)m=j.message;}catch{}showToast('\u26a0\ufe0f '+m,'error');return;}
-    }catch(e){showToast('\u26a0\ufe0f Could not reach server — proposal was NOT deleted','error');console.warn('Failed to delete from server:',e);return;}
-    if(!ok)return;
-  }
-  data.splice(i,1);save();render();
-  showToast('\ud83d\uddd1 Proposal deleted');
+  if(!entry)return;
+  if(entry._pendingDeletion){showToast('\u26a0\ufe0f Deletion already requested for this proposal','error');return;}
+  if(!confirm('Request deletion of this proposal?\n\nAn admin will be notified and must approve before it is permanently removed.'))return;
+  if(!entry._serverDbId){data.splice(i,1);save();render();showToast('\ud83d\uddd1 Proposal removed');return;}
+  try{
+    const r=await fetch('/api/proposal-log/entry/'+entry._serverDbId+'/request-delete',{method:'POST',credentials:'include'});
+    if(!r.ok){let m='Request failed ('+r.status+')';try{const j=await r.json();if(j.message)m=j.message;}catch{}showToast('\u26a0\ufe0f '+m,'error');return;}
+    const d=await r.json();
+    entry._pendingDeletion=true;
+    entry._pendingDeletionBy=d.pendingDeletionBy||'';
+    save();render();
+    showToast('\u23f3 Deletion requested — awaiting admin approval');
+  }catch(e){showToast('\u26a0\ufe0f Could not reach server','error');console.warn('Failed to request deletion:',e);}
+}
+
+async function approveDeletion(i){
+  const entry=data[i];
+  if(!entry||!entry._serverDbId)return;
+  if(!confirm('Approve deletion of "'+entry.projectName+'"?\nThis will permanently remove it from the log.'))return;
+  try{
+    const r=await fetch('/api/proposal-log/entry/'+entry._serverDbId+'/approve-delete',{method:'POST',credentials:'include'});
+    if(!r.ok){let m='Failed ('+r.status+')';try{const j=await r.json();if(j.message)m=j.message;}catch{}showToast('\u26a0\ufe0f '+m,'error');return;}
+    data.splice(i,1);save();render();
+    showToast('\u2714 Deletion approved — proposal removed');
+  }catch(e){showToast('\u26a0\ufe0f Could not reach server','error');console.warn('Failed to approve deletion:',e);}
+}
+
+async function rejectDeletion(i){
+  const entry=data[i];
+  if(!entry||!entry._serverDbId)return;
+  if(!confirm('Reject the deletion request for "'+entry.projectName+'"?\nIt will remain in the log.'))return;
+  try{
+    const r=await fetch('/api/proposal-log/entry/'+entry._serverDbId+'/reject-delete',{method:'POST',credentials:'include'});
+    if(!r.ok){let m='Failed ('+r.status+')';try{const j=await r.json();if(j.message)m=j.message;}catch{}showToast('\u26a0\ufe0f '+m,'error');return;}
+    entry._pendingDeletion=false;entry._pendingDeletionBy='';
+    save();render();
+    showToast('\u2716 Deletion request rejected — proposal restored');
+  }catch(e){showToast('\u26a0\ufe0f Could not reach server','error');console.warn('Failed to reject deletion:',e);}
+}
+
+async function cancelDeletion(i){
+  const entry=data[i];
+  if(!entry||!entry._serverDbId)return;
+  if(!confirm('Cancel your deletion request for "'+entry.projectName+'"?'))return;
+  try{
+    const r=await fetch('/api/proposal-log/entry/'+entry._serverDbId+'/cancel-delete',{method:'POST',credentials:'include'});
+    if(!r.ok){let m='Failed ('+r.status+')';try{const j=await r.json();if(j.message)m=j.message;}catch{}showToast('\u26a0\ufe0f '+m,'error');return;}
+    entry._pendingDeletion=false;entry._pendingDeletionBy='';
+    save();render();
+    showToast('\u21a9 Deletion request cancelled');
+  }catch(e){showToast('\u26a0\ufe0f Could not reach server','error');console.warn('Failed to cancel deletion:',e);}
 }
 
 function getComputedVal(p,k) {
@@ -3121,8 +3184,8 @@ let currentUser = null;
 let acknowledgedEntryIds = new Set();
 
 const CAPS = {
-  admin: { dashboard:true,  addRow:true,  editRow:true,  deleteRow:true,  importExcel:true,  clearAll:true,  modeToggle:true  },
-  user:  { dashboard:false, addRow:true,  editRow:true,  deleteRow:false, importExcel:false, clearAll:false, modeToggle:false },
+  admin: { dashboard:true,  addRow:true,  editRow:true,  deleteRow:true,  requestDelete:true,  importExcel:true,  clearAll:true,  modeToggle:true  },
+  user:  { dashboard:false, addRow:true,  editRow:true,  deleteRow:false, requestDelete:true,  importExcel:false, clearAll:false, modeToggle:false },
 };
 function can(cap) { return !!(currentUser && CAPS[currentUser.role]?.[cap]); }
 
@@ -3323,6 +3386,8 @@ function serverEntryToLocal(e, existingLocal) {
     _screenshotId: e.screenshotPath ? (e.estimateNumber || '') : '',
     _isTest: e.isTest || false,
     _serverDbId: e.id,
+    _pendingDeletion: e.pendingDeletion || false,
+    _pendingDeletionBy: e.pendingDeletionBy || '',
   });
 }
 

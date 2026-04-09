@@ -59,6 +59,57 @@ export async function recordFieldChanges(
   }
 }
 
+export async function recordDeletionRequested(
+  entryId: number,
+  projectName: string,
+  estimateNumber: string | null | undefined,
+  requestedBy: string,
+): Promise<void> {
+  try {
+    await db.insert(proposalChangeLog).values({
+      entryId,
+      fieldName: "deletion_requested",
+      oldValue: projectName || estimateNumber || `Entry #${entryId}`,
+      newValue: requestedBy,
+      changedBy: requestedBy,
+    });
+  } catch {}
+}
+
+export async function recordDeletionRejected(
+  entryId: number,
+  projectName: string,
+  estimateNumber: string | null | undefined,
+  rejectedBy: string,
+): Promise<void> {
+  try {
+    await db.insert(proposalChangeLog).values({
+      entryId,
+      fieldName: "deletion_rejected",
+      oldValue: projectName || estimateNumber || `Entry #${entryId}`,
+      newValue: rejectedBy,
+      changedBy: rejectedBy,
+    });
+  } catch {}
+}
+
+export async function recordDeleteCancelled(
+  entryId: number,
+  projectName: string,
+  estimateNumber: string | null | undefined,
+  cancelledBy: string,
+): Promise<void> {
+  try {
+    await db.insert(proposalChangeLog).values({
+      entryId,
+      fieldName: "deletion_cancelled",
+      oldValue: projectName || estimateNumber || `Entry #${entryId}`,
+      newValue: cancelledBy,
+      changedBy: cancelledBy,
+    });
+  } catch {}
+}
+
 export async function recordEntryDeletion(
   entryId: number,
   projectName: string,
