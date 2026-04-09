@@ -1204,7 +1204,7 @@ export const DEFAULT_ROLE_FEATURES: Record<string, Feature[]> = {
     FEATURES.QUOTE_PARSER,
     FEATURES.PROJECT_START,
   ],
-  user: [FEATURES.PROPOSAL_LOG, FEATURES.SUBMITTAL_BUILDER],
+  user: [FEATURES.PROPOSAL_LOG],
 };
 
 export const ROLE_LABELS: Record<string, string> = {

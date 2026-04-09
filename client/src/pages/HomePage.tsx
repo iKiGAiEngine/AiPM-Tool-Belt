@@ -12,6 +12,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { useToast } from "@/hooks/use-toast";
 import { useTestMode } from "@/lib/testMode";
 import { useAuth } from "@/lib/auth";
+import { useFeatureAccess } from "@/hooks/use-feature-access";
 
 interface ToolTile {
   id: string;
@@ -23,6 +24,7 @@ interface ToolTile {
   comingSoon?: boolean;
   adminOnly?: boolean;
   isExternal?: boolean;
+  feature?: string;
 }
 
 const tools: ToolTile[] = [
@@ -34,6 +36,7 @@ const tools: ToolTile[] = [
     href: "/tools/proposal-log",
     available: true,
     isExternal: true,
+    feature: "proposal-log",
   },
   {
     id: "projectstart",
@@ -42,6 +45,7 @@ const tools: ToolTile[] = [
     icon: FolderPlus,
     href: "/project-start",
     available: true,
+    feature: "project-start",
   },
   {
     id: "specextractor",
@@ -50,6 +54,7 @@ const tools: ToolTile[] = [
     icon: ClipboardList,
     href: "/spec-extractor",
     available: true,
+    feature: "spec-extractor",
   },
   {
     id: "quoteparser",
@@ -58,6 +63,7 @@ const tools: ToolTile[] = [
     icon: Receipt,
     href: "/quoteparser",
     available: true,
+    feature: "quote-parser",
   },
   {
     id: "scheduleconverter",
@@ -66,6 +72,7 @@ const tools: ToolTile[] = [
     icon: TableProperties,
     href: "/schedule-converter",
     available: true,
+    feature: "schedule-converter",
   },
   {
     id: "planparser",
@@ -76,6 +83,7 @@ const tools: ToolTile[] = [
     available: true,
     comingSoon: true,
     adminOnly: true,
+    feature: "plan-parser",
   },
   {
     id: "submittalbuilder",
@@ -84,6 +92,7 @@ const tools: ToolTile[] = [
     icon: PackageCheck,
     href: "/submittal-builder",
     available: true,
+    feature: "submittal-builder",
   },
   {
     id: "vendordatabase",
@@ -92,6 +101,7 @@ const tools: ToolTile[] = [
     icon: Shield,
     href: "/vendor-database",
     available: true,
+    feature: "vendor-database",
   },
   {
     id: "comingsoon",
@@ -206,6 +216,7 @@ export default function HomePage() {
   const { isTestMode } = useTestMode();
   const { isAdmin, user } = useAuth();
   const { toast } = useToast();
+  const { hasFeature } = useFeatureAccess();
   const [selectedToolForStats, setSelectedToolForStats] = useState<string | null>(null);
   const effectiveTestMode = isAdmin && isTestMode;
 
@@ -405,6 +416,9 @@ export default function HomePage() {
             const isDisabled = !tool.available;
             const isComingSoon = tool.comingSoon === true;
             const isAdminRestricted = tool.adminOnly === true && !isAdmin;
+
+            // Hide tile entirely if the user lacks the required feature (admins always see everything)
+            if (!isAdmin && tool.feature && !hasFeature(tool.feature)) return null;
 
             if (isDisabled || (isComingSoon && isAdminRestricted)) {
               return (

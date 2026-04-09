@@ -130,6 +130,30 @@ export async function initializePermissions() {
       }
     }
 
+    // Update Standard User profile to remove submittal-builder (Estimators don't need it)
+    await db.execute(sql`
+      UPDATE permission_profiles
+      SET features = (
+        SELECT jsonb_agg(elem)
+        FROM jsonb_array_elements(features) AS elem
+        WHERE elem::text NOT IN ('"submittal-builder"')
+      ),
+      updated_at = NOW()
+      WHERE linked_role = 'user'
+    `);
+
+    // Remove submittal-builder from all Estimator (user role) accounts
+    const estimatorUsers = await db.select({ id: users.id }).from(users).where(eq(users.role, "user"));
+    for (const eu of estimatorUsers) {
+      await db.execute(sql`
+        DELETE FROM user_feature_access
+        WHERE user_id = ${eu.id} AND feature = 'submittal-builder'
+      `);
+    }
+    if (estimatorUsers.length > 0) {
+      console.log(`[Permissions] Removed submittal-builder from ${estimatorUsers.length} Estimator user(s)`);
+    }
+
     // For each remaining user without permissions, assign default permissions based on their role
     const remainingUsers = await db.select().from(users);
 
