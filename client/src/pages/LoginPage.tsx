@@ -222,6 +222,7 @@ export default function LoginPage() {
     onSuccess: () => {
       setStep(3);
       setError("");
+      queryClient.removeQueries({ queryKey: ["/api/user/features"] });
       setTimeout(() => {
         queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
       }, 1500);
@@ -246,6 +247,7 @@ export default function LoginPage() {
     onSuccess: () => {
       setStep(3);
       setError("");
+      queryClient.removeQueries({ queryKey: ["/api/user/features"] });
       setTimeout(() => {
         queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
       }, 1500);
