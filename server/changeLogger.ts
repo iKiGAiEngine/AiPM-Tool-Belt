@@ -2,14 +2,6 @@ import { db } from "./db";
 import { proposalChangeLog, proposalLogEntries, users } from "@shared/schema";
 import { eq } from "drizzle-orm";
 
-const TRACKABLE_FIELDS = [
-  "nbsEstimator", "estimateStatus", "proposalTotal", "gcEstimateLead",
-  "selfPerformEstimator", "anticipatedStart", "anticipatedFinish", "dueDate",
-  "notes", "bcLink", "nbsSelectedScopes", "finalReviewer", "swinertonProject",
-  "region", "primaryMarket", "inviteDate", "estimateNumber", "filePath",
-  "projectName", "owner", "scopeList",
-] as const;
-
 export async function resolveChangedByName(userId: number | null | undefined): Promise<string> {
   if (!userId) return "Unknown";
   try {
@@ -27,7 +19,24 @@ export async function recordFieldChanges(
 ): Promise<void> {
   const changeRows: { entryId: number; fieldName: string; oldValue: string | null; newValue: string | null; changedBy: string }[] = [];
 
-  for (const field of TRACKABLE_FIELDS) {
+  const fields = Object.keys(existingEntry).filter(
+    (field) =>
+      ![
+        "id",
+        "createdAt",
+        "deletedAt",
+        "projectDbId",
+        "bcOpportunityIds",
+        "draftApprovedAt",
+        "bcUpdateFlag",
+        "bcChangeLog",
+        "syncedToLocal",
+        "isDraft",
+        "isTest",
+      ].includes(field),
+  );
+
+  for (const field of fields) {
     if (updates[field] !== undefined) {
       const oldVal = existingEntry[field];
       const newVal = updates[field];

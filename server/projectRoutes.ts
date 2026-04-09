@@ -1833,7 +1833,41 @@ export function registerProjectRoutes(app: Express) {
       const id = parseInt(req.params.id);
       if (isNaN(id)) return res.status(400).json({ message: "Valid numeric id required" });
 
-      const allowedFields = ["projectName", "owner", "nbsEstimator", "estimateStatus", "proposalTotal", "gcEstimateLead", "selfPerformEstimator", "anticipatedStart", "anticipatedFinish", "dueDate", "notes", "bcLink", "nbsSelectedScopes", "finalReviewer", "swinertonProject", "region", "primaryMarket", "inviteDate", "filePath"];
+      const allowedFields = [
+        "projectName",
+        "owner",
+        "nbsEstimator",
+        "estimateStatus",
+        "proposalTotal",
+        "gcEstimateLead",
+        "selfPerformEstimator",
+        "anticipatedStart",
+        "anticipatedFinish",
+        "dueDate",
+        "notes",
+        "bcLink",
+        "nbsSelectedScopes",
+        "finalReviewer",
+        "swinertonProject",
+        "region",
+        "primaryMarket",
+        "inviteDate",
+        "filePath",
+        "estimateNumber",
+        "projectDbId",
+        "screenshotPath",
+        "isTest",
+        "syncedToLocal",
+        "isDraft",
+        "bcProjectId",
+        "bcOpportunityIds",
+        "scopeList",
+        "draftApprovedBy",
+        "draftApprovedAt",
+        "bcUpdateFlag",
+        "bcChangeLog",
+        "deletedAt",
+      ];
       const updates: Record<string, string> = {};
       for (const field of allowedFields) {
         if (req.body[field] !== undefined) {
