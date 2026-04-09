@@ -155,22 +155,19 @@ export async function initializePermissions() {
     }
 
     // estimating-module: one-time seeding on first introduction of the feature.
-    // Detect first boot for this feature by checking whether any admin already has it.
-    // If no admin has it yet, this is the first run — grant to all admins and revoke from
-    // all non-admins (safe because no manual grants exist yet).
-    // On subsequent startups admins already have it, so we skip revocation and only
-    // fill in any admins added since the last run, preserving all manual grants.
+    // Detect first boot by checking whether ANY user_feature_access row for this feature
+    // exists at all. If zero rows exist, this is the initial seed run — grant to all
+    // admins and revoke from all non-admins (safe: no manual grants exist yet).
+    // On all subsequent startups at least one admin row exists, so revocation is skipped
+    // entirely and only newly-added admins are filled in, preserving all manual grants.
+    const seedCheck = await db.execute(sql`
+      SELECT id FROM user_feature_access
+      WHERE feature = 'estimating-module'
+      LIMIT 1
+    `);
+    const isFirstSeed = seedCheck.rows.length === 0;
+
     const adminUsers = await db.select({ id: users.id }).from(users).where(eq(users.role, "admin"));
-    const firstAdminCheck = adminUsers.length > 0
-      ? await db.execute(sql`
-          SELECT id FROM user_feature_access
-          WHERE feature = 'estimating-module' AND user_id = ${adminUsers[0].id}
-          LIMIT 1
-        `)
-      : { rows: [{}] }; // no admins → treat as already-seeded
-
-    const isFirstSeed = firstAdminCheck.rows.length === 0;
-
     let grantedEstimatingCount = 0;
     for (const au of adminUsers) {
       const existing = await db.execute(sql`
@@ -193,16 +190,17 @@ export async function initializePermissions() {
     // On first seed only: remove estimating-module from any non-admin who might have it.
     // After this point, revocation is handled exclusively through the admin permissions UI.
     if (isFirstSeed) {
-      const result = await db.execute(sql`
+      const revokeResult = await db.execute(sql`
         DELETE FROM user_feature_access
         WHERE feature = 'estimating-module'
           AND user_id IN (
             SELECT id FROM users WHERE role != 'admin'
           )
+        RETURNING id
       `);
-      const count = (result as any).rowCount ?? 0;
-      if (count > 0) {
-        console.log(`[Permissions] (First seed) Removed estimating-module from ${count} non-admin user(s)`);
+      const revokeCount = revokeResult.rows.length;
+      if (revokeCount > 0) {
+        console.log(`[Permissions] (First seed) Removed estimating-module from ${revokeCount} non-admin user(s)`);
       }
     }
 
