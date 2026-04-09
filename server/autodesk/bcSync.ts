@@ -499,7 +499,9 @@ async function mapOpportunityToEntry(opp: BcOpportunity) {
 
   let dueDate = "";
   if (opp.bidDueDate) {
-    const d = new Date(opp.bidDueDate);
+    const dateOnly = opp.bidDueDate.split("T")[0];
+    const [year, month, day] = dateOnly.split("-").map(Number);
+    const d = new Date(year, month - 1, day);
     dueDate = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
   }
 
