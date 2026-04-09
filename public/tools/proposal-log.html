@@ -285,8 +285,24 @@ input[type="date"].df::-webkit-calendar-picker-indicator{filter:var(--date-picke
 .search-wrap input{width:100%;background:var(--bg3);border:1px solid var(--border);color:var(--text);padding:7px 10px 7px 30px;border-radius:5px;font-size:14px;font-family:'DM Sans',sans-serif;outline:none;transition:border-color .2s;}
 .search-wrap input:focus{border-color:var(--gold-dim);}
 .search-icon{position:absolute;left:9px;top:50%;transform:translateY(-50%);color:var(--text-dim);font-size:12px;}
-select.fs,input[type="date"].fd{background:var(--bg3);border:1px solid var(--border);color:var(--text);padding:7px 9px;border-radius:5px;font-size:14px;font-family:'DM Sans',sans-serif;outline:none;cursor:pointer;transition:border-color .2s;}
+select.fs,input[type="date"].fd{background:var(--bg3);border:1px solid var(--border);color:var(--text);padding:5px 8px;border-radius:5px;font-size:12px;font-family:'DM Sans',sans-serif;outline:none;cursor:pointer;transition:border-color .2s;}
 select.fs:focus,input[type="date"].fd:focus{border-color:var(--gold-dim);}
+/* Multi-region dropdown */
+.mr-wrap{position:relative;flex-shrink:0;}
+.mr-btn{display:flex;align-items:center;gap:5px;background:var(--bg3);border:1px solid var(--border);color:var(--text);padding:5px 8px;border-radius:5px;font-size:12px;font-family:'DM Sans',sans-serif;outline:none;cursor:pointer;transition:border-color .2s;white-space:nowrap;max-width:150px;}
+.mr-btn:hover,.mr-btn.open{border-color:var(--gold-dim);}
+.mr-btn.has-sel{border-color:var(--gold-dim);color:var(--gold);}
+.mr-label{overflow:hidden;text-overflow:ellipsis;max-width:115px;min-width:50px;}
+.mr-arrow{font-size:9px;color:var(--text-dim);flex-shrink:0;transition:transform .15s;}
+.mr-btn.open .mr-arrow{transform:rotate(180deg);}
+.mr-drop{display:none;position:absolute;top:calc(100% + 4px);left:0;z-index:250;background:var(--bg2);border:1px solid var(--border);border-radius:8px;box-shadow:0 8px 28px rgba(0,0,0,.4);min-width:200px;max-height:300px;overflow-y:auto;padding:4px 0;}
+.mr-drop.open{display:block;}
+.mr-clear-lnk{padding:5px 12px 7px;font-size:10px;color:var(--text-dim);cursor:pointer;border-bottom:1px solid var(--border);margin-bottom:2px;display:block;text-decoration:underline;}
+.mr-clear-lnk:hover{color:var(--gold);}
+.mr-item{display:flex;align-items:center;gap:8px;padding:5px 12px;cursor:pointer;font-size:12px;font-family:'DM Sans',sans-serif;transition:background .12s;}
+.mr-item:hover{background:var(--bg3);}
+.mr-item input[type="checkbox"]{accent-color:var(--gold);cursor:pointer;flex-shrink:0;}
+.mr-item label{cursor:pointer;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 input[type="date"].fd::-webkit-calendar-picker-indicator{filter:var(--date-picker-filter);cursor:pointer;}
 .date-row{display:flex;align-items:center;gap:5px;}
 .date-row span{font-size:10px;color:var(--text-dim);text-transform:uppercase;letter-spacing:1px;white-space:nowrap;}
@@ -741,7 +757,16 @@ th.col-drop-after::after{content:'';position:absolute;right:0;top:0;bottom:0;wid
     <div class="toolbar">
       <div class="toolbar-filters">
         <div class="search-wrap"><span class="search-icon">&#128269;</span><input type="text" id="search" placeholder="Search all columns..."></div>
-        <select class="fs" id="f-region"><option value="">All Regions</option></select>
+        <div class="mr-wrap" id="mr-wrap">
+          <button class="mr-btn" id="mr-btn" onclick="toggleMR(event)" data-testid="button-region-filter">
+            <span class="mr-label" id="mr-label">All Regions</span>
+            <span class="mr-arrow">&#9660;</span>
+          </button>
+          <div class="mr-drop" id="mr-drop">
+            <span class="mr-clear-lnk" onclick="clearMR()">Clear selection</span>
+            <div id="mr-list"></div>
+          </div>
+        </div>
         <select class="fs" id="f-status"><option value="">All Statuses</option></select>
         <button class="btn-preset" id="btn-socal" onclick="toggleSoCal()" title="Filter: LAX, SAN, and sub-regions" data-testid="button-socal-filter">SoCal Bids</button>
       </div>
@@ -1175,6 +1200,7 @@ const saveLayout = () => localStorage.setItem('nbs_layout', JSON.stringify(layou
   if (changed) saveLayout();
 })();
 let colFilters = { estimateStatus: 'Estimating' };
+let selectedRegions = new Set();
 let socalActive = false;
 const SOCAL_REGIONS = r => r && (/^LAX/i.test(r) || /^SAN/i.test(r) || /san.?diego/i.test(r));
 
@@ -1211,7 +1237,6 @@ function setTab(t) {
 
 function getFiltered() {
   const s=document.getElementById('search').value.toLowerCase();
-  const fr=document.getElementById('f-region').value;
   const fs=document.getElementById('f-status').value;
   const fm=document.getElementById('f-market').value;
   const fsw=document.getElementById('f-swinerton').value;
@@ -1226,7 +1251,7 @@ function getFiltered() {
     }
     if(s && ![p.projectName,p.estimateNumber,p.nbsEstimator,p.gcEstimateLead,p.region,p.primaryMarket,p.owner,p.estimateNumber].some(v=>v&&v.toLowerCase().includes(s))) return false;
     if(socalActive && !SOCAL_REGIONS(p.region)) return false;
-    if(fr && p.region!==fr) return false;
+    if(selectedRegions.size && !selectedRegions.has(p.region)) return false;
     if(fs && p.estimateStatus!==fs) return false;
     if(fm && p.primaryMarket!==fm) return false;
     if(fsw && p.swinertonProject!==fsw) return false;
@@ -1254,7 +1279,7 @@ function populateGlobalFilters() {
     const cur=el.value;
     el.innerHTML='<option value="">'+el.options[0].text+'</option>'+items.map(v=>`<option${v===cur?' selected':''}>${v}</option>`).join('');
   };
-  pop('f-region', REGIONS);
+  populateMRList();
   pop('f-status', STATUSES);
   pop('f-market', MARKETS);
 }
@@ -1688,15 +1713,63 @@ function renderColPanel() {
   });
 }
 
+// ─── MULTI-REGION DROPDOWN ────────────────────────────────────────────────────
+function toggleMR(e) {
+  e.stopPropagation();
+  const drop = document.getElementById('mr-drop');
+  const btn  = document.getElementById('mr-btn');
+  if (!drop || !btn) return;
+  const opening = !drop.classList.contains('open');
+  closeAllMR();
+  if (opening) { drop.classList.add('open'); btn.classList.add('open'); }
+}
+function closeAllMR() {
+  document.querySelectorAll('.mr-drop.open').forEach(el => el.classList.remove('open'));
+  document.querySelectorAll('.mr-btn.open').forEach(el => el.classList.remove('open'));
+}
+function updateMRLabel() {
+  const lbl = document.getElementById('mr-label');
+  const btn  = document.getElementById('mr-btn');
+  if (!lbl || !btn) return;
+  if (selectedRegions.size === 0) {
+    lbl.textContent = 'All Regions';
+    btn.classList.remove('has-sel');
+  } else if (selectedRegions.size <= 2) {
+    lbl.textContent = [...selectedRegions].join(', ');
+    btn.classList.add('has-sel');
+  } else {
+    lbl.textContent = selectedRegions.size + ' Regions';
+    btn.classList.add('has-sel');
+  }
+}
+function populateMRList() {
+  const list = document.getElementById('mr-list');
+  if (!list) return;
+  list.innerHTML = REGIONS.map(r => {
+    const safeId = 'mr-' + r.replace(/[^a-zA-Z0-9]/g, '_');
+    const checked = selectedRegions.has(r) ? 'checked' : '';
+    const safeName = r.replace(/'/g, "\\'");
+    return `<div class="mr-item"><input type="checkbox" id="${safeId}" ${checked} onchange="toggleMRRegion('${safeName}',this.checked)"><label for="${safeId}">${r}</label></div>`;
+  }).join('');
+}
+function toggleMRRegion(r, checked) {
+  if (checked) selectedRegions.add(r); else selectedRegions.delete(r);
+  clearSoCal();
+  updateMRLabel();
+  buildRows();
+}
+function clearMR() {
+  selectedRegions.clear();
+  updateMRLabel();
+  populateMRList();
+  buildRows();
+}
+
 function toggleSoCal() {
   socalActive = !socalActive;
   const btn = document.getElementById('btn-socal');
   if(btn) btn.classList.toggle('active', socalActive);
-  if(socalActive) {
-    // Clear the region dropdown when SoCal preset is active (they'd conflict)
-    const fr = document.getElementById('f-region');
-    if(fr) fr.value = '';
-  }
+  if(socalActive) clearMR();
   buildRows();
 }
 
@@ -1710,6 +1783,8 @@ function resetColLayout() {
   if(!confirm('Reset all columns to default order and sizes?')) return;
   layout=defaultLayout();
   colFilters={};
+  selectedRegions.clear();
+  updateMRLabel();
   clearSoCal();
   saveLayout();
   buildHeaders();
@@ -3475,8 +3550,8 @@ async function initApp() {
     regionInput.innerHTML = '<option value="">&mdash; Select &mdash;</option>' + REGIONS.map(r => `<option>${r}</option>`).join('');
   }
 
+  document.addEventListener('click', e => { const w = document.getElementById('mr-wrap'); if(w && !w.contains(e.target)) closeAllMR(); });
   document.getElementById('search').addEventListener('input', () => buildRows());
-  document.getElementById('f-region').addEventListener('change', () => { clearSoCal(); buildRows(); });
   ['f-status','f-market','f-swinerton','f-from','f-to']
     .forEach(id => document.getElementById(id).addEventListener('change', () => buildRows()));
   ['df-region','df-market','df-swinerton','df-from','df-to']
