@@ -1787,11 +1787,16 @@ async function del(i){
   if(!confirm('Delete this proposal?'))return;
   const entry=data[i];
   if(entry&&entry._serverDbId){
+    let ok=false;
     try{
-      await fetch('/api/proposal-log/entry/'+entry._serverDbId,{method:'DELETE',credentials:'include'});
-    }catch(e){console.warn('Failed to delete from server:',e);}
+      const r=await fetch('/api/proposal-log/entry/'+entry._serverDbId,{method:'DELETE',credentials:'include'});
+      if(r.ok){ok=true;}
+      else{let m='Delete failed ('+r.status+')';try{const j=await r.json();if(j.message)m=j.message;}catch{}showToast('\u26a0\ufe0f '+m,'error');return;}
+    }catch(e){showToast('\u26a0\ufe0f Could not reach server — proposal was NOT deleted','error');console.warn('Failed to delete from server:',e);return;}
+    if(!ok)return;
   }
   data.splice(i,1);save();render();
+  showToast('\ud83d\uddd1 Proposal deleted');
 }
 
 function getComputedVal(p,k) {
@@ -2544,7 +2549,10 @@ async function deleteSelected(){
   if(!confirm(`Delete ${n} selected proposal${n!==1?'s':''}? This cannot be undone.`))return;
   const serverIds=[...selectedIndices].map(i=>data[i]?._serverDbId).filter(Boolean);
   if(serverIds.length){
-    try{await fetch('/api/proposal-log/delete-bulk',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'include',body:JSON.stringify({ids:serverIds})});}catch(e){console.warn('Failed to bulk delete from server:',e);}
+    try{
+      const r=await fetch('/api/proposal-log/delete-bulk',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'include',body:JSON.stringify({ids:serverIds})});
+      if(!r.ok){let m='Delete failed ('+r.status+')';try{const j=await r.json();if(j.message)m=j.message;}catch{}showToast('\u26a0\ufe0f '+m,'error');return;}
+    }catch(e){showToast('\u26a0\ufe0f Could not reach server — proposals were NOT deleted','error');console.warn('Failed to bulk delete from server:',e);return;}
   }
   [...selectedIndices].sort((a,b)=>b-a).forEach(i=>data.splice(i,1));
   selectedIndices.clear(); save(); render();
@@ -2555,7 +2563,10 @@ async function clearAllData(){
   if(!confirm(`Delete ALL ${data.length} proposals? This cannot be undone.`))return;
   const serverIds=data.map(d=>d._serverDbId).filter(Boolean);
   if(serverIds.length){
-    try{await fetch('/api/proposal-log/delete-bulk',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'include',body:JSON.stringify({ids:serverIds})});}catch(e){console.warn('Failed to bulk delete from server:',e);}
+    try{
+      const r=await fetch('/api/proposal-log/delete-bulk',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'include',body:JSON.stringify({ids:serverIds})});
+      if(!r.ok){let m='Delete failed ('+r.status+')';try{const j=await r.json();if(j.message)m=j.message;}catch{}showToast('\u26a0\ufe0f '+m,'error');return;}
+    }catch(e){showToast('\u26a0\ufe0f Could not reach server — proposals were NOT deleted','error');console.warn('Failed to bulk delete from server:',e);return;}
   }
   data=[];selectedIndices.clear();save();render();showToast('\ud83d\uddd1 All proposals cleared');
 }

@@ -59,6 +59,23 @@ export async function recordFieldChanges(
   }
 }
 
+export async function recordEntryDeletion(
+  entryId: number,
+  projectName: string,
+  estimateNumber: string | null | undefined,
+  changedBy: string,
+): Promise<void> {
+  try {
+    await db.insert(proposalChangeLog).values({
+      entryId,
+      fieldName: "entry_deleted",
+      oldValue: projectName || estimateNumber || `Entry #${entryId}`,
+      newValue: null,
+      changedBy,
+    });
+  } catch {}
+}
+
 export async function recordEntryCreation(
   entryId: number,
   projectName: string,

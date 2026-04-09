@@ -48,7 +48,7 @@ import { guessMarket, createProposalLogEntry, bulkCreateProposalLogEntries, getU
 import { getSheetUrl, syncProposalLogToSheet, pullRepairAndPush, isGoogleSheetConfigured } from "./googleSheetSync";
 import { users, proposalLogEntries, regions, proposalChangeLog, estimateTemplates } from "@shared/schema";
 import { eq, sql } from "drizzle-orm";
-import { resolveChangedByName, recordFieldChanges, recordEntryCreation } from "./changeLogger";
+import { resolveChangedByName, recordFieldChanges, recordEntryCreation, recordEntryDeletion } from "./changeLogger";
 import { db } from "./db";
 import { sendBidAssignmentEmail, getBidAssignmentTemplate, saveBidAssignmentTemplate, sendProjectWonEmail, getProjectWonTemplate, saveProjectWonTemplate } from "./emailService";
 import { QUICK_LOGIN_USERS } from "./authRoutes";
@@ -2131,25 +2131,25 @@ export function registerProjectRoutes(app: Express) {
       const id = parseInt(req.params.id);
       if (isNaN(id)) return res.status(400).json({ message: "Valid numeric id required" });
 
-      // Fetch entry to check project ownership
-      const [entry] = await db.select().from(proposalLogEntries).where(eq(proposalLogEntries.id, id));
-      if (!entry) {
-        return res.status(404).json({ message: "Entry not found" });
+      const userId = (req.session as any)?.userId;
+      if (!userId) return res.status(401).json({ message: "Authentication required" });
+
+      // Only admins may delete
+      const [u] = await db.select().from(users).where(eq(users.id, userId));
+      if (!u || u.role !== "admin") {
+        return res.status(403).json({ message: "Admin access required to delete proposals" });
       }
 
-      // Check project ownership
-      const userId = (req.session as any)?.userId;
-      const canAccess = await userCanAccessProject(userId, entry.projectDbId);
-      if (!canAccess) {
-        return res.status(403).json({ message: "You do not have permission to delete this proposal" });
-      }
+      const [entry] = await db.select().from(proposalLogEntries).where(eq(proposalLogEntries.id, id));
+      if (!entry) return res.status(404).json({ message: "Entry not found" });
 
       const deleted = await deleteProposalLogEntry(id);
-      if (!deleted) {
-        return res.status(404).json({ message: "Entry not found" });
-      }
+      if (!deleted) return res.status(404).json({ message: "Entry not found" });
 
-      console.log(`[ProposalLog] Deleted entry id=${id}, project: ${deleted.projectName}`);
+      const changedBy = u.initials || u.displayName || u.email;
+      await recordEntryDeletion(id, deleted.projectName || "", deleted.estimateNumber, changedBy).catch(() => {});
+
+      console.log(`[ProposalLog] Deleted entry id=${id} by ${changedBy}, project: ${deleted.projectName}`);
       res.json({ success: true });
     } catch (error) {
       console.error("Failed to delete proposal log entry:", error);
@@ -2164,23 +2164,27 @@ export function registerProjectRoutes(app: Express) {
         return res.status(400).json({ message: "ids array required" });
       }
       const numericIds = ids.map((id: any) => parseInt(id)).filter((id: number) => !isNaN(id));
-      
-      const userId = (req.session as any)?.userId;
 
-      // Validate ownership for each entry before deletion
-      const entries = await db.select().from(proposalLogEntries).where(sql`id = ANY(${numericIds})`);
-      
-      for (const entry of entries) {
-        const canAccess = await userCanAccessProject(userId, entry.projectDbId);
-        if (!canAccess) {
-          return res.status(403).json({ 
-            message: `You do not have permission to delete proposal "${entry.projectName}" (ID: ${entry.id})` 
-          });
-        }
+      const userId = (req.session as any)?.userId;
+      if (!userId) return res.status(401).json({ message: "Authentication required" });
+
+      // Only admins may bulk delete
+      const [u] = await db.select().from(users).where(eq(users.id, userId));
+      if (!u || u.role !== "admin") {
+        return res.status(403).json({ message: "Admin access required to delete proposals" });
       }
 
+      // Snapshot entries before deletion so we can log them
+      const entries = await db.select().from(proposalLogEntries).where(sql`id = ANY(${numericIds})`);
+
       const count = await deleteProposalLogEntries(numericIds);
-      console.log(`[ProposalLog] Bulk deleted ${count} entries`);
+
+      const changedBy = u.initials || u.displayName || u.email;
+      for (const entry of entries) {
+        await recordEntryDeletion(entry.id, entry.projectName || "", entry.estimateNumber, changedBy).catch(() => {});
+      }
+
+      console.log(`[ProposalLog] Bulk deleted ${count} entries by ${changedBy}`);
       res.json({ success: true, deleted: count });
     } catch (error) {
       console.error("Failed to bulk delete proposal log entries:", error);
