@@ -296,6 +296,9 @@ input[type="date"].fd::-webkit-calendar-picker-indicator{filter:var(--date-picke
 .btn-secondary:hover{border-color:var(--gold-dim);color:var(--text);}
 .btn-icon-sm{background:var(--bg3);border:1px solid var(--border);color:var(--text-dim);padding:7px 10px;border-radius:5px;font-size:11px;cursor:pointer;transition:all .2s;white-space:nowrap;}
 .btn-icon-sm:hover{border-color:var(--gold-dim);color:var(--gold);}
+.btn-preset{background:var(--bg3);border:1px solid var(--border);color:var(--text-dim);padding:5px 10px;border-radius:5px;font-size:11px;font-family:'Rajdhani',sans-serif;font-weight:600;letter-spacing:.8px;text-transform:uppercase;cursor:pointer;transition:all .2s;white-space:nowrap;}
+.btn-preset:hover{border-color:var(--gold-dim);color:var(--gold);}
+.btn-preset.active{background:linear-gradient(135deg,rgba(201,168,76,.18),rgba(201,168,76,.08));border-color:var(--gold);color:var(--gold);}
 
 .readonly-banner{display:none;align-items:center;gap:8px;background:rgba(201,168,76,.08);border:1px solid rgba(201,168,76,.25);border-radius:7px;padding:8px 12px;margin-bottom:10px;font-size:11px;color:var(--gold);}
 .readonly-banner.show{display:flex;}
@@ -740,6 +743,7 @@ th.col-drop-after::after{content:'';position:absolute;right:0;top:0;bottom:0;wid
         <div class="search-wrap"><span class="search-icon">&#128269;</span><input type="text" id="search" placeholder="Search all columns..."></div>
         <select class="fs" id="f-region"><option value="">All Regions</option></select>
         <select class="fs" id="f-status"><option value="">All Statuses</option></select>
+        <button class="btn-preset" id="btn-socal" onclick="toggleSoCal()" title="Filter: LAX, SAN, and sub-regions" data-testid="button-socal-filter">SoCal Bids</button>
       </div>
       <div class="toolbar-actions-wrap" style="position:relative;display:flex;align-items:center;gap:6px;">
         <button class="btn-icon-sm" id="btn-more-toggle" onclick="toggleMoreMenu()" title="More options">&#9776; More</button>
@@ -1171,6 +1175,8 @@ const saveLayout = () => localStorage.setItem('nbs_layout', JSON.stringify(layou
   if (changed) saveLayout();
 })();
 let colFilters = { estimateStatus: 'Estimating' };
+let socalActive = false;
+const SOCAL_REGIONS = r => r && (/^LAX/i.test(r) || /^SAN/i.test(r) || /san.?diego/i.test(r));
 
 const fmt$ = n => { if(!n&&n!==0)return'\u2014';const num=Number(n);if(!num||isNaN(num))return'\u2014';return'$'+num.toLocaleString(); };
 const fmtD = d => { if(!d) return '\u2014'; const [y,m,dy]=d.split('-'); return `${m}/${dy}/${y}`; };
@@ -1219,6 +1225,7 @@ function getFiltered() {
       if(!isAdm && p._pendingDeletionBy !== myIdent) return false;
     }
     if(s && ![p.projectName,p.estimateNumber,p.nbsEstimator,p.gcEstimateLead,p.region,p.primaryMarket,p.owner,p.estimateNumber].some(v=>v&&v.toLowerCase().includes(s))) return false;
+    if(socalActive && !SOCAL_REGIONS(p.region)) return false;
     if(fr && p.region!==fr) return false;
     if(fs && p.estimateStatus!==fs) return false;
     if(fm && p.primaryMarket!==fm) return false;
@@ -1681,10 +1688,29 @@ function renderColPanel() {
   });
 }
 
+function toggleSoCal() {
+  socalActive = !socalActive;
+  const btn = document.getElementById('btn-socal');
+  if(btn) btn.classList.toggle('active', socalActive);
+  if(socalActive) {
+    // Clear the region dropdown when SoCal preset is active (they'd conflict)
+    const fr = document.getElementById('f-region');
+    if(fr) fr.value = '';
+  }
+  buildRows();
+}
+
+function clearSoCal() {
+  socalActive = false;
+  const btn = document.getElementById('btn-socal');
+  if(btn) btn.classList.remove('active');
+}
+
 function resetColLayout() {
   if(!confirm('Reset all columns to default order and sizes?')) return;
   layout=defaultLayout();
   colFilters={};
+  clearSoCal();
   saveLayout();
   buildHeaders();
   buildRows();
@@ -3450,7 +3476,8 @@ async function initApp() {
   }
 
   document.getElementById('search').addEventListener('input', () => buildRows());
-  ['f-region','f-status','f-market','f-swinerton','f-from','f-to']
+  document.getElementById('f-region').addEventListener('change', () => { clearSoCal(); buildRows(); });
+  ['f-status','f-market','f-swinerton','f-from','f-to']
     .forEach(id => document.getElementById(id).addEventListener('change', () => buildRows()));
   ['df-region','df-market','df-swinerton','df-from','df-to']
     .forEach(id => { const el = document.getElementById(id); if(el) el.addEventListener('change', renderDash); });
