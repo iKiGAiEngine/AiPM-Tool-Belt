@@ -154,13 +154,13 @@ export async function initializePermissions() {
       console.log(`[Permissions] Removed submittal-builder from ${estimatorUsers.length} Estimator user(s)`);
     }
 
-    // estimating-module: admin-only by default.
-    // Additive grant only — ensure every admin has the feature.
-    // Non-admin access is never assigned by role defaults so no programmatic
-    // revocation is needed; manual grants made via /admin/permissions persist.
-    const adminUsers = await db.select({ id: users.id }).from(users).where(eq(users.role, "admin"));
+    // estimating-module: admin-only feature.
+    // Grant to every admin user, revoke from every non-admin user (same idempotent
+    // pattern used for submittal-builder above). Reconciled on every startup so the
+    // role baseline is always authoritative.
+    const estimatingAdmins = await db.select({ id: users.id }).from(users).where(eq(users.role, "admin"));
     let grantedEstimatingCount = 0;
-    for (const au of adminUsers) {
+    for (const au of estimatingAdmins) {
       const existing = await db.execute(sql`
         SELECT id FROM user_feature_access
         WHERE user_id = ${au.id} AND feature = 'estimating-module'
@@ -176,6 +176,21 @@ export async function initializePermissions() {
     }
     if (grantedEstimatingCount > 0) {
       console.log(`[Permissions] Granted estimating-module to ${grantedEstimatingCount} Admin user(s)`);
+    }
+
+    // Remove estimating-module from all non-admin users (idempotent role-based reconciliation).
+    const nonAdminEstimatingUsers = await db.select({ id: users.id }).from(users).where(sql`role != 'admin'`);
+    let revokedEstimatingCount = 0;
+    for (const nu of nonAdminEstimatingUsers) {
+      const result = await db.execute(sql`
+        DELETE FROM user_feature_access
+        WHERE user_id = ${nu.id} AND feature = 'estimating-module'
+        RETURNING id
+      `);
+      revokedEstimatingCount += result.rows.length;
+    }
+    if (revokedEstimatingCount > 0) {
+      console.log(`[Permissions] Removed estimating-module from ${revokedEstimatingCount} non-admin user(s)`);
     }
 
     // For each remaining user without permissions, assign default permissions based on their role
