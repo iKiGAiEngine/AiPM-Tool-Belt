@@ -262,6 +262,10 @@ export function registerAdminRoutes(app: Express) {
       }
       const [target] = await db.select().from(users).where(eq(users.id, userId));
       if (!target) return res.status(404).json({ message: "User not found" });
+      await db.execute(sql`DELETE FROM aps_tokens WHERE user_id = ${userId}`);
+      await db.execute(sql`DELETE FROM proposal_acknowledgements WHERE user_id = ${userId}`);
+      await db.execute(sql`DELETE FROM notifications WHERE user_id = ${userId}`);
+      await db.execute(sql`UPDATE bc_sync_state SET synced_by = NULL WHERE synced_by = ${userId}`);
       await db.delete(userFeatureAccess).where(eq(userFeatureAccess.userId, userId));
       await db.delete(users).where(eq(users.id, userId));
       const [actor] = await db.select().from(users).where(eq(users.id, actorId));
