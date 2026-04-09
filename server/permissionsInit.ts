@@ -175,21 +175,6 @@ export async function initializePermissions() {
       console.log(`[Permissions] Granted estimating-module to ${grantedEstimatingCount} Admin user(s)`);
     }
 
-    // Remove estimating-module from all non-admin users (it's admin-only by default)
-    const nonAdminUsers = await db.select({ id: users.id }).from(users).where(sql`role != 'admin'`);
-    let revokedEstimatingCount = 0;
-    for (const nu of nonAdminUsers) {
-      const result = await db.execute(sql`
-        DELETE FROM user_feature_access
-        WHERE user_id = ${nu.id} AND feature = 'estimating-module'
-        RETURNING id
-      `);
-      revokedEstimatingCount += result.rows.length;
-    }
-    if (revokedEstimatingCount > 0) {
-      console.log(`[Permissions] Removed estimating-module from ${revokedEstimatingCount} non-admin user(s)`);
-    }
-
     // For each remaining user without permissions, assign default permissions based on their role
     const remainingUsers = await db.select().from(users);
 
