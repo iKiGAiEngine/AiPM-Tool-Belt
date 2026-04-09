@@ -1812,7 +1812,7 @@ async function checkGoogleSheet(){
     const btn=document.getElementById('btn-gsheet');
     const syncBtn=document.getElementById('btn-force-sync');
     const importBtn=document.getElementById('btn-import-sheet');
-    if(d.url){
+    if(d.url && currentUser && currentUser.role==='admin'){
       btn.href=d.url;
       btn.style.display='';
     }
@@ -3207,6 +3207,9 @@ function applyModeRestrictions() {
     const clearBtn = exportBar.querySelector('button[onclick="clearAllData()"]');
     if (clearBtn) clearBtn.style.display = caps.clearAll ? '' : 'none';
   }
+
+  const sheetBtn = document.getElementById('btn-gsheet');
+  if (sheetBtn && !isAdmin) sheetBtn.style.display = 'none';
 
   const syncBtn = document.getElementById('btn-force-sync');
   if (syncBtn && !isAdmin) syncBtn.style.display = 'none';
