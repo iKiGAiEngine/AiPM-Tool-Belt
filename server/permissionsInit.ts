@@ -154,11 +154,10 @@ export async function initializePermissions() {
       console.log(`[Permissions] Removed submittal-builder from ${estimatorUsers.length} Estimator user(s)`);
     }
 
-    // estimating-module baseline enforcement (idempotent on every startup):
-    // 1. Ensure every admin has the feature — fill any gaps from new accounts.
-    // 2. Remove the feature from all non-admin users — this is the authoritative
-    //    baseline; the admin permissions UI can grant it intra-session but the
-    //    role-based constraint is re-applied here on each restart for consistency.
+    // estimating-module: admin-only by default.
+    // Additive grant only — ensure every admin has the feature.
+    // Non-admin access is never assigned by role defaults so no programmatic
+    // revocation is needed; manual grants made via /admin/permissions persist.
     const adminUsers = await db.select({ id: users.id }).from(users).where(eq(users.role, "admin"));
     let grantedEstimatingCount = 0;
     for (const au of adminUsers) {
@@ -177,20 +176,6 @@ export async function initializePermissions() {
     }
     if (grantedEstimatingCount > 0) {
       console.log(`[Permissions] Granted estimating-module to ${grantedEstimatingCount} Admin user(s)`);
-    }
-
-    // Remove estimating-module from all non-admin users (idempotent role-based cleanup).
-    const revokeResult = await db.execute(sql`
-      DELETE FROM user_feature_access
-      WHERE feature = 'estimating-module'
-        AND user_id IN (
-          SELECT id FROM users WHERE role != 'admin'
-        )
-      RETURNING id
-    `);
-    const revokeCount = revokeResult.rows.length;
-    if (revokeCount > 0) {
-      console.log(`[Permissions] Removed estimating-module from ${revokeCount} non-admin user(s)`);
     }
 
     // For each remaining user without permissions, assign default permissions based on their role
