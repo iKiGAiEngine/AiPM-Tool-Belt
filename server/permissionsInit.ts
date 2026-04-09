@@ -154,19 +154,11 @@ export async function initializePermissions() {
       console.log(`[Permissions] Removed submittal-builder from ${estimatorUsers.length} Estimator user(s)`);
     }
 
-    // estimating-module: one-time seeding on first introduction of the feature.
-    // Detect first boot by checking whether ANY user_feature_access row for this feature
-    // exists at all. If zero rows exist, this is the initial seed run — grant to all
-    // admins and revoke from all non-admins (safe: no manual grants exist yet).
-    // On all subsequent startups at least one admin row exists, so revocation is skipped
-    // entirely and only newly-added admins are filled in, preserving all manual grants.
-    const seedCheck = await db.execute(sql`
-      SELECT id FROM user_feature_access
-      WHERE feature = 'estimating-module'
-      LIMIT 1
-    `);
-    const isFirstSeed = seedCheck.rows.length === 0;
-
+    // estimating-module baseline enforcement (idempotent on every startup):
+    // 1. Ensure every admin has the feature — fill any gaps from new accounts.
+    // 2. Remove the feature from all non-admin users — this is the authoritative
+    //    baseline; the admin permissions UI can grant it intra-session but the
+    //    role-based constraint is re-applied here on each restart for consistency.
     const adminUsers = await db.select({ id: users.id }).from(users).where(eq(users.role, "admin"));
     let grantedEstimatingCount = 0;
     for (const au of adminUsers) {
@@ -187,21 +179,18 @@ export async function initializePermissions() {
       console.log(`[Permissions] Granted estimating-module to ${grantedEstimatingCount} Admin user(s)`);
     }
 
-    // On first seed only: remove estimating-module from any non-admin who might have it.
-    // After this point, revocation is handled exclusively through the admin permissions UI.
-    if (isFirstSeed) {
-      const revokeResult = await db.execute(sql`
-        DELETE FROM user_feature_access
-        WHERE feature = 'estimating-module'
-          AND user_id IN (
-            SELECT id FROM users WHERE role != 'admin'
-          )
-        RETURNING id
-      `);
-      const revokeCount = revokeResult.rows.length;
-      if (revokeCount > 0) {
-        console.log(`[Permissions] (First seed) Removed estimating-module from ${revokeCount} non-admin user(s)`);
-      }
+    // Remove estimating-module from all non-admin users (idempotent role-based cleanup).
+    const revokeResult = await db.execute(sql`
+      DELETE FROM user_feature_access
+      WHERE feature = 'estimating-module'
+        AND user_id IN (
+          SELECT id FROM users WHERE role != 'admin'
+        )
+      RETURNING id
+    `);
+    const revokeCount = revokeResult.rows.length;
+    if (revokeCount > 0) {
+      console.log(`[Permissions] Removed estimating-module from ${revokeCount} non-admin user(s)`);
     }
 
     // For each remaining user without permissions, assign default permissions based on their role
