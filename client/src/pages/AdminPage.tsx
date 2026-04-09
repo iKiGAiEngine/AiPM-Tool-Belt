@@ -269,12 +269,12 @@ export default function AdminPage() {
     },
   });
 
-  const deleteInactiveMutation = useMutation({
+  const deleteInactiveMutation = useMutation<{ deleted: number; emails: string[] }, Error>({
     mutationFn: async () => {
       const res = await apiRequest("POST", "/api/admin/cleanup/remove-inactive");
-      return res as any;
+      return res as { deleted: number; emails: string[] };
     },
-    onSuccess: (data: any) => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
       toast({ title: `Deleted ${data.deleted} inactive user${data.deleted !== 1 ? "s" : ""}` });
     },
