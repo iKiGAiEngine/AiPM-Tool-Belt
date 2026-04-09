@@ -49,3 +49,20 @@ export async function recordFieldChanges(
     await db.insert(proposalChangeLog).values(changeRows);
   }
 }
+
+export async function recordEntryCreation(
+  entryId: number,
+  projectName: string,
+  estimateNumber: string | null | undefined,
+  changedBy: string,
+): Promise<void> {
+  try {
+    await db.insert(proposalChangeLog).values({
+      entryId,
+      fieldName: "entry_created",
+      oldValue: null,
+      newValue: projectName || estimateNumber || `Entry #${entryId}`,
+      changedBy,
+    });
+  } catch {}
+}

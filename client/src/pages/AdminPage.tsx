@@ -46,6 +46,7 @@ import {
   History,
   FileText,
   KeyRound,
+  ClipboardList,
 } from "lucide-react";
 import { Link } from "wouter";
 import { queryClient, apiRequest } from "@/lib/queryClient";
@@ -291,7 +292,7 @@ export default function AdminPage() {
             </div>
             <p className="text-xs text-muted-foreground mt-1">Feature access, logs, and audit tools — restricted to administrators only.</p>
           </div>
-          <div className="p-4 grid grid-cols-1 sm:grid-cols-4 gap-3">
+          <div className="p-4 grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-5 gap-3">
             <Link href="/admin/permissions" data-testid="link-user-permissions">
               <div className="flex items-start gap-3 p-3 rounded-md border border-border hover:border-primary/50 hover:bg-muted/40 transition-all cursor-pointer group">
                 <KeyRound className="w-4 h-4 mt-0.5 shrink-0" style={{ color: "var(--gold)" }} />
@@ -310,12 +311,21 @@ export default function AdminPage() {
                 </div>
               </div>
             </Link>
-            <Link href="/tools/proposal-log" data-testid="link-proposal-change-log">
+            <Link href="/tools/proposal-log" data-testid="link-proposal-log">
               <div className="flex items-start gap-3 p-3 rounded-md border border-border hover:border-primary/50 hover:bg-muted/40 transition-all cursor-pointer group">
                 <History className="w-4 h-4 mt-0.5 shrink-0" style={{ color: "var(--gold)" }} />
                 <div>
                   <div className="font-medium text-sm font-heading group-hover:text-foreground">Proposal Log</div>
                   <div className="text-xs text-muted-foreground">Bid tracking, pipeline & BC Bid Log audit trail</div>
+                </div>
+              </div>
+            </Link>
+            <Link href="/admin/proposal-change-log" data-testid="link-proposal-change-log">
+              <div className="flex items-start gap-3 p-3 rounded-md border border-border hover:border-primary/50 hover:bg-muted/40 transition-all cursor-pointer group">
+                <ClipboardList className="w-4 h-4 mt-0.5 shrink-0" style={{ color: "var(--gold)" }} />
+                <div>
+                  <div className="font-medium text-sm font-heading group-hover:text-foreground">Change Log</div>
+                  <div className="text-xs text-muted-foreground">Full history of all edits &amp; new projects added</div>
                 </div>
               </div>
             </Link>

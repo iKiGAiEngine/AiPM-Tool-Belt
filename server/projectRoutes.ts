@@ -48,7 +48,7 @@ import { guessMarket, createProposalLogEntry, bulkCreateProposalLogEntries, getU
 import { getSheetUrl, syncProposalLogToSheet, pullRepairAndPush, isGoogleSheetConfigured } from "./googleSheetSync";
 import { users, proposalLogEntries, regions, proposalChangeLog, estimateTemplates } from "@shared/schema";
 import { eq, sql } from "drizzle-orm";
-import { resolveChangedByName, recordFieldChanges } from "./changeLogger";
+import { resolveChangedByName, recordFieldChanges, recordEntryCreation } from "./changeLogger";
 import { db } from "./db";
 import { sendBidAssignmentEmail, getBidAssignmentTemplate, saveBidAssignmentTemplate, sendProjectWonEmail, getProjectWonTemplate, saveProjectWonTemplate } from "./emailService";
 import { QUICK_LOGIN_USERS } from "./authRoutes";
@@ -1776,6 +1776,11 @@ export function registerProjectRoutes(app: Express) {
         return res.status(400).json({ message: "entries array required" });
       }
       const created = await bulkCreateProposalLogEntries(entries);
+      const userId = (req.session as any)?.userId;
+      const changedBy = await resolveChangedByName(userId);
+      for (const entry of created) {
+        await recordEntryCreation(entry.id, entry.projectName || "", entry.estimateNumber, changedBy).catch(() => {});
+      }
       res.json(created);
     } catch (error) {
       console.error("Failed to bulk create proposal log entries:", error);
@@ -2271,6 +2276,11 @@ export function registerProjectRoutes(app: Express) {
 
   app.get("/api/proposal-log/change-history", async (req: Request, res: Response) => {
     try {
+      const userId = (req.session as any)?.userId;
+      if (!userId) return res.status(401).json({ message: "Not authenticated" });
+      const [u] = await db.select().from(users).where(eq(users.id, userId));
+      if (!u || u.role !== "admin") return res.status(403).json({ message: "Admin access required" });
+
       const { entryId, fieldName, changedBy, fromDate, toDate, projectName, limit: limitStr, offset: offsetStr } = req.query;
 
       const parsedEntryId = entryId ? parseInt(entryId as string) : null;

@@ -24,6 +24,7 @@ import SubmittalBuilderPage from "@/submittal-builder/SubmittalBuilderPage";
 import VendorDatabasePage from "@/pages/VendorDatabasePage";
 import { AdminUserPermissionsPage } from "@/pages/AdminUserPermissionsPage";
 import ChangelogPage from "@/pages/ChangelogPage";
+import ProposalChangeLogPage from "@/pages/ProposalChangeLogPage";
 import EstimatingModulePage from "@/pages/EstimatingModulePage";
 import NotFound from "@/pages/not-found";
 
@@ -50,6 +51,7 @@ function Router() {
       <Route path="/admin">{() => <AdminRoute component={AdminPage} />}</Route>
       <Route path="/admin/audit">{() => <AdminRoute component={AuditLogPage} />}</Route>
       <Route path="/admin/permissions">{() => <AdminRoute component={AdminUserPermissionsPage} />}</Route>
+      <Route path="/admin/proposal-change-log">{() => <AdminRoute component={ProposalChangeLogPage} />}</Route>
       <Route path="/changelog">{() => <AdminRoute component={ChangelogPage} />}</Route>
       <Route path="/submittal-builder" component={SubmittalBuilderPage} />
       <Route path="/vendor-database" component={VendorDatabasePage} />
