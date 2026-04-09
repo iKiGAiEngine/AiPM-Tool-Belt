@@ -154,8 +154,23 @@ export async function initializePermissions() {
       console.log(`[Permissions] Removed submittal-builder from ${estimatorUsers.length} Estimator user(s)`);
     }
 
-    // Ensure all admin users have estimating-module (grant to any admin missing it)
+    // estimating-module: one-time seeding on first introduction of the feature.
+    // Detect first boot for this feature by checking whether any admin already has it.
+    // If no admin has it yet, this is the first run — grant to all admins and revoke from
+    // all non-admins (safe because no manual grants exist yet).
+    // On subsequent startups admins already have it, so we skip revocation and only
+    // fill in any admins added since the last run, preserving all manual grants.
     const adminUsers = await db.select({ id: users.id }).from(users).where(eq(users.role, "admin"));
+    const firstAdminCheck = adminUsers.length > 0
+      ? await db.execute(sql`
+          SELECT id FROM user_feature_access
+          WHERE feature = 'estimating-module' AND user_id = ${adminUsers[0].id}
+          LIMIT 1
+        `)
+      : { rows: [{}] }; // no admins → treat as already-seeded
+
+    const isFirstSeed = firstAdminCheck.rows.length === 0;
+
     let grantedEstimatingCount = 0;
     for (const au of adminUsers) {
       const existing = await db.execute(sql`
@@ -173,6 +188,22 @@ export async function initializePermissions() {
     }
     if (grantedEstimatingCount > 0) {
       console.log(`[Permissions] Granted estimating-module to ${grantedEstimatingCount} Admin user(s)`);
+    }
+
+    // On first seed only: remove estimating-module from any non-admin who might have it.
+    // After this point, revocation is handled exclusively through the admin permissions UI.
+    if (isFirstSeed) {
+      const result = await db.execute(sql`
+        DELETE FROM user_feature_access
+        WHERE feature = 'estimating-module'
+          AND user_id IN (
+            SELECT id FROM users WHERE role != 'admin'
+          )
+      `);
+      const count = (result as any).rowCount ?? 0;
+      if (count > 0) {
+        console.log(`[Permissions] (First seed) Removed estimating-module from ${count} non-admin user(s)`);
+      }
     }
 
     // For each remaining user without permissions, assign default permissions based on their role
