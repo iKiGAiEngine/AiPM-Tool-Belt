@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
+import { useFeatureAccess } from "@/hooks/use-feature-access";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -241,10 +242,10 @@ const n = (s: string | null | undefined) => parseFloat(s || "0") || 0;
 // MAIN COMPONENT
 // ══════════════════════════════════════════════════
 
-export default function EstimatingModulePage() {
+function EstimatingModuleInner() {
+  const [, navigate] = useLocation();
   const { id: proposalLogIdStr } = useParams<{ id: string }>();
   const proposalLogId = parseInt(proposalLogIdStr || "0");
-  const [, navigate] = useLocation();
   const { user } = useAuth();
   const { toast } = useToast();
   const qc = useQueryClient();
@@ -3332,4 +3333,38 @@ ${html}
       )}
     </div>
   );
+}
+
+// ══════════════════════════════════════════════════
+// FEATURE GATE — default export
+// ══════════════════════════════════════════════════
+export default function EstimatingModulePage() {
+  const { hasFeature, features } = useFeatureAccess();
+  const { user } = useAuth();
+  const [, navigate] = useLocation();
+  const featuresLoaded = features.length > 0 || !!user;
+
+  if (featuresLoaded && !hasFeature("estimating-module")) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4 text-center px-6">
+        <div
+          className="w-14 h-14 rounded-full flex items-center justify-center"
+          style={{ background: "var(--gold)15", border: "1px solid var(--gold)30" }}
+        >
+          <Lock className="w-6 h-6" style={{ color: "var(--gold)" }} />
+        </div>
+        <h2 className="text-xl font-heading font-semibold" style={{ color: "var(--text)" }}>
+          Access Restricted
+        </h2>
+        <p className="text-sm max-w-xs" style={{ color: "var(--text-dim)" }}>
+          You don't have access to the Estimating Module. Contact your administrator to request access.
+        </p>
+        <Button variant="outline" size="sm" onClick={() => navigate("/")}>
+          Return Home
+        </Button>
+      </div>
+    );
+  }
+
+  return <EstimatingModuleInner />;
 }

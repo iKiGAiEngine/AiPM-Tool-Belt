@@ -518,12 +518,12 @@ export default function HomePage() {
                         >
                           <Check style={{ width: 11, height: 11 }} />
                         </button>
-                        {p._serverDbId ? (
+                        {p._serverDbId && hasFeature("estimating-module") ? (
                           <a className="bid-name bid-name-link" href={`/estimates/${p._serverDbId}`} title="Open Estimate" data-testid={`text-bid-name-new-${i}`}>{p.projectName}</a>
                         ) : (
                           <div className="bid-name" data-testid={`text-bid-name-new-${i}`}>{p.projectName}</div>
                         )}
-                        {p._serverDbId ? (
+                        {p._serverDbId && hasFeature("estimating-module") ? (
                           <a
                             className="bid-estimate"
                             href={`/estimates/${p._serverDbId}`}
@@ -568,12 +568,12 @@ export default function HomePage() {
                     return (
                       <div key={stableId} className="bid-row">
                         <span className="ack-btn-spacer" />
-                        {p._serverDbId ? (
+                        {p._serverDbId && hasFeature("estimating-module") ? (
                           <a className="bid-name bid-name-link" href={`/estimates/${p._serverDbId}`} title="Open Estimate" data-testid={`text-bid-name-due-${i}`}>{p.projectName}</a>
                         ) : (
                           <div className="bid-name" data-testid={`text-bid-name-due-${i}`}>{p.projectName}</div>
                         )}
-                        {p._serverDbId ? (
+                        {p._serverDbId && hasFeature("estimating-module") ? (
                           <a
                             className="bid-estimate"
                             href={`/estimates/${p._serverDbId}`}
@@ -618,12 +618,12 @@ export default function HomePage() {
                     return (
                       <div key={stableId} className="bid-row">
                         <span className="ack-btn-spacer" />
-                        {p._serverDbId ? (
+                        {p._serverDbId && hasFeature("estimating-module") ? (
                           <a className="bid-name bid-name-link" href={`/estimates/${p._serverDbId}`} title="Open Estimate" data-testid={`text-bid-name-pipe-${i}`}>{p.projectName}</a>
                         ) : (
                           <div className="bid-name" data-testid={`text-bid-name-pipe-${i}`}>{p.projectName}</div>
                         )}
-                        {p._serverDbId ? (
+                        {p._serverDbId && hasFeature("estimating-module") ? (
                           <a
                             className="bid-estimate"
                             href={`/estimates/${p._serverDbId}`}

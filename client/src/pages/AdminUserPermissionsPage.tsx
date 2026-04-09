@@ -30,6 +30,7 @@ const FEATURE_LABELS: Record<string, string> = {
   "draft-review": "Draft Review",
   "central-settings": "Central Settings",
   "project-start": "Project Start",
+  "estimating-module": "Estimating Module",
 };
 
 export function AdminUserPermissionsPage() {

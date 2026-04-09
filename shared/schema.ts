@@ -1184,6 +1184,7 @@ export const FEATURES = {
   DRAFT_REVIEW: "draft-review",
   CENTRAL_SETTINGS: "central-settings",
   PROJECT_START: "project-start",
+  ESTIMATING_MODULE: "estimating-module",
 } as const;
 
 export type Feature = typeof FEATURES[keyof typeof FEATURES];

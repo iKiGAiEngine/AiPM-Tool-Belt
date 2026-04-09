@@ -10,6 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useTestMode } from "@/lib/testMode";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/lib/auth";
+import { useFeatureAccess } from "@/hooks/use-feature-access";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { saveAs } from "file-saver";
 import * as XLSX from "xlsx";
@@ -73,6 +74,7 @@ export default function ProjectLogPage() {
   const { isTestMode } = useTestMode();
   const { toast } = useToast();
   const { isAdmin, user } = useAuth();
+  const { hasFeature } = useFeatureAccess();
 
   const [changeHistorySearch, setChangeHistorySearch] = useState("");
   const [changeFieldFilter, setChangeFieldFilter] = useState("");
@@ -935,7 +937,7 @@ export default function ProjectLogPage() {
                                   DELETED
                                 </Badge>
                               )}
-                              {!isDeleted && !isDraft && viewTab !== "changes" && (entry.estimateStatus === null || entry.estimateStatus === "Lead" || entry.estimateStatus === "Estimating") && (
+                              {!isDeleted && !isDraft && viewTab !== "changes" && hasFeature("estimating-module") && (entry.estimateStatus === null || entry.estimateStatus === "Lead" || entry.estimateStatus === "Estimating") && (
                                 <Link href={`/estimates/${entry.id}`}>
                                   <span
                                     className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium transition-colors cursor-pointer hover:opacity-80"

@@ -1424,7 +1424,8 @@ function buildRows() {
           const testBadge = p._isTest ? '<span style="display:inline-block;font-size:9px;font-weight:700;font-family:Rajdhani,sans-serif;letter-spacing:.5px;background:rgba(201,168,76,.18);color:var(--gold);border:1px solid var(--gold-dim);padding:0 4px;border-radius:3px;margin-right:5px;vertical-align:middle;line-height:16px">TEST</span>' : '';
           const pendingBadge = p._pendingDeletion ? `<span style="display:inline-block;font-size:9px;font-weight:700;font-family:Rajdhani,sans-serif;letter-spacing:.5px;background:rgba(234,88,12,.18);color:#f97316;border:1px solid rgba(234,88,12,.35);padding:0 5px;border-radius:3px;margin-right:5px;vertical-align:middle;line-height:16px">\u23f3 PENDING DELETION${p._pendingDeletionBy?' by '+p._pendingDeletionBy:''}</span>` : '';
           const nameText = p._pendingDeletion ? `<span style="text-decoration:line-through;opacity:.6">${p.projectName||'\u2014'}</span>` : (p.projectName||'\u2014');
-          const estimateLink = p._serverDbId && !p._pendingDeletion ? `<a class="proj-name-link" href="/estimates/${p._serverDbId}" title="Open Estimate Module">${testBadge}${nameText}</a>` : `${testBadge}${nameText}`;
+          const canEstimate = userFeatures.includes('estimating-module');
+          const estimateLink = p._serverDbId && !p._pendingDeletion && canEstimate ? `<a class="proj-name-link" href="/estimates/${p._serverDbId}" title="Open Estimate Module">${testBadge}${nameText}</a>` : `${testBadge}${nameText}`;
           val=`<div class="proj-name" title="${p.projectName||''}">${pendingBadge}${estimateLink}</div>`;
           break;
         }
@@ -3282,6 +3283,7 @@ function showToast(msg, type){
 }
 
 let currentUser = null;
+let userFeatures = [];
 let acknowledgedEntryIds = new Set();
 
 const CAPS = {
@@ -3297,6 +3299,10 @@ async function checkAuth() {
     const json = await res.json();
     currentUser = json.user;
     if (!['admin','user'].includes(currentUser.role)) currentUser.role = 'user';
+    try {
+      const fr = await fetch('/api/user/features', { credentials: 'include' });
+      if (fr.ok) userFeatures = await fr.json();
+    } catch(_) {}
     hideAuthGate();
     applyRoleUI();
     initApp();
@@ -3338,6 +3344,10 @@ async function quickLogin(username) {
     const meJson = await meRes.json();
     currentUser = meJson.user;
     if (!['admin','user'].includes(currentUser.role)) currentUser.role = 'user';
+    try {
+      const fr = await fetch('/api/user/features', { credentials: 'include' });
+      if (fr.ok) userFeatures = await fr.json();
+    } catch(_) {}
     hideAuthGate();
     applyRoleUI();
     initApp();
