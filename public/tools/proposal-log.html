@@ -1766,7 +1766,9 @@ function saveProposal(){
         if(formVals[f]!==undefined) serverUpdates[f]=formVals[f];
       });
       if(Object.keys(serverUpdates).length){
-        fetch('/api/proposal-log/entry/'+existing._serverDbId,{method:'PATCH',headers:{'Content-Type':'application/json'},credentials:'include',body:JSON.stringify(serverUpdates)}).catch(e=>console.warn('Failed to sync edit to server:',e));
+        fetch('/api/proposal-log/entry/'+existing._serverDbId,{method:'PATCH',headers:{'Content-Type':'application/json'},credentials:'include',body:JSON.stringify(serverUpdates)})
+          .then(async r=>{if(!r.ok){let m='Save failed ('+r.status+')';try{const j=await r.json();if(j.message)m=j.message;}catch{}showToast('\u26a0\ufe0f '+m,'error');}})
+          .catch(e=>{showToast('\u26a0\ufe0f Could not reach server — changes may not be saved','error');console.warn('Failed to sync edit to server:',e);});
       }
     }
   } else {
@@ -2856,7 +2858,14 @@ async function syncFieldToServer(entry, field, value) {
       credentials: 'include',
       body: JSON.stringify({ [field]: value })
     });
-    if (resp.ok && field === 'selfPerformEstimator') {
+    if (!resp.ok) {
+      let msg = 'Save failed (' + resp.status + ')';
+      try { const j = await resp.json(); if (j.message) msg = j.message; } catch {}
+      showToast('\u26a0\ufe0f ' + msg, 'error');
+      console.warn('Server rejected field update:', field, resp.status, msg);
+      return;
+    }
+    if (field === 'selfPerformEstimator') {
       try {
         const regResp = await fetch('/api/regions', { credentials: 'include' });
         if (regResp.ok) {
@@ -2866,7 +2875,7 @@ async function syncFieldToServer(entry, field, value) {
         }
       } catch (_) {}
     }
-    if (resp.ok && field === 'proposalTotal') {
+    if (field === 'proposalTotal') {
       const result = await resp.json();
       if (result.entry && result.entry.estimateStatus) {
         const idx = data.findIndex(d => d._serverDbId === entry._serverDbId);
@@ -2881,7 +2890,10 @@ async function syncFieldToServer(entry, field, value) {
       await fetchAcknowledgements();
     }
     renderDash();
-  } catch (e) { console.warn('Failed to sync field to server:', e); }
+  } catch (e) {
+    showToast('\u26a0\ufe0f Could not reach server — change may not be saved', 'error');
+    console.warn('Failed to sync field to server:', e);
+  }
 }
 
 async function fetchAcknowledgements() {
@@ -3083,10 +3095,15 @@ async function pushLocalEntriesToServer(entries){
   }catch(err){console.warn('Failed to push imported entries to server:',err);}
 }
 
-function showToast(msg){
+function showToast(msg, type){
   let t=document.getElementById('nbs-toast');
-  if(!t){t=document.createElement('div');t.id='nbs-toast';t.style.cssText='position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:rgba(61,170,106,.95);color:#0D0D0F;padding:10px 20px;border-radius:8px;font-family:\'Rajdhani\',sans-serif;font-size:13px;font-weight:700;letter-spacing:.5px;z-index:9999;opacity:0;transition:opacity .3s;pointer-events:none;white-space:nowrap;';document.body.appendChild(t);}
-  t.textContent=msg;t.style.opacity='1';setTimeout(()=>t.style.opacity='0',3000);
+  if(!t){t=document.createElement('div');t.id='nbs-toast';t.style.cssText='position:fixed;bottom:24px;left:50%;transform:translateX(-50%);padding:10px 20px;border-radius:8px;font-family:\'Rajdhani\',sans-serif;font-size:13px;font-weight:700;letter-spacing:.5px;z-index:9999;opacity:0;transition:opacity .3s;pointer-events:none;white-space:nowrap;';document.body.appendChild(t);}
+  const isError = type === 'error';
+  t.style.background = isError ? 'rgba(220,60,60,.97)' : 'rgba(61,170,106,.95)';
+  t.style.color = isError ? '#fff' : '#0D0D0F';
+  t.textContent=msg;t.style.opacity='1';
+  clearTimeout(t._hideTimer);
+  t._hideTimer=setTimeout(()=>t.style.opacity='0', isError ? 4500 : 3000);
 }
 
 let currentUser = null;

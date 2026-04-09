@@ -1896,10 +1896,10 @@ export function registerProjectRoutes(app: Express) {
         return res.status(400).json({ message: "No valid fields to update" });
       }
 
-      // Check project ownership
-      const canAccess = await userCanAccessProject(userId, existingEntry.projectDbId);
-      if (!canAccess) {
-        return res.status(403).json({ message: "You do not have permission to modify this proposal" });
+      // Proposal log entries are a shared team resource — any authenticated user may edit.
+      // Admin-only operations (estimateNumber changes, deletions) are gated separately.
+      if (!userId) {
+        return res.status(401).json({ message: "Not authenticated" });
       }
 
       let oldEstimator: string | null = null;
