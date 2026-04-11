@@ -305,6 +305,10 @@ function EstimatingModuleInner() {
   const [addingItem, setAddingItem] = useState(false);
   const [newItemForm, setNewItemForm] = useState({ name: "", model: "", mfr: "", qty: 1, unitCost: 0, source: "manual" });
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const pdfParseInputRef = useRef<HTMLInputElement>(null);
+  const [aiParseTab, setAiParseTab] = useState<"text" | "pdf">("text");
+  const [pdfDragActive, setPdfDragActive] = useState(false);
+  const [pdfParsing, setPdfParsing] = useState(false);
 
   // ── Extraction panel state ──
   const [showScheduleExtractor, setShowScheduleExtractor] = useState(false);
@@ -828,6 +832,32 @@ function EstimatingModuleInner() {
     setAiParsing(false);
   }, [pasteText, activeCat]);
 
+  const parseQuoteWithPDF = useCallback(async (file: File) => {
+    setPdfParsing(true);
+    setParsedQuote(null);
+    try {
+      const catLabel = ALL_SCOPES.find(s => s.id === activeCat)?.label || activeCat;
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("category", activeCat);
+      formData.append("catLabel", catLabel);
+      const r = await fetch("/api/estimates/ai/parse-quote-pdf", {
+        method: "POST",
+        body: formData,
+        credentials: "include",
+      });
+      if (!r.ok) {
+        const err = await r.json().catch(() => ({ message: "Upload failed" }));
+        throw new Error(err.message);
+      }
+      const data = await r.json();
+      setParsedQuote(data);
+    } catch (err: any) {
+      toast({ title: "PDF Parse Error", description: err.message || "Could not parse PDF.", variant: "destructive" });
+    }
+    setPdfParsing(false);
+  }, [activeCat]);
+
   const acceptParsedQuote = useCallback(async () => {
     if (!parsedQuote || !estimateId) return;
     try {
@@ -851,7 +881,7 @@ function EstimatingModuleInner() {
         const newItems = await ir.json();
         setLineItems(prev => [...prev, ...newItems]);
       }
-      setParsedQuote(null); setPasteText(""); setShowAiParse(false); setShowNewQuote(false);
+      setParsedQuote(null); setPasteText(""); setShowAiParse(false); setShowNewQuote(false); setAiParseTab("text");
       toast({ title: "Quote imported", description: `${selectedItems.length} items added.` });
     } catch { toast({ title: "Error", description: "Could not import quote.", variant: "destructive" }); }
   }, [parsedQuote, estimateId, activeCat]);
@@ -1996,35 +2026,56 @@ ${html}
                 {/* New quote form (manual) */}
                 {showNewQuote && !showAiParse && (
                   <div className="mt-3 p-3 rounded-lg" style={{ background: "var(--bg3)", border: "1px dashed #a855f740" }}>
-                    <div className="grid grid-cols-3 gap-2 mb-2">
-                      <input value={newQuote.vendor} onChange={e => setNewQuote(p => ({ ...p, vendor: e.target.value }))}
-                        placeholder="Vendor name" className="text-xs px-2 py-1.5 rounded col-span-1"
-                        style={{ background: "var(--bg2)", border: "1px solid var(--border-ds)", color: "var(--text)" }} />
-                      <input value={newQuote.note} onChange={e => setNewQuote(p => ({ ...p, note: e.target.value }))}
-                        placeholder="Note / description" className="text-xs px-2 py-1.5 rounded col-span-1"
-                        style={{ background: "var(--bg2)", border: "1px solid var(--border-ds)", color: "var(--text)" }} />
-                      <input type="number" value={newQuote.freight} onChange={e => setNewQuote(p => ({ ...p, freight: parseFloat(e.target.value) || 0 }))}
-                        placeholder="Freight $" className="text-xs px-2 py-1.5 rounded"
-                        style={{ background: "var(--bg2)", border: "1px solid var(--border-ds)", color: "#f97316" }} />
-                    </div>
-                    <div className="flex gap-2 items-center flex-wrap">
-                      <select value={newQuote.pricingMode} onChange={e => setNewQuote(p => ({ ...p, pricingMode: e.target.value }))}
-                        className="text-xs px-2 py-1 rounded" style={{ background: "var(--bg2)", border: "1px solid var(--border-ds)", color: "var(--text)" }}>
-                        <option value="per_item">Per Item</option>
-                        <option value="lump_sum">Lump Sum</option>
-                      </select>
-                      {newQuote.pricingMode === "lump_sum" && (
-                        <input type="number" value={newQuote.lumpSumTotal} onChange={e => setNewQuote(p => ({ ...p, lumpSumTotal: parseFloat(e.target.value) || 0 }))}
-                          placeholder="LS Total" className="text-xs px-2 py-1 rounded w-24"
+                    <p className="text-xs font-semibold mb-2" style={{ color: "var(--text-secondary)" }}>New Vendor Quote</p>
+                    <div className="grid grid-cols-3 gap-3 mb-3">
+                      <div className="flex flex-col gap-1">
+                        <label className="text-xs font-medium" style={{ color: "var(--text-muted)" }}>Vendor Name</label>
+                        <input data-testid="input-quote-vendor" value={newQuote.vendor} onChange={e => setNewQuote(p => ({ ...p, vendor: e.target.value }))}
+                          placeholder="e.g. Acme Supply Co." className="text-xs px-2 py-1.5 rounded"
+                          style={{ background: "var(--bg2)", border: "1px solid var(--border-ds)", color: "var(--text)" }} />
+                      </div>
+                      <div className="flex flex-col gap-1">
+                        <label className="text-xs font-medium" style={{ color: "var(--text-muted)" }}>Note / Description</label>
+                        <input data-testid="input-quote-note" value={newQuote.note} onChange={e => setNewQuote(p => ({ ...p, note: e.target.value }))}
+                          placeholder="e.g. Base bid, Option 2…" className="text-xs px-2 py-1.5 rounded"
+                          style={{ background: "var(--bg2)", border: "1px solid var(--border-ds)", color: "var(--text)" }} />
+                      </div>
+                      <div className="flex flex-col gap-1">
+                        <label className="text-xs font-medium" style={{ color: "#f97316" }}>Freight ($)</label>
+                        <input data-testid="input-quote-freight" type="number" min={0} step={10} value={newQuote.freight} onChange={e => setNewQuote(p => ({ ...p, freight: parseFloat(e.target.value) || 0 }))}
+                          placeholder="0" className="text-xs px-2 py-1.5 rounded"
                           style={{ background: "var(--bg2)", border: "1px solid var(--border-ds)", color: "#f97316" }} />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-3 gap-3 mb-3">
+                      <div className="flex flex-col gap-1">
+                        <label className="text-xs font-medium" style={{ color: "var(--text-muted)" }}>Pricing Mode</label>
+                        <select data-testid="select-quote-mode" value={newQuote.pricingMode} onChange={e => setNewQuote(p => ({ ...p, pricingMode: e.target.value }))}
+                          className="text-xs px-2 py-1.5 rounded" style={{ background: "var(--bg2)", border: "1px solid var(--border-ds)", color: "var(--text)" }}>
+                          <option value="per_item">Per Item</option>
+                          <option value="lump_sum">Lump Sum</option>
+                        </select>
+                      </div>
+                      {newQuote.pricingMode === "lump_sum" && (
+                        <div className="flex flex-col gap-1">
+                          <label className="text-xs font-medium" style={{ color: "#f97316" }}>Lump Sum Total ($)</label>
+                          <input data-testid="input-quote-lump-sum" type="number" min={0} step={100} value={newQuote.lumpSumTotal} onChange={e => setNewQuote(p => ({ ...p, lumpSumTotal: parseFloat(e.target.value) || 0 }))}
+                            placeholder="0" className="text-xs px-2 py-1.5 rounded"
+                            style={{ background: "var(--bg2)", border: "1px solid var(--border-ds)", color: "#f97316" }} />
+                        </div>
                       )}
-                      <button onClick={() => setNewQuote(p => ({ ...p, taxIncluded: !p.taxIncluded }))}
-                        className="text-xs px-2 py-1 rounded"
-                        style={{ background: newQuote.taxIncluded ? "#22c55e15" : "var(--bg2)", border: `1px solid ${newQuote.taxIncluded ? "#22c55e40" : "var(--border-ds)"}`, color: newQuote.taxIncluded ? "#22c55e" : "var(--text-muted)" }}>
-                        {newQuote.taxIncluded ? "✓ Tax Incl" : "Tax Excl"}
-                      </button>
-                      <button onClick={addQuote} className="text-xs px-3 py-1 rounded font-semibold" style={{ background: "#a855f7", color: "#fff" }}>Create</button>
-                      <button onClick={() => setShowNewQuote(false)} className="text-xs px-3 py-1 rounded" style={{ background: "var(--bg2)", border: "1px solid var(--border-ds)", color: "var(--text-secondary)" }}>Cancel</button>
+                      <div className="flex flex-col gap-1">
+                        <label className="text-xs font-medium" style={{ color: "var(--text-muted)" }}>Tax</label>
+                        <button data-testid="toggle-quote-tax" onClick={() => setNewQuote(p => ({ ...p, taxIncluded: !p.taxIncluded }))}
+                          className="text-xs px-2 py-1.5 rounded text-left"
+                          style={{ background: newQuote.taxIncluded ? "#22c55e15" : "var(--bg2)", border: `1px solid ${newQuote.taxIncluded ? "#22c55e40" : "var(--border-ds)"}`, color: newQuote.taxIncluded ? "#22c55e" : "var(--text-muted)" }}>
+                          {newQuote.taxIncluded ? "✓ Tax Included" : "Tax Excluded"}
+                        </button>
+                      </div>
+                    </div>
+                    <div className="flex gap-2">
+                      <button data-testid="button-create-quote" onClick={addQuote} className="text-xs px-4 py-1.5 rounded font-semibold" style={{ background: "#a855f7", color: "#fff" }}>Create Quote</button>
+                      <button onClick={() => setShowNewQuote(false)} className="text-xs px-3 py-1.5 rounded" style={{ background: "var(--bg2)", border: "1px solid var(--border-ds)", color: "var(--text-secondary)" }}>Cancel</button>
                     </div>
                     <div className="mt-2 p-2 rounded text-xs text-center cursor-pointer" onClick={() => fileInputRef.current?.click()}
                       style={{ border: "1px dashed var(--border-ds)", color: "var(--text-muted)" }}>
@@ -2040,20 +2091,101 @@ ${html}
                   <div className="mt-3 p-4 rounded-lg" style={{ background: "var(--bg3)", border: "1px dashed var(--gold)40" }}>
                     {!parsedQuote ? (
                       <>
-                        <p className="text-xs mb-2" style={{ color: "var(--text-muted)" }}>Paste vendor quote text below — AI will parse items, pricing, and freight automatically.</p>
-                        <textarea value={pasteText} onChange={e => setPasteText(e.target.value)} rows={8}
-                          placeholder="Paste vendor quote text here..." className="w-full text-xs px-3 py-2 rounded mb-2 resize-y"
-                          style={{ background: "var(--bg2)", border: "1px solid var(--border-ds)", color: "var(--text)", minHeight: 120 }} />
-                        <div className="flex gap-2">
-                          <button onClick={parseQuoteWithAI} disabled={aiParsing || !pasteText.trim()}
-                            className="text-xs px-4 py-2 rounded font-semibold flex items-center gap-1.5"
-                            style={{ background: "var(--gold)", color: "#000", opacity: aiParsing || !pasteText.trim() ? 0.6 : 1 }}>
-                            <Zap className="w-3 h-3" />
-                            {aiParsing ? "Parsing..." : "Parse with AI"}
+                        {/* Tab switcher */}
+                        <div className="flex gap-1 mb-3 p-1 rounded-md w-fit" style={{ background: "var(--bg2)", border: "1px solid var(--border-ds)" }}>
+                          <button
+                            onClick={() => setAiParseTab("text")}
+                            className="text-xs px-3 py-1 rounded flex items-center gap-1.5 font-medium transition-colors"
+                            style={{
+                              background: aiParseTab === "text" ? "var(--gold)" : "transparent",
+                              color: aiParseTab === "text" ? "#000" : "var(--text-secondary)",
+                            }}>
+                            📋 Paste Text
                           </button>
-                          <button onClick={() => { setShowNewQuote(false); setShowAiParse(false); setPasteText(""); }}
-                            className="text-xs px-3 py-2 rounded" style={{ background: "var(--bg2)", border: "1px solid var(--border-ds)", color: "var(--text-secondary)" }}>Cancel</button>
+                          <button
+                            onClick={() => setAiParseTab("pdf")}
+                            className="text-xs px-3 py-1 rounded flex items-center gap-1.5 font-medium transition-colors"
+                            style={{
+                              background: aiParseTab === "pdf" ? "var(--gold)" : "transparent",
+                              color: aiParseTab === "pdf" ? "#000" : "var(--text-secondary)",
+                            }}>
+                            📄 Upload PDF
+                          </button>
                         </div>
+
+                        {aiParseTab === "text" ? (
+                          <>
+                            <p className="text-xs mb-2" style={{ color: "var(--text-muted)" }}>Paste vendor quote text below — AI will parse items, pricing, and freight automatically.</p>
+                            <textarea value={pasteText} onChange={e => setPasteText(e.target.value)} rows={8}
+                              placeholder="Paste vendor quote text here..." className="w-full text-xs px-3 py-2 rounded mb-2 resize-y"
+                              style={{ background: "var(--bg2)", border: "1px solid var(--border-ds)", color: "var(--text)", minHeight: 120 }} />
+                            <div className="flex gap-2">
+                              <button onClick={parseQuoteWithAI} disabled={aiParsing || !pasteText.trim()}
+                                className="text-xs px-4 py-2 rounded font-semibold flex items-center gap-1.5"
+                                style={{ background: "var(--gold)", color: "#000", opacity: aiParsing || !pasteText.trim() ? 0.6 : 1 }}>
+                                <Zap className="w-3 h-3" />
+                                {aiParsing ? "Parsing..." : "Parse with AI"}
+                              </button>
+                              <button onClick={() => { setShowNewQuote(false); setShowAiParse(false); setPasteText(""); }}
+                                className="text-xs px-3 py-2 rounded" style={{ background: "var(--bg2)", border: "1px solid var(--border-ds)", color: "var(--text-secondary)" }}>Cancel</button>
+                            </div>
+                          </>
+                        ) : (
+                          <>
+                            <p className="text-xs mb-3" style={{ color: "var(--text-muted)" }}>Drop a vendor quote PDF here — AI will extract text and parse items, pricing, and freight automatically.</p>
+                            {/* Hidden file input */}
+                            <input
+                              ref={pdfParseInputRef}
+                              type="file"
+                              accept=".pdf"
+                              style={{ display: "none" }}
+                              onChange={e => {
+                                const f = e.target.files?.[0];
+                                if (f) parseQuoteWithPDF(f);
+                                e.target.value = "";
+                              }}
+                            />
+                            {/* Drag-and-drop zone */}
+                            <div
+                              data-testid="pdf-drop-zone"
+                              onClick={() => !pdfParsing && pdfParseInputRef.current?.click()}
+                              onDragOver={e => { e.preventDefault(); setPdfDragActive(true); }}
+                              onDragLeave={() => setPdfDragActive(false)}
+                              onDrop={e => {
+                                e.preventDefault();
+                                setPdfDragActive(false);
+                                const f = e.dataTransfer.files?.[0];
+                                if (f && f.type === "application/pdf") parseQuoteWithPDF(f);
+                                else toast({ title: "PDF only", description: "Please drop a PDF file.", variant: "destructive" });
+                              }}
+                              className="w-full flex flex-col items-center justify-center gap-2 rounded-lg cursor-pointer transition-colors mb-3"
+                              style={{
+                                minHeight: 140,
+                                border: `2px dashed ${pdfDragActive ? "var(--gold)" : "var(--border-ds)"}`,
+                                background: pdfDragActive ? "var(--gold)10" : "var(--bg2)",
+                                color: "var(--text-muted)",
+                              }}>
+                              {pdfParsing ? (
+                                <>
+                                  <div className="w-6 h-6 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: "var(--gold)", borderTopColor: "transparent" }} />
+                                  <span className="text-xs font-medium">Extracting text and parsing with AI…</span>
+                                </>
+                              ) : (
+                                <>
+                                  <svg className="w-8 h-8 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                                  </svg>
+                                  <span className="text-xs font-semibold">Drop PDF here or click to select</span>
+                                  <span className="text-xs opacity-70">Vendor quote PDFs with text content work best</span>
+                                </>
+                              )}
+                            </div>
+                            <div className="flex justify-end">
+                              <button onClick={() => { setShowNewQuote(false); setShowAiParse(false); }}
+                                className="text-xs px-3 py-2 rounded" style={{ background: "var(--bg2)", border: "1px solid var(--border-ds)", color: "var(--text-secondary)" }}>Cancel</button>
+                            </div>
+                          </>
+                        )}
                       </>
                     ) : (
                       <>

@@ -744,6 +744,60 @@ Category context: ${catLabel || category || "Division 10 Specialties"}`;
     }
   });
 
+  // ── AI QUOTE PARSER — PDF FILE UPLOAD ──
+
+  app.post("/api/estimates/ai/parse-quote-pdf", estimateImageUpload.single("file"), async (req: Request, res: Response) => {
+    try {
+      const file = (req as any).file;
+      if (!file) return res.status(400).json({ message: "PDF file required" });
+      const { category, catLabel } = req.body;
+
+      let quoteText: string;
+      if (file.mimetype === "application/pdf") {
+        quoteText = await extractPdfText(file.buffer);
+      } else {
+        return res.status(400).json({ message: "Only PDF files are accepted for this endpoint" });
+      }
+
+      if (!quoteText || quoteText.trim().length < 10) {
+        return res.status(422).json({ message: "Could not extract readable text from this PDF. Try copying and pasting the text instead." });
+      }
+
+      const systemPrompt = `You parse vendor quotes for Division 10 construction specialties (FURNISH ONLY — no labor or installation).
+Respond ONLY with valid JSON, no markdown, no explanation.
+Structure:
+{
+  "vendor": "",
+  "note": "",
+  "freight": 0,
+  "taxIncluded": false,
+  "pricingMode": "per_item",
+  "lumpSumTotal": 0,
+  "items": [
+    { "name": "", "model": "", "mfr": "", "unitCost": 0, "qty": 1 }
+  ]
+}
+If the quote is a lump sum with no unit prices, set pricingMode to "lump_sum" and fill lumpSumTotal.
+Category context: ${catLabel || category || "Division 10 Specialties"}`;
+
+      const response = await openai.chat.completions.create({
+        model: "gpt-4o",
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: `Parse this vendor quote:\n\n${quoteText.trim().slice(0, 8000)}` },
+        ],
+        response_format: { type: "json_object" },
+        max_tokens: 2000,
+      });
+      const parsed = JSON.parse(response.choices[0].message.content || "{}");
+      if (parsed.items) parsed.items = parsed.items.map((i: any) => ({ ...i, selected: true, category }));
+      res.json(parsed);
+    } catch (err) {
+      console.error("AI parse-quote-pdf error:", err);
+      res.status(500).json({ message: "AI PDF parsing failed" });
+    }
+  });
+
   // ── WRITE GRAND TOTAL BACK TO PROPOSAL LOG ──
 
   app.post("/api/estimates/:id/sync-to-proposal", async (req: Request, res: Response) => {
