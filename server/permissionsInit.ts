@@ -162,10 +162,8 @@ export async function initializePermissions() {
       console.log(`[Permissions] Removed submittal-builder from ${estimatorUsers.length} Estimator user(s)`);
     }
 
-    // estimating-module: seed for admins, revoke from non-admins.
-    // Only admin users should have this feature by default; non-admin access must
-    // be explicitly granted via the Permissions UI (it will be preserved on next run
-    // since this block only affects users whose role is not 'admin').
+    // estimating-module: seed admins + one-time cleanup of any legacy non-admin grants.
+    // Non-admin users receive this feature only via explicit Permissions UI grant.
     const allAdmins = await db.select({ id: users.id }).from(users).where(eq(users.role, "admin"));
     let grantedEstimatingCount = 0;
     for (const au of allAdmins) {
@@ -184,6 +182,32 @@ export async function initializePermissions() {
     }
     if (grantedEstimatingCount > 0) {
       console.log(`[Permissions] Granted estimating-module to ${grantedEstimatingCount} Admin user(s)`);
+    }
+
+    // One-time migration: revoke estimating-module from non-admin users who may have
+    // received it via old catch-all defaults. Tracked by a flag in system_settings so
+    // subsequent startups do not disturb Permissions UI grants.
+    const migrationKey = "estimating-module-non-admin-revoked-v1";
+    const migrationDone = await db.execute(sql`
+      SELECT value FROM system_settings WHERE key = ${migrationKey} LIMIT 1
+    `);
+    if (migrationDone.rows.length === 0) {
+      const nonAdminUsers = await db.select({ id: users.id }).from(users).where(sql`role != 'admin'`);
+      let revokedCount = 0;
+      for (const nu of nonAdminUsers) {
+        const result = await db.execute(sql`
+          DELETE FROM user_feature_access
+          WHERE user_id = ${nu.id} AND feature = 'estimating-module'
+        `);
+        if ((result as any).rowCount > 0) revokedCount++;
+      }
+      await db.execute(sql`
+        INSERT INTO system_settings (key, value) VALUES (${migrationKey}, 'done')
+        ON CONFLICT (key) DO UPDATE SET value = 'done', updated_at = NOW()
+      `);
+      if (revokedCount > 0) {
+        console.log(`[Permissions] One-time cleanup: revoked estimating-module from ${revokedCount} non-Admin user(s)`);
+      }
     }
 
     // For each remaining user without permissions, assign default permissions based on their role
