@@ -532,6 +532,69 @@ export function registerEstimateRoutes(app: Express) {
     }
   });
 
+  // ── QUOTE BACKUP FILE UPLOAD / DOWNLOAD ──
+
+  app.post("/api/estimates/quotes/:quoteId/backup-file",
+    (req, res, next) => estimateImageUpload.single("file")(req, res, (err) => {
+      if (err) return res.status(400).json({ message: err.message || "Invalid file" });
+      next();
+    }),
+    async (req: Request, res: Response) => {
+      try {
+        const quoteId = parseInt(req.params.quoteId);
+        if (isNaN(quoteId)) return res.status(400).json({ message: "Invalid quote id" });
+        const file = (req as any).file as Express.Multer.File | undefined;
+        if (!file) return res.status(400).json({ message: "No file uploaded" });
+        const [quote] = await db.update(estimateQuotes).set({
+          backupFileData: file.buffer,
+          backupMimeType: file.mimetype,
+          filePath: file.originalname,
+          hasBackup: true,
+        }).where(eq(estimateQuotes.id, quoteId)).returning();
+        const { backupFileData: _data, ...safeQuote } = quote as any;
+        res.json(safeQuote);
+      } catch (err) {
+        console.error("POST quote backup error:", err);
+        res.status(500).json({ message: "Failed to upload quote backup" });
+      }
+    }
+  );
+
+  app.get("/api/estimates/quotes/:quoteId/backup-file", async (req: Request, res: Response) => {
+    try {
+      const quoteId = parseInt(req.params.quoteId);
+      if (isNaN(quoteId)) return res.status(400).json({ message: "Invalid quote id" });
+      const [quote] = await db.select().from(estimateQuotes).where(eq(estimateQuotes.id, quoteId));
+      if (!quote || !(quote as any).backupFileData) return res.status(404).json({ message: "No backup file found" });
+      const mime = (quote as any).backupMimeType || "application/octet-stream";
+      const filename = quote.filePath || "backup";
+      res.setHeader("Content-Type", mime);
+      res.setHeader("Content-Disposition", `inline; filename="${filename}"`);
+      res.send((quote as any).backupFileData);
+    } catch (err) {
+      console.error("GET quote backup error:", err);
+      res.status(500).json({ message: "Failed to download quote backup" });
+    }
+  });
+
+  app.delete("/api/estimates/quotes/:quoteId/backup-file", async (req: Request, res: Response) => {
+    try {
+      const quoteId = parseInt(req.params.quoteId);
+      if (isNaN(quoteId)) return res.status(400).json({ message: "Invalid quote id" });
+      const [quote] = await db.update(estimateQuotes).set({
+        backupFileData: null,
+        backupMimeType: null,
+        filePath: null,
+        hasBackup: false,
+      }).where(eq(estimateQuotes.id, quoteId)).returning();
+      const { backupFileData: _data, ...safeQuote } = quote as any;
+      res.json(safeQuote);
+    } catch (err) {
+      console.error("DELETE quote backup error:", err);
+      res.status(500).json({ message: "Failed to remove quote backup" });
+    }
+  });
+
   // ── BREAKOUT GROUPS ──
 
   app.post("/api/estimates/:id/breakout-groups", async (req: Request, res: Response) => {

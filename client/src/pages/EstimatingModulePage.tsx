@@ -11,7 +11,8 @@ import {
   Calculator, ChevronRight, Plus, Trash2, FileText, Zap, X,
   CheckSquare, Square, AlertTriangle, BarChart3, Send, RotateCcw,
   ClipboardList, Lock, Users, ChevronDown, ChevronUp, Copy,
-  Upload, ClipboardPaste, ImageIcon, BookOpen, Loader2, FileSpreadsheet
+  Upload, ClipboardPaste, ImageIcon, BookOpen, Loader2, FileSpreadsheet,
+  Paperclip, CheckCircle2
 } from "lucide-react";
 import { exportEstimateToExcel } from "@/lib/exportEstimateExcel";
 
@@ -91,6 +92,7 @@ interface Quote {
   lumpSumTotal: string;
   breakoutGroupId: number | null;
   hasBackup: boolean;
+  filePath: string | null;
 }
 
 interface BreakoutGroup {
@@ -304,7 +306,6 @@ function EstimatingModuleInner() {
   const [showRfq, setShowRfq] = useState(false);
   const [addingItem, setAddingItem] = useState(false);
   const [newItemForm, setNewItemForm] = useState({ name: "", model: "", mfr: "", qty: 1, unitCost: 0, source: "manual" });
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const pdfParseInputRef = useRef<HTMLInputElement>(null);
   const [aiParseTab, setAiParseTab] = useState<"text" | "pdf">("text");
   const [pdfDragActive, setPdfDragActive] = useState(false);
@@ -424,7 +425,7 @@ function EstimatingModuleInner() {
         estimateNumber: proposalEntry.estimateNumber || proposalEntry.pvNumber || `PV-${proposalLogId}`,
         projectName: proposalEntry.projectName || "Untitled Project",
         activeScopes: seedScopes,
-        createdBy: user?.name || user?.email || null,
+        createdBy: user?.displayName || user?.username || user?.email || null,
       });
     } else if (estimateData) {
       initFromEstimate(estimateData);
@@ -603,7 +604,7 @@ function EstimatingModuleInner() {
         checklist: effectiveChecklist, reviewStatus,
       });
       // Save version snapshot
-      const userName = user?.name || user?.email || "Unknown";
+      const userName = user?.displayName || user?.username || user?.email || "Unknown";
       await apiRequest("POST", `/api/estimates/${estimateId}/save-version`, {
         savedBy: userName, notes: "Manual save", grandTotal: calcData.grandTotal,
         snapshotData: { lineItems: lineItems.length, grandTotal: calcData.grandTotal },
@@ -768,7 +769,7 @@ function EstimatingModuleInner() {
     try {
       const r = await apiRequest("POST", `/api/estimates/${estimateId}/oh-approval`, {
         catId, catLabel: ALL_SCOPES.find(s => s.id === catId)?.label || catId,
-        oldRate: current, newRate, requestedBy: user?.name || user?.email || "Estimator",
+        oldRate: current, newRate, requestedBy: user?.displayName || user?.username || user?.email || "Estimator",
       });
       const entry = await r.json();
       setOhLog(prev => [entry, ...prev]);
@@ -779,7 +780,7 @@ function EstimatingModuleInner() {
   const approveOhChange = useCallback(async (logId: number) => {
     try {
       const r = await apiRequest("PATCH", `/api/estimates/oh-approval/${logId}`, {
-        status: "approved", approvedBy: user?.name || user?.email || "Admin",
+        status: "approved", approvedBy: user?.displayName || user?.username || user?.email || "Admin",
       });
       const updated = await r.json();
       setOhLog(prev => prev.map(l => l.id === logId ? updated : l));
@@ -795,7 +796,7 @@ function EstimatingModuleInner() {
   const denyOhChange = useCallback(async (logId: number) => {
     try {
       const r = await apiRequest("PATCH", `/api/estimates/oh-approval/${logId}`, {
-        status: "denied", approvedBy: user?.name || user?.email || "Admin",
+        status: "denied", approvedBy: user?.displayName || user?.username || user?.email || "Admin",
       });
       const updated = await r.json();
       setOhLog(prev => prev.map(l => l.id === logId ? updated : l));
@@ -891,7 +892,7 @@ function EstimatingModuleInner() {
     if (!estimateId || !newComment.trim()) return;
     try {
       const r = await apiRequest("POST", `/api/estimates/${estimateId}/comments`, {
-        author: user?.name || user?.email || "User", comment: newComment.trim(),
+        author: user?.displayName || user?.username || user?.email || "User", comment: newComment.trim(),
       });
       const c = await r.json();
       setReviewComments(prev => [...prev, c]);
@@ -1195,7 +1196,7 @@ ${html}
   const generateRfqEmail = useCallback((mfr: string) => {
     const catLabel = ALL_SCOPES.find(s => s.id === activeCat)?.label || activeCat;
     const catItems = lineItems.filter(i => i.category === activeCat && i.mfr === mfr);
-    const estimatorName = user?.name || "NBS Estimating";
+    const estimatorName = user?.displayName || user?.username || user?.email || "NBS Estimating";
     const subject = `RFQ — ${proposalEntry?.projectName || ""} — ${catLabel}`;
     const itemLines = catItems.map(i => `  - ${i.name}${i.model ? ` (${i.model})` : ""} — Qty: ${i.qty}`).join("\n");
 
@@ -2004,21 +2005,72 @@ ${html}
 
                 {/* Existing quotes */}
                 {catQuotes.map(q => (
-                  <div key={q.id} className="flex items-center gap-2 py-2 text-xs flex-wrap"
+                  <div key={q.id} className="py-2 text-xs"
                     style={{ borderBottom: "1px solid var(--border-ds)" }}>
-                    <span className="font-semibold" style={{ color: "#a855f7" }}>{q.vendor}</span>
-                    {q.note && <span style={{ color: "var(--text-muted)" }}>({q.note})</span>}
-                    <span className="px-1.5 py-0.5 rounded text-xs" style={{ background: q.pricingMode === "lump_sum" ? "#f9731615" : "#22c55e15", color: q.pricingMode === "lump_sum" ? "#f97316" : "#22c55e", border: `1px solid ${q.pricingMode === "lump_sum" ? "#f9731640" : "#22c55e40"}` }}>
-                      {q.pricingMode === "lump_sum" ? `LS: ${fmt(n(q.lumpSumTotal))}` : "Per Item"}
-                    </span>
-                    <span style={{ color: "#f97316" }}>Freight: {fmt(n(q.freight))}</span>
-                    {q.taxIncluded && <span className="px-1 py-0.5 rounded text-xs" style={{ background: "#f9731610", color: "#f97316" }}>Tax Incl</span>}
-                    <div className="flex items-center gap-1 ml-auto">
-                      <input type="number" step={10} value={n(q.freight)} onChange={e => updateQuote(q.id, "freight", e.target.value)}
-                        placeholder="Freight $" className="w-20 text-xs px-1.5 py-0.5 rounded" style={{ background: "var(--bg3)", border: "1px solid var(--border-ds)", color: "#f97316" }} />
-                      <button onClick={() => deleteQuote(q.id)} className="p-1 rounded hover:bg-red-500/10">
-                        <Trash2 className="w-3 h-3" style={{ color: "#ef4444" }} />
-                      </button>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-semibold" style={{ color: "#a855f7" }}>{q.vendor}</span>
+                      {q.note && <span style={{ color: "var(--text-muted)" }}>({q.note})</span>}
+                      <span className="px-1.5 py-0.5 rounded text-xs" style={{ background: q.pricingMode === "lump_sum" ? "#f9731615" : "#22c55e15", color: q.pricingMode === "lump_sum" ? "#f97316" : "#22c55e", border: `1px solid ${q.pricingMode === "lump_sum" ? "#f9731640" : "#22c55e40"}` }}>
+                        {q.pricingMode === "lump_sum" ? `LS: ${fmt(n(q.lumpSumTotal))}` : "Per Item"}
+                      </span>
+                      <span style={{ color: "#f97316" }}>Freight: {fmt(n(q.freight))}</span>
+                      {q.taxIncluded && <span className="px-1 py-0.5 rounded text-xs" style={{ background: "#f9731610", color: "#f97316" }}>Tax Incl</span>}
+                      <div className="flex items-center gap-1 ml-auto">
+                        <input type="number" step={10} value={n(q.freight)} onChange={e => updateQuote(q.id, "freight", e.target.value)}
+                          placeholder="Freight $" className="w-20 text-xs px-1.5 py-0.5 rounded" style={{ background: "var(--bg3)", border: "1px solid var(--border-ds)", color: "#f97316" }} />
+                        {/* Backup file attachment */}
+                        <input
+                          id={`quote-backup-input-${q.id}`}
+                          type="file"
+                          accept=".pdf,.png,.jpg,.jpeg"
+                          style={{ display: "none" }}
+                          onChange={async e => {
+                            const file = e.target.files?.[0];
+                            if (!file) return;
+                            e.target.value = "";
+                            try {
+                              const fd = new FormData();
+                              fd.append("file", file);
+                              const res = await fetch(`/api/estimates/quotes/${q.id}/backup-file`, { method: "POST", body: fd });
+                              if (!res.ok) throw new Error("Upload failed");
+                              const updated = await res.json();
+                              setQuotes(prev => prev.map(x => x.id === q.id ? { ...x, filePath: updated.filePath, hasBackup: updated.hasBackup } : x));
+                              toast({ title: "Backup attached", description: `${file.name} saved to this quote.` });
+                            } catch {
+                              toast({ title: "Upload failed", description: "Could not attach backup file.", variant: "destructive" });
+                            }
+                          }}
+                        />
+                        <button
+                          onClick={() => document.getElementById(`quote-backup-input-${q.id}`)?.click()}
+                          title={q.filePath ? `Backup: ${q.filePath} — Click to replace` : "Attach backup PDF/image"}
+                          className="p-1 rounded hover:bg-purple-500/10"
+                          style={{ color: q.filePath ? "#22c55e" : "var(--text-muted)" }}>
+                          <Paperclip className="w-3 h-3" />
+                        </button>
+                        {q.filePath && (
+                          <button
+                            onClick={async () => {
+                              try {
+                                const res = await fetch(`/api/estimates/quotes/${q.id}/backup-file`);
+                                if (!res.ok) throw new Error("Not found");
+                                const blob = await res.blob();
+                                const url = URL.createObjectURL(blob);
+                                window.open(url, "_blank");
+                              } catch {
+                                toast({ title: "Could not open file", variant: "destructive" });
+                              }
+                            }}
+                            title={`Open: ${q.filePath}`}
+                            className="text-xs underline"
+                            style={{ color: "#22c55e", maxWidth: 80, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                            {q.filePath}
+                          </button>
+                        )}
+                        <button onClick={() => deleteQuote(q.id)} className="p-1 rounded hover:bg-red-500/10">
+                          <Trash2 className="w-3 h-3" style={{ color: "#ef4444" }} />
+                        </button>
+                      </div>
                     </div>
                   </div>
                 ))}
@@ -2077,12 +2129,7 @@ ${html}
                       <button data-testid="button-create-quote" onClick={addQuote} className="text-xs px-4 py-1.5 rounded font-semibold" style={{ background: "#a855f7", color: "#fff" }}>Create Quote</button>
                       <button onClick={() => setShowNewQuote(false)} className="text-xs px-3 py-1.5 rounded" style={{ background: "var(--bg2)", border: "1px solid var(--border-ds)", color: "var(--text-secondary)" }}>Cancel</button>
                     </div>
-                    <div className="mt-2 p-2 rounded text-xs text-center cursor-pointer" onClick={() => fileInputRef.current?.click()}
-                      style={{ border: "1px dashed var(--border-ds)", color: "var(--text-muted)" }}>
-                      📎 Click to attach PDF/screenshot as quote backup
-                      <input ref={fileInputRef} type="file" accept=".pdf,.png,.jpg,.jpeg" style={{ display: "none" }}
-                        onChange={e => { if (e.target.files?.[0]) toast({ title: "File noted", description: `${e.target.files[0].name} — storage integration in progress.` }); }} />
-                    </div>
+                    <p className="text-xs mt-2" style={{ color: "var(--text-muted)" }}>After creating, use the 📎 button on the quote row to attach a backup PDF or image.</p>
                   </div>
                 )}
 
@@ -2875,7 +2922,26 @@ ${html}
                 <div key={c.id} className="p-2 rounded text-xs" style={{ background: c.resolved ? "#22c55e10" : "var(--bg3)", border: `1px solid ${c.resolved ? "#22c55e30" : "var(--border-ds)"}` }}>
                   <div className="flex justify-between items-center mb-0.5">
                     <span className="font-semibold">{c.author}</span>
-                    <span style={{ color: "var(--text-muted)" }}>{new Date(c.createdAt).toLocaleString()}</span>
+                    <div className="flex items-center gap-2">
+                      <span style={{ color: "var(--text-muted)" }}>{new Date(c.createdAt).toLocaleString()}</span>
+                      {!c.resolved && (
+                        <button
+                          onClick={async () => {
+                            try {
+                              const res = await apiRequest("PATCH", `/api/estimates/comments/${c.id}`, { resolved: true });
+                              const updated = await res.json();
+                              setReviewComments(prev => prev.map(x => x.id === c.id ? updated : x));
+                            } catch {
+                              toast({ title: "Error", description: "Could not resolve comment.", variant: "destructive" });
+                            }
+                          }}
+                          className="flex items-center gap-1 text-xs px-1.5 py-0.5 rounded"
+                          style={{ background: "#22c55e15", color: "#22c55e", border: "1px solid #22c55e30" }}
+                          title="Mark as resolved">
+                          <CheckCircle2 className="w-3 h-3" /> Resolve
+                        </button>
+                      )}
+                    </div>
                   </div>
                   <span style={{ color: c.resolved ? "#22c55e" : "var(--text-secondary)", textDecoration: c.resolved ? "line-through" : "none" }}>{c.comment}</span>
                 </div>

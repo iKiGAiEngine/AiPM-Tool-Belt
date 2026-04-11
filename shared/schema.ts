@@ -1325,6 +1325,10 @@ export const insertEstimateSpecSectionSchema = createInsertSchema(estimateSpecSe
 export type InsertEstimateSpecSection = z.infer<typeof insertEstimateSpecSectionSchema>;
 export type EstimateSpecSection = typeof estimateSpecSections.$inferSelect;
 
+const quoteByteaType = customType<{ data: Buffer; driverData: Buffer }>({
+  dataType() { return "bytea"; },
+});
+
 export const estimateQuotes = pgTable("estimate_quotes", {
   id: serial("id").primaryKey(),
   estimateId: integer("estimate_id").notNull(),
@@ -1338,6 +1342,8 @@ export const estimateQuotes = pgTable("estimate_quotes", {
   breakoutGroupId: integer("breakout_group_id"),
   hasBackup: boolean("has_backup").default(false),
   filePath: varchar("file_path", { length: 500 }),
+  backupFileData: quoteByteaType("backup_file_data"),
+  backupMimeType: varchar("backup_mime_type", { length: 100 }),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
