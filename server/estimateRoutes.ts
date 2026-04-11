@@ -342,6 +342,7 @@ export function registerEstimateRoutes(app: Express) {
       const [est] = await db.insert(estimates).values({
         proposalLogId, estimateNumber, projectName,
         activeScopes: activeScopes || [],
+        defaultOh: "8",
         defaultFee: "15",
         checklist: checklist || [],
         assumptions: assumptions || [
@@ -764,11 +765,12 @@ export function registerEstimateRoutes(app: Express) {
     try {
       const estimateId = parseInt(req.params.id);
       if (isNaN(estimateId)) return res.status(400).json({ message: "Invalid estimate id" });
-      const { catId, catLabel, oldRate, newRate, requestedBy } = req.body;
+      const { catId, catLabel, oldRate, newRate, requestedBy, type } = req.body;
       const [log] = await db.insert(ohApprovalLog).values({
         estimateId, catId, catLabel: catLabel || catId,
         oldRate: String(oldRate || 0), newRate: String(newRate || 0),
         requestedBy: requestedBy || null, status: "pending",
+        type: type === "fee" ? "fee" : "oh",
       }).returning();
       await db.update(estimates).set({ updatedAt: new Date() }).where(eq(estimates.id, estimateId));
       res.status(201).json(log);
@@ -792,7 +794,8 @@ export function registerEstimateRoutes(app: Express) {
           const [est] = await db.select().from(estimates).where(eq(estimates.id, entry.estimateId));
           if (est) {
             const catOverrides = (est.catOverrides as any) || {};
-            catOverrides[entry.catId] = { ...catOverrides[entry.catId], oh: parseFloat(entry.newRate || "0") };
+            const field = (entry as any).type === "fee" ? "fee" : "oh";
+            catOverrides[entry.catId] = { ...catOverrides[entry.catId], [field]: parseFloat(entry.newRate || "0") };
             await db.update(estimates).set({ catOverrides, updatedAt: new Date() }).where(eq(estimates.id, entry.estimateId));
           }
         }

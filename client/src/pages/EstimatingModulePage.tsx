@@ -148,6 +148,7 @@ interface OhApprovalEntry {
   approvedBy: string | null;
   approvedAt: string | null;
   status: string;
+  type?: string;
 }
 
 interface ExtractedItem {
@@ -273,7 +274,7 @@ function EstimatingModuleInner() {
   const [reviewComments, setReviewComments] = useState<ReviewComment[]>([]);
   const [ohLog, setOhLog] = useState<OhApprovalEntry[]>([]);
 
-  const [defaultOh, setDefaultOh] = useState(10);
+  const [defaultOh, setDefaultOh] = useState(8);
   const [defaultFee, setDefaultFee] = useState(15);
   const [defaultEsc, setDefaultEsc] = useState(0);
   const [taxRate, setTaxRate] = useState(0);
@@ -790,10 +791,13 @@ function EstimatingModuleInner() {
       setOhLog(prev => prev.map(l => l.id === logId ? updated : l));
       const entry = ohLog.find(l => l.id === logId);
       if (entry) {
-        setCatOverrides(prev => ({ ...prev, [entry.catId]: { ...prev[entry.catId], oh: n(entry.newRate) } }));
+        const field = entry.type === "fee" ? "fee" : "oh";
+        setCatOverrides(prev => ({ ...prev, [entry.catId]: { ...prev[entry.catId], [field]: n(entry.newRate) } }));
+        toast({ title: "Approved", description: `${entry.type === "fee" ? "Fee" : "OH"} override applied.` });
+      } else {
+        toast({ title: "Approved", description: "Override applied." });
       }
       markDirty();
-      toast({ title: "Approved", description: "OH override applied." });
     } catch { toast({ title: "Error", description: "Could not approve.", variant: "destructive" }); }
   }, [ohLog, user, markDirty]);
 
@@ -804,9 +808,25 @@ function EstimatingModuleInner() {
       });
       const updated = await r.json();
       setOhLog(prev => prev.map(l => l.id === logId ? updated : l));
-      toast({ title: "Denied", description: "OH override request denied." });
+      const entry = ohLog.find(l => l.id === logId);
+      toast({ title: "Denied", description: `${entry?.type === "fee" ? "Fee" : "OH"} override request denied.` });
     } catch { toast({ title: "Error", description: "Could not deny.", variant: "destructive" }); }
-  }, [user]);
+  }, [ohLog, user]);
+
+  const requestFeeChange = useCallback(async (catId: string, newRate: number) => {
+    if (!estimateId) return;
+    const current = catOverrides[catId]?.fee ?? defaultFee;
+    try {
+      const r = await apiRequest("POST", `/api/estimates/${estimateId}/oh-approval`, {
+        catId, catLabel: ALL_SCOPES.find(s => s.id === catId)?.label || catId,
+        oldRate: current, newRate, requestedBy: user?.displayName || user?.username || user?.email || "Estimator",
+        type: "fee",
+      });
+      const entry = await r.json();
+      setOhLog(prev => [entry, ...prev]);
+      toast({ title: "Fee Change Requested", description: `Change from ${current}% to ${newRate}% sent for approval.` });
+    } catch { toast({ title: "Error", description: "Could not log Fee approval request.", variant: "destructive" }); }
+  }, [estimateId, catOverrides, defaultFee, user]);
 
   const tryCompleteCat = useCallback((catId: string) => {
     const d = calcData[catId];
@@ -1269,7 +1289,8 @@ ${html}
 
   const catQuotes = quotes.filter(q => q.category === activeCat);
   const catLineItems = lineItems.filter(i => i.category === activeCat);
-  const pendingOh = ohLog.filter(l => l.status === "pending");
+  const pendingOh = ohLog.filter(l => l.status === "pending" && l.type !== "fee");
+  const pendingFee = ohLog.filter(l => l.status === "pending" && l.type === "fee");
 
   // ══════════════════════════════════════════════════
   // RENDER
@@ -1795,25 +1816,24 @@ ${html}
                               {gd && <div className="text-xs" style={{ color: "var(--text-muted)" }}>{gd.itemCount} items • OH: {gd.ohRate}% • Fee: {gd.feeRate}%</div>}
                               <div className="flex gap-1 mt-2">
                                 {[["oh_override", "OH%"], ["fee_override", "Fee%"], ["esc_override", "Esc%"]].map(([field, label]) => {
-                                  const isFeeField = field === "fee_override";
-                                  const isDisabled = isFeeField && !isAdmin;
+                                  const isLockedField = field === "oh_override" || field === "fee_override";
                                   return (
                                   <input key={field} type="number" step={0.5}
                                     placeholder={label}
-                                    disabled={isDisabled}
+                                    disabled={false}
                                     onChange={async e => {
                                       const val = e.target.value;
                                       if (field === "oh_override" && val !== "") {
                                         toast({ title: "OH Override Requires Approval", description: "Request logged for executive approval." });
-                                      } else if (isFeeField && !isAdmin) {
-                                        return;
+                                      } else if (field === "fee_override" && val !== "") {
+                                        toast({ title: "Fee Override Requires Approval", description: "Request logged for executive approval." });
                                       } else {
                                         setBreakoutGroups(prev => prev.map(gr => gr.id === g.id ? { ...gr, [field === "oh_override" ? "ohOverride" : field === "fee_override" ? "feeOverride" : "escOverride"]: val === "" ? null : val } : gr));
                                         markDirty();
                                       }
                                     }}
                                     className="w-12 text-xs px-1 py-0.5 rounded"
-                                    style={{ background: "var(--bg2)", border: "1px solid var(--border-ds)", color: "var(--text)", opacity: isDisabled ? 0.6 : 1, cursor: isDisabled ? "not-allowed" : "auto" }} />
+                                    style={{ background: "var(--bg2)", border: "1px solid var(--border-ds)", color: "var(--text)", opacity: isLockedField ? 0.7 : 1, cursor: "auto" }} />
                                   );
                                 })}
                               </div>
@@ -1891,7 +1911,7 @@ ${html}
                 style={{ background: "#f9731610", border: "1px solid #f9731630" }}>
                 {[
                   { label: "OH", color: "#f97316", isOvr: calcData[activeCat]?.isOhOvr, rate: calcData[activeCat]?.ohRate, def: defaultOh, onChange: (v: string) => v === "" ? setCatOverrides(p => { const n = { ...p }; if (n[activeCat]) { delete n[activeCat].oh; if (!Object.keys(n[activeCat]).length) delete n[activeCat]; } return n; }) : requestOhChange(activeCat, parseFloat(v) || 0), locked: true, disabled: false },
-                  { label: "Fee", color: "#22c55e", isOvr: calcData[activeCat]?.isFeeOvr, rate: calcData[activeCat]?.feeRate, def: defaultFee, onChange: (v: string) => { if (!isAdmin) return; v === "" ? setCatOverrides(p => { const n = { ...p }; if (n[activeCat]) { delete n[activeCat].fee; if (!Object.keys(n[activeCat]).length) delete n[activeCat]; } return n; }) : setCatOverrides(p => ({ ...p, [activeCat]: { ...p[activeCat], fee: parseFloat(v) || 0 } })); markDirty(); }, locked: !isAdmin, disabled: !isAdmin },
+                  { label: "Fee", color: "#22c55e", isOvr: calcData[activeCat]?.isFeeOvr, rate: calcData[activeCat]?.feeRate, def: defaultFee, onChange: (v: string) => v === "" ? setCatOverrides(p => { const n = { ...p }; if (n[activeCat]) { delete n[activeCat].fee; if (!Object.keys(n[activeCat]).length) delete n[activeCat]; } return n; }) : requestFeeChange(activeCat, parseFloat(v) || 0), locked: true, disabled: false },
                   { label: "Esc", color: "var(--gold)", isOvr: calcData[activeCat]?.isEscOvr, rate: calcData[activeCat]?.escRate, def: defaultEsc, onChange: (v: string) => { v === "" ? setCatOverrides(p => { const n = { ...p }; if (n[activeCat]) { delete n[activeCat].esc; if (!Object.keys(n[activeCat]).length) delete n[activeCat]; } return n; }) : setCatOverrides(p => ({ ...p, [activeCat]: { ...p[activeCat], esc: parseFloat(v) || 0 } })); markDirty(); }, locked: false, disabled: false },
                 ].map(r => (
                   <div key={r.label} className="flex items-center gap-1.5">
@@ -2573,7 +2593,7 @@ ${html}
               {[
                 { label: "Escalation (%)", value: defaultEsc, set: setDefaultEsc, step: 0.5, color: "var(--gold)", locked: false, disabled: false },
                 { label: "Overhead (%) 🔒", value: defaultOh, set: () => toast({ title: "Executive Approval Required", description: `OH default at ${defaultOh}%. Contact Kenny Ruester to change.` }), step: 0.5, color: "#f97316", locked: true, disabled: false },
-                { label: `Fee (%)${!isAdmin ? " 🔒" : ""}`, value: defaultFee, set: (v: number) => { if (v >= 0 && v < 100) { setDefaultFee(v); } }, step: 0.5, color: "#22c55e", locked: !isAdmin, disabled: !isAdmin },
+                { label: "Fee (%) 🔒", value: defaultFee, set: () => toast({ title: "Executive Approval Required", description: `Fee default at ${defaultFee}%. Contact Kenny Ruester to change.` }), step: 0.5, color: "#22c55e", locked: true, disabled: false },
                 { label: "Sales Tax (%)", value: taxRate, set: setTaxRate, step: 0.25, color: "#f97316", locked: false, disabled: false },
                 { label: "Bond (%)", value: bondRate, set: setBondRate, step: 0.5, color: "#f97316", locked: false, disabled: false },
               ].map(r => (
@@ -2589,7 +2609,7 @@ ${html}
               <div className="mt-3 p-2 rounded text-xs" style={{ background: "#f9731610", color: "#f97316" }}>
                 Material → Escalation → + Freight = Subtotal → OH on subtotal → Net-based fee on subtotal → Tax on material only
               </div>
-              <p className="text-xs mt-1" style={{ color: "var(--text-muted)" }}>🔒 Overhead and Fee changes require admin access.</p>
+              <p className="text-xs mt-1" style={{ color: "var(--text-muted)" }}>🔒 Overhead and Fee changes require executive approval. Category-level overrides can be requested below.</p>
               {/* Fee Calculation Preview */}
               {(() => {
                 const previewSub = calcData.allSub || 0;
@@ -2698,10 +2718,31 @@ ${html}
           </div>
 
           {/* OH Approval Log (admin) */}
-          {ohLog.filter(l => l.status === "pending").length > 0 && (
+          {pendingOh.length > 0 && (
             <div className="rounded-lg p-4 mb-4" style={{ background: "var(--bg-card)", border: "1px solid #f9731640", borderLeft: "3px solid #f97316" }}>
               <h3 className="text-sm font-semibold mb-3" style={{ color: "#f97316" }}>🔒 Pending OH Approval Requests</h3>
-              {ohLog.filter(l => l.status === "pending").map(l => (
+              {pendingOh.map(l => (
+                <div key={l.id} className="flex items-center gap-3 py-2 text-xs" style={{ borderBottom: "1px solid var(--border-ds)" }}>
+                  <div className="flex-1">
+                    <span className="font-semibold">{l.catLabel}</span>
+                    <span className="ml-2" style={{ color: "var(--text-muted)" }}>
+                      {l.oldRate}% → {l.newRate}% (requested by {l.requestedBy})
+                    </span>
+                  </div>
+                  <div className="flex gap-2">
+                    <button onClick={() => approveOhChange(l.id)} className="px-2 py-1 rounded text-xs font-semibold" style={{ background: "#22c55e", color: "#fff" }}>Approve</button>
+                    <button onClick={() => denyOhChange(l.id)} className="px-2 py-1 rounded text-xs" style={{ background: "#ef444415", border: "1px solid #ef444440", color: "#ef4444" }}>Deny</button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Fee Approval Log (admin) */}
+          {pendingFee.length > 0 && (
+            <div className="rounded-lg p-4 mb-4" style={{ background: "var(--bg-card)", border: "1px solid #22c55e40", borderLeft: "3px solid #22c55e" }}>
+              <h3 className="text-sm font-semibold mb-3" style={{ color: "#22c55e" }}>🔒 Pending Fee Approval Requests</h3>
+              {pendingFee.map(l => (
                 <div key={l.id} className="flex items-center gap-3 py-2 text-xs" style={{ borderBottom: "1px solid var(--border-ds)" }}>
                   <div className="flex-1">
                     <span className="font-semibold">{l.catLabel}</span>

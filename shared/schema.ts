@@ -1258,7 +1258,7 @@ export const estimates = pgTable("estimates", {
   estimateNumber: varchar("estimate_number", { length: 50 }).notNull(),
   projectName: varchar("project_name", { length: 255 }).notNull(),
   activeScopes: jsonb("active_scopes").$type<string[]>().default([]),
-  defaultOh: numeric("default_oh", { precision: 5, scale: 2 }).default("10"),
+  defaultOh: numeric("default_oh", { precision: 5, scale: 2 }).default("8"),
   defaultFee: numeric("default_fee", { precision: 5, scale: 2 }).default("5"),
   defaultEsc: numeric("default_esc", { precision: 5, scale: 2 }).default("0"),
   taxRate: numeric("tax_rate", { precision: 5, scale: 2 }).default("0"),
@@ -1421,6 +1421,7 @@ export const ohApprovalLog = pgTable("oh_approval_log", {
   approvedBy: varchar("approved_by", { length: 100 }),
   approvedAt: timestamp("approved_at"),
   status: varchar("status", { length: 20 }).default("pending"),
+  type: varchar("type", { length: 20 }).default("oh"),
 });
 
 export const insertOhApprovalLogSchema = createInsertSchema(ohApprovalLog).omit({ id: true, requestedAt: true });
