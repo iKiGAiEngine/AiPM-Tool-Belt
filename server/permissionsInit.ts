@@ -162,9 +162,10 @@ export async function initializePermissions() {
       console.log(`[Permissions] Removed submittal-builder from ${estimatorUsers.length} Estimator user(s)`);
     }
 
-    // estimating-module: seed this feature for admin users who don't have it yet.
-    // Non-admin roles are not included in DEFAULT_ROLE_FEATURES so they won't receive
-    // it from the catch-all below. Per-user grants are managed via the Permissions UI.
+    // estimating-module: seed for admins, revoke from non-admins.
+    // Only admin users should have this feature by default; non-admin access must
+    // be explicitly granted via the Permissions UI (it will be preserved on next run
+    // since this block only affects users whose role is not 'admin').
     const allAdmins = await db.select({ id: users.id }).from(users).where(eq(users.role, "admin"));
     let grantedEstimatingCount = 0;
     for (const au of allAdmins) {
@@ -183,6 +184,22 @@ export async function initializePermissions() {
     }
     if (grantedEstimatingCount > 0) {
       console.log(`[Permissions] Granted estimating-module to ${grantedEstimatingCount} Admin user(s)`);
+    }
+
+    // Revoke estimating-module from any non-admin user who may have received it
+    // via old catch-all defaults or accidental grants. Intentional per-user grants
+    // to non-admins should be re-applied via the Permissions UI after this cleanup.
+    const nonAdminUsers = await db.select({ id: users.id }).from(users).where(sql`role != 'admin'`);
+    let revokedEstimatingCount = 0;
+    for (const nu of nonAdminUsers) {
+      const result = await db.execute(sql`
+        DELETE FROM user_feature_access
+        WHERE user_id = ${nu.id} AND feature = 'estimating-module'
+      `);
+      if ((result as any).rowCount > 0) revokedEstimatingCount++;
+    }
+    if (revokedEstimatingCount > 0) {
+      console.log(`[Permissions] Revoked estimating-module from ${revokedEstimatingCount} non-Admin user(s)`);
     }
 
     // For each remaining user without permissions, assign default permissions based on their role
