@@ -8,6 +8,17 @@ const BACKUP_DIR = path.join(process.cwd(), 'backups');
 const MAX_BACKUPS = 30;
 const TWENTY_FOUR_HOURS = 24 * 60 * 60 * 1000;
 
+/** Convert 1-based column number to Excel column letter(s) (handles >26 columns). */
+function colNumToLetter(n: number): string {
+  let s = '';
+  while (n > 0) {
+    const rem = (n - 1) % 26;
+    s = String.fromCharCode(65 + rem) + s;
+    n = Math.floor((n - 1) / 26);
+  }
+  return s;
+}
+
 function ensureBackupDir() {
   if (!fs.existsSync(BACKUP_DIR)) {
     fs.mkdirSync(BACKUP_DIR, { recursive: true });
@@ -166,7 +177,7 @@ export async function generateBackup(): Promise<string> {
     });
   }
 
-  ws.autoFilter = { from: 'A1', to: `${String.fromCharCode(64 + columns.length)}${entries.length + 1}` };
+  ws.autoFilter = { from: 'A1', to: `${colNumToLetter(columns.length)}${entries.length + 1}` };
 
   const acknowledgements = await db.select().from(proposalAcknowledgements);
   addTableSheet(wb, 'Acknowledgements', acknowledgements as Record<string, unknown>[]);
