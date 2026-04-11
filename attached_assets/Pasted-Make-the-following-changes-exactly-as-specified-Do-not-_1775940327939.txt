@@ -1,0 +1,111 @@
+Make the following changes exactly as specified. Do not change unrelated estimating behavior.
+
+PRIMARY GOAL
+1. Change the default overhead percentage to 8%
+2. Make the Fee (%) lock behave consistently with the existing OH lock style/pattern in the estimating module UI
+
+IMPORTANT
+Do not change the fee formula.
+Do not change tax, bond, escalation, freight, subtotal, or grand total logic.
+Do not remove the admin-only protection for fee editing.
+Do not change proposal formatting.
+Do not refactor unrelated code.
+
+KNOWN FILES
+- client/src/pages/EstimatingModulePage.tsx
+- server/estimateRoutes.ts if needed for default initialization or fee protection consistency
+
+PART 1 — DEFAULT OH CHANGE
+
+REQUIREMENT
+The overhead default must start at 8%, and users with the proper permissions can change it from there.
+
+Find every place where a new estimate or default state initializes overhead.
+Update the default OH from its current value to:
+
+defaultOh = "8"
+
+If there is also a local numeric React state initialization for OH, set it to:
+8
+
+IMPORTANT
+- Apply this only to new/default initialized estimates
+- Do not overwrite saved OH values on existing estimates
+- Preserve current user-entered OH changes after load
+
+REPORT BACK
+Show the exact old default OH value and the exact new one, with file and location.
+
+PART 2 — FEE LOCK MUST MATCH OH LOCK PATTERN
+
+CURRENT ISSUE
+The fee may be technically protected, but it is not behaving visually and interaction-wise the same way the OH field behaves in the UI.
+
+REQUIRED CHANGE
+Make the global Fee (%) input use the same UI lock pattern and interaction pattern as the existing OH field, while still remaining admin-only.
+
+IMPORTANT DISTINCTION
+- OH already has an existing lock pattern in this page
+- Fee should visually and behaviorally match that lock pattern
+- But fee should still only be editable by admin users
+
+IMPLEMENTATION REQUIREMENT
+Inspect the exact existing OH field configuration and rendering pattern in client/src/pages/EstimatingModulePage.tsx and mirror that same pattern for the Fee (%) field as closely as possible.
+
+This includes matching:
+- label style
+- lock indicator style
+- disabled/read-only behavior
+- opacity/cursor treatment
+- any lock text/icon convention already used
+- any onChange blocking convention already used
+
+ADMIN-ONLY RULE FOR FEE
+Use the existing isAdmin auth flag.
+Required behavior:
+- Admin users can edit Fee (%)
+- Non-admin users see Fee (%) in the same locked style/pattern used by OH
+- Non-admin users cannot change Fee (%)
+
+If the OH field currently uses a static locked behavior for everyone, do NOT make fee identical in permission logic.
+Instead:
+- make fee identical in visual/component pattern
+- but conditional by isAdmin
+
+In other words:
+- same lock presentation as OH
+- permission rule for fee = admin only
+
+GLOBAL FEE FIELD
+Update the Stage 3 Global Defaults Fee (%) field so it follows the OH lock pattern.
+
+CATEGORY-LEVEL FEE OVERRIDES
+Apply the same lock treatment concept to category-level fee override inputs:
+- admin can edit
+- non-admin sees locked/read-only styling consistent with the page pattern
+
+BREAKOUT GROUP FEE OVERRIDES
+Apply the same to breakout Fee% override inputs:
+- admin can edit
+- non-admin sees locked/read-only styling consistent with the page pattern
+
+SERVER-SIDE PROTECTION
+Keep existing server-side fee protection in place.
+Do not remove it.
+Do not weaken it.
+
+VALIDATION
+Do not introduce new disruptive validation behavior unless necessary.
+Keep current fee protection and save behavior intact.
+
+DELIVERABLE REPORT
+After making the change, report back with exactly:
+1. files changed
+2. exact OH default old value and new value
+3. exact location where OH default was changed to 8%
+4. exact Fee (%) field code/pattern that now matches the OH lock style
+5. confirmation that admin users can still edit Fee (%)
+6. confirmation that non-admin users now see Fee (%) locked in the same visual style/pattern as OH
+7. confirmation that category fee overrides and breakout fee overrides follow the same admin-only lock behavior
+8. confirmation that server-side fee protection remains intact
+9. confirmation that no fee formula or unrelated estimate math was changed
