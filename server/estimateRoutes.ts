@@ -543,15 +543,15 @@ export function registerEstimateRoutes(app: Express) {
       try {
         const quoteId = parseInt(req.params.quoteId);
         if (isNaN(quoteId)) return res.status(400).json({ message: "Invalid quote id" });
-        const file = (req as any).file as Express.Multer.File | undefined;
-        if (!file) return res.status(400).json({ message: "No file uploaded" });
+        const multerReq = req as Request & { file?: Express.Multer.File };
+        if (!multerReq.file) return res.status(400).json({ message: "No file uploaded" });
         const [quote] = await db.update(estimateQuotes).set({
-          backupFileData: file.buffer,
-          backupMimeType: file.mimetype,
-          filePath: file.originalname,
+          backupFileData: multerReq.file.buffer,
+          backupMimeType: multerReq.file.mimetype,
+          filePath: multerReq.file.originalname,
           hasBackup: true,
         }).where(eq(estimateQuotes.id, quoteId)).returning();
-        const { backupFileData: _data, ...safeQuote } = quote as any;
+        const { backupFileData: _ignored, ...safeQuote } = quote;
         res.json(safeQuote);
       } catch (err) {
         console.error("POST quote backup error:", err);
@@ -565,12 +565,12 @@ export function registerEstimateRoutes(app: Express) {
       const quoteId = parseInt(req.params.quoteId);
       if (isNaN(quoteId)) return res.status(400).json({ message: "Invalid quote id" });
       const [quote] = await db.select().from(estimateQuotes).where(eq(estimateQuotes.id, quoteId));
-      if (!quote || !(quote as any).backupFileData) return res.status(404).json({ message: "No backup file found" });
-      const mime = (quote as any).backupMimeType || "application/octet-stream";
+      if (!quote || !quote.backupFileData) return res.status(404).json({ message: "No backup file found" });
+      const mime = quote.backupMimeType || "application/octet-stream";
       const filename = quote.filePath || "backup";
       res.setHeader("Content-Type", mime);
       res.setHeader("Content-Disposition", `inline; filename="${filename}"`);
-      res.send((quote as any).backupFileData);
+      res.send(quote.backupFileData);
     } catch (err) {
       console.error("GET quote backup error:", err);
       res.status(500).json({ message: "Failed to download quote backup" });
@@ -587,7 +587,7 @@ export function registerEstimateRoutes(app: Express) {
         filePath: null,
         hasBackup: false,
       }).where(eq(estimateQuotes.id, quoteId)).returning();
-      const { backupFileData: _data, ...safeQuote } = quote as any;
+      const { backupFileData: _ignored, ...safeQuote } = quote;
       res.json(safeQuote);
     } catch (err) {
       console.error("DELETE quote backup error:", err);
