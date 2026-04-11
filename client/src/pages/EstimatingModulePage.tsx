@@ -11,8 +11,9 @@ import {
   Calculator, ChevronRight, Plus, Trash2, FileText, Zap, X,
   CheckSquare, Square, AlertTriangle, BarChart3, Send, RotateCcw,
   ClipboardList, Lock, Users, ChevronDown, ChevronUp, Copy,
-  Upload, ClipboardPaste, ImageIcon, BookOpen, Loader2
+  Upload, ClipboardPaste, ImageIcon, BookOpen, Loader2, FileSpreadsheet
 } from "lucide-react";
+import { exportEstimateToExcel } from "@/lib/exportEstimateExcel";
 
 // ══════════════════════════════════════════════════
 // CONSTANTS
@@ -2683,6 +2684,33 @@ ${html}
                   className="text-xs px-3 py-2 rounded flex items-center gap-1"
                   style={{ background: "#ef444415", border: "1px solid #ef444440", color: "#ef4444" }}>
                   <FileText className="w-3 h-3" /> Print / PDF
+                </button>
+                <button
+                  data-testid="btn-export-excel"
+                  onClick={() => exportEstimateToExcel({
+                    estimateData: estimateData as any,
+                    proposalEntry,
+                    lineItems,
+                    quotes,
+                    breakoutGroups,
+                    allocations,
+                    versions,
+                    savedSpecSections,
+                    assumptions,
+                    risks,
+                    calcData,
+                    breakoutCalcData,
+                    defaultOh,
+                    defaultFee,
+                    defaultEsc,
+                    taxRate,
+                    bondRate,
+                    catOverrides,
+                    activeScopes: CATEGORIES,
+                  })}
+                  className="text-xs px-3 py-2 rounded flex items-center gap-1"
+                  style={{ background: "#22c55e15", border: "1px solid #22c55e40", color: "#22c55e" }}>
+                  <FileSpreadsheet className="w-3 h-3" /> Export Excel
                 </button>
               </div>
             </div>

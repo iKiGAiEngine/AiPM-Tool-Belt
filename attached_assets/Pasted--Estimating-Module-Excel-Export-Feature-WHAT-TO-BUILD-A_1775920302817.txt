@@ -1,0 +1,111 @@
+# Estimating Module — Excel Export Feature
+
+## WHAT TO BUILD
+
+Add an “Export to Excel” button in Stage 4 (Bid Summary) that generates a complete, organized XLSX file containing all estimate data for the current project. This is a standard estimating tool feature — it creates a portable, shareable, printable version of the entire estimate.
+
+## BUTTON PLACEMENT
+
+Stage 4 (Bid Summary), next to the existing “Export PDF”, “Log to Proposal Log”, and “Email to GC” buttons:
+
+```
+[Export PDF]  [Export Excel]  [Log to Proposal Log]  [Email to GC]
+```
+
+## FILE NAMING
+
+`{EstimateNumber}_Estimate_{YYYY-MM-DD}.xlsx`
+
+Example: `26-0207_Estimate_2026-04-11.xlsx`
+
+## EXCEL STRUCTURE — ONE FILE, MULTIPLE TABS
+
+### Tab 1: “Summary”
+
+- Project name, PV#, GC, estimator, region, market, due date, status
+- Grand total (prominent)
+- Cost breakdown: Material, Escalation, Freight, Subtotal, Overhead (%), Fee (%), Tax (%), Bond (%), Grand Total
+- Default markup rates: OH %, Fee %, Escalation %, Tax %, Bond %
+- Blended actual markup rates (if overrides exist)
+- Breakout summary table (if breakouts exist): Group code, label, total per group
+
+### Tab 2: “Line Items”
+
+One row per line item, ALL items across all scope sections:
+
+|Scope Section|CSI Code|Item Name|Model|Manufacturer|Qty|Unit Cost|Extended|Quote Vendor|Source|Has Backup|Qualification|Plan Callout|
+|-------------|--------|---------|-----|------------|---|---------|--------|------------|------|----------|-------------|------------|
+
+Sorted by scope section, then by item name within each section. Include subtotals per scope section.
+
+### Tab 3: “Vendor Quotes”
+
+One row per vendor quote:
+
+|Scope Section|Vendor|Pricing Mode|Freight|Lump Sum Total|Tax Included|Has Backup|Item Count|Quote Total|Breakout Group|
+|-------------|------|------------|-------|--------------|------------|----------|----------|-----------|--------------|
+
+### Tab 4: “Markups by Category”
+
+One row per active scope section:
+
+|Scope Section|CSI Code|Material|Escalation Rate|Escalation $|Freight|Subtotal|OH Rate|OH $|Fee Rate|Fee $|Tax|Bond|Category Total|Has Override|
+|-------------|--------|--------|---------------|------------|-------|--------|-------|----|--------|-----|---|----|--------------|------------|
+
+Include a “DEFAULTS” row at the top showing the project defaults for comparison. Include a “TOTALS” row at the bottom.
+
+### Tab 5: “Breakouts” (only include this tab if breakout groups exist)
+
+One row per line item per breakout group:
+
+|Breakout Code|Breakout Label|Scope Section|Item Name|Model|Allocated Qty|Unit Cost|Extended|
+|-------------|--------------|-------------|---------|-----|-------------|---------|--------|
+
+Include subtotals per breakout group. Include a reconciliation row at the bottom: breakout sum vs parent total.
+
+### Tab 6: “Assumptions & Risks”
+
+Two sections:
+
+- Assumptions (numbered list)
+- Risks (numbered list)
+
+### Tab 7: “Spec Sections” (only include if spec sections have been extracted)
+
+|Scope Section|CSI Code|Spec Title|Manufacturers|Key Requirements|Substitution Policy|Source Pages|
+|-------------|--------|----------|-------------|----------------|-------------------|------------|
+
+### Tab 8: “Version History”
+
+|Version|Saved By|Saved At|Grand Total|Notes|
+|-------|--------|--------|-----------|-----|
+
+## FORMATTING
+
+- Header rows: bold, gold background (#C8A44E or #92700A depending on dark/light), white text
+- Currency cells: formatted as currency with 2 decimal places
+- Percentage cells: formatted as percentage with 1 decimal place
+- Subtotal rows: bold, light gold background
+- Grand total row: bold, larger font
+- Column widths: auto-fit to content
+- Freeze panes: freeze the header row on each tab
+- Tab colors: gold for Summary, green for Line Items, purple for Vendor Quotes, orange for Markups, cyan for Breakouts
+
+## TECHNOLOGY
+
+Use the `xlsx` (SheetJS) npm package — it’s already available in the AiPM codebase. Generate the file on the frontend from the existing estimate data (no separate API endpoint needed — the data is already loaded in the React state). Trigger a browser download.
+
+## TESTING
+
+- [ ] Button appears in Stage 4 next to other export buttons
+- [ ] XLSX file downloads with correct filename
+- [ ] Summary tab has all project info and totals
+- [ ] Line Items tab has all items sorted by scope with subtotals
+- [ ] Vendor Quotes tab has all quotes
+- [ ] Markups tab shows defaults row, per-category rows, and totals row
+- [ ] Breakouts tab only appears when breakout groups exist
+- [ ] Spec Sections tab only appears when specs have been extracted
+- [ ] Version History tab has all snapshots
+- [ ] Currency and percentage formatting applied correctly
+- [ ] Header rows are formatted and frozen
+- [ ] File opens cleanly in Excel and Google Sheets
