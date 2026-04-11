@@ -1,0 +1,63 @@
+Do not make any changes yet.
+
+I need you to inspect the codebase and determine exactly how user authorization and role-based UI permissions are currently implemented so we can safely lock the Fee (%) field to admin and executive users only.
+
+Your job is to analyze the app and answer the following questions with exact file names, code locations, and current behavior.
+
+SECTION 1 — AUTH / USER CONTEXT
+1. Where is the current logged-in user information loaded in the client?
+2. What object or hook provides the current user/session data to React pages?
+3. What user fields are available for authorization checks?
+   Examples: role, userType, permissionFlags, title, group, isAdmin, etc.
+4. Show the exact shape of the current user object if available.
+
+SECTION 2 — ROLE / PERMISSION MODEL
+5. How are privileged users currently identified in the app?
+   Examples:
+   - role === "admin"
+   - role === "executive"
+   - permissions.includes(...)
+   - isAdmin boolean
+6. Are there already existing role-based UI locks anywhere in the codebase?
+   If yes:
+   - list the file(s)
+   - show the exact pattern used
+7. Is there already a distinction between admin users and executive users?
+   If yes, show the exact labels/values used in code and database.
+
+SECTION 3 — SERVER-SIDE ENFORCEMENT
+8. Are estimate updates already protected on the server by user role or permission checks?
+9. If a client sends an updated defaultFee or category fee override, does the server currently validate whether the user is allowed to change it?
+10. Identify the backend route(s) that save:
+   - defaultFee
+   - catOverrides fee values
+11. Show whether the current backend trusts the client completely or already has field-level authorization.
+
+SECTION 4 — FEE INPUT LOCATION
+12. Identify the exact UI component and code block where the following are edited:
+   - global Fee (%) input
+   - category-level fee override inputs
+13. Show the exact code locations for those inputs.
+
+SECTION 5 — RECOMMENDED LOCK STRATEGY
+14. Based on the current codebase, recommend the safest and most consistent way to lock Fee (%) editing to admin and executive users only.
+15. Specifically answer:
+   - what condition should be used in the UI
+   - what condition should be used on the server
+   - whether the field should be hidden, disabled, or read-only for non-privileged users
+16. Recommend whether the app should:
+   - allow non-privileged users to see the fee but not edit it
+   - or hide the fee field entirely
+   Use the existing UI/permission patterns already in the app if possible.
+
+IMPORTANT
+Do not change any code yet.
+Do not guess.
+Be specific.
+Show exact files, exact conditions, and the exact current authorization pattern already used in the codebase.
+
+At the end, give me:
+1. the exact role labels available
+2. the safest condition to identify admin/executive users
+3. the exact files that would need to be changed to lock Fee (%)
+4. whether both client-side and server-side enforcement are needed
