@@ -249,7 +249,7 @@ function EstimatingModuleInner() {
   const [, navigate] = useLocation();
   const { id: proposalLogIdStr } = useParams<{ id: string }>();
   const proposalLogId = parseInt(proposalLogIdStr || "0");
-  const { user } = useAuth();
+  const { user, isAdmin } = useAuth();
   const { toast } = useToast();
   const qc = useQueryClient();
 
@@ -1794,20 +1794,28 @@ ${html}
                               {gd && <div className="text-sm font-bold" style={{ color: "#22c55e" }}>{fmt(gd.total)}</div>}
                               {gd && <div className="text-xs" style={{ color: "var(--text-muted)" }}>{gd.itemCount} items • OH: {gd.ohRate}% • Fee: {gd.feeRate}%</div>}
                               <div className="flex gap-1 mt-2">
-                                {[["oh_override", "OH%"], ["fee_override", "Fee%"], ["esc_override", "Esc%"]].map(([field, label]) => (
+                                {[["oh_override", "OH%"], ["fee_override", "Fee%"], ["esc_override", "Esc%"]].map(([field, label]) => {
+                                  const isFeeField = field === "fee_override";
+                                  const isDisabled = isFeeField && !isAdmin;
+                                  return (
                                   <input key={field} type="number" step={0.5}
                                     placeholder={label}
+                                    disabled={isDisabled}
                                     onChange={async e => {
                                       const val = e.target.value;
                                       if (field === "oh_override" && val !== "") {
                                         toast({ title: "OH Override Requires Approval", description: "Request logged for executive approval." });
+                                      } else if (isFeeField && !isAdmin) {
+                                        return;
                                       } else {
                                         setBreakoutGroups(prev => prev.map(gr => gr.id === g.id ? { ...gr, [field === "oh_override" ? "ohOverride" : field === "fee_override" ? "feeOverride" : "escOverride"]: val === "" ? null : val } : gr));
                                         markDirty();
                                       }
                                     }}
-                                    className="w-12 text-xs px-1 py-0.5 rounded" style={{ background: "var(--bg2)", border: "1px solid var(--border-ds)", color: "var(--text)" }} />
-                                ))}
+                                    className="w-12 text-xs px-1 py-0.5 rounded"
+                                    style={{ background: "var(--bg2)", border: "1px solid var(--border-ds)", color: "var(--text)", opacity: isDisabled ? 0.6 : 1, cursor: isDisabled ? "not-allowed" : "auto" }} />
+                                  );
+                                })}
                               </div>
                             </div>
                           );
@@ -1882,16 +1890,17 @@ ${html}
               <div className="flex items-center gap-4 flex-wrap px-4 py-2.5 rounded-lg mb-3"
                 style={{ background: "#f9731610", border: "1px solid #f9731630" }}>
                 {[
-                  { label: "OH", color: "#f97316", isOvr: calcData[activeCat]?.isOhOvr, rate: calcData[activeCat]?.ohRate, def: defaultOh, onChange: (v: string) => v === "" ? setCatOverrides(p => { const n = { ...p }; if (n[activeCat]) { delete n[activeCat].oh; if (!Object.keys(n[activeCat]).length) delete n[activeCat]; } return n; }) : requestOhChange(activeCat, parseFloat(v) || 0), locked: true },
-                  { label: "Fee", color: "#22c55e", isOvr: calcData[activeCat]?.isFeeOvr, rate: calcData[activeCat]?.feeRate, def: defaultFee, onChange: (v: string) => { v === "" ? setCatOverrides(p => { const n = { ...p }; if (n[activeCat]) { delete n[activeCat].fee; if (!Object.keys(n[activeCat]).length) delete n[activeCat]; } return n; }) : setCatOverrides(p => ({ ...p, [activeCat]: { ...p[activeCat], fee: parseFloat(v) || 0 } })); markDirty(); } },
-                  { label: "Esc", color: "var(--gold)", isOvr: calcData[activeCat]?.isEscOvr, rate: calcData[activeCat]?.escRate, def: defaultEsc, onChange: (v: string) => { v === "" ? setCatOverrides(p => { const n = { ...p }; if (n[activeCat]) { delete n[activeCat].esc; if (!Object.keys(n[activeCat]).length) delete n[activeCat]; } return n; }) : setCatOverrides(p => ({ ...p, [activeCat]: { ...p[activeCat], esc: parseFloat(v) || 0 } })); markDirty(); } },
+                  { label: "OH", color: "#f97316", isOvr: calcData[activeCat]?.isOhOvr, rate: calcData[activeCat]?.ohRate, def: defaultOh, onChange: (v: string) => v === "" ? setCatOverrides(p => { const n = { ...p }; if (n[activeCat]) { delete n[activeCat].oh; if (!Object.keys(n[activeCat]).length) delete n[activeCat]; } return n; }) : requestOhChange(activeCat, parseFloat(v) || 0), locked: true, disabled: false },
+                  { label: "Fee", color: "#22c55e", isOvr: calcData[activeCat]?.isFeeOvr, rate: calcData[activeCat]?.feeRate, def: defaultFee, onChange: (v: string) => { if (!isAdmin) return; v === "" ? setCatOverrides(p => { const n = { ...p }; if (n[activeCat]) { delete n[activeCat].fee; if (!Object.keys(n[activeCat]).length) delete n[activeCat]; } return n; }) : setCatOverrides(p => ({ ...p, [activeCat]: { ...p[activeCat], fee: parseFloat(v) || 0 } })); markDirty(); }, locked: !isAdmin, disabled: !isAdmin },
+                  { label: "Esc", color: "var(--gold)", isOvr: calcData[activeCat]?.isEscOvr, rate: calcData[activeCat]?.escRate, def: defaultEsc, onChange: (v: string) => { v === "" ? setCatOverrides(p => { const n = { ...p }; if (n[activeCat]) { delete n[activeCat].esc; if (!Object.keys(n[activeCat]).length) delete n[activeCat]; } return n; }) : setCatOverrides(p => ({ ...p, [activeCat]: { ...p[activeCat], esc: parseFloat(v) || 0 } })); markDirty(); }, locked: false, disabled: false },
                 ].map(r => (
                   <div key={r.label} className="flex items-center gap-1.5">
                     <span className="text-xs font-bold" style={{ color: r.color }}>{r.label}:</span>
                     <input type="number" step={0.5} value={r.isOvr ? r.rate : ""} placeholder={`${r.def}%`}
+                      disabled={r.disabled}
                       onChange={e => r.onChange(e.target.value)}
                       className="text-xs text-right px-2 py-1 rounded w-14"
-                      style={{ background: "var(--bg-card)", border: `1px solid ${r.isOvr ? r.color + "60" : "var(--border-ds)"}`, color: r.isOvr ? r.color : "var(--text-muted)" }} />
+                      style={{ background: "var(--bg-card)", border: `1px solid ${r.isOvr ? r.color + "60" : "var(--border-ds)"}`, color: r.isOvr ? r.color : "var(--text-muted)", opacity: r.disabled ? 0.6 : 1, cursor: r.disabled ? "not-allowed" : "auto" }} />
                     <span className="text-xs" style={{ color: "var(--text-muted)" }}>%</span>
                     {r.locked && r.isOvr && <Lock className="w-3 h-3" style={{ color: "#ef4444" }} />}
                   </div>
@@ -2562,52 +2571,48 @@ ${html}
             <div className="rounded-lg p-5" style={{ background: "var(--bg-card)", border: "1px solid var(--border-ds)", borderLeft: "3px solid #f97316" }}>
               <h3 className="text-sm font-semibold mb-4">Global Defaults</h3>
               {[
-                { label: "Escalation (%)", value: defaultEsc, set: setDefaultEsc, step: 0.5, color: "var(--gold)", locked: false },
-                { label: "Overhead (%) 🔒", value: defaultOh, set: () => toast({ title: "Executive Approval Required", description: `OH default at ${defaultOh}%. Contact Kenny Ruester to change.` }), step: 0.5, color: "#f97316", locked: true },
-                { label: "Fee (%)", value: defaultFee, set: setDefaultFee, step: 0.5, color: "#22c55e", locked: false },
-                { label: "Sales Tax (%)", value: taxRate, set: setTaxRate, step: 0.25, color: "#f97316", locked: false },
-                { label: "Bond (%)", value: bondRate, set: setBondRate, step: 0.5, color: "#f97316", locked: false },
+                { label: "Escalation (%)", value: defaultEsc, set: setDefaultEsc, step: 0.5, color: "var(--gold)", locked: false, disabled: false },
+                { label: "Overhead (%) 🔒", value: defaultOh, set: () => toast({ title: "Executive Approval Required", description: `OH default at ${defaultOh}%. Contact Kenny Ruester to change.` }), step: 0.5, color: "#f97316", locked: true, disabled: false },
+                { label: `Fee (%)${!isAdmin ? " 🔒" : ""}`, value: defaultFee, set: (v: number) => { if (v >= 0 && v < 100) { setDefaultFee(v); } }, step: 0.5, color: "#22c55e", locked: !isAdmin, disabled: !isAdmin },
+                { label: "Sales Tax (%)", value: taxRate, set: setTaxRate, step: 0.25, color: "#f97316", locked: false, disabled: false },
+                { label: "Bond (%)", value: bondRate, set: setBondRate, step: 0.5, color: "#f97316", locked: false, disabled: false },
               ].map(r => (
                 <div key={r.label} className="flex justify-between items-center py-2.5" style={{ borderBottom: "1px solid var(--border-ds)20" }}>
                   <span className="text-xs" style={{ color: "var(--text-secondary)" }}>{r.label}</span>
                   <input type="number" value={r.value} step={r.step}
+                    disabled={r.disabled}
                     onChange={e => { if (!r.locked) { r.set(parseFloat(e.target.value) || 0); markDirty(); } else r.set(0); }}
                     className="w-20 text-sm font-bold text-right px-2 py-1 rounded"
-                    style={{ background: r.locked ? "var(--bg3)" : "var(--bg3)", border: "1px solid var(--border-ds)", color: r.color, opacity: r.locked ? 0.7 : 1 }} />
+                    style={{ background: "var(--bg3)", border: "1px solid var(--border-ds)", color: r.color, opacity: r.locked ? 0.7 : 1, cursor: r.disabled ? "not-allowed" : "auto" }} />
                 </div>
               ))}
               <div className="mt-3 p-2 rounded text-xs" style={{ background: "#f9731610", color: "#f97316" }}>
                 Material → Escalation → + Freight = Subtotal → OH on subtotal → Net-based fee on subtotal → Tax on material only
               </div>
-              <p className="text-xs mt-1" style={{ color: "var(--text-muted)" }}>🔒 Overhead changes require executive approval. Fee can be adjusted by the estimator.</p>
+              <p className="text-xs mt-1" style={{ color: "var(--text-muted)" }}>🔒 Overhead and Fee changes require admin access.</p>
               {/* Fee Calculation Preview */}
               {(() => {
                 const previewSub = calcData.allSub || 0;
                 const feePct = defaultFee / 100;
-                const oldMarkupFee = previewSub * feePct;
-                const oldMarkupTotal = previewSub + oldMarkupFee;
-                const newNetFee = feePct <= 0 || feePct >= 1 ? 0 : (previewSub / (1 - feePct)) - previewSub;
-                const newNetTotal = previewSub + newNetFee;
-                const difference = newNetTotal - oldMarkupTotal;
+                const feeAmount = feePct <= 0 || feePct >= 1 ? 0 : (previewSub / (1 - feePct)) - previewSub;
+                const subtotalAfterFee = previewSub + feeAmount;
                 return (
                   <div className="mt-4 rounded-lg p-3" style={{ background: "#22c55e08", border: "1px solid #22c55e30" }}>
                     <div className="text-xs font-semibold mb-2" style={{ color: "#22c55e" }}>Fee Calculation Preview</div>
                     {[
-                      { label: "Subtotal Before Fee", value: fmt(previewSub), highlight: false, muted: false },
-                      { label: "Fee (%)", value: `${defaultFee}%`, highlight: false, muted: false },
-                      { label: "Old Markup Method Fee", value: fmt(oldMarkupFee), highlight: false, muted: true },
-                      { label: "Old Markup Method Total", value: fmt(oldMarkupTotal), highlight: false, muted: true },
-                      { label: "New Net-Based Fee", value: fmt(newNetFee), highlight: true, muted: false },
-                      { label: "New Net-Based Total", value: fmt(newNetTotal), highlight: true, muted: false },
-                      { label: "Difference", value: `+${fmt(difference)}`, highlight: false, muted: false },
-                    ].map(row => (
+                      { label: "Subtotal Before Fee", value: fmt(previewSub), green: false },
+                      { label: "Fee (%)", value: `${defaultFee}%`, green: false },
+                      { label: "Fee Amount", value: fmt(feeAmount), green: true },
+                      { label: "Subtotal After Fee", value: fmt(subtotalAfterFee), green: true },
+                    ].map((row, i) => (
                       <div key={row.label} className="flex justify-between py-1 text-xs"
-                        style={{ borderBottom: "1px solid #22c55e15", color: row.highlight ? "#22c55e" : row.muted ? "var(--text-muted)" : "var(--text-secondary)" }}>
+                        style={{ borderBottom: i < 3 ? "1px solid #22c55e15" : "none", color: row.green ? "#22c55e" : "var(--text-secondary)" }}>
                         <span>{row.label}</span>
                         <span className="font-medium">{row.value}</span>
                       </div>
                     ))}
-                    <p className="text-xs mt-2" style={{ color: "var(--text-muted)" }}>Net-based fee makes the fee equal to the selected percent of the final selling amount.</p>
+                    <p className="text-xs mt-2" style={{ color: "var(--text-muted)" }}>Fee is calculated so the selected percent represents the profit portion of the final selling amount.</p>
+                    <p className="text-xs mt-1" style={{ color: "var(--text-muted)" }}>Subtotal After Fee = Subtotal Before Fee ÷ (1 - Fee %)</p>
                   </div>
                 );
               })()}

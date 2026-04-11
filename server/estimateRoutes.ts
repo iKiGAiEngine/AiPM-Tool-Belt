@@ -4,7 +4,7 @@ import { eq, and, desc } from "drizzle-orm";
 import {
   estimates, estimateLineItems, estimateQuotes, estimateBreakoutGroups,
   estimateBreakoutAllocations, estimateVersions, estimateReviewComments, ohApprovalLog,
-  proposalLogEntries, estimateSpecSections,
+  proposalLogEntries, estimateSpecSections, users,
 } from "@shared/schema";
 import OpenAI from "openai";
 import multer from "multer";
@@ -366,10 +366,35 @@ export function registerEstimateRoutes(app: Express) {
     try {
       const id = parseInt(req.params.id);
       if (isNaN(id)) return res.status(400).json({ message: "Invalid id" });
+
+      // Determine if the requesting user is an admin
+      const userId = (req.session as any)?.userId;
+      let isAdminUser = false;
+      if (userId) {
+        const [requestingUser] = await db.select({ role: users.role }).from(users).where(eq(users.id, userId)).limit(1);
+        isAdminUser = requestingUser?.role === "admin";
+      }
+
+      // Build the body, stripping fee-related fields for non-admins
+      const body: Record<string, any> = { ...req.body };
+      if (!isAdminUser) {
+        delete body.defaultFee;
+        if (body.catOverrides && typeof body.catOverrides === "object") {
+          const cleaned: Record<string, any> = {};
+          for (const [catId, ovr] of Object.entries(body.catOverrides)) {
+            if (ovr && typeof ovr === "object") {
+              const { fee: _fee, ...rest } = ovr as Record<string, any>;
+              cleaned[catId] = rest;
+            }
+          }
+          body.catOverrides = cleaned;
+        }
+      }
+
       const allowed = ["activeScopes", "defaultOh", "defaultFee", "defaultEsc", "taxRate", "bondRate", "catOverrides", "catComplete", "catQuals", "assumptions", "risks", "checklist", "reviewStatus"];
       const updates: Record<string, any> = { updatedAt: new Date() };
       for (const f of allowed) {
-        if (req.body[f] !== undefined) updates[f] = req.body[f];
+        if (body[f] !== undefined) updates[f] = body[f];
       }
       await db.update(estimates).set(updates).where(eq(estimates.id, id));
       const full = await getFullEstimate(id);
@@ -618,9 +643,21 @@ export function registerEstimateRoutes(app: Express) {
     try {
       const groupId = parseInt(req.params.groupId);
       if (isNaN(groupId)) return res.status(400).json({ message: "Invalid group id" });
+
+      // Determine if the requesting user is an admin
+      const userId = (req.session as any)?.userId;
+      let isAdminUser = false;
+      if (userId) {
+        const [requestingUser] = await db.select({ role: users.role }).from(users).where(eq(users.id, userId)).limit(1);
+        isAdminUser = requestingUser?.role === "admin";
+      }
+
+      // Non-admins cannot change feeOverride
       const allowed = ["code", "label", "type", "ohOverride", "feeOverride", "escOverride", "freightMethod", "manualFreight", "sortOrder"];
+      const effectiveAllowed = isAdminUser ? allowed : allowed.filter(f => f !== "feeOverride");
+
       const updates: Record<string, any> = {};
-      for (const f of allowed) {
+      for (const f of effectiveAllowed) {
         if (req.body[f] !== undefined) {
           if (["ohOverride", "feeOverride", "escOverride", "manualFreight"].includes(f)) {
             updates[f] = req.body[f] != null ? String(req.body[f]) : null;

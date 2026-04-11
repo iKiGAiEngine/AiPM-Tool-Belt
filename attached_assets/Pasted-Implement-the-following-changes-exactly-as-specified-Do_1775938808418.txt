@@ -1,0 +1,293 @@
+Implement the following changes exactly as specified. Do not improvise. Do not change unrelated estimating behavior.
+
+PRIMARY GOAL
+Update the Stage 3 Markups fee area so it does all of the following:
+1. Keep the already-implemented true net-based fee calculation
+2. Remove any old-method comparison from the preview
+3. Show a clean live visual explanation of how the fee is calculated now
+4. Lock fee editing to ADMIN USERS ONLY based on the app’s existing auth model
+5. Keep the fee visible to non-admin users as read-only
+6. Add both client-side and server-side protection for fee-related fields
+
+IMPORTANT AUTH FACT
+The current app does NOT have an executive role.
+The only privileged auth flag that exists today is:
+- isAdmin from useAuth()
+which is true when:
+- user.role === "admin"
+
+Do not invent an executive role.
+Do not guess at any executive permission logic.
+Implement admin-only locking using the existing auth model exactly as it exists now.
+
+DO NOT
+- Do not reintroduce the old markup method in the UI
+- Do not show “old vs new” comparisons
+- Do not show “difference” rows
+- Do not change OH logic
+- Do not change Tax logic
+- Do not change Bond logic
+- Do not change proposal letter formatting
+- Do not move calculations to the backend
+- Do not create duplicate calculation systems
+- Do not refactor unrelated code
+- Do not overwrite existing saved estimate fee values
+- Do not invent a new role system
+
+KNOWN FILES
+Primary estimating UI and calculation logic:
+- client/src/pages/EstimatingModulePage.tsx
+
+Backend estimate persistence:
+- server/estimateRoutes.ts
+
+CURRENT AUTH PATTERN TO USE
+Client:
+import { useAuth } from "@/lib/auth";
+const { user, isAdmin, isLoading, isAuthenticated } = useAuth();
+
+isAdmin is already defined by the app as:
+user?.role === "admin"
+
+Use this exact existing pattern.
+
+FEE CALCULATION
+Keep the current true net-based fee logic already implemented.
+
+The required fee logic remains:
+- subtotalBeforeFee = subtotal
+- feePct = feeRate / 100
+- fee = feePct <= 0 || feePct >= 1 ? 0 : (subtotalBeforeFee / (1 - feePct)) - subtotalBeforeFee
+- subtotalAfterFee = subtotalBeforeFee + fee
+
+Do not change the fee formula unless needed for validation or display consistency.
+
+-----------------------------------
+PART 1 — UPDATE THE PREVIEW
+-----------------------------------
+
+REPLACE THE CURRENT COMPARISON-STYLE PREVIEW
+Remove any preview rows related to:
+- Old Markup Method Fee
+- Old Markup Method Total
+- Difference
+- old vs new comparison language
+
+REQUIRED PREVIEW PLACEMENT
+Place the preview directly under the Fee (%) input in Stage 3 Markups.
+Do not place it anywhere else.
+
+PREVIEW TITLE
+Use exactly this title:
+Fee Calculation Preview
+
+DISPLAY EXACTLY THESE ROWS IN THIS ORDER
+1. Subtotal Before Fee
+2. Fee (%)
+3. Fee Amount
+4. Subtotal After Fee
+
+USE THESE LIVE VALUES
+- subtotalBeforeFee = subtotal
+- feePct = feeRate / 100
+- feeAmount = fee
+- subtotalAfterFee = subtotalBeforeFee + feeAmount
+
+EXPLANATION TEXT
+Under the rows, include exactly these two lines and no more:
+
+Fee is calculated so the selected percent represents the profit portion of the final selling amount.
+Subtotal After Fee = Subtotal Before Fee ÷ (1 - Fee %)
+
+DISPLAY RULES
+- Use the app’s existing currency formatting for money
+- Use the app’s existing percent formatting style
+- Keep the card compact and visually consistent with the existing UI
+- Use existing card/panel styling if available
+- The card must update live when subtotal or fee values change
+- The card is read-only
+
+-----------------------------------
+PART 2 — LOCK FEE INPUTS TO ADMIN ONLY
+-----------------------------------
+
+CLIENT-SIDE AUTH CHANGE
+In client/src/pages/EstimatingModulePage.tsx:
+- destructure isAdmin from useAuth()
+- use isAdmin to lock fee editing
+
+REQUIRED BEHAVIOR
+Admin users:
+- can edit the global Fee (%) input
+- can edit category-level fee override inputs
+- can edit breakout group fee override inputs
+
+Non-admin users:
+- can see all fee values
+- cannot edit any fee fields
+- fee inputs should be disabled or read-only using the cleanest existing UI pattern
+- do not hide the inputs
+- do not remove the displayed values
+
+GLOBAL FEE INPUT
+Current location:
+- Stage 3 Markups global defaults input map
+
+Change the global Fee (%) input from editable for all users to admin-only.
+Use the existing locked flag pattern if that is the cleanest fit, but make it auth-aware.
+
+Required behavior:
+- locked: !isAdmin
+- non-admin users can still see the value
+- input must not update state for non-admins
+
+CATEGORY-LEVEL FEE OVERRIDE INPUT
+Current location:
+- Stage 2 category markup controls bar
+
+Change the category fee override input so:
+- admin users can edit
+- non-admin users cannot edit
+- displayed value remains visible
+
+BREAKOUT GROUP FEE OVERRIDE INPUT
+Current location:
+- breakout group override inputs
+
+Change the breakout Fee% input so:
+- admin users can edit
+- non-admin users cannot edit
+- displayed value remains visible
+
+NON-ADMIN UX
+Do not use a toast on every blocked edit attempt.
+Prefer a disabled or read-only field state that matches the existing UI style.
+If a lock label is needed and there is already a style pattern for locked fields, use that pattern.
+Do not clutter the UI with extra messaging.
+
+-----------------------------------
+PART 3 — SERVER-SIDE PROTECTION
+-----------------------------------
+
+REQUIREMENT
+The server must not allow non-admin users to persist fee-related changes even if they bypass the UI.
+
+CURRENT PROBLEM
+The PATCH route currently trusts the client and accepts:
+- defaultFee
+- catOverrides including fee keys
+without any role validation.
+
+ADD SERVER-SIDE PROTECTION IN:
+- server/estimateRoutes.ts
+
+USE THE EXISTING SERVER AUTH PATTERN ALREADY USED ELSEWHERE IN THE APP
+Read the authenticated user from session, load the user, and verify:
+- user.role === "admin"
+
+Do not invent a new permission system.
+
+PROTECT THESE FIELDS
+Non-admin users must not be allowed to change:
+1. defaultFee
+2. category fee override values inside catOverrides
+3. breakout-group fee override values if that route currently allows saving them
+
+IMPORTANT SAVE BEHAVIOR
+Do not block non-admin users from saving unrelated estimate changes.
+
+Required behavior:
+- if a non-admin submits updates containing fee-related changes, ignore or reject only those fee-related changes according to the cleanest existing server pattern
+- unrelated allowed estimate fields should still be saved if possible
+
+If the cleanest architecture is to strip unauthorized fee fields from req.body before update, do that.
+If the cleanest architecture is to return 403 only when a fee field was changed, do that only if it does not break normal estimate saves.
+Prefer the least disruptive behavior that preserves unrelated edits.
+
+-----------------------------------
+PART 4 — VALIDATION
+-----------------------------------
+
+Do not silently allow invalid fee entries to behave like 0 without explanation.
+
+Use the app’s existing numeric input validation style if one exists.
+
+Required validation:
+- feeRate must be >= 0
+- feeRate must be < 100
+
+If invalid:
+- prevent invalid value from being applied
+- do not let invalid values persist
+- show a clear inline validation message only if the current UI pattern supports it
+
+Do not introduce a disruptive or inconsistent error style.
+
+-----------------------------------
+PART 5 — THINGS THAT MUST REMAIN CORRECT
+-----------------------------------
+
+Do not break:
+- calcData
+- breakoutCalcData
+- Stage 3 totals
+- Stage 3 by-category display
+- Stage 4 bid summary
+- proposal sync totals
+- Excel export
+- saved estimate versions going forward
+
+No unrelated estimate math should change.
+
+-----------------------------------
+ACCEPTANCE CRITERIA
+-----------------------------------
+
+After implementation, confirm all of the following:
+
+1. The preview in Stage 3 shows only:
+   - Subtotal Before Fee
+   - Fee (%)
+   - Fee Amount
+   - Subtotal After Fee
+
+2. The preview does not show:
+   - old markup method
+   - old total
+   - difference
+   - old vs new comparison language
+
+3. The preview updates live using the actual estimate values
+
+4. The global Fee (%) input is editable only by admin users
+
+5. Category-level fee override inputs are editable only by admin users
+
+6. Breakout-group Fee% override inputs are editable only by admin users
+
+7. Non-admin users can still see all fee values but cannot edit them
+
+8. Server-side protection exists for fee-related updates
+
+9. Non-admin users can still save unrelated estimate changes
+
+10. No unrelated estimate math was changed
+
+-----------------------------------
+DELIVERABLE REPORT
+-----------------------------------
+
+After implementation, report back with exactly:
+1. files changed
+2. exact client-side admin condition used
+3. exact fee input locations now locked
+4. exact server-side protection logic added and where
+5. exact labels shown in the new preview
+6. one worked example showing:
+   - Subtotal Before Fee
+   - Fee (%)
+   - Fee Amount
+   - Subtotal After Fee
+7. confirmation that old-method comparison rows were removed
+8. confirmation that non-admin users can still save unrelated changes
+9. confirmation that no unrelated estimate math was changed
