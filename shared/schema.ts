@@ -1191,22 +1191,7 @@ export type Feature = typeof FEATURES[keyof typeof FEATURES];
 
 // Default feature access per role
 export const DEFAULT_ROLE_FEATURES: Record<string, Feature[]> = {
-  admin: [
-    FEATURES.PROPOSAL_LOG,
-    FEATURES.VENDOR_DATABASE,
-    FEATURES.SUBMITTAL_BUILDER,
-    FEATURES.SCHEDULE_CONVERTER,
-    FEATURES.SPEC_EXTRACTOR,
-    FEATURES.QUOTE_PARSER,
-    FEATURES.PLAN_PARSER,
-    FEATURES.BC_SYNC,
-    FEATURES.DRAFT_REVIEW,
-    FEATURES.CENTRAL_SETTINGS,
-    FEATURES.PROJECT_START,
-    // ESTIMATING_MODULE is intentionally excluded here.
-    // It is seeded explicitly in permissionsInit.ts for admins
-    // and managed per-user via the Permissions UI.
-  ],
+  admin: Object.values(FEATURES) as Feature[],
   accounting: [
     FEATURES.PROPOSAL_LOG,
     FEATURES.VENDOR_DATABASE,

@@ -2820,7 +2820,7 @@ ${html}
                 <button
                   data-testid="btn-export-excel"
                   onClick={() => exportEstimateToExcel({
-                    estimateData: estimateData as any,
+                    estimateData: estimateData,
                     proposalEntry,
                     lineItems,
                     quotes,
