@@ -1501,7 +1501,7 @@ function RegionEditDialog({ open, onOpenChange, region, onSave, isPending }: Reg
               rows={2}
               data-testid="input-edit-region-self-perform-estimators"
             />
-            <p className="text-xs text-muted-foreground">Self perform estimator contacts for this region (comma-separated, append-only from Proposal Log)</p>
+            <p className="text-xs text-muted-foreground">Self perform estimator contacts for this region (comma-separated, append-only from Proposal Log Dashboard)</p>
           </div>
           <div className="space-y-2">
             <Label htmlFor="editAliases">Aliases (comma-separated)</Label>

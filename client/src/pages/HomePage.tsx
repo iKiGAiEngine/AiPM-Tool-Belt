@@ -478,7 +478,7 @@ export default function HomePage() {
                   <FileBarChart style={{ width: 18, height: 18, color: "var(--gold)" }} />
                 </div>
                 <div>
-                  <div className="pl-title">Proposal Log - HUD</div>
+                  <div className="pl-title">Active Bids Dashboard</div>
                   <div className="pl-sub">Your active bids &middot; personalized view</div>
                 </div>
               </div>

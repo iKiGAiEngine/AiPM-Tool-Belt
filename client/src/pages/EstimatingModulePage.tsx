@@ -55,7 +55,7 @@ const CHECKLIST_TEMPLATE = [
   { id: "c10", stage: "calculations", label: "All scope sections marked complete", done: false, auto: false },
   { id: "c11", stage: "calculations", label: "Escalation reviewed and justified", done: false, auto: false },
   { id: "c12", stage: "output", label: "Proposal reviewed by senior estimator", done: false, auto: false },
-  { id: "c13", stage: "output", label: "Total synced to Proposal Log", done: false, auto: false },
+  { id: "c13", stage: "output", label: "Total synced to Proposal Log Dashboard", done: false, auto: false },
   { id: "c14", stage: "output", label: "Proposal letter generated and reviewed", done: false, auto: false },
 ];
 
@@ -618,7 +618,7 @@ function EstimatingModuleInner() {
       await apiRequest("POST", `/api/estimates/${estimateId}/sync-to-proposal`, {
         grandTotal: calcData.grandTotal, reviewStatus,
       });
-      // Sync Project Info edits + scope selections back to Proposal Log
+      // Sync Project Info edits + scope selections back to Proposal Log Dashboard
       if (proposalLogId) {
         const scopeLabels = activeScopes
           .map(id => ALL_SCOPES.find(s => s.id === id)?.label)
@@ -635,7 +635,7 @@ function EstimatingModuleInner() {
       setVersions(v => [{ id: Date.now(), estimateId: estimateId!, version: (v[0]?.version || 0) + 1, savedBy: userName, notes: "Manual save", grandTotal: String(calcData.grandTotal), savedAt: new Date().toISOString() }, ...v]);
       setIsDirty(false);
       setLastSaved(new Date());
-      toast({ title: "Saved", description: "Estimate saved and synced to Proposal Log." });
+      toast({ title: "Saved", description: "Estimate saved and synced to Proposal Log Dashboard." });
     } catch (err) {
       toast({ title: "Save failed", description: "Could not save estimate.", variant: "destructive" });
     }
@@ -984,7 +984,7 @@ ${html}
     }
   }, [proposalEntry, projInfoLoaded]);
 
-  // ── Sync scope changes from Proposal Log to existing estimate ──
+  // ── Sync scope changes from Proposal Log Dashboard to existing estimate ──
   useEffect(() => {
     if (estimateData && proposalEntry?.nbsSelectedScopes) {
       try {
@@ -1281,7 +1281,7 @@ ${html}
       <div className="min-h-screen flex items-center justify-center" style={{ background: "var(--bg-page)" }}>
         <div className="text-center">
           <p style={{ color: "var(--text-secondary)" }}>Proposal log entry not found.</p>
-          <Button onClick={() => { window.location.href = "/tools/proposal-log"; }} className="mt-4">Back to Proposal Log</Button>
+          <Button onClick={() => { window.location.href = "/tools/proposal-log"; }} className="mt-4">Back to Proposal Log Dashboard</Button>
         </div>
       </div>
     );
@@ -1450,9 +1450,9 @@ ${html}
           <div className="rounded-lg p-5" style={{ background: "var(--bg-card)", border: "1px solid var(--border-ds)", borderLeft: "3px solid var(--gold)" }}>
             <div className="flex items-center justify-between mb-1">
               <h2 style={{ fontFamily: "'Playfair Display', serif", fontSize: 16, fontWeight: 700 }}>Project Info</h2>
-              <span className="text-xs px-2 py-0.5 rounded" style={{ background: "var(--gold)20", color: "var(--gold)", border: "1px solid var(--gold)40" }}>Syncs to Proposal Log on Save</span>
+              <span className="text-xs px-2 py-0.5 rounded" style={{ background: "var(--gold)20", color: "var(--gold)", border: "1px solid var(--gold)40" }}>Syncs to Proposal Log Dashboard on Save</span>
             </div>
-            <p className="text-xs mb-4" style={{ color: "var(--text-muted)" }}>Edit fields below — changes are written back to the Proposal Log when you save. — {estimateData?.estimateNumber}</p>
+            <p className="text-xs mb-4" style={{ color: "var(--text-muted)" }}>Edit fields below — changes are written back to the Proposal Log Dashboard when you save. — {estimateData?.estimateNumber}</p>
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
               {/* Read-only: Estimate # */}
               <div>
@@ -1563,13 +1563,13 @@ ${html}
                         .filter(Boolean) as string[];
                       setActiveScopes(ids);
                       markDirty();
-                      toast({ title: "Scopes refreshed", description: "Loaded scope selections from the Proposal Log." });
-                    } catch { toast({ title: "Error", description: "Could not parse Proposal Log scopes.", variant: "destructive" }); }
+                      toast({ title: "Scopes refreshed", description: "Loaded scope selections from the Proposal Log Dashboard." });
+                    } catch { toast({ title: "Error", description: "Could not parse Proposal Log Dashboard scopes.", variant: "destructive" }); }
                   }}
                   className="text-xs px-2 py-0.5 rounded"
                   style={{ background: "var(--gold)15", color: "var(--gold)", border: "1px solid var(--gold)40" }}
                 >
-                  ↻ Pull from Proposal Log
+                  ↻ Pull from Proposal Log Dashboard
                 </button>
               )}
             </div>
@@ -1602,7 +1602,7 @@ ${html}
               </p>
             )}
             {activeScopes.length > 0 && (
-              <p className="text-xs mb-3" style={{ color: "var(--text-muted)" }}>Select Division 10 scope sections to include. These become category tabs in Line Items. Saved selections sync back to the Proposal Log.</p>
+              <p className="text-xs mb-3" style={{ color: "var(--text-muted)" }}>Select Division 10 scope sections to include. These become category tabs in Line Items. Saved selections sync back to the Proposal Log Dashboard.</p>
             )}
 
             <div className="flex flex-wrap gap-2">
@@ -3057,7 +3057,7 @@ ${html}
             <button onClick={saveEstimate} disabled={isSaving || !estimateId}
               className="px-6 py-3 rounded-lg text-sm font-semibold flex items-center gap-2"
               style={{ background: "var(--gold)", color: "#000" }}>
-              💾 Save & Sync to Proposal Log
+              💾 Save & Sync to Proposal Log Dashboard
             </button>
             <button onClick={() => { setReviewStatus("submitted"); markDirty(); saveEstimate(); }}
               disabled={isSaving || !estimateId}

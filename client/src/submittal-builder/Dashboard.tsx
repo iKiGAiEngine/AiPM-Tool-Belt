@@ -56,7 +56,7 @@ export default function Dashboard({ projects, loading, onOpen, onNew, onDelete, 
               <div>
                 <div style={{ fontSize: 40, marginBottom: 12 }}>📋</div>
                 <div style={{ fontSize: 16, color: "var(--text-secondary)", marginBottom: 8 }}>No submittal projects yet</div>
-                <div style={{ fontSize: 13, color: "var(--text-muted)", marginBottom: 20 }}>Start by selecting a Won project from the Proposal Log</div>
+                <div style={{ fontSize: 13, color: "var(--text-muted)", marginBottom: 20 }}>Start by selecting a Won project from the Proposal Log Dashboard</div>
                 <button onClick={onNew} style={btnPrimary}>+ New Submittal</button>
               </div>
             ) : "No projects match your filters."}

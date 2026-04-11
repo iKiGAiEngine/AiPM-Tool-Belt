@@ -38,18 +38,18 @@ export default function NewProject({ onBack, onCreate }: Props) {
       <div style={{ maxWidth: 700, margin: "0 auto", padding: "32px 24px" }}>
         <button onClick={onBack} style={{ ...btnGhost, marginBottom: 20 }}>← Back to Projects</button>
         <h2 style={{ fontSize: 18, fontWeight: 800, color: "var(--text-primary)", marginBottom: 4, fontFamily: "'Rajdhani', sans-serif" }}>Start New Submittal</h2>
-        <p style={{ fontSize: 13, color: "var(--text-muted)", marginBottom: 20 }}>Select a Won project from the AiPM Proposal Log.</p>
+        <p style={{ fontSize: 13, color: "var(--text-muted)", marginBottom: 20 }}>Select a Won project from the AiPM Proposal Log Dashboard.</p>
 
         <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search by project name, estimate #, or region..." style={{ ...inputStyle, width: "100%", marginBottom: 16 }} />
 
         {isLoading ? (
-          <div style={{ padding: 40, textAlign: "center", color: "var(--text-muted)" }}>Loading Proposal Log...</div>
+          <div style={{ padding: 40, textAlign: "center", color: "var(--text-muted)" }}>Loading Proposal Log Dashboard...</div>
         ) : filtered.length === 0 ? (
           <div style={{ padding: 40, textAlign: "center", color: "var(--text-secondary)" }}>
             {wonEntries.length === 0 ? (
               <div>
-                <div style={{ fontSize: 13, color: "var(--text-muted)", marginBottom: 8 }}>No Won/Awarded projects found in the Proposal Log.</div>
-                <div style={{ fontSize: 12, color: "var(--text-secondary)" }}>Change a project status to "Won" or "Awarded" in the Proposal Log first.</div>
+                <div style={{ fontSize: 13, color: "var(--text-muted)", marginBottom: 8 }}>No Won/Awarded projects found in the Proposal Log Dashboard.</div>
+                <div style={{ fontSize: 12, color: "var(--text-secondary)" }}>Change a project status to "Won" or "Awarded" in the Proposal Log Dashboard first.</div>
               </div>
             ) : "No projects match your search."}
           </div>
