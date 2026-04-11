@@ -274,7 +274,7 @@ function EstimatingModuleInner() {
   const [ohLog, setOhLog] = useState<OhApprovalEntry[]>([]);
 
   const [defaultOh, setDefaultOh] = useState(10);
-  const [defaultFee, setDefaultFee] = useState(5);
+  const [defaultFee, setDefaultFee] = useState(15);
   const [defaultEsc, setDefaultEsc] = useState(0);
   const [taxRate, setTaxRate] = useState(0);
   const [bondRate, setBondRate] = useState(0);
@@ -473,8 +473,11 @@ function EstimatingModuleInner() {
       const ohImpact = oh - subtotal * (defaultOh / 100);
       const feeRate = catOverrides[cat.id]?.fee ?? defaultFee;
       const isFeeOvr = catOverrides[cat.id]?.fee != null;
-      const fee = subtotal * (feeRate / 100);
-      const feeImpact = fee - subtotal * (defaultFee / 100);
+      const feePct = feeRate / 100;
+      const fee = feePct <= 0 || feePct >= 1 ? 0 : (subtotal / (1 - feePct)) - subtotal;
+      const defaultFeePct = defaultFee / 100;
+      const defaultFeeAmt = defaultFeePct <= 0 || defaultFeePct >= 1 ? 0 : (subtotal / (1 - defaultFeePct)) - subtotal;
+      const feeImpact = fee - defaultFeeAmt;
       const escImpact = escalation - effMat * (defaultEsc / 100);
       const tax = effMat * (taxRate / 100);
       const bond = subtotal * (bondRate / 100);
@@ -524,7 +527,8 @@ function EstimatingModuleInner() {
         : totalMat > 0 ? (material / totalMat) * calcData.allFrt : 0;
       const subtotal = material + escalation + freight;
       const oh = subtotal * (ohRate / 100);
-      const fee = subtotal * (feeRate / 100);
+      const breakoutFeePct = feeRate / 100;
+      const fee = breakoutFeePct <= 0 || breakoutFeePct >= 1 ? 0 : (subtotal / (1 - breakoutFeePct)) - subtotal;
       const tax = material * (taxRate / 100);
       const bond = subtotal * (bondRate / 100);
       const total = subtotal + oh + fee + tax + bond;
@@ -2573,9 +2577,40 @@ ${html}
                 </div>
               ))}
               <div className="mt-3 p-2 rounded text-xs" style={{ background: "#f9731610", color: "#f97316" }}>
-                Material → Escalation → + Freight = Subtotal → OH on subtotal → Fee on subtotal → Tax on material only
+                Material → Escalation → + Freight = Subtotal → OH on subtotal → Net-based fee on subtotal → Tax on material only
               </div>
               <p className="text-xs mt-1" style={{ color: "var(--text-muted)" }}>🔒 Overhead changes require executive approval. Fee can be adjusted by the estimator.</p>
+              {/* Fee Calculation Preview */}
+              {(() => {
+                const previewSub = calcData.allSub || 0;
+                const feePct = defaultFee / 100;
+                const oldMarkupFee = previewSub * feePct;
+                const oldMarkupTotal = previewSub + oldMarkupFee;
+                const newNetFee = feePct <= 0 || feePct >= 1 ? 0 : (previewSub / (1 - feePct)) - previewSub;
+                const newNetTotal = previewSub + newNetFee;
+                const difference = newNetTotal - oldMarkupTotal;
+                return (
+                  <div className="mt-4 rounded-lg p-3" style={{ background: "#22c55e08", border: "1px solid #22c55e30" }}>
+                    <div className="text-xs font-semibold mb-2" style={{ color: "#22c55e" }}>Fee Calculation Preview</div>
+                    {[
+                      { label: "Subtotal Before Fee", value: fmt(previewSub), highlight: false, muted: false },
+                      { label: "Fee (%)", value: `${defaultFee}%`, highlight: false, muted: false },
+                      { label: "Old Markup Method Fee", value: fmt(oldMarkupFee), highlight: false, muted: true },
+                      { label: "Old Markup Method Total", value: fmt(oldMarkupTotal), highlight: false, muted: true },
+                      { label: "New Net-Based Fee", value: fmt(newNetFee), highlight: true, muted: false },
+                      { label: "New Net-Based Total", value: fmt(newNetTotal), highlight: true, muted: false },
+                      { label: "Difference", value: `+${fmt(difference)}`, highlight: false, muted: false },
+                    ].map(row => (
+                      <div key={row.label} className="flex justify-between py-1 text-xs"
+                        style={{ borderBottom: "1px solid #22c55e15", color: row.highlight ? "#22c55e" : row.muted ? "var(--text-muted)" : "var(--text-secondary)" }}>
+                        <span>{row.label}</span>
+                        <span className="font-medium">{row.value}</span>
+                      </div>
+                    ))}
+                    <p className="text-xs mt-2" style={{ color: "var(--text-muted)" }}>Net-based fee makes the fee equal to the selected percent of the final selling amount.</p>
+                  </div>
+                );
+              })()}
             </div>
 
             {/* Grand totals */}

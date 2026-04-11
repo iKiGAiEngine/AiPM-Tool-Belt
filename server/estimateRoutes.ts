@@ -342,6 +342,7 @@ export function registerEstimateRoutes(app: Express) {
       const [est] = await db.insert(estimates).values({
         proposalLogId, estimateNumber, projectName,
         activeScopes: activeScopes || [],
+        defaultFee: "15",
         checklist: checklist || [],
         assumptions: assumptions || [
           "Pricing assumes delivery to jobsite — no offloading or distribution to floors",

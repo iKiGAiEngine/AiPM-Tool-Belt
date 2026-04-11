@@ -1,0 +1,233 @@
+Implement the following changes exactly as specified. Do not improvise. Do not relocate logic. Do not change unrelated estimating behavior.
+
+PRIMARY GOAL
+Update the fee calculation in the estimating module from the old markup method to the new true net-based fee method.
+Set the default fee to 15%.
+Add a visible live preview in Stage 3 Markups directly under the Fee (%) input or directly adjacent to the Totals card, whichever is already easier within the current layout. Prefer placing it directly under the Fee (%) input if that can be done cleanly without breaking the layout.
+
+DO NOT
+- Do not create duplicate calculation systems
+- Do not move calculations to the backend
+- Do not change OH logic
+- Do not change Tax logic
+- Do not change Bond logic
+- Do not change proposal letter formatting
+- Do not add modals
+- Do not add tooltips as the primary explanation
+- Do not make the preview editable
+- Do not overwrite existing saved estimate fee values
+- Do not refactor unrelated files or UI
+
+KNOWN FILE AND LOGIC LOCATION
+All estimating math lives in:
+- client/src/pages/EstimatingModulePage.tsx
+
+You must update BOTH of these:
+1. main calcData useMemo
+2. breakoutCalcData useMemo
+
+CURRENT FEE LOGIC TO REPLACE
+The current fee logic is:
+const feeRate = catOverrides[cat.id]?.fee ?? defaultFee;
+const isFeeOvr = catOverrides[cat.id]?.fee != null;
+const fee = subtotal * (feeRate / 100);
+
+Replace this old fee logic everywhere it appears in estimating calculations.
+
+NEW REQUIRED FEE LOGIC
+The fee must now be calculated as a true net-based fee.
+
+Definitions:
+- subtotalBeforeFee = subtotal
+- feePct = feeRate / 100
+
+Required formula:
+fee = feePct === 0 ? 0 : (subtotalBeforeFee / (1 - feePct)) - subtotalBeforeFee
+
+Also define:
+subtotalAfterFee = subtotalBeforeFee + fee
+
+Validation:
+- if feePct < 0, treat as invalid
+- if feePct >= 1, treat as invalid
+
+If the app already has an existing validation pattern for numeric inputs, use that pattern.
+Do not introduce a completely different error-handling style unless necessary.
+
+CALCULATION ORDER — KEEP EXACTLY THIS
+Keep the current order exactly:
+1. material = effective material including lump sum adjustment
+2. escalation
+3. freight
+4. subtotal = effMat + escalation + totalFreight
+5. overhead = subtotal * (ohRate / 100)
+6. fee = true net-based formula using subtotal as the base
+7. tax = effMat * (taxRate / 100)
+8. bond = subtotal * (bondRate / 100)
+9. total = subtotal + oh + fee + tax + bond
+
+Important:
+- Fee remains based on subtotal
+- OH remains based on subtotal
+- Tax remains based on effective material only
+- Bond remains based on subtotal
+- Do not stack fee on top of OH
+- Do not stack OH on top of fee
+- Do not change total structure except for the fee formula itself
+
+DEFAULT FEE CHANGE
+Change the default fee for new estimates from 5 to 15.
+
+Current behavior:
+- defaultFee is stored as a numeric string
+
+Required behavior:
+- new/default initialized estimates should use defaultFee = "15"
+- existing estimates with saved fee values must remain unchanged
+
+If there is an initialization path for new estimate state, update that path only.
+Do not apply a migration that changes existing records.
+
+VISUAL PREVIEW REQUIREMENT
+Add a visible live preview card in Stage 3 Markups.
+
+PLACEMENT
+Place the preview:
+- directly under the Fee (%) input if layout allows cleanly
+OR
+- immediately next to the Totals card in Stage 3 if that is the cleaner existing structure
+
+Preferred placement:
+1. directly under Fee (%)
+2. otherwise adjacent to Totals card
+
+Do not place it anywhere else.
+
+PURPOSE
+This preview must let a non-technical reviewer instantly confirm:
+- what subtotal the fee is based on
+- what the old markup result would have been
+- what the new net-based result is
+- what the difference is
+
+This preview is required to be driven by the same live values used by the actual estimate calculations.
+It is not static text.
+It is not example text.
+It must update live as subtotal and fee inputs change.
+
+PREVIEW TITLE
+Use exactly this title:
+Fee Calculation Preview
+
+PREVIEW CONTENT
+Display exactly these rows and labels in this order:
+
+1. Subtotal Before Fee
+2. Fee (%)
+3. Old Markup Method Fee
+4. Old Markup Method Total
+5. New Net-Based Fee
+6. New Net-Based Total
+7. Difference
+
+Use these formulas for the preview:
+- subtotalBeforeFee = subtotal
+- feePct = feeRate / 100
+- oldMarkupFee = subtotalBeforeFee * feePct
+- oldMarkupTotal = subtotalBeforeFee + oldMarkupFee
+- newNetFee = feePct === 0 ? 0 : (subtotalBeforeFee / (1 - feePct)) - subtotalBeforeFee
+- newNetTotal = subtotalBeforeFee + newNetFee
+- difference = newNetTotal - oldMarkupTotal
+
+EXPLANATION TEXT
+Under the preview values, include exactly one short sentence:
+
+Net-based fee makes the fee equal to the selected percent of the final selling amount.
+
+Do not add extra paragraphs.
+Do not add technical jargon.
+
+DISPLAY FORMAT
+Format all money values as currency using the app’s existing currency formatting style.
+Format fee percent consistently with the existing percent display style.
+Keep the preview compact and visually clean.
+
+If the UI uses cards/panels already, use the same component pattern.
+Do not invent a visually different style.
+
+CATEGORY / TOTALS SCOPE
+The preview must reflect the same fee logic driving the overall Stage 3 totals.
+
+At minimum:
+- the preview must use the live subtotal and fee rate from the overall totals context
+
+If there is already a natural category-level context in Stage 3 and it is straightforward to support, you may also mirror the preview there.
+But do not create confusing duplicate preview sections unless the current UI already supports category-level breakdown cards cleanly.
+
+The required minimum is one overall preview in Stage 3 tied to live totals.
+
+UI TEXT CONSISTENCY
+If there is any existing hardcoded explanatory text that currently implies:
+Fee = subtotal × fee percent
+update that text so it no longer describes the old logic.
+
+Do not add new explanation text anywhere else unless needed for accuracy.
+
+ROUNDING
+Do not change the current underlying calculation precision.
+Do not add new rounding to fee calculations.
+For display only, use the existing currency formatting conventions.
+
+DEPENDENCIES THAT MUST STAY ALIGNED
+Because these are downstream of calcData / breakoutCalcData, they must remain correct after the change:
+- Stage 3 Totals
+- Stage 3 By Category
+- Stage 4 Bid Summary
+- Proposal grand total
+- Excel export
+- sync-to-proposal
+- proposal log total
+- saved estimate versions going forward
+
+That means:
+- calcData and breakoutCalcData must both use the exact same new fee formula
+- totals and preview must match
+
+ACCEPTANCE TESTS
+Verify these exact outcomes after implementation:
+
+Test 1
+subtotalBeforeFee = 100
+feeRate = 15
+oldMarkupFee = 15
+oldMarkupTotal = 115
+newNetFee = 17.6470588235
+newNetTotal = 117.6470588235
+difference = 2.6470588235
+
+Test 2
+subtotalBeforeFee = 100
+feeRate = 0
+oldMarkupFee = 0
+oldMarkupTotal = 100
+newNetFee = 0
+newNetTotal = 100
+difference = 0
+
+Test 3
+subtotalBeforeFee = 2500
+feeRate = 15
+newNetFee = 441.1764705882
+newNetTotal = 2941.1764705882
+
+DELIVERABLE REPORT
+After implementation, report back with exactly:
+1. file(s) changed
+2. exact old fee code replaced
+3. exact new fee code now used
+4. exact location where default fee changed from 5 to 15
+5. confirmation that calcData and breakoutCalcData now match
+6. exact Stage 3 location where the preview was added
+7. the exact labels shown in the preview
+8. results of the three acceptance tests above
+9. confirmation that no unrelated estimate math was changed
