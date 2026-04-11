@@ -1,0 +1,124 @@
+Before implementing the new fee calculation, I need you to fully understand how the current estimating module is structured so we do not break anything or duplicate logic.
+
+DO NOT make any changes yet.
+
+First, analyze the codebase and answer the following questions in detail.
+
+-------------------------------------
+SECTION 1 — FILE STRUCTURE
+-------------------------------------
+
+1. Identify all files related to the estimating module.
+   - List file names and paths
+   - Briefly describe the purpose of each file
+
+2. Identify where calculations are performed.
+   - Which file(s) handle cost calculations, totals, or summaries?
+
+-------------------------------------
+SECTION 2 — CURRENT CALCULATION FLOW
+-------------------------------------
+
+3. Map the full calculation flow step-by-step.
+   Starting from raw inputs to final total.
+
+   Include:
+   - Material
+   - Freight
+   - Subcontract
+   - Subtotals
+   - Contingency
+   - Escalation
+   - Overhead
+   - Fee
+   - Insurance
+   - Grand Total
+
+4. Show the exact order these are calculated in code.
+
+-------------------------------------
+SECTION 3 — FEE LOGIC (CRITICAL)
+-------------------------------------
+
+5. Locate the current fee calculation.
+   - What file and function is it in?
+   - Show the exact code used
+
+6. Is the fee currently calculated as:
+   subtotal * feePercent ?
+
+7. Where is feePercent coming from?
+   - Is it hardcoded?
+   - User input?
+   - Pulled from a config or database?
+
+8. Where is the fee applied in the sequence?
+   - Before or after overhead?
+   - Before or after insurance?
+
+-------------------------------------
+SECTION 4 — DATA STRUCTURE
+-------------------------------------
+
+9. Show the main estimate data object or model.
+
+Example:
+{
+  materialCost: ?,
+  freight: ?,
+  subtotal: ?,
+  feePercent: ?,
+  etc.
+}
+
+10. Identify:
+   - subtotalBeforeFee variable (or equivalent)
+   - subtotalAfterFee variable (or equivalent)
+
+-------------------------------------
+SECTION 5 — OUTPUT / UI
+-------------------------------------
+
+11. Where are totals displayed to the user?
+   - Estimate summary page?
+   - Proposal generator?
+   - Dashboard?
+
+12. Where is the fee shown in the UI?
+   - Does it show:
+     - Fee %
+     - Fee $
+     - Subtotal before/after fee?
+
+-------------------------------------
+SECTION 6 — DEPENDENCIES / IMPACT
+-------------------------------------
+
+13. Identify all places that depend on the fee calculation:
+   - Proposal generation
+   - Reports
+   - Exported PDFs
+   - Dashboards
+   - Forecasting logic
+
+14. List any risks if the fee calculation changes.
+
+-------------------------------------
+SECTION 7 — VALIDATION / TESTING
+-------------------------------------
+
+15. Are there existing tests for calculations?
+   - If yes, list them
+   - If no, confirm none exist
+
+-------------------------------------
+
+FINAL INSTRUCTION
+
+Once you answer all questions:
+
+DO NOT IMPLEMENT ANYTHING YET.
+
+Wait for my approval and instructions before modifying the fee logic.
+
+Your goal is to fully map the system so we can safely implement a new fee calculation without breaking anything.
