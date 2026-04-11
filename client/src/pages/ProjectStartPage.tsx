@@ -1030,9 +1030,9 @@ export default function ProjectStartPage() {
 
         <Card>
           <CardHeader>
-            <CardTitle className="text-lg font-heading">Proposal Log Details</CardTitle>
+            <CardTitle className="text-lg font-heading">Proposal Intake Details</CardTitle>
             <CardDescription>
-              These fields will be added to the Proposal Log. Auto-filled from screenshot when available.
+              These fields will be added to the Proposal Log Dashboard. Auto-filled from screenshot when available.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">

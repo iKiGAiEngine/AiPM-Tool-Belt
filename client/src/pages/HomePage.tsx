@@ -30,7 +30,7 @@ interface ToolTile {
 const tools: ToolTile[] = [
   {
     id: "proposallog",
-    title: "Proposal Log",
+    title: "Proposal Log Dashboard",
     description: "NBS bid tracking, pipeline analytics & estimating workflow",
     icon: FileBarChart,
     href: "/tools/proposal-log",

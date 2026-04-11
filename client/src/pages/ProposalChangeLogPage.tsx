@@ -178,8 +178,8 @@ export default function ProposalChangeLogPage() {
           <div className="w-px h-5 bg-border" />
           <History className="w-5 h-5" style={{ color: "var(--gold)" }} />
           <div>
-            <h1 className="font-heading font-semibold text-xl leading-none">Proposal Log Change History</h1>
-            <p className="text-xs text-muted-foreground mt-0.5">Full audit trail of all additions and edits to the Proposal Log</p>
+            <h1 className="font-heading font-semibold text-xl leading-none">Proposal Change History</h1>
+            <p className="text-xs text-muted-foreground mt-0.5">Full audit trail of all additions and edits to proposal records</p>
           </div>
           <div className="ml-auto flex items-center gap-2">
             <Button variant="outline" size="sm" onClick={() => refetch()} data-testid="button-refresh-changelog">

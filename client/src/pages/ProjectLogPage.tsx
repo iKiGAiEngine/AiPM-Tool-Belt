@@ -660,7 +660,7 @@ export default function ProjectLogPage() {
                   { key: "active" as ViewTab, label: "Active", count: activeCount },
                   { key: "drafts" as ViewTab, label: "Drafts", count: draftCount },
                   { key: "deleted" as ViewTab, label: "Deleted", count: deletedCount },
-                  { key: "changes" as ViewTab, label: "BC Bid Log", count: null },
+                  { key: "changes" as ViewTab, label: "BC Sync Change History", count: null },
                 ]).map(tab => (
                   <button
                     key={tab.key}
