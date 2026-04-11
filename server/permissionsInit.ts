@@ -198,8 +198,9 @@ export async function initializePermissions() {
         const result = await db.execute(sql`
           DELETE FROM user_feature_access
           WHERE user_id = ${nu.id} AND feature = 'estimating-module'
+          RETURNING id
         `);
-        if ((result as any).rowCount > 0) revokedCount++;
+        if (result.rows.length > 0) revokedCount++;
       }
       await db.execute(sql`
         INSERT INTO system_settings (key, value) VALUES (${migrationKey}, 'done')
