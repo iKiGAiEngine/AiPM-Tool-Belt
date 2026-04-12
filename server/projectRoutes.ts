@@ -1858,6 +1858,10 @@ export function registerProjectRoutes(app: Express) {
         "screenshotPath",
         "projectDbId",
         "bcProjectId",
+        "sourceType",
+        "sourceEmail",
+        "sourceEmailSubject",
+        "sourceAttachmentUrl",
       ];
       const updates: Record<string, string> = {};
       for (const field of allowedFields) {

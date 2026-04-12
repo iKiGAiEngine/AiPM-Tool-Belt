@@ -5,7 +5,7 @@ import {
   ScanSearch, Receipt, FolderPlus, ClipboardList,
   Loader2, FlaskConical,
   TableProperties, Sparkles, Users, Activity, FileBarChart,
-  FolderOpenDot, Check, PackageCheck, Shield, Calculator, Link2
+  FolderOpenDot, Check, PackageCheck, Shield, Calculator, Link2, Mail, Paperclip
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
@@ -142,6 +142,10 @@ interface ProposalRow {
   nbsEstimator?: string;
   filePath?: string;
   bcLink?: string;
+  sourceType?: string;
+  sourceEmail?: string;
+  sourceEmailSubject?: string;
+  sourceAttachmentUrl?: string;
   estimateNumber?: string;
   region?: string;
   primaryMarket?: string;
@@ -213,8 +217,19 @@ function getUserInitials(user: { displayName?: string | null; email?: string; us
   return "HK";
 }
 
-function BidSourceLink({ bcLink, filePath, onClick }: { bcLink?: string; filePath?: string; onClick?: (e: React.MouseEvent) => void }) {
+function BidSourceLink({
+  bcLink, filePath, sourceEmail, sourceEmailSubject, sourceAttachmentUrl, onClick
+}: {
+  bcLink?: string;
+  filePath?: string;
+  sourceEmail?: string;
+  sourceEmailSubject?: string;
+  sourceAttachmentUrl?: string;
+  onClick?: (e: React.MouseEvent) => void;
+}) {
   const bc = bcLink && bcLink.trim();
+  const email = sourceEmail && sourceEmail.trim();
+  const attachment = sourceAttachmentUrl && sourceAttachmentUrl.trim();
   const fp = filePath && filePath.trim();
 
   if (bc) {
@@ -233,6 +248,38 @@ function BidSourceLink({ bcLink, filePath, onClick }: { bcLink?: string; filePat
     );
   }
 
+  if (email) {
+    const subject = sourceEmailSubject && sourceEmailSubject.trim();
+    const tooltip = subject ? `Open source email · ${subject}` : "Open source email";
+    return (
+      <a
+        className="bid-folder"
+        href={`mailto:${email}`}
+        title={tooltip}
+        onClick={onClick}
+        data-testid="button-bid-source-email"
+      >
+        <Mail style={{ width: 11, height: 11 }} />
+      </a>
+    );
+  }
+
+  if (attachment) {
+    return (
+      <a
+        className="bid-folder"
+        href={attachment}
+        target="_blank"
+        rel="noopener noreferrer"
+        title="Open source attachment"
+        onClick={onClick}
+        data-testid="button-bid-source-attachment"
+      >
+        <Paperclip style={{ width: 11, height: 11 }} />
+      </a>
+    );
+  }
+
   if (fp) {
     return (
       <a
@@ -240,7 +287,7 @@ function BidSourceLink({ bcLink, filePath, onClick }: { bcLink?: string; filePat
         href={fp}
         target="_blank"
         rel="noopener noreferrer"
-        title="Open folder"
+        title="Open project folder"
         onClick={onClick}
         data-testid="button-bid-source-folder"
       >
@@ -308,6 +355,10 @@ export default function HomePage() {
         owner: e.owner || "",
         filePath: e.filePath || "",
         bcLink: e.bcLink || "",
+        sourceType: e.sourceType || "",
+        sourceEmail: e.sourceEmail || "",
+        sourceEmailSubject: e.sourceEmailSubject || "",
+        sourceAttachmentUrl: e.sourceAttachmentUrl || "",
         comments: "",
         _screenshotId: e.estimateNumber || "",
         _isTest: e.isTest || false,
@@ -589,6 +640,9 @@ export default function HomePage() {
                         <BidSourceLink
                           bcLink={p.bcLink}
                           filePath={p.filePath}
+                          sourceEmail={p.sourceEmail}
+                          sourceEmailSubject={p.sourceEmailSubject}
+                          sourceAttachmentUrl={p.sourceAttachmentUrl}
                           onClick={(e) => e.stopPropagation()}
                         />
                         <div className={`bid-due ${getDueClass(p._bizDays!, "new")}`}>{due}</div>
@@ -630,6 +684,9 @@ export default function HomePage() {
                         <BidSourceLink
                           bcLink={p.bcLink}
                           filePath={p.filePath}
+                          sourceEmail={p.sourceEmail}
+                          sourceEmailSubject={p.sourceEmailSubject}
+                          sourceAttachmentUrl={p.sourceAttachmentUrl}
                           onClick={(e) => e.stopPropagation()}
                         />
                         <div className={`bid-due ${getDueClass(p._bizDays!, "due")}`}>{due}</div>
@@ -671,6 +728,9 @@ export default function HomePage() {
                         <BidSourceLink
                           bcLink={p.bcLink}
                           filePath={p.filePath}
+                          sourceEmail={p.sourceEmail}
+                          sourceEmailSubject={p.sourceEmailSubject}
+                          sourceAttachmentUrl={p.sourceAttachmentUrl}
                           onClick={(e) => e.stopPropagation()}
                         />
                         <div className={`bid-due ${getDueClass(p._bizDays!, "pipeline")}`}>{due}</div>

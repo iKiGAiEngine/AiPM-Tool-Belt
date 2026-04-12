@@ -73,6 +73,10 @@ export async function createProposalLogEntry(data: {
   anticipatedFinish?: string;
   nbsEstimator?: string;
   bcLink?: string;
+  sourceType?: string;
+  sourceEmail?: string;
+  sourceEmailSubject?: string;
+  sourceAttachmentUrl?: string;
 }) {
   const fallbackInviteDate = (() => {
     const today = new Date();
@@ -98,6 +102,10 @@ export async function createProposalLogEntry(data: {
     nbsEstimator: data.nbsEstimator || null,
     selfPerformEstimator: spEstimator || null,
     bcLink: data.bcLink || null,
+    sourceType: data.sourceType || null,
+    sourceEmail: data.sourceEmail || null,
+    sourceEmailSubject: data.sourceEmailSubject || null,
+    sourceAttachmentUrl: data.sourceAttachmentUrl || null,
     isTest: data.isTest || false,
     syncedToLocal: false,
   }).returning();
@@ -125,6 +133,10 @@ export async function bulkCreateProposalLogEntries(entries: Array<{
   selfPerformEstimator?: string;
   proposalTotal?: string;
   bcLink?: string;
+  sourceType?: string;
+  sourceEmail?: string;
+  sourceEmailSubject?: string;
+  sourceAttachmentUrl?: string;
 }>) {
   if (!entries.length) return [];
 
@@ -184,6 +196,10 @@ export async function bulkCreateProposalLogEntries(entries: Array<{
       selfPerformEstimator: data.selfPerformEstimator || spEst || null,
       proposalTotal: data.proposalTotal || null,
       bcLink: data.bcLink || null,
+      sourceType: data.sourceType || null,
+      sourceEmail: data.sourceEmail || null,
+      sourceEmailSubject: data.sourceEmailSubject || null,
+      sourceAttachmentUrl: data.sourceAttachmentUrl || null,
       isTest: data.isTest || false,
       syncedToLocal: true,
     };
@@ -239,6 +255,10 @@ export async function updateProposalLogEntryById(id: number, updates: Partial<{
   primaryMarket: string;
   filePath: string;
   screenshotPath: string;
+  sourceType: string;
+  sourceEmail: string;
+  sourceEmailSubject: string;
+  sourceAttachmentUrl: string;
 }>) {
   const cleanUpdates: Record<string, any> = {};
   if (updates.projectName !== undefined) cleanUpdates.projectName = updates.projectName;
@@ -263,6 +283,10 @@ export async function updateProposalLogEntryById(id: number, updates: Partial<{
   if (updates.primaryMarket !== undefined) cleanUpdates.primaryMarket = updates.primaryMarket;
   if (updates.filePath !== undefined) cleanUpdates.filePath = updates.filePath;
   if (updates.screenshotPath !== undefined) cleanUpdates.screenshotPath = updates.screenshotPath;
+  if (updates.sourceType !== undefined) cleanUpdates.sourceType = updates.sourceType;
+  if (updates.sourceEmail !== undefined) cleanUpdates.sourceEmail = updates.sourceEmail;
+  if (updates.sourceEmailSubject !== undefined) cleanUpdates.sourceEmailSubject = updates.sourceEmailSubject;
+  if (updates.sourceAttachmentUrl !== undefined) cleanUpdates.sourceAttachmentUrl = updates.sourceAttachmentUrl;
 
   if (Object.keys(cleanUpdates).length === 0) return null;
 

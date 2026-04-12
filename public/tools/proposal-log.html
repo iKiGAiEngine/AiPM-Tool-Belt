@@ -991,6 +991,19 @@ th.col-drop-after::after{content:'';position:absolute;right:0;top:0;bottom:0;wid
           </select>
         </div>
         <div class="form-group"><label class="fl">File Path (URL or path)</label><input type="text" class="fi" id="f-filePath" placeholder="https://... or \\server\path"></div>
+        <div class="form-group">
+          <label class="fl">Bid Source Type</label>
+          <select class="fi" id="f-sourceType">
+            <option value="">— Select source —</option>
+            <option value="manual">Manual Entry</option>
+            <option value="email">Email</option>
+            <option value="attachment">Attachment</option>
+            <option value="bc">BuildingConnected</option>
+          </select>
+        </div>
+        <div class="form-group"><label class="fl">Source Email Address</label><input type="text" class="fi" id="f-sourceEmail" placeholder="sender@gccompany.com"></div>
+        <div class="form-group"><label class="fl">Source Email Subject</label><input type="text" class="fi" id="f-sourceEmailSubject" placeholder="Bid Invitation – Project Name – Due MM/DD"></div>
+        <div class="form-group"><label class="fl">Source Attachment URL</label><input type="text" class="fi" id="f-sourceAttachmentUrl" placeholder="https://... or \\server\bid-invite.pdf"></div>
       </div>
 
       <!-- LOSS CAPTURE -->
@@ -1793,7 +1806,7 @@ function resetColLayout() {
   buildRows();
 }
 
-const FIELDS=['projectName','estimateNumber','region','primaryMarket','inviteDate','dueDate','nbsEstimator','gcEstimateLead','proposalTotal','estimateStatus','lossWho','lossReason','lossDetail','lossCompetitor','lossNotes','finalReviewer','anticipatedStart','anticipatedFinish','swinertonProject','nbsSelectedScopes','notes','owner','filePath','comments'];
+const FIELDS=['projectName','estimateNumber','region','primaryMarket','inviteDate','dueDate','nbsEstimator','gcEstimateLead','proposalTotal','estimateStatus','lossWho','lossReason','lossDetail','lossCompetitor','lossNotes','finalReviewer','anticipatedStart','anticipatedFinish','swinertonProject','nbsSelectedScopes','notes','owner','filePath','sourceType','sourceEmail','sourceEmailSubject','sourceAttachmentUrl','comments'];
 const FIELD_ID_MAP = { region: 'f-region-input' };
 function fieldElId(k) { return FIELD_ID_MAP[k] || ('f-' + k); }
 
@@ -2765,7 +2778,7 @@ let ESTIMATORS=[
     sel.innerHTML='<option value="">\u2014 Select \u2014</option>'+ESTIMATORS.map(e=>`<option value="${e.code}">${e.label}</option>`).join('');
   }
 })();
-const INLINE_FIELDS={proposalTotal:'number',estimateStatus:'select-status',nbsEstimator:'select-estimator',anticipatedStart:'month',anticipatedFinish:'month',dueDate:'date',notes:'textarea',bcLink:'text',gcEstimateLead:'text',selfPerformEstimator:'select-sp-estimator',finalReviewer:'text',swinertonProject:'select-yn',region:'select-region',primaryMarket:'select-market',inviteDate:'date',estimateNumber:'text',filePath:'text'};
+const INLINE_FIELDS={proposalTotal:'number',estimateStatus:'select-status',nbsEstimator:'select-estimator',anticipatedStart:'month',anticipatedFinish:'month',dueDate:'date',notes:'textarea',bcLink:'text',gcEstimateLead:'text',selfPerformEstimator:'select-sp-estimator',finalReviewer:'text',swinertonProject:'select-yn',region:'select-region',primaryMarket:'select-market',inviteDate:'date',estimateNumber:'text',filePath:'text',sourceType:'text',sourceEmail:'text',sourceEmailSubject:'text',sourceAttachmentUrl:'text'};
 const FIELD_LABELS={proposalTotal:'Proposal Total',estimateStatus:'Status',nbsEstimator:'NBS Estimator',anticipatedStart:'Est. Start',anticipatedFinish:'Est. End',dueDate:'Due Date',notes:'Notes',bcLink:'BC Link',gcEstimateLead:'GC Estimate Lead',selfPerformEstimator:'SP Estimator',finalReviewer:'Final Reviewer',swinertonProject:'Swinerton?',region:'Region',primaryMarket:'Primary Market',inviteDate:'Invite Date',estimateNumber:'Estimate #',filePath:'File Path'};
 let editPopupState=null;
 
@@ -3266,6 +3279,10 @@ async function pushLocalEntriesToServer(entries){
         anticipatedStart:e.anticipatedStart||'',
         anticipatedFinish:e.anticipatedFinish||'',
         bcLink:e.bcLink||'',
+        sourceType:e.sourceType||'',
+        sourceEmail:e.sourceEmail||'',
+        sourceEmailSubject:e.sourceEmailSubject||'',
+        sourceAttachmentUrl:e.sourceAttachmentUrl||'',
         isTest:e._isTest||false,
       }))}),
       credentials:'include'

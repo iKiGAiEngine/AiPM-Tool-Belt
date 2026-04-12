@@ -558,6 +558,7 @@ async function mapOpportunityToEntry(opp: BcOpportunity) {
     bcOpportunityIds: JSON.stringify([opp.id]),
     scopeList: opp.scopes ? JSON.stringify(opp.scopes) : null,
     projectAddress: locationStr,
+    sourceType: "bc",
     isDraft: true,
     estimateStatus: "Draft",
     isTest: false,
