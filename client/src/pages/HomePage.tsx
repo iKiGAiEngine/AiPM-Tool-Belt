@@ -478,8 +478,8 @@ export default function HomePage() {
                   <FileBarChart style={{ width: 18, height: 18, color: "var(--gold)" }} />
                 </div>
                 <div>
-                  <div className="pl-title">Active Bids Dashboard</div>
-                  <div className="pl-sub">Your active bids &middot; personalized view</div>
+                  <div className="pl-title">Active Estimating Queue</div>
+                  <div className="pl-sub">Your Lead and Estimating bids only</div>
                 </div>
               </div>
               <div className="pl-header-right">
@@ -607,7 +607,7 @@ export default function HomePage() {
                 </HudSection>
 
                 <HudSection
-                  label="Active Pipeline"
+                  label="Remaining Active"
                   labelClass="lbl-pipe"
                   count={activePipeline.length}
                   countId="cnt-pipe"
@@ -660,7 +660,7 @@ export default function HomePage() {
 
             <div className="pl-footer">
               <div className="pl-footer-note">Your bids only &nbsp;&middot;&nbsp; opens folder &nbsp;&middot;&nbsp; to acknowledge</div>
-              <div className="pl-footer-cta">Open Full Log <span>&rarr;</span></div>
+              <div className="pl-footer-cta">Open Proposal Log Dashboard <span>&rarr;</span></div>
             </div>
           </div>
         </div>
