@@ -279,7 +279,8 @@ async function getFullEstimate(estimateId: number) {
   const versions = await db.select().from(estimateVersions).where(eq(estimateVersions.estimateId, estimateId)).orderBy(desc(estimateVersions.version));
   const reviewComments = await db.select().from(estimateReviewComments).where(eq(estimateReviewComments.estimateId, estimateId)).orderBy(estimateReviewComments.createdAt);
   const ohLog = await db.select().from(ohApprovalLog).where(eq(ohApprovalLog.estimateId, estimateId)).orderBy(desc(ohApprovalLog.requestedAt));
-  return { ...est, lineItems, quotes, breakoutGroups, allocations, versions, reviewComments, ohApprovalLog: ohLog };
+  const specSections = await db.select().from(estimateSpecSections).where(eq(estimateSpecSections.estimateId, estimateId));
+  return { ...est, lineItems, quotes, breakoutGroups, allocations, versions, reviewComments, ohApprovalLog: ohLog, specSections };
 }
 
 export function registerEstimateRoutes(app: Express) {
@@ -400,9 +401,9 @@ export function registerEstimateRoutes(app: Express) {
       await db.update(estimates).set(updates).where(eq(estimates.id, id));
       const full = await getFullEstimate(id);
       res.json(full);
-    } catch (err) {
+    } catch (err: any) {
       console.error("PATCH estimate error:", err);
-      res.status(500).json({ message: "Failed to update estimate" });
+      res.status(500).json({ message: "Failed to update estimate", detail: err?.message || String(err) });
     }
   });
 

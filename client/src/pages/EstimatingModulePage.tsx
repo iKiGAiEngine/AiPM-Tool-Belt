@@ -632,8 +632,9 @@ function EstimatingModuleInner() {
         catOverrides, catComplete, catQuals, assumptions, risks,
         checklist: effectiveChecklist, reviewStatus: effectiveStatus,
       });
-    } catch {
-      toast({ title: "Save failed", description: "Could not save the estimate. No changes were written.", variant: "destructive" });
+    } catch (err: any) {
+      const detail = err?.message || "Unknown error";
+      toast({ title: "Save failed", description: detail, variant: "destructive" });
       setIsSaving(false);
       return;
     }
