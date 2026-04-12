@@ -5,7 +5,7 @@ import {
   ScanSearch, Receipt, FolderPlus, ClipboardList,
   Loader2, FlaskConical,
   TableProperties, Sparkles, Users, Activity, FileBarChart,
-  FolderOpenDot, Check, PackageCheck, Shield, Calculator
+  FolderOpenDot, Check, PackageCheck, Shield, Calculator, Link2
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
@@ -141,6 +141,7 @@ interface ProposalRow {
   estimateStatus?: string;
   nbsEstimator?: string;
   filePath?: string;
+  bcLink?: string;
   estimateNumber?: string;
   region?: string;
   primaryMarket?: string;
@@ -212,6 +213,54 @@ function getUserInitials(user: { displayName?: string | null; email?: string; us
   return "HK";
 }
 
+function BidSourceLink({ bcLink, filePath, onClick }: { bcLink?: string; filePath?: string; onClick?: (e: React.MouseEvent) => void }) {
+  const bc = bcLink && bcLink.trim();
+  const fp = filePath && filePath.trim();
+
+  if (bc) {
+    return (
+      <a
+        className="bid-folder"
+        href={bc}
+        target="_blank"
+        rel="noopener noreferrer"
+        title="Open BuildingConnected"
+        onClick={onClick}
+        data-testid="button-bid-source-bc"
+      >
+        <Link2 style={{ width: 11, height: 11 }} />
+      </a>
+    );
+  }
+
+  if (fp) {
+    return (
+      <a
+        className="bid-folder"
+        href={fp}
+        target="_blank"
+        rel="noopener noreferrer"
+        title="Open folder"
+        onClick={onClick}
+        data-testid="button-bid-source-folder"
+      >
+        <FolderOpenDot style={{ width: 11, height: 11 }} />
+      </a>
+    );
+  }
+
+  return (
+    <span
+      className="bid-folder"
+      title="No source link available"
+      style={{ opacity: 0.3, cursor: "not-allowed" }}
+      data-testid="button-bid-source-none"
+    >
+      <FolderOpenDot style={{ width: 11, height: 11 }} />
+    </span>
+  );
+}
+
 export default function HomePage() {
   const { isTestMode } = useTestMode();
   const { isAdmin, user } = useAuth();
@@ -258,6 +307,7 @@ export default function HomePage() {
         anticipatedFinish: e.anticipatedFinish || "",
         owner: e.owner || "",
         filePath: e.filePath || "",
+        bcLink: e.bcLink || "",
         comments: "",
         _screenshotId: e.estimateNumber || "",
         _isTest: e.isTest || false,
@@ -536,20 +586,11 @@ export default function HomePage() {
                         ) : (
                           <span />
                         )}
-                        {p.filePath ? (
-                          <a
-                            className="bid-folder"
-                            href={p.filePath}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            title="Open folder"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            <FolderOpenDot style={{ width: 11, height: 11 }} />
-                          </a>
-                        ) : (
-                          <span />
-                        )}
+                        <BidSourceLink
+                          bcLink={p.bcLink}
+                          filePath={p.filePath}
+                          onClick={(e) => e.stopPropagation()}
+                        />
                         <div className={`bid-due ${getDueClass(p._bizDays!, "new")}`}>{due}</div>
                       </div>
                     );
@@ -586,20 +627,11 @@ export default function HomePage() {
                         ) : (
                           <span />
                         )}
-                        {p.filePath ? (
-                          <a
-                            className="bid-folder"
-                            href={p.filePath}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            title="Open folder"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            <FolderOpenDot style={{ width: 11, height: 11 }} />
-                          </a>
-                        ) : (
-                          <span />
-                        )}
+                        <BidSourceLink
+                          bcLink={p.bcLink}
+                          filePath={p.filePath}
+                          onClick={(e) => e.stopPropagation()}
+                        />
                         <div className={`bid-due ${getDueClass(p._bizDays!, "due")}`}>{due}</div>
                       </div>
                     );
@@ -636,20 +668,11 @@ export default function HomePage() {
                         ) : (
                           <span />
                         )}
-                        {p.filePath ? (
-                          <a
-                            className="bid-folder"
-                            href={p.filePath}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            title="Open folder"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            <FolderOpenDot style={{ width: 11, height: 11 }} />
-                          </a>
-                        ) : (
-                          <span />
-                        )}
+                        <BidSourceLink
+                          bcLink={p.bcLink}
+                          filePath={p.filePath}
+                          onClick={(e) => e.stopPropagation()}
+                        />
                         <div className={`bid-due ${getDueClass(p._bizDays!, "pipeline")}`}>{due}</div>
                       </div>
                     );
@@ -659,7 +682,7 @@ export default function HomePage() {
             </div>
 
             <div className="pl-footer">
-              <div className="pl-footer-note">Your Lead/Estimating queue &nbsp;&middot;&nbsp; opens folder &nbsp;&middot;&nbsp; acknowledge when reviewed</div>
+              <div className="pl-footer-note">Your Lead/Estimating queue &nbsp;&middot;&nbsp; opens BC or folder &nbsp;&middot;&nbsp; acknowledge when reviewed</div>
               <div className="pl-footer-cta">Open Proposal Log Dashboard <span>&rarr;</span></div>
             </div>
           </div>
