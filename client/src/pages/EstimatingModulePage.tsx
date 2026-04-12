@@ -442,6 +442,17 @@ function EstimatingModuleInner() {
     }
   }, [CATEGORIES, activeCat, activeScopes]);
 
+  // ── Warn before browser close / refresh / hard navigation when there are unsaved changes ──
+  useEffect(() => {
+    const handler = (e: BeforeUnloadEvent) => {
+      if (!isDirty) return;
+      e.preventDefault();
+      e.returnValue = "";
+    };
+    window.addEventListener("beforeunload", handler);
+    return () => window.removeEventListener("beforeunload", handler);
+  }, [isDirty]);
+
   // ══════════════════════════════════════════════════
   // CALCULATIONS ENGINE
   // ══════════════════════════════════════════════════
@@ -1390,7 +1401,13 @@ ${html}
                 </button>
                 {lastSaved && <span className="text-xs" style={{ color: "var(--text-muted)" }}>{lastSaved.toLocaleTimeString()}</span>}
               </div>
-              <button onClick={() => { window.location.href = "/tools/proposal-log"; }} className="text-xs px-2 py-1 rounded" style={{ background: "var(--bg-card)", border: "1px solid var(--border-ds)", color: "var(--text-secondary)" }}>
+              <button
+                onClick={() => {
+                  if (isDirty && !window.confirm("You have unsaved changes. Leave without saving?")) return;
+                  window.location.href = "/tools/proposal-log";
+                }}
+                className="text-xs px-2 py-1 rounded"
+                style={{ background: "var(--bg-card)", border: "1px solid var(--border-ds)", color: "var(--text-secondary)" }}>
                 ← Back
               </button>
             </div>
@@ -1487,6 +1504,11 @@ ${html}
                   </div>
                 );
               })}
+              {isDirty && (
+                <span className="text-xs ml-1" style={{ color: "var(--text-muted)", fontStyle: "italic" }}>
+                  — not saved yet
+                </span>
+              )}
             </div>
             <span className="text-xs" style={{ color: "var(--text-muted)" }}>Created: {estimateData?.createdAt ? new Date(estimateData.createdAt).toLocaleString() : "—"}</span>
           </div>
@@ -3024,7 +3046,7 @@ ${html}
           {/* Review workflow */}
           <div className="rounded-lg p-5 mb-4" style={{ background: "var(--bg-card)", border: "1px solid var(--border-ds)", borderLeft: "3px solid #ef4444" }}>
             <h3 className="text-sm font-semibold mb-3">Review Workflow</h3>
-            <div className="flex gap-2 mb-4 flex-wrap">
+            <div className="flex gap-2 mb-4 flex-wrap items-center">
               {["drafting", "ready_for_review", "reviewed", "submitted"].map((s, i) => {
                 const colors: Record<string, string> = { drafting: "var(--gold)", ready_for_review: "#f97316", reviewed: "#22c55e", submitted: "#06b6d4" };
                 const labels: Record<string, string> = { drafting: "Drafting", ready_for_review: "Ready for Review", reviewed: "Approved", submitted: "Submitted" };
@@ -3040,6 +3062,11 @@ ${html}
                   </div>
                 );
               })}
+              {isDirty && (
+                <span className="text-xs ml-1" style={{ color: "var(--text-muted)", fontStyle: "italic" }}>
+                  — not saved yet
+                </span>
+              )}
             </div>
 
             {/* Comments */}
