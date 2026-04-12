@@ -1,0 +1,63 @@
+Use Lite mode.
+
+Update the Line Items form to reflect proper estimating structure and clear field labeling.
+
+Important context:
+These line item fields must support both:
+1. manual estimator entry
+2. future or existing auto-fill from the Schedule Converter tool after scanned/reviewed schedule data is parsed
+
+That means the line item structure you create now must be compatible with Schedule Converter output and must not be designed as manual-entry-only.
+
+Make the following changes:
+
+Field updates:
+1. Rename "Item Name" to "Description"
+2. Add a new field "Plan Callout"
+3. Add a new field "UOM" (Unit of Measure)
+
+Final required line item structure:
+- planCallout
+- description
+- manufacturer
+- modelNumber
+- quantity
+- uom
+- unitCost
+
+Behavior:
+1. Add visible labels for all fields, not just placeholders
+2. Add a calculated "Line Total" field:
+   - lineTotal = quantity × unitCost
+   - read-only or clearly derived
+3. Keep the UI clean and aligned with current design
+
+Schedule Converter compatibility requirements:
+1. These same fields must be the target structure for Schedule Converter output
+2. Imported/scanned line items should be able to populate the same fields without rework
+3. Any field that Schedule Converter may not know yet should still remain editable by the user
+4. Do not make assumptions that all line items will always be entered manually
+5. If there is an existing line item type/interface/schema, update it carefully so both manual entry and converter import can use the same structure
+
+UOM:
+- Prefer a dropdown with common values (EA, LF, SF, SET)
+- Keep future flexibility in mind
+
+Do NOT:
+- add spec section
+- add notes
+- add advanced fields
+- change existing workflows beyond what is needed for compatibility
+
+Goal:
+- estimator should instantly understand each field
+- eliminate ambiguity in quantity and pricing
+- create a clean line item structure that works for both manual entry and Schedule Converter output
+
+After implementation, report:
+1. exact files changed
+2. updated field list
+3. how line total is calculated
+4. how UOM is handled
+5. whether the structure is compatible with Schedule Converter output
+6. how to test manual entry and converter-filled line items

@@ -1288,7 +1288,8 @@ export const estimateLineItems = pgTable("estimate_line_items", {
   id: serial("id").primaryKey(),
   estimateId: integer("estimate_id").notNull(),
   category: varchar("category", { length: 50 }).notNull(),
-  name: varchar("name", { length: 255 }).notNull(),
+  planCallout: varchar("plan_callout", { length: 50 }),
+  description: varchar("description", { length: 255 }).notNull(),
   model: varchar("model", { length: 100 }),
   mfr: varchar("mfr", { length: 100 }),
   qty: integer("qty").default(1).notNull(),
@@ -1299,7 +1300,6 @@ export const estimateLineItems = pgTable("estimate_line_items", {
   note: text("note"),
   hasBackup: boolean("has_backup").default(false),
   sortOrder: integer("sort_order").default(0),
-  planCallout: varchar("plan_callout", { length: 50 }),
   extractionConfidence: integer("extraction_confidence"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
