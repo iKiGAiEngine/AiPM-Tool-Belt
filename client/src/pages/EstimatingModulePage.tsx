@@ -90,6 +90,7 @@ interface Quote {
   taxIncluded: boolean;
   pricingMode: string;
   lumpSumTotal: string;
+  materialTotalCost: string | null;
   breakoutGroupId: number | null;
   hasBackup: boolean;
   filePath: string | null;
@@ -295,7 +296,10 @@ function EstimatingModuleInner() {
   const [pasteText, setPasteText] = useState("");
   const [aiParsing, setAiParsing] = useState(false);
   const [parsedQuote, setParsedQuote] = useState<any>(null);
-  const [newQuote, setNewQuote] = useState({ vendor: "", note: "", freight: 0, taxIncluded: false, pricingMode: "per_item", lumpSumTotal: 0 });
+  const [newQuote, setNewQuote] = useState({ vendor: "", note: "", freight: 0, taxIncluded: false, pricingMode: "per_item", lumpSumTotal: 0, materialTotalCost: "" });
+  const [newQuoteFile, setNewQuoteFile] = useState<File | null>(null);
+  const [extractingTotal, setExtractingTotal] = useState(false);
+  const [aiExtractNote, setAiExtractNote] = useState<string | null>(null);
   const [showBreakoutPanel, setShowBreakoutPanel] = useState(false);
   const [newBreakoutGroup, setNewBreakoutGroup] = useState({ code: "", label: "", type: "building" });
   const [expandedItems, setExpandedItems] = useState<Set<number>>(new Set());
@@ -736,17 +740,30 @@ function EstimatingModuleInner() {
   const addQuote = useCallback(async () => {
     if (!estimateId || !newQuote.vendor.trim()) return;
     try {
+      const mtc = newQuote.materialTotalCost !== "" ? parseFloat(newQuote.materialTotalCost) : null;
       const r = await apiRequest("POST", `/api/estimates/${estimateId}/quotes`, {
         category: activeCat, vendor: newQuote.vendor.trim(), note: newQuote.note || null,
         freight: String(newQuote.freight), taxIncluded: newQuote.taxIncluded,
         pricingMode: newQuote.pricingMode, lumpSumTotal: String(newQuote.lumpSumTotal),
+        materialTotalCost: mtc != null && !isNaN(mtc) ? mtc : null,
       });
-      const q = await r.json();
+      let q = await r.json();
       setQuotes(prev => [...prev, q]);
-      setNewQuote({ vendor: "", note: "", freight: 0, taxIncluded: false, pricingMode: "per_item", lumpSumTotal: 0 });
+      if (newQuoteFile) {
+        const fd = new FormData();
+        fd.append("file", newQuoteFile);
+        const br = await fetch(`/api/estimates/quotes/${q.id}/backup-file`, { method: "POST", body: fd, credentials: "include" });
+        if (br.ok) {
+          const updated = await br.json();
+          setQuotes(prev => prev.map(x => x.id === q.id ? { ...x, filePath: updated.filePath, hasBackup: updated.hasBackup } : x));
+        }
+      }
+      setNewQuote({ vendor: "", note: "", freight: 0, taxIncluded: false, pricingMode: "per_item", lumpSumTotal: 0, materialTotalCost: "" });
+      setNewQuoteFile(null);
+      setAiExtractNote(null);
       setShowNewQuote(false);
     } catch { toast({ title: "Error", description: "Could not add quote.", variant: "destructive" }); }
-  }, [estimateId, activeCat, newQuote]);
+  }, [estimateId, activeCat, newQuote, newQuoteFile]);
 
   const updateQuote = useCallback(async (qId: number, field: string, value: any) => {
     setQuotes(prev => prev.map(q => q.id === qId ? { ...q, [field]: value } : q));
@@ -942,11 +959,13 @@ function EstimatingModuleInner() {
   const acceptParsedQuote = useCallback(async () => {
     if (!parsedQuote || !estimateId) return;
     try {
+      const parsedMtc = parsedQuote.materialTotalCost > 0 ? parsedQuote.materialTotalCost : null;
       const qr = await apiRequest("POST", `/api/estimates/${estimateId}/quotes`, {
         category: activeCat, vendor: parsedQuote.vendor || "Unknown",
         note: parsedQuote.note || null, freight: String(parsedQuote.freight || 0),
         taxIncluded: parsedQuote.taxIncluded || false, pricingMode: parsedQuote.pricingMode || "per_item",
         lumpSumTotal: String(parsedQuote.lumpSumTotal || 0), hasBackup: true,
+        materialTotalCost: parsedMtc,
       });
       const q = await qr.json();
       setQuotes(prev => [...prev, q]);
@@ -2113,6 +2132,11 @@ ${html}
                       <span className="px-1.5 py-0.5 rounded text-xs" style={{ background: q.pricingMode === "lump_sum" ? "#f9731615" : "#22c55e15", color: q.pricingMode === "lump_sum" ? "#f97316" : "#22c55e", border: `1px solid ${q.pricingMode === "lump_sum" ? "#f9731640" : "#22c55e40"}` }}>
                         {q.pricingMode === "lump_sum" ? `LS: ${fmt(n(q.lumpSumTotal))}` : "Per Item"}
                       </span>
+                      {q.materialTotalCost && n(q.materialTotalCost) > 0 && (
+                        <span className="px-1.5 py-0.5 rounded text-xs font-semibold" style={{ background: "var(--gold)15", color: "var(--gold)", border: "1px solid var(--gold)30" }}>
+                          Mat: {fmt(n(q.materialTotalCost))}
+                        </span>
+                      )}
                       <span style={{ color: "#f97316" }}>Freight: {fmt(n(q.freight))}</span>
                       {q.taxIncluded && <span className="px-1 py-0.5 rounded text-xs" style={{ background: "#f9731610", color: "#f97316" }}>Tax Incl</span>}
                       <div className="flex items-center gap-1 ml-auto">
@@ -2225,11 +2249,60 @@ ${html}
                         </button>
                       </div>
                     </div>
-                    <div className="flex gap-2">
-                      <button data-testid="button-create-quote" onClick={addQuote} className="text-xs px-4 py-1.5 rounded font-semibold" style={{ background: "#a855f7", color: "#fff" }}>Create Quote</button>
-                      <button onClick={() => setShowNewQuote(false)} className="text-xs px-3 py-1.5 rounded" style={{ background: "var(--bg2)", border: "1px solid var(--border-ds)", color: "var(--text-secondary)" }}>Cancel</button>
+                    <div className="grid grid-cols-2 gap-3 mb-3">
+                      <div className="flex flex-col gap-1">
+                        <label className="text-xs font-medium" style={{ color: "var(--gold)" }}>Total Material Cost ($)</label>
+                        <input
+                          data-testid="input-quote-material-total"
+                          type="number" min={0} step={100}
+                          value={newQuote.materialTotalCost}
+                          onChange={e => setNewQuote(p => ({ ...p, materialTotalCost: e.target.value }))}
+                          placeholder="0 — enter or AI-fill from quote file"
+                          className="text-xs px-2 py-1.5 rounded"
+                          style={{ background: "var(--bg2)", border: "1px solid var(--gold)40", color: "var(--gold)" }} />
+                        {aiExtractNote && (
+                          <span className="text-xs" style={{ color: aiExtractNote.startsWith("✓") ? "var(--gold)" : "var(--text-muted)" }}>{aiExtractNote}</span>
+                        )}
+                      </div>
+                      <div className="flex flex-col gap-1">
+                        <label className="text-xs font-medium" style={{ color: "var(--text-muted)" }}>
+                          Quote Attachment {extractingTotal && <span style={{ color: "var(--gold)" }}>⟳ extracting…</span>}
+                          {newQuoteFile && !extractingTotal && <span style={{ color: "#22c55e" }}> ✓ {newQuoteFile.name}</span>}
+                        </label>
+                        <input
+                          data-testid="input-quote-file"
+                          type="file"
+                          accept="image/*,application/pdf"
+                          className="text-xs"
+                          style={{ color: "var(--text-muted)" }}
+                          onChange={async e => {
+                            const f = e.target.files?.[0] ?? null;
+                            setNewQuoteFile(f);
+                            setAiExtractNote(null);
+                            if (!f) return;
+                            setExtractingTotal(true);
+                            try {
+                              const fd = new FormData();
+                              fd.append("file", f);
+                              const r = await fetch("/api/estimates/quotes/extract-total", { method: "POST", body: fd, credentials: "include" });
+                              const data = await r.json();
+                              if (data.materialTotalCost != null) {
+                                setNewQuote(p => ({ ...p, materialTotalCost: String(data.materialTotalCost) }));
+                                setAiExtractNote(`✓ AI found: $${Number(data.materialTotalCost).toLocaleString()}`);
+                              } else {
+                                setAiExtractNote("AI could not find a total — enter manually");
+                              }
+                            } catch {
+                              setAiExtractNote("Extraction failed — enter manually");
+                            }
+                            setExtractingTotal(false);
+                          }} />
+                      </div>
                     </div>
-                    <p className="text-xs mt-2" style={{ color: "var(--text-muted)" }}>After creating, use the 📎 button on the quote row to attach a backup PDF or image.</p>
+                    <div className="flex gap-2">
+                      <button data-testid="button-create-quote" onClick={addQuote} disabled={extractingTotal} className="text-xs px-4 py-1.5 rounded font-semibold" style={{ background: "#a855f7", color: "#fff", opacity: extractingTotal ? 0.5 : 1 }}>Create Quote</button>
+                      <button onClick={() => { setShowNewQuote(false); setNewQuoteFile(null); setAiExtractNote(null); }} className="text-xs px-3 py-1.5 rounded" style={{ background: "var(--bg2)", border: "1px solid var(--border-ds)", color: "var(--text-secondary)" }}>Cancel</button>
+                    </div>
                   </div>
                 )}
 
@@ -2345,6 +2418,7 @@ ${html}
                           <span><strong>Freight:</strong> {fmt(parsedQuote.freight || 0)}</span>
                           <span><strong>Mode:</strong> {parsedQuote.pricingMode}</span>
                           {parsedQuote.lumpSumTotal > 0 && <span><strong>LS Total:</strong> {fmt(parsedQuote.lumpSumTotal)}</span>}
+                          {parsedQuote.materialTotalCost > 0 && <span style={{ color: "var(--gold)", fontWeight: 600 }}><strong>Mat Total:</strong> {fmt(parsedQuote.materialTotalCost)}</span>}
                           <span style={{ color: parsedQuote.taxIncluded ? "#f97316" : "#22c55e" }}>{parsedQuote.taxIncluded ? "⚠ Tax Included" : "Tax Excluded"}</span>
                         </div>
                         <div className="space-y-1 mb-3">

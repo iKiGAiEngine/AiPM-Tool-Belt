@@ -1344,6 +1344,7 @@ export const estimateQuotes = pgTable("estimate_quotes", {
   pricingMode: varchar("pricing_mode", { length: 20 }).default("per_item"),
   lumpSumTotal: numeric("lump_sum_total", { precision: 10, scale: 2 }).default("0"),
   breakoutGroupId: integer("breakout_group_id"),
+  materialTotalCost: numeric("material_total_cost", { precision: 12, scale: 2 }),
   hasBackup: boolean("has_backup").default(false),
   filePath: varchar("file_path", { length: 500 }),
   backupFileData: quoteByteaType("backup_file_data"),

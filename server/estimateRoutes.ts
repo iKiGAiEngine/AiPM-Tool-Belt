@@ -512,13 +512,14 @@ export function registerEstimateRoutes(app: Express) {
     try {
       const estimateId = parseInt(req.params.id);
       if (isNaN(estimateId)) return res.status(400).json({ message: "Invalid estimate id" });
-      const { category, vendor, note, freight, taxIncluded, pricingMode, lumpSumTotal, breakoutGroupId, hasBackup } = req.body;
+      const { category, vendor, note, freight, taxIncluded, pricingMode, lumpSumTotal, breakoutGroupId, hasBackup, materialTotalCost } = req.body;
       if (!category || !vendor) return res.status(400).json({ message: "category and vendor required" });
       const [quote] = await db.insert(estimateQuotes).values({
         estimateId, category, vendor, note: note || null,
         freight: String(freight || 0), taxIncluded: taxIncluded || false,
         pricingMode: pricingMode || "per_item", lumpSumTotal: String(lumpSumTotal || 0),
         breakoutGroupId: breakoutGroupId || null, hasBackup: hasBackup || false,
+        materialTotalCost: materialTotalCost != null && materialTotalCost !== "" ? String(materialTotalCost) : null,
       }).returning();
       res.status(201).json(quote);
     } catch (err) {
@@ -531,11 +532,12 @@ export function registerEstimateRoutes(app: Express) {
     try {
       const quoteId = parseInt(req.params.quoteId);
       if (isNaN(quoteId)) return res.status(400).json({ message: "Invalid quote id" });
-      const allowed = ["vendor", "note", "freight", "taxIncluded", "pricingMode", "lumpSumTotal", "breakoutGroupId", "hasBackup", "filePath"];
+      const allowed = ["vendor", "note", "freight", "taxIncluded", "pricingMode", "lumpSumTotal", "breakoutGroupId", "hasBackup", "filePath", "materialTotalCost"];
       const updates: Record<string, any> = {};
       for (const f of allowed) {
         if (req.body[f] !== undefined) {
           if (f === "freight" || f === "lumpSumTotal") updates[f] = String(req.body[f]);
+          else if (f === "materialTotalCost") updates[f] = req.body[f] != null && req.body[f] !== "" ? String(req.body[f]) : null;
           else updates[f] = req.body[f];
         }
       }
@@ -558,6 +560,66 @@ export function registerEstimateRoutes(app: Express) {
       res.status(500).json({ message: "Failed to delete quote" });
     }
   });
+
+  // ── QUOTE MATERIAL TOTAL EXTRACTION ──
+
+  app.post("/api/estimates/quotes/extract-total",
+    (req, res, next) => estimateImageUpload.single("file")(req, res, (err) => {
+      if (err) return res.status(400).json({ message: err.message || "Invalid file" });
+      next();
+    }),
+    async (req: Request, res: Response) => {
+      try {
+        const file = (req as any).file as Express.Multer.File | undefined;
+        if (!file) return res.status(400).json({ message: "File required" });
+
+        let materialTotalCost: number | null = null;
+
+        if (file.mimetype === "application/pdf") {
+          const text = await extractPdfText(file.buffer);
+          if (text && text.trim().length >= 10) {
+            const response = await openai.chat.completions.create({
+              model: "gpt-4o-mini",
+              messages: [
+                { role: "system", content: "You extract the total material cost from a vendor quote document. Respond ONLY with valid JSON: {\"materialTotalCost\": number_or_null}. Look for a grand total, subtotal, or total material amount. Ignore labor, installation, or tax lines unless they are the only total available. If you cannot confidently find a total, return null." },
+                { role: "user", content: `Extract the total material cost from this quote:\n\n${text.trim().slice(0, 6000)}` },
+              ],
+              response_format: { type: "json_object" },
+              max_tokens: 100,
+            });
+            const parsed = JSON.parse(response.choices[0].message.content || "{}");
+            if (typeof parsed.materialTotalCost === "number" && parsed.materialTotalCost > 0) {
+              materialTotalCost = parsed.materialTotalCost;
+            }
+          }
+        } else if (file.mimetype.startsWith("image/")) {
+          const base64 = file.buffer.toString("base64");
+          const dataUrl = `data:${file.mimetype};base64,${base64}`;
+          const response = await openai.chat.completions.create({
+            model: "gpt-4o",
+            messages: [
+              { role: "system", content: "You extract the total material cost from a vendor quote document image. Respond ONLY with valid JSON: {\"materialTotalCost\": number_or_null}. Look for a grand total, subtotal, or total material amount. If you cannot confidently find a total, return null." },
+              { role: "user", content: [
+                { type: "text", text: "Extract the total material cost from this quote image:" },
+                { type: "image_url", image_url: { url: dataUrl, detail: "low" } },
+              ]},
+            ],
+            response_format: { type: "json_object" },
+            max_tokens: 100,
+          });
+          const parsed = JSON.parse(response.choices[0].message.content || "{}");
+          if (typeof parsed.materialTotalCost === "number" && parsed.materialTotalCost > 0) {
+            materialTotalCost = parsed.materialTotalCost;
+          }
+        }
+
+        res.json({ materialTotalCost });
+      } catch (err) {
+        console.error("extract-total error:", err);
+        res.json({ materialTotalCost: null });
+      }
+    }
+  );
 
   // ── QUOTE BACKUP FILE UPLOAD / DOWNLOAD ──
 
@@ -823,11 +885,13 @@ Structure:
   "taxIncluded": false,
   "pricingMode": "per_item",
   "lumpSumTotal": 0,
+  "materialTotalCost": 0,
   "items": [
     { "name": "", "model": "", "mfr": "", "unitCost": 0, "qty": 1 }
   ]
 }
 If the quote is a lump sum with no unit prices, set pricingMode to "lump_sum" and fill lumpSumTotal.
+For materialTotalCost, use the grand total or subtotal of all materials in the quote (before tax and freight if possible). Set to 0 if not found.
 Category context: ${catLabel || category || "Division 10 Specialties"}`;
 
       const response = await openai.chat.completions.create({
@@ -877,11 +941,13 @@ Structure:
   "taxIncluded": false,
   "pricingMode": "per_item",
   "lumpSumTotal": 0,
+  "materialTotalCost": 0,
   "items": [
     { "name": "", "model": "", "mfr": "", "unitCost": 0, "qty": 1 }
   ]
 }
 If the quote is a lump sum with no unit prices, set pricingMode to "lump_sum" and fill lumpSumTotal.
+For materialTotalCost, use the grand total or subtotal of all materials in the quote (before tax and freight if possible). Set to 0 if not found.
 Category context: ${catLabel || category || "Division 10 Specialties"}`;
 
       const response = await openai.chat.completions.create({
