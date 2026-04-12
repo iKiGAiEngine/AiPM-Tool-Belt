@@ -430,14 +430,15 @@ export function registerEstimateRoutes(app: Express) {
     try {
       const estimateId = parseInt(req.params.id);
       if (isNaN(estimateId)) return res.status(400).json({ message: "Invalid estimate id" });
-      const { category, name, model, mfr, qty, unitCost, escOverride, quoteId, source, note, hasBackup, sortOrder } = req.body;
+      const { category, planCallout, name, model, mfr, qty, uom, unitCost, escOverride, quoteId, source, note, hasBackup, sortOrder, extractionConfidence } = req.body;
       if (!category || !name) return res.status(400).json({ message: "category and name required" });
       const [item] = await db.insert(estimateLineItems).values({
-        estimateId, category, name, model: model || null, mfr: mfr || null,
-        qty: qty || 1, unitCost: String(unitCost || 0),
+        estimateId, category, planCallout: planCallout || null, name, model: model || null, mfr: mfr || null,
+        qty: qty || 1, uom: uom || "EA", unitCost: String(unitCost || 0),
         escOverride: escOverride != null ? String(escOverride) : null,
         quoteId: quoteId || null, source: source || "manual",
         note: note || null, hasBackup: hasBackup || false, sortOrder: sortOrder || 0,
+        extractionConfidence: extractionConfidence || null,
       }).returning();
       res.status(201).json(item);
     } catch (err) {
@@ -450,7 +451,7 @@ export function registerEstimateRoutes(app: Express) {
     try {
       const itemId = parseInt(req.params.itemId);
       if (isNaN(itemId)) return res.status(400).json({ message: "Invalid item id" });
-      const allowed = ["name", "model", "mfr", "qty", "unitCost", "escOverride", "quoteId", "source", "note", "hasBackup", "sortOrder", "category"];
+      const allowed = ["name", "planCallout", "model", "mfr", "qty", "uom", "unitCost", "escOverride", "quoteId", "source", "note", "hasBackup", "sortOrder", "category", "extractionConfidence"];
       const updates: Record<string, any> = {};
       for (const f of allowed) {
         if (req.body[f] !== undefined) {
@@ -1096,13 +1097,14 @@ Category context: ${catLabel || category || "Division 10 Specialties"}`;
           model: item.modelNumber || item.model || null,
           mfr: item.manufacturer || item.mfr || null,
           qty: item.quantity || item.qty || 1,
+          uom: item.uom || "EA",
           unitCost: "0",
-          source: "extracted",
+          source: item.source || "extracted",
           note: item.note || null,
           hasBackup: false,
           sortOrder: 0,
           planCallout: item.planCallout || null,
-          extractionConfidence: item.confidence || null,
+          extractionConfidence: item.extractionConfidence || item.confidence || null,
         }).returning();
         created.push(row);
       }
