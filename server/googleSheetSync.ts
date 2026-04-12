@@ -6,6 +6,7 @@ import { db } from './db';
 import { proposalLogEntries } from '@shared/schema';
 import { eq } from 'drizzle-orm';
 import { repairProposalStatuses } from './dataRepair';
+import { TERMINAL_ESTIMATE_STATUSES } from './constants';
 
 let connectionSettings: any;
 
@@ -396,12 +397,11 @@ export async function syncSheetToProposalLog(retryCount = 0): Promise<{ success:
       if (sheetVals.notes !== undefined && sheetVals.notes !== (dbEntry.notes || '')) changes.notes = sheetVals.notes;
       if (sheetVals.bcLink !== undefined && sheetVals.bcLink !== (dbEntry.bcLink || '')) changes.bcLink = sheetVals.bcLink;
 
-      const terminalStatuses = ['Awarded', 'Lost', 'Lost - Note Why in Comments'];
       const resolvedTotal = changes.proposalTotal !== undefined ? changes.proposalTotal : (dbEntry.proposalTotal || '');
       const resolvedStatus = changes.estimateStatus !== undefined ? changes.estimateStatus : (dbEntry.estimateStatus || '');
       const hasTotal = resolvedTotal.replace(/[^0-9.]/g, '');
 
-      if (!terminalStatuses.includes(resolvedStatus)) {
+      if (!TERMINAL_ESTIMATE_STATUSES.includes(resolvedStatus)) {
         if (hasTotal && Number(hasTotal) > 0) {
           if (resolvedStatus !== 'Submitted') {
             changes.estimateStatus = 'Submitted';

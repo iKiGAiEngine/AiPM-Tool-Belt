@@ -54,6 +54,7 @@ import { sendBidAssignmentEmail, getBidAssignmentTemplate, saveBidAssignmentTemp
 import { QUICK_LOGIN_USERS } from "./authRoutes";
 import { createNotification, createNotificationForAdmins } from "./notificationRoutes";
 import { userCanAccessProject } from "./projectAccessControl";
+import { TERMINAL_ESTIMATE_STATUSES } from "./constants";
 
 const SCREENSHOTS_DIR = path.join(process.cwd(), "project_screenshots");
 
@@ -1942,10 +1943,9 @@ export function registerProjectRoutes(app: Express) {
         }
       }
 
-      const TERMINAL_STATUSES = ["Won", "Awarded", "Lost", "Lost - Note Why in Comments", "No Bid", "Declined"];
       if (updates.proposalTotal !== undefined && updates.estimateStatus === undefined) {
         const currentStatus = existingEntry.estimateStatus || "";
-        if (!TERMINAL_STATUSES.includes(currentStatus)) {
+        if (!TERMINAL_ESTIMATE_STATUSES.includes(currentStatus)) {
           const hasTotal = updates.proposalTotal.replace(/[^0-9.]/g, '');
           if (hasTotal && Number(hasTotal) > 0) {
             updates.estimateStatus = "Submitted";
