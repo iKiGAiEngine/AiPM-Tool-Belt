@@ -1,0 +1,91 @@
+Use Economy mode.
+
+I need you to audit and fix the Proposal Log Dashboard analytics so every tile, chart, and funnel is pulling from the correct status logic and current data.
+
+Context:
+
+* The Proposal Log Dashboard is the official analytics/source-of-truth dashboard.
+* The Active Estimating Queue on Home is a separate personal work queue and should not control dashboard analytics.
+* We recently cleaned up naming and fixed several status-sync bugs, so now I need the analytics layer verified end-to-end.
+
+Your task:
+Audit the entire Proposal Log Dashboard tab and fix any broken or misleading analytics behavior.
+
+Specifically inspect and verify these dashboard elements:
+
+1. My Active Pipeline
+2. My Total Awarded
+3. My Win Rate
+4. True Win Rate
+5. Pending Decision
+6. Pipeline Funnel
+7. Win Rate Trend
+8. Loss Intelligence
+
+For each one, determine:
+
+* exact file/component rendering it
+* exact query hook / API route used
+* exact server route / service used
+* exact status mapping logic used
+* whether the current value is correct or broken
+* whether the tile is showing blank because of no data, bad mapping, bad defaults, or a bug
+
+I strongly suspect status mapping inconsistency across dashboard analytics. Audit for mismatches involving:
+
+* Lead
+* Estimating
+* Revising
+* Submitted
+* Won
+* Awarded
+* Lost
+* No Bid
+* Declined
+* any GC-lost or similar excluded statuses
+
+I want you to standardize the analytics around explicit grouped status buckets such as:
+
+* ACTIVE / IN PROGRESS
+* PENDING DECISION
+* WON
+* LOST
+  and use those consistently across all tiles, funnel stages, and charts.
+
+Specific expectations:
+
+* My Active Pipeline should reflect the intended active statuses for the dashboard
+* My Total Awarded should never show "—" if it should be 0
+* My Win Rate should calculate correctly and show 0% instead of blank if denominator is 0
+* True Win Rate should calculate correctly with its intended exclusions
+* Pending Decision should reflect the correct pending statuses
+* Pipeline Funnel must include all intended stages and must not omit Lead if Lead is part of the workflow
+* Funnel stage counts and values must render consistently for every stage
+* Win Rate Trend must either render real trend data or a proper empty state if there is truly no decided data
+* Loss Intelligence must use the correct lost-status mapping
+
+Deliverables:
+
+1. full audit of what is currently wrong
+2. exact root cause for each broken tile/chart
+3. exact files to change
+4. exact implementation fix
+5. standardized status-grouping approach
+6. step-by-step verification plan
+
+Then implement the fixes.
+
+After implementation, report back with:
+
+* exact files changed
+* exact logic changed
+* before vs after behavior for each tile/chart
+* any remaining edge cases
+* whether the dashboard now updates correctly from real proposal_log_entries data
+
+Important:
+
+* do not just patch labels or UI text
+* fix the real analytics/data logic
+* preserve the existing visual style unless a small display fix is required
+* use explicit numeric defaults instead of blank dashes where 0 is the correct value

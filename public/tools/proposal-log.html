@@ -982,6 +982,7 @@ th.col-drop-after::after{content:'';position:absolute;right:0;top:0;bottom:0;wid
         <div class="form-group"><label class="fl">Estimate Status</label>
           <select class="fi" id="f-estimateStatus" onchange="onStatusChange(this.value)">
             <option value="">&mdash; Select &mdash;</option>
+            <option>Lead</option>
             <option>Estimating</option>
             <option>Revising</option>
             <option>Submitted</option>
@@ -1137,7 +1138,7 @@ function normalizeRegion(val) {
   return val;
 }
 const MARKETS = ['Aviation','Education','Entertainment','Healthcare','Hospitality','Residential','Retail','Office','Parking Structure','Public Facility','Special Projects'];
-const STATUSES = ['Estimating','Revising','Submitted','Awarded','Won','Lost','No Bid','Undecided','Declined','Lost - Note Why in Comments'];
+const STATUSES = ['Lead','Estimating','Revising','Submitted','Awarded','Won','Lost','No Bid','Undecided','Declined','Lost - Note Why in Comments'];
 
 const COL_DEFS = [
   {key:'projectName',    label:'Project Name',       w:180, filter:'text'},
@@ -1209,7 +1210,7 @@ const fmtD = d => { if(!d) return '\u2014'; const [y,m,dy]=d.split('-'); return 
 const fmtMY = d => { if(!d) return '\u2014'; const [y,m]=d.split('-'); return `${m}/${y.slice(2)}`; };
 
 function statusBadge(s) {
-  const map = {'Estimating':'s-estimating','Revising':'s-revising','Submitted':'s-submitted','Awarded':'s-awarded','Won':'s-awarded','Lost - Note Why in Comments':'s-lost','Lost':'s-lost','No Bid':'s-nobid','Undecided':'s-undecided','Declined':'s-lost'};
+  const map = {'Lead':'s-lead','Estimating':'s-estimating','Revising':'s-revising','Submitted':'s-submitted','Awarded':'s-awarded','Won':'s-awarded','Lost - Note Why in Comments':'s-lost','Lost':'s-lost','No Bid':'s-nobid','Undecided':'s-undecided','Declined':'s-lost'};
   if(!s) return '\u2014';
   return `<span class="badge ${map[s]||''}">${s==='Lost - Note Why in Comments'?'Lost':s}</span>`;
 }
@@ -2169,7 +2170,7 @@ function getDashboardKpis(layout, all) {
   const awarded   = all.filter(p => isAwardedStatus(p.estimateStatus));
   const lost      = all.filter(p => isLostStatus(p.estimateStatus) || p.estimateStatus==='No Bid' || p.estimateStatus==='Declined');
   const active    = all.filter(p => isActiveStatus(p.estimateStatus));
-  const submitted = all.filter(p => p.estimateStatus==='Submitted');
+  const pending   = all.filter(p => p.estimateStatus==='Submitted' || p.estimateStatus==='Revising');
   const gcLost    = all.filter(p => isLostStatus(p.estimateStatus) && p.lossWho==='GC Lost');
   const nbsLost   = all.filter(p => isLostStatus(p.estimateStatus) && p.lossWho==='NBS Lost');
   const decided   = awarded.length + lost.length;
@@ -2178,23 +2179,23 @@ function getDashboardKpis(layout, all) {
   const trueWinRate = trueDecided ? Math.round(awarded.length / trueDecided * 100) : 0;
   const pipeline  = active.reduce((s,p) => s + (Number(p.proposalTotal)||0), 0);
   const wonV      = awarded.reduce((s,p) => s + (Number(p.proposalTotal)||0), 0);
-  const submittedVal = submitted.reduce((s,p) => s + (Number(p.proposalTotal)||0), 0);
+  const pendingVal = pending.reduce((s,p) => s + (Number(p.proposalTotal)||0), 0);
 
   if (layout === 'estimator' || layout === 'project_manager') {
     return [
       {label:'My Active Pipeline', val:fmtShort(pipeline), sub:`${active.length} bids in progress`},
       {label:'My Total Awarded',   val:fmtShort(wonV),     sub:`${awarded.length} projects won`},
-      {label:'My Win Rate',        val:decided ? winRate+'%' : '—', sub:`${decided} decided bids`},
-      {label:'True Win Rate',      val:trueDecided ? trueWinRate+'%' : '—', sub:`excl. ${gcLost.length} GC-lost`},
-      {label:'Pending Decision',   val:fmtShort(submittedVal), sub:`${submitted.length} submitted`},
+      {label:'My Win Rate',        val:winRate+'%', sub:`${decided} decided bids`},
+      {label:'True Win Rate',      val:trueWinRate+'%', sub:`excl. ${gcLost.length} GC-lost`},
+      {label:'Pending Decision',   val:fmtShort(pendingVal), sub:`${pending.length} submitted or revising`},
     ];
   }
   return [
     {label:'Active Pipeline',    val:fmtShort(pipeline),  sub:`${active.length} bids in progress`},
     {label:'Total Awarded',      val:fmtShort(wonV),       sub:`${awarded.length} projects won`},
-    {label:'Win Rate',           val:decided ? winRate+'%' : '—', sub:`${decided} decided bids`},
-    {label:'True NBS Win Rate',  val:trueDecided ? trueWinRate+'%' : '—', sub:`excl. ${gcLost.length} GC-lost bids`},
-    {label:'Pending Decision',   val:fmtShort(submittedVal), sub:`${submitted.length} submitted bids`},
+    {label:'Win Rate',           val:winRate+'%', sub:`${decided} decided bids`},
+    {label:'True NBS Win Rate',  val:trueWinRate+'%', sub:`excl. ${gcLost.length} GC-lost bids`},
+    {label:'Pending Decision',   val:fmtShort(pendingVal), sub:`${pending.length} submitted or revising`},
   ];
 }
 
@@ -2204,8 +2205,9 @@ function clearDashFilters() {
 }
 
 function fmtShort(n) {
-  if(!n) return '\u2014';
   n=Number(n);
+  if(isNaN(n)) return '\u2014';
+  if(n===0) return '$0';
   if(n>=1e6) return '$'+(n/1e6).toFixed(1)+'M';
   if(n>=1000) return '$'+Math.round(n/1000)+'K';
   return '$'+n;
@@ -2213,6 +2215,7 @@ function fmtShort(n) {
 
 const moN=['','Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 const STATUS_COLORS={
+  'Lead':      '#8A8A9A',
   'Estimating':'#C9A84C',
   'Revising':  '#A78BFA',
   'Submitted': '#64C8FF',
@@ -2226,8 +2229,9 @@ const STATUS_COLORS={
 };
 function isLostStatus(s) { return s === 'Lost - Note Why in Comments' || s === 'Lost'; }
 function isAwardedStatus(s) { return s === 'Awarded' || s === 'Won'; }
-function isActiveStatus(s) { return ['Estimating','Revising','Submitted'].includes(s); }
+function isActiveStatus(s) { return ['Lead','Estimating','Revising','Submitted'].includes(s); }
 const FUNNEL_STAGES=[
+  {key:'Lead',       color:'#8A8A9A', label:'Lead'},
   {key:'Estimating', color:'#C9A84C', label:'Estimating'},
   {key:'Revising',   color:'#A78BFA', label:'Revising'},
   {key:'Submitted',  color:'#64C8FF', label:'Submitted'},
@@ -2283,7 +2287,6 @@ function renderDash() {
   const awarded  = all.filter(p=>isAwardedStatus(p.estimateStatus));
   const lost     = all.filter(p=>isLostStatus(p.estimateStatus) || p.estimateStatus==='No Bid' || p.estimateStatus==='Declined');
   const active   = all.filter(p=>isActiveStatus(p.estimateStatus));
-  const submitted= all.filter(p=>p.estimateStatus==='Submitted');
   const decided  = awarded.length + lost.length;
   const winRate  = decided ? Math.round(awarded.length/decided*100) : 0;
   const pipeline = active.reduce((s,p)=>s+(Number(p.proposalTotal)||0),0);
@@ -2293,7 +2296,6 @@ function renderDash() {
   const nbsLost  = all.filter(p=>(isLostStatus(p.estimateStatus)) && p.lossWho==='NBS Lost');
   const trueDecided = awarded.length + nbsLost.length;
   const trueWinRate = trueDecided ? Math.round(awarded.length/trueDecided*100) : 0;
-  const submittedVal = submitted.reduce((s,p)=>s+(Number(p.proposalTotal)||0),0);
 
   // Step 5: Render KPI cards based on dashboardLayout
   const layout = currentUser?.dashboardLayout || 'estimator';
@@ -2307,7 +2309,7 @@ function renderDash() {
   const lostCount = lost.length;
   const gcLostVal = gcLost.reduce((s,p)=>s+(Number(p.proposalTotal)||0),0);
   const nbsLostVal= nbsLost.reduce((s,p)=>s+(Number(p.proposalTotal)||0),0);
-  const noReasonCount = lost.filter(p=>!p.lossWho).length;
+  const noReasonCount = lost.filter(p=>isLostStatus(p.estimateStatus)&&!p.lossWho).length;
 
   const NBS_REASON_LABELS = {'Price':'\ud83d\udcb0 Price','Relationship':'\ud83e\udd1d Relationship','Scope Gap':'\ud83d\udcd0 Scope Gap','Submittal':'\ud83d\udcc4 Submittal','Spec Sub':'\ud83d\udd04 Spec Sub','Other':'\u270f\ufe0f Other'};
   const nbsReasonMap = {};
@@ -2369,7 +2371,7 @@ function renderDash() {
           ${s.count ? `<span class="funnel-bar-count" style="color:${s.color}">${s.count} bid${s.count!==1?'s':''}</span>` : ''}
         </div>
       </div>
-      <div class="funnel-val" style="color:${s.count?'var(--text)':'var(--text-dim)'}">${s.val?fmtShort(s.val):'\u2014'}</div>
+      <div class="funnel-val" style="color:${s.count?'var(--text)':'var(--text-dim)'}">${s.count?fmtShort(s.val):'\u2014'}</div>
     </div>${arrow}`;
   }).join('');
 
@@ -2384,30 +2386,39 @@ function renderDash() {
   const wrMonths=Object.keys(monthDecided).sort().slice(-12);
   const wrRates=wrMonths.map(m=>monthDecided[m]?Math.round((monthWon[m]||0)/monthDecided[m]*100):0);
 
-  if(charts.wintrend) charts.wintrend.destroy();
-  charts.wintrend=new Chart(document.getElementById('chart-wintrend'),{
-    type:'line',
-    data:{
-      labels:wrMonths.map(m=>{const[y,mo]=m.split('-');return `${moN[+mo]} '${y.slice(2)}`;}),
-      datasets:[{
-        label:'Win Rate %', data:wrRates,
-        borderColor:'#3DAA6A', backgroundColor:'rgba(61,170,106,.08)',
-        tension:.4, fill:true, pointBackgroundColor:'#3DAA6A', pointRadius:4, pointHoverRadius:6
-      },{
-        label:'Target (50%)', data:wrMonths.map(()=>50),
-        borderColor:'rgba(201,168,76,.3)', borderDash:[4,4], borderWidth:1,
-        pointRadius:0, fill:false
-      }]
-    },
-    options:{
-      responsive:true, maintainAspectRatio:false,
-      plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>`${c.dataset.label}: ${c.parsed.y}%`}}},
-      scales:{
-        x:{...ax},
-        y:{...ax, min:0, max:100, ticks:{...ax.ticks,callback:v=>v+'%'}}
-      }
+  if(charts.wintrend) { charts.wintrend.destroy(); charts.wintrend=null; }
+  const wrtCanvas=document.getElementById('chart-wintrend');
+  const wrtWrap=wrtCanvas?wrtCanvas.parentElement:null;
+  if(wrMonths.length===0) {
+    if(wrtWrap) wrtWrap.innerHTML='<div class="dash-empty" style="padding:40px 12px;text-align:center"><div class="dash-empty-icon" style="font-size:24px;margin-bottom:6px">\ud83d\udcca</div><div style="font-size:12px;color:var(--text-dim)">No decided bids yet</div><div style="font-size:10px;color:var(--text-dim);margin-top:3px">Trend will appear once bids are Won or Lost with a due date</div></div>';
+  } else {
+    if(wrtWrap&&!wrtWrap.querySelector('canvas')) {
+      const c=document.createElement('canvas');c.id='chart-wintrend';wrtWrap.innerHTML='';wrtWrap.appendChild(c);
     }
-  });
+    charts.wintrend=new Chart(document.getElementById('chart-wintrend'),{
+      type:'line',
+      data:{
+        labels:wrMonths.map(m=>{const[y,mo]=m.split('-');return `${moN[+mo]} '${y.slice(2)}`;}),
+        datasets:[{
+          label:'Win Rate %', data:wrRates,
+          borderColor:'#3DAA6A', backgroundColor:'rgba(61,170,106,.08)',
+          tension:.4, fill:true, pointBackgroundColor:'#3DAA6A', pointRadius:4, pointHoverRadius:6
+        },{
+          label:'Target (50%)', data:wrMonths.map(()=>50),
+          borderColor:'rgba(201,168,76,.3)', borderDash:[4,4], borderWidth:1,
+          pointRadius:0, fill:false
+        }]
+      },
+      options:{
+        responsive:true, maintainAspectRatio:false,
+        plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>`${c.dataset.label}: ${c.parsed.y}%`}}},
+        scales:{
+          x:{...ax},
+          y:{...ax, min:0, max:100, ticks:{...ax.ticks,callback:v=>v+'%'}}
+        }
+      }
+    });
+  }
 
   const rMap={};
   all.forEach(p=>{if(!p.region)return;const r=p.region.replace(/ \(.*\)/,'');rMap[r]=(rMap[r]||0)+(Number(p.proposalTotal)||0);});
