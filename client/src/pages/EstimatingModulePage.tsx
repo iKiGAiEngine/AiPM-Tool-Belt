@@ -597,48 +597,93 @@ function EstimatingModuleInner() {
 
   const estimateId = estimateData?.id;
 
-  // Save top-level estimate settings
-  const saveEstimate = useCallback(async () => {
-    if (!estimateId) return;
+  // Save top-level estimate settings.
+  // statusOverride: when provided, this value is sent to the API directly —
+  // bypassing the React state that may not have updated yet (e.g. Mark as Submitted).
+  const saveEstimate = useCallback(async (statusOverride?: string) => {
+    if (!estimateId) {
+      toast({ title: "Cannot save", description: "Estimate is not loaded yet.", variant: "destructive" });
+      return;
+    }
+    const effectiveStatus = statusOverride ?? reviewStatus;
+    if (statusOverride) setReviewStatus(statusOverride);
     setIsSaving(true);
+
+    // Stage 1: persist estimate record
     try {
       await apiRequest("PATCH", `/api/estimates/${estimateId}`, {
         activeScopes, defaultOh: String(defaultOh), defaultFee: String(defaultFee),
         defaultEsc: String(defaultEsc), taxRate: String(taxRate), bondRate: String(bondRate),
         catOverrides, catComplete, catQuals, assumptions, risks,
-        checklist: effectiveChecklist, reviewStatus,
+        checklist: effectiveChecklist, reviewStatus: effectiveStatus,
       });
-      // Save version snapshot
-      const userName = user?.displayName || user?.username || user?.email || "Unknown";
+    } catch {
+      toast({ title: "Save failed", description: "Could not save the estimate. No changes were written.", variant: "destructive" });
+      setIsSaving(false);
+      return;
+    }
+
+    // Stage 2: save version snapshot (non-blocking on failure)
+    const userName = user?.displayName || user?.username || user?.email || "Unknown";
+    try {
       await apiRequest("POST", `/api/estimates/${estimateId}/save-version`, {
         savedBy: userName, notes: "Manual save", grandTotal: calcData.grandTotal,
         snapshotData: { lineItems: lineItems.length, grandTotal: calcData.grandTotal },
       });
-      // Sync grand total to proposal log
-      await apiRequest("POST", `/api/estimates/${estimateId}/sync-to-proposal`, {
-        grandTotal: calcData.grandTotal, reviewStatus,
-      });
-      // Sync Project Info edits + scope selections back to Proposal Log Dashboard
-      if (proposalLogId) {
-        const scopeLabels = activeScopes
-          .map(id => ALL_SCOPES.find(s => s.id === id)?.label)
-          .filter(Boolean) as string[];
-        const { nbsEstimator: _skip, ...projInfoPatch } = projInfo;
-        await apiRequest("PATCH", `/api/proposal-log/entry/${proposalLogId}`, {
-          ...projInfoPatch,
-          nbsSelectedScopes: JSON.stringify(scopeLabels),
-        });
-        qc.invalidateQueries({ queryKey: ["/api/proposal-log/entry", proposalLogId] });
-        qc.invalidateQueries({ queryKey: ["/api/proposal-log/all-entries"] });
-      }
-      qc.invalidateQueries({ queryKey: ["/api/estimates/by-proposal", proposalLogId] });
-      setVersions(v => [{ id: Date.now(), estimateId: estimateId!, version: (v[0]?.version || 0) + 1, savedBy: userName, notes: "Manual save", grandTotal: String(calcData.grandTotal), savedAt: new Date().toISOString() }, ...v]);
+    } catch { /* version snapshot failure is non-critical */ }
+
+    // Stage 3: sync to proposal log
+    if (!proposalLogId) {
+      toast({ title: "Saved (not synced)", description: "Estimate saved, but there is no linked Proposal Log entry — sync was skipped.", variant: "destructive" });
       setIsDirty(false);
       setLastSaved(new Date());
-      toast({ title: "Saved", description: "Estimate saved and synced to Proposal Log Dashboard." });
-    } catch (err) {
-      toast({ title: "Save failed", description: "Could not save estimate.", variant: "destructive" });
+      setIsSaving(false);
+      return;
     }
+    try {
+      const syncRes = await apiRequest("POST", `/api/estimates/${estimateId}/sync-to-proposal`, {
+        grandTotal: calcData.grandTotal, reviewStatus: effectiveStatus,
+      });
+      const syncData = await syncRes.json();
+      if (effectiveStatus === "submitted" && syncData.rowsUpdated === 0) {
+        toast({ title: "Sync warning", description: "Estimate saved, but the linked Proposal Log entry could not be found to update. Check that the proposal log link is valid.", variant: "destructive" });
+        setIsDirty(false);
+        setLastSaved(new Date());
+        setIsSaving(false);
+        return;
+      }
+    } catch {
+      toast({ title: "Proposal Log sync failed", description: "Estimate was saved, but the status could not be synced to the Proposal Log Dashboard.", variant: "destructive" });
+      setIsDirty(false);
+      setLastSaved(new Date());
+      setIsSaving(false);
+      return;
+    }
+
+    // Stage 4: sync project info fields back to proposal log entry
+    try {
+      const scopeLabels = activeScopes
+        .map(id => ALL_SCOPES.find(s => s.id === id)?.label)
+        .filter(Boolean) as string[];
+      const { nbsEstimator: _skip, ...projInfoPatch } = projInfo;
+      await apiRequest("PATCH", `/api/proposal-log/entry/${proposalLogId}`, {
+        ...projInfoPatch,
+        nbsSelectedScopes: JSON.stringify(scopeLabels),
+      });
+      qc.invalidateQueries({ queryKey: ["/api/proposal-log/entry", proposalLogId] });
+      qc.invalidateQueries({ queryKey: ["/api/proposal-log/all-entries"] });
+    } catch { /* project info patch failure is non-critical — log entry sync already succeeded */ }
+
+    qc.invalidateQueries({ queryKey: ["/api/estimates/by-proposal", proposalLogId] });
+    setVersions(v => [{ id: Date.now(), estimateId: estimateId!, version: (v[0]?.version || 0) + 1, savedBy: userName, notes: "Manual save", grandTotal: String(calcData.grandTotal), savedAt: new Date().toISOString() }, ...v]);
+    setIsDirty(false);
+    setLastSaved(new Date());
+    toast({
+      title: effectiveStatus === "submitted" ? "Marked as Submitted" : "Saved",
+      description: effectiveStatus === "submitted"
+        ? "Estimate submitted. Proposal Log Dashboard status updated to Submitted."
+        : "Estimate saved and synced to Proposal Log Dashboard.",
+    });
     setIsSaving(false);
   }, [estimateId, activeScopes, defaultOh, defaultFee, defaultEsc, taxRate, bondRate, catOverrides, catComplete, catQuals, assumptions, risks, effectiveChecklist, reviewStatus, calcData, lineItems, user, proposalLogId, projInfo]);
 
@@ -3059,7 +3104,7 @@ ${html}
               style={{ background: "var(--gold)", color: "#000" }}>
               💾 Save & Sync to Proposal Log Dashboard
             </button>
-            <button onClick={() => { setReviewStatus("submitted"); markDirty(); saveEstimate(); }}
+            <button onClick={() => { markDirty(); saveEstimate("submitted"); }}
               disabled={isSaving || !estimateId}
               className="px-6 py-3 rounded-lg text-sm font-semibold flex items-center gap-2"
               style={{ background: "#06b6d4", color: "#fff" }}>

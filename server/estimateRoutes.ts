@@ -911,15 +911,24 @@ Category context: ${catLabel || category || "Division 10 Specialties"}`;
       const { grandTotal, reviewStatus } = req.body;
       const [est] = await db.select().from(estimates).where(eq(estimates.id, id));
       if (!est) return res.status(404).json({ message: "Estimate not found" });
+      if (!est.proposalLogId) {
+        return res.status(400).json({ message: "This estimate has no linked Proposal Log entry. Cannot sync status." });
+      }
 
       const updates: Record<string, any> = {};
       if (grandTotal != null) updates.proposalTotal = String(Math.round(grandTotal));
       if (reviewStatus === "submitted") updates.estimateStatus = "Submitted";
 
+      let rowsUpdated = 0;
       if (Object.keys(updates).length > 0) {
-        await db.update(proposalLogEntries).set(updates).where(eq(proposalLogEntries.id, est.proposalLogId));
+        const updated = await db
+          .update(proposalLogEntries)
+          .set(updates)
+          .where(eq(proposalLogEntries.id, est.proposalLogId))
+          .returning({ id: proposalLogEntries.id });
+        rowsUpdated = updated.length;
       }
-      res.json({ ok: true });
+      res.json({ ok: true, rowsUpdated });
     } catch (err) {
       console.error("sync-to-proposal error:", err);
       res.status(500).json({ message: "Failed to sync to proposal log" });
