@@ -310,7 +310,7 @@ function EstimatingModuleInner() {
   const [newRisk, setNewRisk] = useState("");
   const [showRfq, setShowRfq] = useState(false);
   const [addingItem, setAddingItem] = useState(false);
-  const [newItemForm, setNewItemForm] = useState({ planCallout: "", description: "", modelNumber: "", manufacturer: "", qty: 1, uom: "EA", unitCost: 0, source: "manual" });
+  const [newItemForm, setNewItemForm] = useState({ planCallout: "", name: "", model: "", mfr: "", qty: 1, uom: "EA", unitCost: 0, source: "manual" });
   const pdfParseInputRef = useRef<HTMLInputElement>(null);
   const [aiParseTab, setAiParseTab] = useState<"text" | "pdf">("text");
   const [pdfDragActive, setPdfDragActive] = useState(false);
@@ -704,17 +704,17 @@ function EstimatingModuleInner() {
 
   // ── Line item mutations ──
   const addLineItem = useCallback(async () => {
-    if (!estimateId || !newItemForm.description.trim()) return;
+    if (!estimateId || !newItemForm.name.trim()) return;
     try {
       const r = await apiRequest("POST", `/api/estimates/${estimateId}/line-items`, {
-        category: activeCat, planCallout: newItemForm.planCallout || null, description: newItemForm.description.trim(),
-        modelNumber: newItemForm.modelNumber || null, manufacturer: newItemForm.manufacturer || null,
+        category: activeCat, planCallout: newItemForm.planCallout || null, name: newItemForm.name.trim(),
+        model: newItemForm.model || null, mfr: newItemForm.mfr || null,
         qty: newItemForm.qty, uom: newItemForm.uom || "EA", unitCost: String(newItemForm.unitCost),
         source: newItemForm.source, hasBackup: false,
       });
       const item = await r.json();
       setLineItems(prev => [...prev, item]);
-      setNewItemForm({ planCallout: "", description: "", modelNumber: "", manufacturer: "", qty: 1, uom: "EA", unitCost: 0, source: "manual" });
+      setNewItemForm({ planCallout: "", name: "", model: "", mfr: "", qty: 1, uom: "EA", unitCost: 0, source: "manual" });
       setAddingItem(false);
       markDirty();
     } catch { toast({ title: "Error", description: "Could not add item.", variant: "destructive" }); }
@@ -1163,7 +1163,7 @@ ${html}
       const r = await fetch(`/api/estimates/${estimateId}/import-items`, {
         method: "POST", credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ items: toImport.map(i => ({ ...i, category: i._assignedScope, planCallout: i.planCallout, description: i.description, modelNumber: i.modelNumber, manufacturer: i.manufacturer, qty: i.quantity, uom: i.uom || "EA" })) }),
+        body: JSON.stringify({ items: toImport.map(i => ({ category: i._assignedScope, planCallout: i.planCallout || null, name: i.description, model: i.modelNumber || null, mfr: i.manufacturer || null, qty: i.quantity, uom: i.uom || "EA", source: "schedule", extractionConfidence: i.confidence })) }),
       });
       if (!r.ok) throw new Error((await r.json()).message || "Import failed");
       const data = await r.json();
@@ -2468,31 +2468,45 @@ ${html}
                 {/* Add item form */}
                 {addingItem && (
                   <div className="px-4 py-3" style={{ background: "var(--bg3)", borderBottom: "1px solid var(--border-ds)" }}>
-                    <div className="flex gap-2 flex-wrap items-center">
+                    <div className="grid gap-x-3 gap-y-2" style={{ gridTemplateColumns: "110px 1fr 140px 120px 60px 72px 110px 90px auto" }}>
+                      {/* Row 1: Labels */}
+                      {["Plan Callout", "Description *", "Manufacturer", "Model #", "Qty", "UOM", "Unit Cost ($)", "Line Total"].map(label => (
+                        <div key={label} className="text-xs font-semibold" style={{ color: "var(--text-muted)" }}>{label}</div>
+                      ))}
+                      <div />
+                      {/* Row 2: Inputs */}
                       <input value={newItemForm.planCallout} onChange={e => setNewItemForm(p => ({ ...p, planCallout: e.target.value }))}
-                        placeholder="Plan Callout" className="text-xs px-2 py-1.5 rounded w-28"
+                        className="text-xs px-2 py-1.5 rounded"
+                        style={{ background: "var(--bg2)", border: "1px solid var(--border-ds)", color: "var(--text)" }} />
+                      <input value={newItemForm.name} onChange={e => setNewItemForm(p => ({ ...p, name: e.target.value }))}
                         onKeyDown={e => e.key === "Enter" && addLineItem()}
+                        className="text-xs px-2 py-1.5 rounded"
                         style={{ background: "var(--bg2)", border: "1px solid var(--border-ds)", color: "var(--text)" }} />
-                      <input value={newItemForm.description} onChange={e => setNewItemForm(p => ({ ...p, description: e.target.value }))}
-                        placeholder="Description *" className="text-xs px-2 py-1.5 rounded flex-1 min-w-32"
-                        onKeyDown={e => e.key === "Enter" && addLineItem()}
+                      <input value={newItemForm.mfr} onChange={e => setNewItemForm(p => ({ ...p, mfr: e.target.value }))}
+                        className="text-xs px-2 py-1.5 rounded"
                         style={{ background: "var(--bg2)", border: "1px solid var(--border-ds)", color: "var(--text)" }} />
-                      <input value={newItemForm.manufacturer} onChange={e => setNewItemForm(p => ({ ...p, manufacturer: e.target.value }))}
-                        placeholder="Manufacturer" className="text-xs px-2 py-1.5 rounded w-28"
+                      <input value={newItemForm.model} onChange={e => setNewItemForm(p => ({ ...p, model: e.target.value }))}
+                        className="text-xs px-2 py-1.5 rounded"
                         style={{ background: "var(--bg2)", border: "1px solid var(--border-ds)", color: "var(--text)" }} />
-                      <input type="number" value={newItemForm.qty} min={1} onChange={e => setNewItemForm(p => ({ ...p, qty: parseInt(e.target.value) || 1 }))}
-                        placeholder="Qty" className="text-xs px-2 py-1.5 rounded w-16"
+                      <input type="number" min={1} value={newItemForm.qty} onChange={e => setNewItemForm(p => ({ ...p, qty: parseInt(e.target.value) || 1 }))}
+                        className="text-xs px-2 py-1.5 rounded text-right"
                         style={{ background: "var(--bg2)", border: "1px solid var(--border-ds)", color: "var(--text)" }} />
                       <select value={newItemForm.uom} onChange={e => setNewItemForm(p => ({ ...p, uom: e.target.value }))}
-                        className="text-xs px-2 py-1.5 rounded w-20"
+                        className="text-xs px-2 py-1.5 rounded"
                         style={{ background: "var(--bg2)", border: "1px solid var(--border-ds)", color: "var(--text)" }}>
                         {["EA", "LF", "SF", "SET"].map(v => <option key={v} value={v}>{v}</option>)}
                       </select>
-                      <input type="number" value={newItemForm.unitCost} step={0.01} onChange={e => setNewItemForm(p => ({ ...p, unitCost: parseFloat(e.target.value) || 0 }))}
-                        placeholder="Unit Cost $" className="text-xs px-2 py-1.5 rounded w-24"
+                      <input type="number" step={0.01} value={newItemForm.unitCost} onChange={e => setNewItemForm(p => ({ ...p, unitCost: parseFloat(e.target.value) || 0 }))}
+                        className="text-xs px-2 py-1.5 rounded text-right"
                         style={{ background: "var(--bg2)", border: "1px solid var(--border-ds)", color: "var(--text)" }} />
-                      <button onClick={addLineItem} className="text-xs px-3 py-1.5 rounded font-semibold" style={{ background: "#22c55e", color: "#fff" }}>Add</button>
-                      <button onClick={() => setAddingItem(false)} className="text-xs px-2 py-1.5 rounded" style={{ background: "var(--bg2)", border: "1px solid var(--border-ds)", color: "var(--text-secondary)" }}>Cancel</button>
+                      <div className="text-xs px-2 py-1.5 rounded font-semibold flex items-center justify-end"
+                        style={{ background: "var(--bg2)", border: "1px solid var(--border-ds)", color: newItemForm.qty * newItemForm.unitCost === 0 ? "var(--text-muted)" : "#22c55e" }}>
+                        {fmt(newItemForm.qty * newItemForm.unitCost)}
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <button onClick={addLineItem} className="text-xs px-3 py-1.5 rounded font-semibold" style={{ background: "#22c55e", color: "#fff" }}>Add</button>
+                        <button onClick={() => setAddingItem(false)} className="text-xs px-2 py-1.5 rounded" style={{ background: "var(--bg2)", border: "1px solid var(--border-ds)", color: "var(--text-secondary)" }}>✕</button>
+                      </div>
                     </div>
                   </div>
                 )}
@@ -2536,17 +2550,18 @@ ${html}
                                     style={{ color: "var(--text-muted)" }} />
                                 </td>
                                 <td className="px-2 py-1.5">
-                                  <input value={item.description || ""} onChange={e => updateLineItem(item.id, "description", e.target.value)}
+                                  <input value={item.name || ""} onChange={e => updateLineItem(item.id, "name", e.target.value)}
                                     className="w-full text-xs bg-transparent border-none outline-none"
                                     style={{ color: "var(--text)" }} />
+                                  {item.note && <div className="text-xs italic" style={{ color: "#f97316" }}>▸ {item.note}</div>}
                                 </td>
                                 <td className="px-2 py-1.5">
-                                  <input value={item.manufacturer || ""} onChange={e => updateLineItem(item.id, "manufacturer", e.target.value)}
+                                  <input value={item.mfr || ""} onChange={e => updateLineItem(item.id, "mfr", e.target.value)}
                                     placeholder="—" className="w-full text-xs bg-transparent border-none outline-none"
                                     style={{ color: "var(--text-muted)" }} />
                                 </td>
                                 <td className="px-2 py-1.5">
-                                  <input value={item.modelNumber || ""} onChange={e => updateLineItem(item.id, "modelNumber", e.target.value)}
+                                  <input value={item.model || ""} onChange={e => updateLineItem(item.id, "model", e.target.value)}
                                     placeholder="—" className="w-full text-xs bg-transparent border-none outline-none"
                                     style={{ color: "var(--text-muted)" }} />
                                 </td>
