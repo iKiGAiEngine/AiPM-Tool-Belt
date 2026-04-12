@@ -659,7 +659,7 @@ export default function HomePage() {
             </div>
 
             <div className="pl-footer">
-              <div className="pl-footer-note">Your bids only &nbsp;&middot;&nbsp; opens folder &nbsp;&middot;&nbsp; to acknowledge</div>
+              <div className="pl-footer-note">Your Lead/Estimating queue &nbsp;&middot;&nbsp; opens folder &nbsp;&middot;&nbsp; acknowledge when reviewed</div>
               <div className="pl-footer-cta">Open Proposal Log Dashboard <span>&rarr;</span></div>
             </div>
           </div>
