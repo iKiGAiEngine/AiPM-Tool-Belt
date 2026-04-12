@@ -162,7 +162,32 @@ export async function initializePermissions() {
       console.log(`[Permissions] Removed submittal-builder from ${estimatorUsers.length} Estimator user(s)`);
     }
 
-    // estimating-module: seed admins + one-time cleanup of any legacy non-admin grants.
+    // PASS 1: For each user with zero permissions, assign full role defaults.
+    // This must run BEFORE any feature-specific seeding so that admins starting from
+    // zero rows receive their complete default feature set (which includes all features)
+    // rather than only the feature-specific grant applied below.
+    const allUsersForDefaults = await db.select().from(users);
+    for (const user of allUsersForDefaults) {
+      const existingAccess = await db
+        .select()
+        .from(userFeatureAccess)
+        .where(sql`${userFeatureAccess.userId} = ${user.id}`);
+
+      if (existingAccess.length === 0) {
+        const defaultFeatures = DEFAULT_ROLE_FEATURES[user.role] || DEFAULT_ROLE_FEATURES.user;
+        if (defaultFeatures.length > 0) {
+          await db.insert(userFeatureAccess).values(
+            defaultFeatures.map((feature) => ({
+              userId: user.id,
+              feature,
+            }))
+          );
+        }
+      }
+    }
+
+    // PASS 2: estimating-module — ensure all admins have it (top-up only; PASS 1 already
+    // gave it to zero-permission admins via DEFAULT_ROLE_FEATURES.admin).
     // Non-admin users receive this feature only via explicit Permissions UI grant.
     const allAdmins = await db.select({ id: users.id }).from(users).where(eq(users.role, "admin"));
     let grantedEstimatingCount = 0;
@@ -208,30 +233,6 @@ export async function initializePermissions() {
       `);
       if (revokedCount > 0) {
         console.log(`[Permissions] One-time cleanup: revoked estimating-module from ${revokedCount} non-Admin user(s)`);
-      }
-    }
-
-    // For each remaining user without permissions, assign default permissions based on their role
-    const remainingUsers = await db.select().from(users);
-
-    for (const user of remainingUsers) {
-      const existingAccess = await db
-        .select()
-        .from(userFeatureAccess)
-        .where(sql`${userFeatureAccess.userId} = ${user.id}`);
-
-      // If user has no permissions, assign defaults based on role
-      if (existingAccess.length === 0) {
-        const defaultFeatures = DEFAULT_ROLE_FEATURES[user.role] || DEFAULT_ROLE_FEATURES.user;
-
-        if (defaultFeatures.length > 0) {
-          await db.insert(userFeatureAccess).values(
-            defaultFeatures.map((feature) => ({
-              userId: user.id,
-              feature,
-            }))
-          );
-        }
       }
     }
 
