@@ -240,7 +240,12 @@ export default function ProjectLogPage() {
 
   const approveAndCreateMutation = useMutation({
     mutationFn: async ({ id, data }: { id: number; data: Record<string, string> }) => {
-      const res = await apiRequest("POST", `/api/bc/drafts/${id}/approve-and-create`, data);
+      const res = await fetch(`/api/bc/drafts/${id}/approve-and-create`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify(data),
+      });
       if (res.status === 409) {
         const body = await res.json();
         const err: any = new Error("duplicate_detected");
@@ -249,6 +254,7 @@ export default function ProjectLogPage() {
         err.formData = data;
         throw err;
       }
+      if (!res.ok) throw new Error(await res.text());
       return res.json();
     },
     onSuccess: (result) => {
@@ -277,7 +283,13 @@ export default function ProjectLogPage() {
 
   const forceApproveMutation = useMutation({
     mutationFn: async ({ id, data }: { id: number; data: Record<string, string> }) => {
-      const res = await apiRequest("POST", `/api/bc/drafts/${id}/approve-and-create`, { ...data, force: true });
+      const res = await fetch(`/api/bc/drafts/${id}/approve-and-create`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ ...data, force: true }),
+      });
+      if (!res.ok) throw new Error(await res.text());
       return res.json();
     },
     onSuccess: (result) => {
@@ -300,7 +312,13 @@ export default function ProjectLogPage() {
 
   const mergeAsBidRoundMutation = useMutation({
     mutationFn: async ({ draftId, targetId, data }: { draftId: number; targetId: number; data: Record<string, string> }) => {
-      const res = await apiRequest("POST", `/api/bc/drafts/${draftId}/approve-and-create`, { ...data, mergeIntoId: targetId });
+      const res = await fetch(`/api/bc/drafts/${draftId}/approve-and-create`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ ...data, mergeIntoId: targetId }),
+      });
+      if (!res.ok) throw new Error(await res.text());
       return res.json();
     },
     onSuccess: () => {

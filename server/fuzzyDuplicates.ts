@@ -45,10 +45,16 @@ export interface DuplicateMatch {
   score: number;
 }
 
+export interface FindDuplicatesOptions {
+  includeDrafts?: boolean;
+  excludeId?: number;
+}
+
 export async function findFuzzyDuplicates(
   projectName: string,
   threshold = 0.40,
-  limit = 5
+  limit = 5,
+  options: FindDuplicatesOptions = {}
 ): Promise<DuplicateMatch[]> {
   const incomingNorm = normalizeProjectName(projectName);
   const incomingTokens = tokenize(incomingNorm);
@@ -73,7 +79,9 @@ export async function findFuzzyDuplicates(
   const matches: DuplicateMatch[] = [];
 
   for (const row of existing) {
-    if (row.deletedAt || row.isDraft) continue;
+    if (row.deletedAt) continue;
+    if (options.excludeId !== undefined && row.id === options.excludeId) continue;
+    if (!options.includeDrafts && row.isDraft) continue;
     const norm = normalizeProjectName(row.projectName);
     const tokens = tokenize(norm);
     const score = jaccardSimilarity(incomingTokens, tokens);

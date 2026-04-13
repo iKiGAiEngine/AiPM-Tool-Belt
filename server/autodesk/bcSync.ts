@@ -962,11 +962,13 @@ export function registerBcSyncRoutes(app: Express) {
             created.push(entry.id);
 
             // Run fuzzy duplicate check on newly created draft and flag it if matches found
+            // includeDrafts: true so we also catch draft-vs-draft duplicates
+            // excludeId: entry.id so we don't compare the draft against itself
             try {
-              const dupMatches = await findFuzzyDuplicates(entryData.projectName || "");
+              const dupMatches = await findFuzzyDuplicates(entryData.projectName || "", 0.40, 3, { includeDrafts: true, excludeId: entry.id });
               if (dupMatches.length > 0) {
                 await db.update(proposalLogEntries)
-                  .set({ duplicateOverrideNote: `__dup:${JSON.stringify(dupMatches.slice(0, 3))}` })
+                  .set({ duplicateOverrideNote: `__dup:${JSON.stringify(dupMatches)}` })
                   .where(eq(proposalLogEntries.id, entry.id));
               }
             } catch (dupErr) {
@@ -1095,8 +1097,10 @@ export function registerBcSyncRoutes(app: Express) {
       }
 
       // Run fuzzy duplicate check unless user explicitly forced approval
+      // includeDrafts: true catches draft-vs-draft (two BC invites for same project)
+      // excludeId: id skips comparing the draft against itself
       if (!force) {
-        const dupMatches = await findFuzzyDuplicates(entry.projectName || "");
+        const dupMatches = await findFuzzyDuplicates(entry.projectName || "", 0.40, 5, { includeDrafts: true, excludeId: id });
         if (dupMatches.length > 0) {
           return res.status(409).json({ message: "Potential duplicate detected", matches: dupMatches });
         }
@@ -1176,8 +1180,10 @@ export function registerBcSyncRoutes(app: Express) {
       }
 
       // Run fuzzy duplicate check unless user explicitly forced approval
+      // includeDrafts: true catches draft-vs-draft (two BC invites for same project)
+      // excludeId: id skips comparing the draft against itself
       if (!force) {
-        const dupMatches = await findFuzzyDuplicates((projectName || entry.projectName) || "");
+        const dupMatches = await findFuzzyDuplicates((projectName || entry.projectName) || "", 0.40, 5, { includeDrafts: true, excludeId: id });
         if (dupMatches.length > 0) {
           return res.status(409).json({ message: "Potential duplicate detected", matches: dupMatches });
         }
