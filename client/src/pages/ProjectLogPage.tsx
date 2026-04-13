@@ -1252,20 +1252,20 @@ export default function ProjectLogPage() {
                             )}
                           </td>
                           <td className="py-3 px-3 text-xs" data-testid={`text-source-${entry.id}`}>
-                            <div className="flex items-center gap-2">
+                            <div className="flex flex-col gap-1.5">
                               {entry.screenshotPath && entry.estimateNumber && (
                                 <a
                                   href={`/api/proposal-log/screenshot/${entry.estimateNumber}`}
                                   target="_blank"
                                   rel="noopener noreferrer"
                                   title="View source screenshot"
-                                  className="flex items-center gap-1 hover:opacity-80"
-                                  style={{ color: "var(--gold)" }}
+                                  className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md font-medium w-fit whitespace-nowrap hover:opacity-80 transition-opacity"
+                                  style={{ color: "var(--gold)", background: "color-mix(in srgb, var(--gold) 10%, transparent)" }}
                                   onClick={(e) => e.stopPropagation()}
                                   data-testid={`link-screenshot-${entry.id}`}
                                 >
-                                  <Camera className="w-3.5 h-3.5" />
-                                  <span>View</span>
+                                  <Camera className="w-3 h-3 flex-shrink-0" />
+                                  <span>Screenshot</span>
                                 </a>
                               )}
                               {entry.bcLink && /^https?:\/\//i.test(entry.bcLink) && (
@@ -1274,15 +1274,16 @@ export default function ProjectLogPage() {
                                   target="_blank"
                                   rel="noopener noreferrer"
                                   title="Open in BuildingConnected"
-                                  className="flex items-center gap-1 text-blue-500 hover:underline"
+                                  className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md font-medium w-fit whitespace-nowrap hover:opacity-80 transition-opacity"
+                                  style={{ color: "var(--info, #60a5fa)", background: "color-mix(in srgb, #60a5fa 10%, transparent)" }}
                                   onClick={(e) => e.stopPropagation()}
                                   data-testid={`link-bc-${entry.id}`}
                                 >
-                                  <Link2 className="w-3 h-3" />
-                                  <span>Open</span>
+                                  <Link2 className="w-3 h-3 flex-shrink-0" />
+                                  <span>BC Invite</span>
                                 </a>
                               )}
-                              {!entry.screenshotPath && !entry.bcLink && "\u2014"}
+                              {!entry.screenshotPath && !entry.bcLink && <span style={{ color: "var(--text-dim)" }}>—</span>}
                             </div>
                           </td>
                           <td className="py-3 px-3 text-xs" style={{ color: "var(--text-dim)" }} data-testid={`text-created-${entry.id}`}>

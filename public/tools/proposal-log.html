@@ -1213,7 +1213,7 @@ function defaultLayout() {
   return {
     order: COL_DEFS.map(c=>c.key),
     widths: Object.fromEntries(COL_DEFS.map(c=>[c.key, c.w])),
-    visible: Object.fromEntries(COL_DEFS.map(c=>[c.key, c.key !== 'estimateNumber']))
+    visible: Object.fromEntries(COL_DEFS.map(c=>[c.key, !['estimateNumber','bcLink','filePath'].includes(c.key)]))
   };
 }
 let layout = JSON.parse(localStorage.getItem('nbs_layout') || 'null') || defaultLayout();
@@ -1235,6 +1235,8 @@ const saveLayout = () => localStorage.setItem('nbs_layout', JSON.stringify(layou
   });
   layout.order = layout.order.filter(k => COL_DEFS.some(d => d.key === k));
   if (layout.visible['estimateNumber'] !== false) { layout.visible['estimateNumber'] = false; changed = true; }
+  if (layout.visible['bcLink'] !== false) { layout.visible['bcLink'] = false; changed = true; }
+  if (layout.visible['filePath'] !== false) { layout.visible['filePath'] = false; changed = true; }
   const pnIdx = layout.order.indexOf('projectName');
   if(pnIdx > 0) { layout.order.splice(pnIdx, 1); layout.order.unshift('projectName'); changed = true; }
   if(layout.visible['projectName'] === false) { layout.visible['projectName'] = true; changed = true; }
@@ -1634,12 +1636,13 @@ function buildRows() {
           break;
         case '_screenshot': {
           const parts=[];
-          if(p._screenshotId) parts.push(`<button class="btn-row" onclick="viewScreenshot('${p._screenshotId}')" title="View source screenshot" style="font-size:16px">&#128247;</button>`);
+          const pillBase='display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:6px;font-size:11px;font-weight:600;text-decoration:none;white-space:nowrap;cursor:pointer;border:none;line-height:1.4;';
+          if(p._screenshotId) parts.push(`<button onclick="viewScreenshot('${p._screenshotId}')" title="View source screenshot" style="${pillBase}background:rgba(198,160,76,0.12);color:#c6a04c;">&#128247; Screenshot</button>`);
           if(p.bcLink && /^https?:\/\//i.test(p.bcLink)) {
             const safeUrl=p.bcLink.replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
-            parts.push(`<a href="${safeUrl}" target="_blank" rel="noopener noreferrer" title="Open in BuildingConnected" class="btn-row" style="font-size:11px;text-decoration:none">&#128279; BC</a>`);
+            parts.push(`<a href="${safeUrl}" target="_blank" rel="noopener noreferrer" title="Open in BuildingConnected" style="${pillBase}background:rgba(96,165,250,0.12);color:#60a5fa;">&#128279; BC Invite</a>`);
           }
-          val=parts.join(' ')||'';
+          val=parts.length ? `<div style="display:flex;flex-direction:column;gap:4px;">${parts.join('')}</div>` : '';
           break;
         }
         default: val=p[key]||'\u2014';
