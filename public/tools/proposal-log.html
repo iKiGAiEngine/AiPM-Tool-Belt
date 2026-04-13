@@ -1201,7 +1201,7 @@ const COL_DEFS = [
   {key:'owner',          label:'Owner',               w:110, filter:'text'},
   {key:'filePath',       label:'File Path',           w:90,  filter:'none'},
   {key:'selfPerformEstimator', label:'SP Estimator',    w:120, filter:'text'},
-  {key:'_screenshot',    label:'Source',              w:70,  filter:'none'},
+  {key:'_screenshot',    label:'Source',              w:110, filter:'none'},
   {key:'_actions',       label:'',                    w:70,  filter:'none'},
 ];
 
@@ -1632,7 +1632,16 @@ function buildRows() {
               <span class="inline-edit-hint">\u270f</span></div>`;
           } else { val=p.selfPerformEstimator||'\u2014'; }
           break;
-        case '_screenshot': val=p._screenshotId?`<button class="btn-row" onclick="viewScreenshot('${p._screenshotId}')" title="View source screenshot" style="font-size:16px">&#128247;</button>`:''; break;
+        case '_screenshot': {
+          const parts=[];
+          if(p._screenshotId) parts.push(`<button class="btn-row" onclick="viewScreenshot('${p._screenshotId}')" title="View source screenshot" style="font-size:16px">&#128247;</button>`);
+          if(p.bcLink && /^https?:\/\//i.test(p.bcLink)) {
+            const safeUrl=p.bcLink.replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
+            parts.push(`<a href="${safeUrl}" target="_blank" rel="noopener noreferrer" title="Open in BuildingConnected" class="btn-row" style="font-size:11px;text-decoration:none">&#128279; BC</a>`);
+          }
+          val=parts.join(' ')||'';
+          break;
+        }
         default: val=p[key]||'\u2014';
       }
       const sortedCls = key===sk ? ' col-sorted' : '';

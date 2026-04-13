@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect, useRef } from "react";
 import { Link } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { ArrowLeft, Search, ChevronUp, ChevronDown, FileSpreadsheet, FileText, FlaskConical, Archive, Link2, CheckCircle2, RefreshCw, Check, X, FileEdit, Pencil, Download, FolderOpen, Loader2, MessageSquare, ListChecks, History, Calculator } from "lucide-react";
+import { ArrowLeft, Search, ChevronUp, ChevronDown, FileSpreadsheet, FileText, FlaskConical, Archive, Link2, CheckCircle2, RefreshCw, Check, X, FileEdit, Pencil, Download, FolderOpen, Loader2, MessageSquare, ListChecks, History, Calculator, Camera } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -34,6 +34,8 @@ interface ProposalLogEntry {
   anticipatedStart: string | null;
   anticipatedFinish: string | null;
   bcLink: string | null;
+  screenshotPath: string | null;
+  sourceType: string | null;
   isTest: boolean | null;
   isDraft: boolean | null;
   bcProjectId: string | null;
@@ -970,7 +972,7 @@ export default function ProjectLogPage() {
                       <th className="text-left py-3 px-3 font-semibold text-xs tracking-wide uppercase" style={{ color: "var(--gold)" }}>GC Est. Lead</th>
                       <th className="text-left py-3 px-3 font-semibold text-xs tracking-wide uppercase" style={{ color: "var(--gold)" }} data-testid="th-nbs-scopes">NBS Scopes</th>
                       <th className="text-left py-3 px-3 font-semibold text-xs tracking-wide uppercase" style={{ color: "var(--gold)" }} data-testid="th-notes">Notes</th>
-                      <th className="text-left py-3 px-3 font-semibold text-xs tracking-wide uppercase" style={{ color: "var(--gold)" }} data-testid="th-bc-link">BC Link</th>
+                      <th className="text-left py-3 px-3 font-semibold text-xs tracking-wide uppercase" style={{ color: "var(--gold)" }} data-testid="th-source">Source</th>
                       <th
                         className="text-left py-3 px-3 font-semibold cursor-pointer select-none text-xs tracking-wide uppercase"
                         style={{ color: "var(--gold)" }}
@@ -1249,18 +1251,39 @@ export default function ProjectLogPage() {
                               </div>
                             )}
                           </td>
-                          <td className="py-3 px-3 text-xs" data-testid={`text-bc-link-${entry.id}`}>
-                            {entry.bcLink && /^https?:\/\//i.test(entry.bcLink) ? (
-                              <a
-                                href={entry.bcLink}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="text-blue-500 hover:underline"
-                                onClick={(e) => e.stopPropagation()}
-                              >
-                                Open
-                              </a>
-                            ) : "\u2014"}
+                          <td className="py-3 px-3 text-xs" data-testid={`text-source-${entry.id}`}>
+                            <div className="flex items-center gap-2">
+                              {entry.screenshotPath && entry.estimateNumber && (
+                                <a
+                                  href={`/api/proposal-log/screenshot/${entry.estimateNumber}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  title="View source screenshot"
+                                  className="flex items-center gap-1 hover:opacity-80"
+                                  style={{ color: "var(--gold)" }}
+                                  onClick={(e) => e.stopPropagation()}
+                                  data-testid={`link-screenshot-${entry.id}`}
+                                >
+                                  <Camera className="w-3.5 h-3.5" />
+                                  <span>View</span>
+                                </a>
+                              )}
+                              {entry.bcLink && /^https?:\/\//i.test(entry.bcLink) && (
+                                <a
+                                  href={entry.bcLink}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  title="Open in BuildingConnected"
+                                  className="flex items-center gap-1 text-blue-500 hover:underline"
+                                  onClick={(e) => e.stopPropagation()}
+                                  data-testid={`link-bc-${entry.id}`}
+                                >
+                                  <Link2 className="w-3 h-3" />
+                                  <span>Open</span>
+                                </a>
+                              )}
+                              {!entry.screenshotPath && !entry.bcLink && "\u2014"}
+                            </div>
                           </td>
                           <td className="py-3 px-3 text-xs" style={{ color: "var(--text-dim)" }} data-testid={`text-created-${entry.id}`}>
                             <div>
@@ -1371,12 +1394,21 @@ export default function ProjectLogPage() {
             ) : (
               <>
                 <div className="p-4 space-y-3 max-h-[60vh] overflow-y-auto">
-                  {editingDraft.bcLink && (
-                    <div className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs" style={{ background: "var(--bg-input)", color: "var(--text-dim)" }}>
-                      <Link2 className="w-3.5 h-3.5 text-blue-500 flex-shrink-0" />
-                      <a href={editingDraft.bcLink} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline truncate">
-                        {editingDraft.bcLink}
-                      </a>
+                  {(editingDraft.bcLink || editingDraft.screenshotPath) && (
+                    <div className="flex items-center gap-3 px-3 py-2 rounded-lg text-xs" style={{ background: "var(--bg-input)", color: "var(--text-dim)" }}>
+                      <span className="font-semibold flex-shrink-0" style={{ color: "var(--text-dim)" }}>Source:</span>
+                      {editingDraft.bcLink && (
+                        <a href={editingDraft.bcLink} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-blue-500 hover:underline truncate" data-testid="link-modal-bc">
+                          <Link2 className="w-3.5 h-3.5 flex-shrink-0" />
+                          BuildingConnected
+                        </a>
+                      )}
+                      {editingDraft.screenshotPath && editingDraft.estimateNumber && (
+                        <a href={`/api/proposal-log/screenshot/${editingDraft.estimateNumber}`} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 hover:opacity-80" style={{ color: "var(--gold)" }} data-testid="link-modal-screenshot">
+                          <Camera className="w-3.5 h-3.5 flex-shrink-0" />
+                          View Screenshot
+                        </a>
+                      )}
                     </div>
                   )}
                   <div>
