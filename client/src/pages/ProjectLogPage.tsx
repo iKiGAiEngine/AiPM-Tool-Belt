@@ -45,6 +45,18 @@ interface ProposalLogEntry {
   draftApprovedAt: string | null;
   deletedAt: string | null;
   createdAt: string;
+  duplicateOverrideNote: string | null;
+}
+
+interface DuplicateMatch {
+  id: number;
+  projectName: string;
+  estimateNumber: string | null;
+  region: string | null;
+  gcEstimateLead: string | null;
+  estimateStatus: string | null;
+  proposalTotal: string | null;
+  score: number;
 }
 
 type SortField = "projectName" | "region" | "dueDate" | "estimateStatus" | "nbsEstimator" | "createdAt";
@@ -69,6 +81,10 @@ export default function ProjectLogPage() {
   const [noBidNotesText, setNoBidNotesText] = useState("");
   const [noBidPendingStatus, setNoBidPendingStatus] = useState<string>("");
   const [draftScopes, setDraftScopes] = useState<string[]>([]);
+  const [dupBlockedDraft, setDupBlockedDraft] = useState<ProposalLogEntry | null>(null);
+  const [dupBlockedData, setDupBlockedData] = useState<Record<string, string> | null>(null);
+  const [dupMatches, setDupMatches] = useState<DuplicateMatch[]>([]);
+  const [dupSelectedMatchId, setDupSelectedMatchId] = useState<number | null>(null);
   const scopePopupRef = useRef<HTMLDivElement>(null);
   const notesPopupRef = useRef<HTMLDivElement>(null);
   const { isTestMode } = useTestMode();
@@ -225,6 +241,14 @@ export default function ProjectLogPage() {
   const approveAndCreateMutation = useMutation({
     mutationFn: async ({ id, data }: { id: number; data: Record<string, string> }) => {
       const res = await apiRequest("POST", `/api/bc/drafts/${id}/approve-and-create`, data);
+      if (res.status === 409) {
+        const body = await res.json();
+        const err: any = new Error("duplicate_detected");
+        err.matches = body.matches || [];
+        err.draftId = id;
+        err.formData = data;
+        throw err;
+      }
       return res.json();
     },
     onSuccess: (result) => {
@@ -237,8 +261,58 @@ export default function ProjectLogPage() {
       });
       toast({ title: "Project created", description: `Project ${result.project.projectId} created with folder structure.` });
     },
+    onError: (error: any) => {
+      if (error?.message === "duplicate_detected") {
+        const matches: DuplicateMatch[] = error.matches || [];
+        setDupMatches(matches);
+        setDupSelectedMatchId(matches.length > 0 ? matches[0].id : null);
+        setDupBlockedDraft(editingDraft);
+        setDupBlockedData(error.formData || null);
+        setEditingDraft(null);
+        return;
+      }
+      toast({ title: "Error", description: "Failed to create project from draft.", variant: "destructive" });
+    },
+  });
+
+  const forceApproveMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: number; data: Record<string, string> }) => {
+      const res = await apiRequest("POST", `/api/bc/drafts/${id}/approve-and-create`, { ...data, force: true });
+      return res.json();
+    },
+    onSuccess: (result) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/proposal-log/all-entries"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/notifications"] });
+      setDupBlockedDraft(null);
+      setDupBlockedData(null);
+      setDupMatches([]);
+      setApproveResult({
+        projectId: result.project.projectId,
+        downloadUrl: result.downloadUrl,
+        projectName: result.project.projectName,
+      });
+      toast({ title: "Project created", description: `Project ${result.project.projectId} created with folder structure.` });
+    },
     onError: () => {
       toast({ title: "Error", description: "Failed to create project from draft.", variant: "destructive" });
+    },
+  });
+
+  const mergeAsBidRoundMutation = useMutation({
+    mutationFn: async ({ draftId, targetId, data }: { draftId: number; targetId: number; data: Record<string, string> }) => {
+      const res = await apiRequest("POST", `/api/bc/drafts/${draftId}/approve-and-create`, { ...data, mergeIntoId: targetId });
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/proposal-log/all-entries"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/notifications"] });
+      setDupBlockedDraft(null);
+      setDupBlockedData(null);
+      setDupMatches([]);
+      toast({ title: "Bid round added", description: "Draft merged as a new bid round on the existing project." });
+    },
+    onError: () => {
+      toast({ title: "Error", description: "Failed to merge draft as bid round.", variant: "destructive" });
     },
   });
 
@@ -915,6 +989,11 @@ export default function ProjectLogPage() {
                                     <FileEdit className="w-3 h-3 mr-1" />
                                     DRAFT
                                   </Badge>
+                                  {entry.duplicateOverrideNote?.startsWith("__dup:") && (
+                                    <Badge className="text-[10px] bg-orange-500/20 text-orange-400 border-orange-500/30 cursor-default" title="Possible duplicate detected — resolve when approving" data-testid={`badge-dup-warning-${entry.id}`}>
+                                      ⚠ May Be Duplicate
+                                    </Badge>
+                                  )}
                                   {(() => {
                                     const bidCount = entry.bcOpportunityIds ? (JSON.parse(entry.bcOpportunityIds) as string[]).length : 0;
                                     return bidCount > 1 ? (
@@ -1501,6 +1580,113 @@ export default function ProjectLogPage() {
               >
                 Save Notes
               </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {dupBlockedDraft && dupMatches.length > 0 && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60" onClick={() => { setDupBlockedDraft(null); setDupBlockedData(null); setDupMatches([]); }}>
+          <div
+            className="relative w-full max-w-xl rounded-xl overflow-hidden shadow-2xl"
+            style={{ background: "var(--bg-card)", border: "1px solid var(--border-ds)" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between p-4" style={{ borderBottom: "1px solid var(--border-ds)" }}>
+              <div>
+                <h3 className="text-sm font-heading font-semibold" style={{ color: "var(--text)" }}>Possible Duplicate Detected</h3>
+                <p className="text-[11px] mt-0.5" style={{ color: "var(--text-dim)" }}>
+                  <span className="font-medium" style={{ color: "var(--text)" }}>{dupBlockedDraft.projectName}</span> is similar to an existing proposal log entry. How would you like to proceed?
+                </p>
+              </div>
+              <button onClick={() => { setDupBlockedDraft(null); setDupBlockedData(null); setDupMatches([]); }} className="p-1 rounded hover:bg-white/10" data-testid="button-close-dup-modal">
+                <X className="h-4 w-4" style={{ color: "var(--text-dim)" }} />
+              </button>
+            </div>
+
+            <div className="p-4 space-y-3">
+              <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: "var(--gold)" }}>Matching existing entries</p>
+              {dupMatches.map((match) => (
+                <label
+                  key={match.id}
+                  className={`flex items-start gap-3 p-3 rounded-lg cursor-pointer transition-colors ${dupSelectedMatchId === match.id ? "ring-1 ring-orange-500/50" : ""}`}
+                  style={{ background: dupSelectedMatchId === match.id ? "var(--bg-input)" : "var(--bg)" }}
+                  onClick={() => setDupSelectedMatchId(match.id)}
+                  data-testid={`dup-match-${match.id}`}
+                >
+                  <input
+                    type="radio"
+                    name="dup-match"
+                    checked={dupSelectedMatchId === match.id}
+                    onChange={() => setDupSelectedMatchId(match.id)}
+                    className="mt-0.5 accent-orange-400"
+                  />
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-medium truncate" style={{ color: "var(--text)" }}>{match.projectName}</div>
+                    <div className="flex items-center gap-3 mt-1 text-[10px]" style={{ color: "var(--text-dim)" }}>
+                      {match.estimateNumber && <span>#{match.estimateNumber}</span>}
+                      {match.region && <span>{match.region}</span>}
+                      {match.estimateStatus && <span>{match.estimateStatus}</span>}
+                      <span className="text-orange-400 font-semibold">{Math.round(match.score * 100)}% match</span>
+                    </div>
+                  </div>
+                </label>
+              ))}
+            </div>
+
+            <div className="p-4 space-y-2" style={{ borderTop: "1px solid var(--border-ds)" }}>
+              <p className="text-xs mb-3" style={{ color: "var(--text-dim)" }}>Choose how to handle this BC draft:</p>
+              <div className="flex flex-col gap-2">
+                <Button
+                  size="sm"
+                  className="justify-start text-left h-auto py-2"
+                  style={{ background: "var(--bg-input)", color: "var(--text)" }}
+                  onClick={() => {
+                    if (!dupBlockedDraft || !dupSelectedMatchId || !dupBlockedData) return;
+                    mergeAsBidRoundMutation.mutate({ draftId: dupBlockedDraft.id, targetId: dupSelectedMatchId, data: dupBlockedData });
+                  }}
+                  disabled={!dupSelectedMatchId || mergeAsBidRoundMutation.isPending || forceApproveMutation.isPending}
+                  data-testid="button-dup-add-bid-round"
+                >
+                  {mergeAsBidRoundMutation.isPending ? <Loader2 className="w-3.5 h-3.5 mr-2 animate-spin" /> : <History className="w-3.5 h-3.5 mr-2 text-blue-400" />}
+                  <span>
+                    <span className="font-semibold">Add as Bid Round</span>
+                    <span className="block text-[10px] mt-0.5" style={{ color: "var(--text-dim)" }}>Record this as a new bid round on the selected existing entry. The draft will be closed.</span>
+                  </span>
+                </Button>
+                <Button
+                  size="sm"
+                  className="justify-start text-left h-auto py-2"
+                  style={{ background: "var(--bg-input)", color: "var(--text)" }}
+                  onClick={() => {
+                    if (!dupBlockedDraft || !dupBlockedData) return;
+                    forceApproveMutation.mutate({ id: dupBlockedDraft.id, data: dupBlockedData });
+                  }}
+                  disabled={forceApproveMutation.isPending || mergeAsBidRoundMutation.isPending}
+                  data-testid="button-dup-force-create"
+                >
+                  {forceApproveMutation.isPending ? <Loader2 className="w-3.5 h-3.5 mr-2 animate-spin" /> : <FolderOpen className="w-3.5 h-3.5 mr-2 text-green-400" />}
+                  <span>
+                    <span className="font-semibold">Create as Separate Project</span>
+                    <span className="block text-[10px] mt-0.5" style={{ color: "var(--text-dim)" }}>This is a different project — create it independently and override the duplicate warning.</span>
+                  </span>
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="justify-start text-left h-auto py-2"
+                  style={{ color: "var(--text-dim)" }}
+                  onClick={() => { setDupBlockedDraft(null); setDupBlockedData(null); setDupMatches([]); }}
+                  disabled={forceApproveMutation.isPending || mergeAsBidRoundMutation.isPending}
+                  data-testid="button-dup-keep-draft"
+                >
+                  <FileEdit className="w-3.5 h-3.5 mr-2" />
+                  <span>
+                    <span className="font-semibold">Keep as Draft</span>
+                    <span className="block text-[10px] mt-0.5">Return to the draft queue without taking action.</span>
+                  </span>
+                </Button>
+              </div>
             </div>
           </div>
         </div>

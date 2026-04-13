@@ -11,6 +11,7 @@ import { sendDraftNotificationEmail } from "../emailService";
 import { getActiveFolderTemplate, getActiveEstimateTemplate, getFolderTemplateFileBuffer, getEstimateTemplateFileBuffer } from "../templateStorage";
 import { matchRegionWithFallback } from "../regionMatcher";
 import { isSwinerton, matchSwinertonOffice, matchExtRegion } from "../swinertonOffices";
+import { findFuzzyDuplicates } from "../fuzzyDuplicates";
 import fs from "fs";
 import path from "path";
 import JSZip from "jszip";
@@ -960,6 +961,18 @@ export function registerBcSyncRoutes(app: Express) {
 
             created.push(entry.id);
 
+            // Run fuzzy duplicate check on newly created draft and flag it if matches found
+            try {
+              const dupMatches = await findFuzzyDuplicates(entryData.projectName || "");
+              if (dupMatches.length > 0) {
+                await db.update(proposalLogEntries)
+                  .set({ duplicateOverrideNote: `__dup:${JSON.stringify(dupMatches.slice(0, 3))}` })
+                  .where(eq(proposalLogEntries.id, entry.id));
+              }
+            } catch (dupErr) {
+              console.warn("[BC Sync] Dup check failed for draft, continuing:", dupErr);
+            }
+
             if (opp.projectId) {
               inRunCreatedByProjectId.set(opp.projectId, entry.id);
               entriesByBcProjectId.set(opp.projectId, entry);
@@ -1051,9 +1064,45 @@ export function registerBcSyncRoutes(app: Express) {
       if (!entry.isDraft) return res.status(400).json({ message: "Entry is not a draft" });
       if (entry.deletedAt) return res.status(400).json({ message: "Entry has been deleted" });
 
-      const estimateNumber = await generateProjectId();
+      const { force, mergeIntoId } = (req.body || {}) as { force?: boolean; mergeIntoId?: number };
 
       const approverName = user!.displayName || user!.email;
+
+      // Handle "add as bid round to existing entry" resolution
+      if (mergeIntoId) {
+        const targetId = typeof mergeIntoId === "number" ? mergeIntoId : parseInt(String(mergeIntoId));
+        if (!isNaN(targetId)) {
+          const [targetEntry] = await db.select().from(proposalLogEntries).where(eq(proposalLogEntries.id, targetId));
+          if (targetEntry) {
+            const currentRounds: any[] = Array.isArray(targetEntry.bidRounds) ? targetEntry.bidRounds : [];
+            const newRound = {
+              roundNumber: currentRounds.length + 1,
+              addedAt: new Date().toISOString(),
+              addedBy: approverName,
+              dueDate: entry.dueDate || null,
+              notes: `Merged from BC draft: ${entry.projectName}`,
+            };
+            await db.update(proposalLogEntries)
+              .set({ bidRounds: [...currentRounds, newRound] })
+              .where(eq(proposalLogEntries.id, targetId));
+          }
+        }
+        // Reject this draft
+        await db.update(proposalLogEntries)
+          .set({ deletedAt: new Date(), isDraft: false, duplicateOverrideNote: `Merged into entry #${mergeIntoId} as bid round by ${approverName}` })
+          .where(eq(proposalLogEntries.id, id));
+        return res.json({ merged: true, mergeIntoId });
+      }
+
+      // Run fuzzy duplicate check unless user explicitly forced approval
+      if (!force) {
+        const dupMatches = await findFuzzyDuplicates(entry.projectName || "");
+        if (dupMatches.length > 0) {
+          return res.status(409).json({ message: "Potential duplicate detected", matches: dupMatches });
+        }
+      }
+
+      const estimateNumber = await generateProjectId();
 
       const [updated] = await db.update(proposalLogEntries).set({
         isDraft: false,
@@ -1062,6 +1111,9 @@ export function registerBcSyncRoutes(app: Express) {
         draftApprovedBy: approverName,
         draftApprovedAt: new Date(),
         bcUpdateFlag: false,
+        duplicateOverrideNote: force && entry.duplicateOverrideNote?.startsWith("__dup:")
+          ? `Approved as separate project (duplicate warning acknowledged) by ${approverName}`
+          : entry.duplicateOverrideNote,
       }).where(eq(proposalLogEntries.id, id)).returning();
 
       await createNotificationForAdmins({
@@ -1094,7 +1146,42 @@ export function registerBcSyncRoutes(app: Express) {
       if (!entry.isDraft) return res.status(400).json({ message: "Entry is not a draft" });
       if (entry.deletedAt) return res.status(400).json({ message: "Entry has been deleted" });
 
-      const { projectName, region, dueDate, nbsEstimator, gcEstimateLead, owner, primaryMarket, notes, scopeList } = req.body || {};
+      const { projectName, region, dueDate, nbsEstimator, gcEstimateLead, owner, primaryMarket, notes, scopeList, force, mergeIntoId } = req.body || {};
+
+      const approverNameAC = user!.displayName || user!.email;
+
+      // Handle "add as bid round to existing entry" resolution
+      if (mergeIntoId) {
+        const targetId = typeof mergeIntoId === "number" ? mergeIntoId : parseInt(String(mergeIntoId));
+        if (!isNaN(targetId)) {
+          const [targetEntry] = await db.select().from(proposalLogEntries).where(eq(proposalLogEntries.id, targetId));
+          if (targetEntry) {
+            const currentRounds: any[] = Array.isArray(targetEntry.bidRounds) ? targetEntry.bidRounds : [];
+            const newRound = {
+              roundNumber: currentRounds.length + 1,
+              addedAt: new Date().toISOString(),
+              addedBy: approverNameAC,
+              dueDate: dueDate || entry.dueDate || null,
+              notes: `Merged from BC draft: ${projectName || entry.projectName}`,
+            };
+            await db.update(proposalLogEntries)
+              .set({ bidRounds: [...currentRounds, newRound] })
+              .where(eq(proposalLogEntries.id, targetId));
+          }
+        }
+        await db.update(proposalLogEntries)
+          .set({ deletedAt: new Date(), isDraft: false, duplicateOverrideNote: `Merged into entry #${mergeIntoId} as bid round by ${approverNameAC}` })
+          .where(eq(proposalLogEntries.id, id));
+        return res.json({ merged: true, mergeIntoId });
+      }
+
+      // Run fuzzy duplicate check unless user explicitly forced approval
+      if (!force) {
+        const dupMatches = await findFuzzyDuplicates((projectName || entry.projectName) || "");
+        if (dupMatches.length > 0) {
+          return res.status(409).json({ message: "Potential duplicate detected", matches: dupMatches });
+        }
+      }
 
       const finalProjectName = (projectName || entry.projectName || "").slice(0, 500);
       let rawRegion = region || entry.region || "";
@@ -1271,6 +1358,9 @@ export function registerBcSyncRoutes(app: Express) {
         draftApprovedBy: approverName,
         draftApprovedAt: new Date(),
         bcUpdateFlag: false,
+        duplicateOverrideNote: force && entry.duplicateOverrideNote?.startsWith("__dup:")
+          ? `Approved as separate project (duplicate warning acknowledged) by ${approverName}`
+          : entry.duplicateOverrideNote,
       }).where(eq(proposalLogEntries.id, id)).returning();
 
       await createNotificationForAdmins({
