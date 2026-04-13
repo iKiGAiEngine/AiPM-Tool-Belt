@@ -935,6 +935,17 @@ export const proposalLogEntries = pgTable("proposal_log_entries", {
   pendingDeletion: boolean("pending_deletion").default(false),
   pendingDeletionBy: varchar("pending_deletion_by", { length: 200 }),
   pendingDeletionAt: timestamp("pending_deletion_at"),
+  bidRounds: jsonb("bid_rounds").$type<Array<{
+    roundNumber: number;
+    addedAt: string;
+    addedBy: string;
+    nbsEstimator?: string;
+    proposalTotal?: string;
+    estimateStatus?: string;
+    dueDate?: string;
+    notes?: string;
+  }>>().default([]),
+  duplicateOverrideNote: text("duplicate_override_note"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 

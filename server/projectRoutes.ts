@@ -46,6 +46,7 @@ import { matchRegionWithFallback } from "./regionMatcher";
 import { isSwinerton, matchSwinertonOffice, matchExtRegion } from "./swinertonOffices";
 import { guessMarket, createProposalLogEntry, bulkCreateProposalLogEntries, getUnsyncedEntries, markEntriesSynced, getActiveProposalLogEntries, getAllProposalLogEntries, updateProposalLogEntryById, deleteProposalLogEntry, deleteProposalLogEntries, getAcknowledgedEntryIds, acknowledgeEntry, unacknowledgeEntry, clearAcknowledgementsForEntry, requestDeleteEntry, cancelDeleteRequest, approveDeleteEntry, rejectDeleteEntry } from "./proposalLogService";
 import { getSheetUrl, syncProposalLogToSheet, pullRepairAndPush, isGoogleSheetConfigured } from "./googleSheetSync";
+import { findFuzzyDuplicates } from "./fuzzyDuplicates";
 import { users, proposalLogEntries, regions, proposalChangeLog, estimateTemplates } from "@shared/schema";
 import { eq, sql } from "drizzle-orm";
 import { resolveChangedByName, recordFieldChanges, recordEntryCreation, recordEntryDeletion, recordDeletionRequested, recordDeletionRejected, recordDeleteCancelled } from "./changeLogger";
@@ -812,25 +813,53 @@ export function registerProjectRoutes(app: Express) {
           const frontendAnticipatedFinish = req.body.anticipatedFinish || "";
           const frontendBcLink = req.body.bcLink || "";
 
-          await createProposalLogEntry({
-            projectName: safeName,
-            estimateNumber: projectIdStr,
-            region: regionLabel,
-            primaryMarket: bestMarket,
-            dueDate,
-            owner: ownerName,
-            filePath: projectDir,
-            screenshotPath: screenshotSavePath,
-            projectDbId: project.id,
-            isTest: isTest === "true",
-            inviteDate: frontendInviteDate || undefined,
-            estimateStatus: frontendEstimateStatus || undefined,
-            anticipatedStart: frontendAnticipatedStart || undefined,
-            anticipatedFinish: frontendAnticipatedFinish || undefined,
-            nbsEstimator: undefined,
-            bcLink: frontendBcLink || undefined,
-          });
-          console.log(`[ProjectCreate] Proposal log entry created for ${safeName}`);
+          const mergeIntoProposalLogId = req.body.mergeIntoProposalLogId
+            ? parseInt(req.body.mergeIntoProposalLogId)
+            : null;
+          const duplicateOverrideNote = req.body.duplicateOverrideNote || null;
+
+          if (mergeIntoProposalLogId && !isNaN(mergeIntoProposalLogId)) {
+            // Add as new bid round to an existing proposal log entry
+            const userId = (req.session as any)?.userId;
+            const addedBy = await resolveChangedByName(userId);
+            const [existingEntry] = await db.select().from(proposalLogEntries).where(eq(proposalLogEntries.id, mergeIntoProposalLogId));
+            if (existingEntry) {
+              const currentRounds: any[] = Array.isArray(existingEntry.bidRounds) ? existingEntry.bidRounds : [];
+              const newRound = {
+                roundNumber: currentRounds.length + 1,
+                addedAt: new Date().toISOString(),
+                addedBy,
+                nbsEstimator: null,
+                proposalTotal: null,
+                estimateStatus: frontendEstimateStatus || null,
+                dueDate: dueDate || null,
+                notes: null,
+              };
+              await db.update(proposalLogEntries).set({ bidRounds: [...currentRounds, newRound] }).where(eq(proposalLogEntries.id, mergeIntoProposalLogId));
+              console.log(`[ProjectCreate] Added bid round to existing proposal log entry #${mergeIntoProposalLogId} for ${safeName}`);
+            }
+          } else {
+            await createProposalLogEntry({
+              projectName: safeName,
+              estimateNumber: projectIdStr,
+              region: regionLabel,
+              primaryMarket: bestMarket,
+              dueDate,
+              owner: ownerName,
+              filePath: projectDir,
+              screenshotPath: screenshotSavePath,
+              projectDbId: project.id,
+              isTest: isTest === "true",
+              inviteDate: frontendInviteDate || undefined,
+              estimateStatus: frontendEstimateStatus || undefined,
+              anticipatedStart: frontendAnticipatedStart || undefined,
+              anticipatedFinish: frontendAnticipatedFinish || undefined,
+              nbsEstimator: undefined,
+              bcLink: frontendBcLink || undefined,
+              duplicateOverrideNote: duplicateOverrideNote || undefined,
+            });
+            console.log(`[ProjectCreate] Proposal log entry created for ${safeName}`);
+          }
         } catch (err) {
           console.error("[ProjectCreate] Failed to create proposal log entry:", err);
         }
@@ -1770,12 +1799,89 @@ export function registerProjectRoutes(app: Express) {
     }
   });
 
+  // POST /api/proposal-log/check-duplicate — fuzzy match a project name against existing entries
+  app.post("/api/proposal-log/check-duplicate", async (req: Request, res: Response) => {
+    try {
+      const { projectName } = req.body;
+      if (!projectName || typeof projectName !== "string") {
+        return res.status(400).json({ message: "projectName required" });
+      }
+      const matches = await findFuzzyDuplicates(projectName);
+      res.json({ matches });
+    } catch (err) {
+      console.error("Duplicate check error:", err);
+      res.status(500).json({ message: "Duplicate check failed" });
+    }
+  });
+
+  // POST /api/proposal-log/entries/:id/add-bid-round — append a bid round to an existing entry
+  app.post("/api/proposal-log/entries/:id/add-bid-round", async (req: Request, res: Response) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) return res.status(400).json({ message: "Invalid id" });
+      const userId = (req.session as any)?.userId;
+      const addedBy = await resolveChangedByName(userId);
+      const { nbsEstimator, proposalTotal, estimateStatus, dueDate, notes } = req.body;
+
+      const [existing] = await db.select().from(proposalLogEntries).where(eq(proposalLogEntries.id, id));
+      if (!existing) return res.status(404).json({ message: "Entry not found" });
+
+      const currentRounds: any[] = Array.isArray(existing.bidRounds) ? existing.bidRounds : [];
+      const newRound = {
+        roundNumber: currentRounds.length + 1,
+        addedAt: new Date().toISOString(),
+        addedBy,
+        nbsEstimator: nbsEstimator || null,
+        proposalTotal: proposalTotal || null,
+        estimateStatus: estimateStatus || null,
+        dueDate: dueDate || null,
+        notes: notes || null,
+      };
+
+      const updatedRounds = [...currentRounds, newRound];
+      const topLevelUpdates: Record<string, any> = { bidRounds: updatedRounds };
+      if (proposalTotal !== undefined && proposalTotal !== null) topLevelUpdates.proposalTotal = proposalTotal;
+      if (estimateStatus) topLevelUpdates.estimateStatus = estimateStatus;
+      if (nbsEstimator) topLevelUpdates.nbsEstimator = nbsEstimator;
+      if (dueDate) topLevelUpdates.dueDate = dueDate;
+
+      const [updated] = await db.update(proposalLogEntries).set(topLevelUpdates).where(eq(proposalLogEntries.id, id)).returning();
+      res.json(updated);
+    } catch (err) {
+      console.error("Add bid round error:", err);
+      res.status(500).json({ message: "Failed to add bid round" });
+    }
+  });
+
   app.post("/api/proposal-log/entries/bulk", async (req: Request, res: Response) => {
     try {
-      const { entries } = req.body;
+      const { entries, checkDuplicates } = req.body;
       if (!Array.isArray(entries) || entries.length === 0) {
         return res.status(400).json({ message: "entries array required" });
       }
+
+      if (checkDuplicates) {
+        // Run fuzzy check on each row — separate clean vs flagged
+        const cleanEntries: any[] = [];
+        const flaggedEntries: Array<{ row: any; matches: any[] }> = [];
+        for (const entry of entries) {
+          const matches = await findFuzzyDuplicates(entry.projectName || "");
+          if (matches.length > 0) {
+            flaggedEntries.push({ row: entry, matches });
+          } else {
+            cleanEntries.push(entry);
+          }
+        }
+        // Insert clean rows immediately
+        const created = cleanEntries.length > 0 ? await bulkCreateProposalLogEntries(cleanEntries) : [];
+        const userId = (req.session as any)?.userId;
+        const changedBy = await resolveChangedByName(userId);
+        for (const entry of created) {
+          await recordEntryCreation(entry.id, entry.projectName || "", entry.estimateNumber, changedBy).catch(() => {});
+        }
+        return res.json({ created, flagged: flaggedEntries });
+      }
+
       const created = await bulkCreateProposalLogEntries(entries);
       const userId = (req.session as any)?.userId;
       const changedBy = await resolveChangedByName(userId);

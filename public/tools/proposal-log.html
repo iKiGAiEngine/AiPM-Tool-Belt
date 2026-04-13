@@ -537,6 +537,33 @@ th.col-drop-after::after{content:'';position:absolute;right:0;top:0;bottom:0;wid
 .irow-dup td:first-child{border-left:3px solid rgba(192,57,43,.5);}
 .irow-warn td:first-child{border-left:3px solid rgba(255,165,0,.5);}
 .import-flag{font-size:9px;padding:1px 5px;border-radius:3px;font-family:'Rajdhani',sans-serif;font-weight:700;white-space:nowrap;display:inline-block;}
+.bid-rounds-badge{display:inline-flex;align-items:center;gap:3px;font-size:9px;font-weight:700;font-family:'Rajdhani',sans-serif;letter-spacing:.4px;background:rgba(201,168,76,.16);color:var(--gold);border:1px solid var(--gold-dim);padding:0 5px;border-radius:3px;margin-left:5px;vertical-align:middle;line-height:16px;cursor:pointer;white-space:nowrap;}
+.bid-rounds-badge:hover{background:rgba(201,168,76,.28);}
+.dup-modal-overlay{position:fixed;inset:0;background:var(--overlay-bg);z-index:3000;display:flex;align-items:center;justify-content:center;}
+.dup-modal-box{background:var(--bg2);border:1px solid var(--border);border-radius:12px;width:min(560px,92vw);padding:24px;box-shadow:0 20px 60px rgba(0,0,0,.5);max-height:80vh;overflow-y:auto;}
+.dup-modal-title{font-family:'Rajdhani',sans-serif;font-size:18px;font-weight:700;color:var(--gold);margin-bottom:4px;}
+.dup-modal-sub{font-size:12px;color:var(--text-dim);margin-bottom:14px;line-height:1.5;}
+.dup-match-card{background:var(--bg3);border:1px solid var(--border);border-radius:7px;padding:10px 12px;margin-bottom:8px;cursor:default;}
+.dup-match-name{font-family:'Rajdhani',sans-serif;font-size:14px;font-weight:600;color:var(--text);}
+.dup-match-meta{font-size:11px;color:var(--text-dim);margin-top:2px;}
+.dup-match-score{font-size:10px;font-weight:700;font-family:'Rajdhani',sans-serif;color:var(--gold);margin-left:6px;}
+.dup-actions{display:flex;flex-direction:column;gap:8px;margin-top:14px;}
+.dup-merge-btn{display:flex;align-items:center;gap:6px;padding:8px 12px;border-radius:6px;border:1px solid var(--border);background:var(--bg3);color:var(--text);font-size:12px;cursor:pointer;width:100%;text-align:left;}
+.dup-merge-btn:hover{border-color:var(--gold);color:var(--gold);}
+.dup-action-row{display:flex;gap:8px;}
+.dup-action-row .btn-secondary{flex:1;}
+.dup-action-row .btn-warn{flex:1;background:rgba(201,168,76,.12);color:var(--gold);border:1px solid var(--gold-dim);border-radius:6px;padding:8px 12px;font-size:12px;font-family:'Rajdhani',sans-serif;font-weight:700;cursor:pointer;letter-spacing:.5px;}
+.dup-action-row .btn-warn:hover{background:rgba(201,168,76,.22);}
+.bid-history-modal-overlay{position:fixed;inset:0;background:var(--overlay-bg);z-index:3001;display:flex;align-items:center;justify-content:center;}
+.bid-history-modal-box{background:var(--bg2);border:1px solid var(--border);border-radius:12px;width:min(600px,92vw);padding:24px;box-shadow:0 20px 60px rgba(0,0,0,.5);max-height:80vh;overflow-y:auto;}
+.bid-history-title{font-family:'Rajdhani',sans-serif;font-size:18px;font-weight:700;color:var(--gold);margin-bottom:14px;}
+.bid-round-row{display:flex;gap:12px;padding:10px 0;border-bottom:1px solid var(--border);}
+.bid-round-num{font-family:'Rajdhani',sans-serif;font-size:20px;font-weight:700;color:var(--gold);min-width:32px;}
+.bid-round-detail{flex:1;font-size:12px;color:var(--text-dim);line-height:1.6;}
+.bid-round-detail strong{color:var(--text);}
+.bulk-conflict-table{width:100%;border-collapse:collapse;font-size:11px;margin-top:8px;}
+.bulk-conflict-table th{background:var(--bg3);padding:6px 8px;text-align:left;font-family:'Rajdhani',sans-serif;font-size:9px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--gold);border-bottom:1px solid var(--border);}
+.bulk-conflict-table td{padding:6px 8px;border-bottom:1px solid var(--lb-td-border);vertical-align:top;}
 .import-flag.dup{background:rgba(192,57,43,.2);color:var(--loss);border:1px solid rgba(192,57,43,.3);}
 .import-flag.warn{background:rgba(255,165,0,.15);color:#FFA500;border:1px solid rgba(255,165,0,.3);}
 .import-flag.ok{background:rgba(61,170,106,.12);color:var(--win);border:1px solid rgba(61,170,106,.25);}
@@ -1440,7 +1467,9 @@ function buildRows() {
           const nameText = p._pendingDeletion ? `<span style="text-decoration:line-through;opacity:.6">${p.projectName||'\u2014'}</span>` : (p.projectName||'\u2014');
           const canEstimate = userFeatures.includes('estimating-module');
           const estimateLink = p._serverDbId && !p._pendingDeletion && canEstimate ? `<a class="proj-name-link" href="/estimates/${p._serverDbId}" title="Open Estimate Module">${testBadge}${nameText}</a>` : `${testBadge}${nameText}`;
-          val=`<div class="proj-name" title="${p.projectName||''}">${pendingBadge}${estimateLink}</div>`;
+          const rounds = Array.isArray(p._bidRounds) ? p._bidRounds : [];
+          const roundBadge = rounds.length > 0 ? `<span class="bid-rounds-badge" onclick="openBidHistory(${oi})" title="View bid round history">\u21bb ${rounds.length} Round${rounds.length!==1?'s':''}</span>` : '';
+          val=`<div class="proj-name" title="${p.projectName||''}">${pendingBadge}${estimateLink}${roundBadge}</div>`;
           break;
         }
         case 'proposalTotal':
@@ -1875,7 +1904,7 @@ function openModal(idx=null) {
 function closeModal(){document.getElementById('modal').classList.remove('open');editIdx=null;}
 function outsideClose(e){if(e.target===document.getElementById('modal'))closeModal();}
 
-function saveProposal(){
+async function saveProposal(){
   const name=document.getElementById('f-projectName').value.trim();
   if(!name){alert('Project name is required.');return;}
   const formVals={};
@@ -1911,10 +1940,22 @@ function saveProposal(){
           .catch(e=>{showToast('\u26a0\ufe0f Could not reach server — changes may not be saved','error');console.warn('Failed to sync edit to server:',e);});
       }
     }
+    save();closeModal();
   } else {
+    // New entry — run duplicate check first
+    try {
+      const res = await fetch('/api/proposal-log/check-duplicate',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'include',body:JSON.stringify({projectName:name})});
+      if(res.ok){
+        const json=await res.json();
+        if(json.matches && json.matches.length>0){
+          showDupModal(formVals, json.matches);
+          return;
+        }
+      }
+    } catch(e){ console.warn('Dup check failed, proceeding:',e); }
     data.push(formVals);
+    save();closeModal();
   }
-  save();closeModal();
 }
 function autoPromoteStatus(){
   const a=document.getElementById('f-proposalTotal'), s=document.getElementById('f-estimateStatus');
@@ -3245,20 +3286,75 @@ function updateImportFooter(){
   const n=document.querySelectorAll('.import-row-check:checked').length;
   document.getElementById('import-footer-count').textContent=`${n} of ${importRows.length} rows selected`;
 }
+function entryToServerPayload(e){
+  return {
+    projectName:e.projectName||'',
+    estimateNumber:e.estimateNumber||'',
+    region:e.region||'',
+    dueDate:e.dueDate||'',
+    nbsEstimator:e.nbsEstimator||'',
+    gcEstimateLead:e.gcEstimateLead||'',
+    selfPerformEstimator:e.selfPerformEstimator||'',
+    proposalTotal:e.proposalTotal||'',
+    estimateStatus:e.estimateStatus||'Estimating',
+    anticipatedStart:e.anticipatedStart||'',
+    anticipatedFinish:e.anticipatedFinish||'',
+    bcLink:e.bcLink||'',
+    sourceType:e.sourceType||'',
+    sourceEmail:e.sourceEmail||'',
+    sourceEmailSubject:e.sourceEmailSubject||'',
+    sourceAttachmentUrl:e.sourceAttachmentUrl||'',
+    isTest:e._isTest||false,
+  };
+}
+
 async function commitImport(){
-  let added=0;
   const newEntries=[];
   document.querySelectorAll('.import-row-check').forEach((cb,idx)=>{
     if(!cb.checked)return;
     const r={...importRows[idx]};
     delete r._rowNum;delete r._isDuplicate;delete r._regionWarning;delete r._rawLocation;
-    data.push(r);
     newEntries.push(r);
-    added++;
   });
-  save();closeImportModal();render();
-  showToast(`\u2713 ${added} proposal${added!==1?'s':''} imported`);
-  if(newEntries.length>0) pushLocalEntriesToServer(newEntries);
+  if(!newEntries.length){closeImportModal();return;}
+  closeImportModal();
+  showToast(`\u231b Checking ${newEntries.length} row${newEntries.length!==1?'s':''} for duplicates\u2026`);
+  try{
+    const res=await fetch('/api/proposal-log/entries/bulk',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({entries:newEntries.map(entryToServerPayload), checkDuplicates:true}),
+      credentials:'include'
+    });
+    if(!res.ok){
+      // Fallback: treat all as clean and add locally
+      newEntries.forEach(r=>{data.push(r);});
+      save();render();
+      showToast(`\u2713 ${newEntries.length} proposal${newEntries.length!==1?'s':''} imported (offline)`);
+      return;
+    }
+    const result=await res.json();
+    // Detect new format { created, flagged } vs old array format
+    const created=Array.isArray(result)?result:(result.created||[]);
+    const flagged=Array.isArray(result)?[]:(result.flagged||[]);
+    // Add created entries to local data
+    let matched=0;
+    for(const serverEntry of created){
+      const local=serverEntryToLocal(serverEntry);
+      // Try to find existing local entry to update
+      const existingIdx=data.findIndex(d=>!d._serverDbId&&d.estimateNumber===serverEntry.estimateNumber&&d.projectName===serverEntry.projectName);
+      if(existingIdx>=0){data[existingIdx]=local;matched++;}
+      else{data.push(local);}
+    }
+    save();render();
+    if(created.length>0) showToast(`\u2713 ${created.length} proposal${created.length!==1?'s':''} imported`);
+    if(flagged.length>0) showBulkConflictModal(flagged);
+  }catch(err){
+    console.warn('Failed to push imported entries:',err);
+    newEntries.forEach(r=>{data.push(r);});
+    save();render();
+    showToast(`\u2713 ${newEntries.length} proposal${newEntries.length!==1?'s':''} imported (server error)`);
+  }
 }
 
 async function pushLocalEntriesToServer(entries){
@@ -3266,36 +3362,19 @@ async function pushLocalEntriesToServer(entries){
     const res=await fetch('/api/proposal-log/entries/bulk',{
       method:'POST',
       headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({entries:entries.map(e=>({
-        projectName:e.projectName||'',
-        estimateNumber:e.estimateNumber||'',
-        region:e.region||'',
-        dueDate:e.dueDate||'',
-        nbsEstimator:e.nbsEstimator||'',
-        gcEstimateLead:e.gcEstimateLead||'',
-        selfPerformEstimator:e.selfPerformEstimator||'',
-        proposalTotal:e.proposalTotal||'',
-        estimateStatus:e.estimateStatus||'Estimating',
-        anticipatedStart:e.anticipatedStart||'',
-        anticipatedFinish:e.anticipatedFinish||'',
-        bcLink:e.bcLink||'',
-        sourceType:e.sourceType||'',
-        sourceEmail:e.sourceEmail||'',
-        sourceEmailSubject:e.sourceEmailSubject||'',
-        sourceAttachmentUrl:e.sourceAttachmentUrl||'',
-        isTest:e._isTest||false,
-      }))}),
+      body:JSON.stringify({entries:entries.map(entryToServerPayload)}),
       credentials:'include'
     });
     if(!res.ok){console.warn('Bulk push failed:',res.status);return;}
     const created=await res.json();
+    const createdArr=Array.isArray(created)?created:(created.created||[]);
     let matched=0;
-    for(const serverEntry of created){
+    for(const serverEntry of createdArr){
       const local=data.find(d=>!d._serverDbId&&d.estimateNumber===serverEntry.estimateNumber&&d.projectName===serverEntry.projectName);
       if(local){local._serverDbId=serverEntry.id;matched++;}
     }
     if(matched>0)save();
-    console.log(`[Import] Pushed ${created.length} entries to server, matched ${matched} locally`);
+    console.log(`[Import] Pushed ${createdArr.length} entries to server, matched ${matched} locally`);
   }catch(err){console.warn('Failed to push imported entries to server:',err);}
 }
 
@@ -3527,6 +3606,7 @@ function serverEntryToLocal(e, existingLocal) {
     _serverDbId: e.id,
     _pendingDeletion: e.pendingDeletion || false,
     _pendingDeletionBy: e.pendingDeletionBy || '',
+    _bidRounds: Array.isArray(e.bidRounds) ? e.bidRounds : [],
   });
 }
 
@@ -3610,8 +3690,228 @@ async function initApp() {
 
 }
 
+// ── Duplicate Resolution Modal (T005) ──────────────────────────────────────
+let _dupPendingFormVals = null;
+
+function showDupModal(formVals, matches){
+  _dupPendingFormVals = formVals;
+  const name = formVals.projectName || '';
+  document.getElementById('dup-modal-sub').innerHTML =
+    `The project name <strong>${name}</strong> is similar to ${matches.length===1?'an existing project':`${matches.length} existing projects`} in the Proposal Log.<br>How would you like to proceed?`;
+  const matchList = document.getElementById('dup-match-list');
+  matchList.innerHTML = matches.map(m=>`
+    <div class="dup-match-card">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start">
+        <div>
+          <div class="dup-match-name">${m.projectName||''}</div>
+          <div class="dup-match-meta">${[m.estimateNumber,m.region,m.gcEstimateLead].filter(Boolean).join(' · ')}</div>
+          ${m.proposalTotal?`<div class="dup-match-meta">Total: ${m.proposalTotal}</div>`:''}
+        </div>
+        <div style="text-align:right;flex-shrink:0">
+          ${m.estimateStatus?`<span style="font-size:9px;background:rgba(201,168,76,.18);color:var(--gold);padding:1px 6px;border-radius:3px;font-family:Rajdhani,sans-serif;font-weight:700">${m.estimateStatus}</span>`:''}
+          <div class="dup-match-score">${Math.round(m.score*100)}% match</div>
+        </div>
+      </div>
+    </div>`).join('');
+  const actions = document.getElementById('dup-actions');
+  const mergeBtns = matches.map(m=>`
+    <button class="dup-merge-btn" onclick="dupAddBidRound(${m.id}, '${(m.projectName||'').replace(/'/g,"\\'")}')">
+      &#8635; Add as Re-bid to: <strong>${m.projectName||''}</strong>${m.estimateNumber?` (${m.estimateNumber})`:''}
+    </button>`).join('');
+  actions.innerHTML = `
+    <div class="dup-action-row">
+      <button class="btn-secondary" onclick="closeDupModal()">&#10005; Cancel</button>
+      <button class="btn-warn" onclick="dupCreateAnyway()">&#9888; Create Anyway</button>
+    </div>
+    <div style="margin-top:6px;font-size:10px;color:var(--text-dim);font-family:Rajdhani,sans-serif;font-weight:700;letter-spacing:.5px;text-transform:uppercase">Or add as re-bid to existing:</div>
+    ${mergeBtns}`;
+  document.getElementById('dup-modal').style.display='flex';
+}
+
+function closeDupModal(){
+  document.getElementById('dup-modal').style.display='none';
+  _dupPendingFormVals=null;
+}
+
+function dupCreateAnyway(){
+  if(!_dupPendingFormVals)return;
+  data.push(_dupPendingFormVals);
+  save();closeModal();closeDupModal();render();
+  // Push new entry to server
+  pushLocalEntriesToServer([_dupPendingFormVals]);
+}
+
+async function dupAddBidRound(existingId, existingName){
+  if(!_dupPendingFormVals)return;
+  try{
+    const payload={
+      nbsEstimator:_dupPendingFormVals.nbsEstimator||undefined,
+      proposalTotal:_dupPendingFormVals.proposalTotal||undefined,
+      estimateStatus:_dupPendingFormVals.estimateStatus||undefined,
+      dueDate:_dupPendingFormVals.dueDate||undefined,
+    };
+    const res=await fetch(`/api/proposal-log/entries/${existingId}/add-bid-round`,{method:'POST',headers:{'Content-Type':'application/json'},credentials:'include',body:JSON.stringify(payload)});
+    if(res.ok){
+      const updated=await res.json();
+      // Update local entry
+      const localIdx=data.findIndex(d=>d._serverDbId===existingId);
+      if(localIdx>=0){
+        data[localIdx]._bidRounds=updated.bidRounds||[];
+        save();
+      }
+      closeDupModal();closeModal();render();
+      showToast(`\u21bb Bid round added to "${existingName}"`);
+    } else {
+      showToast('\u26a0\ufe0f Failed to add bid round — try again','error');
+    }
+  }catch(e){
+    showToast('\u26a0\ufe0f Could not reach server','error');
+  }
+}
+
+// ── Bulk Conflict Review Modal (T006) ──────────────────────────────────────
+function showBulkConflictModal(flagged){
+  _bulkFlagged=flagged;
+  document.getElementById('bulk-conflict-sub').innerHTML =
+    `<strong>${flagged.length}</strong> row${flagged.length!==1?'s':''} from your import matched existing proposals. Choose what to do with each.`;
+  const body=document.getElementById('bulk-conflict-body');
+  body.innerHTML=flagged.map((f,fi)=>{
+    const row=f.row;
+    const matches=f.matches;
+    const topMatch=matches[0];
+    return `<div style="border:1px solid var(--border);border-radius:7px;padding:12px;margin-bottom:10px;background:var(--bg3)">
+      <div style="font-family:Rajdhani,sans-serif;font-size:14px;font-weight:700;color:var(--text);margin-bottom:4px">${row.projectName||'—'}</div>
+      <div style="font-size:11px;color:var(--text-dim);margin-bottom:8px">${[row.estimateNumber,row.region].filter(Boolean).join(' · ')}</div>
+      <div style="font-size:10px;color:var(--text-dim);margin-bottom:6px;font-family:Rajdhani,sans-serif;font-weight:700;letter-spacing:.5px;text-transform:uppercase">Possible match${matches.length>1?'es':''}:</div>
+      ${matches.slice(0,3).map(m=>`<div class="dup-match-card" style="margin-bottom:5px">
+        <div class="dup-match-name" style="font-size:12px">${m.projectName} <span class="dup-match-score">${Math.round(m.score*100)}% match</span></div>
+        <div class="dup-match-meta">${[m.estimateNumber,m.region].filter(Boolean).join(' · ')} &middot; ${m.estimateStatus||''}</div>
+      </div>`).join('')}
+      <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap">
+        <button class="btn-secondary" style="font-size:11px;padding:5px 10px" onclick="bulkConflictCreate(${fi})">&#10010; Create Anyway</button>
+        ${matches.slice(0,2).map(m=>`<button class="btn-secondary" style="font-size:11px;padding:5px 10px" onclick="bulkConflictMerge(${fi},${m.id},'${(m.projectName||'').replace(/'/g,"\\'")}')">&#8635; Re-bid on: ${m.projectName.substring(0,30)}${m.projectName.length>30?'…':''}</button>`).join('')}
+        <button class="btn-secondary" style="font-size:11px;padding:5px 10px;color:var(--text-dim)" onclick="bulkConflictSkip(${fi})">Skip</button>
+      </div>
+    </div>`;
+  }).join('');
+  document.getElementById('bulk-conflict-modal').style.display='flex';
+}
+
+function closeBulkConflictModal(){document.getElementById('bulk-conflict-modal').style.display='none';}
+
+async function bulkConflictCreate(fi){
+  const flagged=_bulkFlagged;
+  if(!flagged||!flagged[fi])return;
+  const row=flagged[fi].row;
+  try{
+    const res=await fetch('/api/proposal-log/entries/bulk',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'include',body:JSON.stringify({entries:[entryToServerPayload(row)]})});
+    if(res.ok){
+      const result=await res.json();
+      const created=Array.isArray(result)?result:(result.created||[]);
+      if(created.length>0){data.push(serverEntryToLocal(created[0]));save();render();}
+      showToast(`\u2713 "${row.projectName}" created`);
+    }
+  }catch(e){showToast('\u26a0\ufe0f Failed to create entry','error');}
+  // Remove this item from the modal
+  _bulkFlagged.splice(fi,1);
+  if(_bulkFlagged.length===0){closeBulkConflictModal();}
+  else{showBulkConflictModal(_bulkFlagged);}
+}
+
+async function bulkConflictMerge(fi,existingId,existingName){
+  const flagged=_bulkFlagged;
+  if(!flagged||!flagged[fi])return;
+  const row=flagged[fi].row;
+  try{
+    const payload={nbsEstimator:row.nbsEstimator||undefined,proposalTotal:row.proposalTotal||undefined,estimateStatus:row.estimateStatus||undefined,dueDate:row.dueDate||undefined};
+    const res=await fetch(`/api/proposal-log/entries/${existingId}/add-bid-round`,{method:'POST',headers:{'Content-Type':'application/json'},credentials:'include',body:JSON.stringify(payload)});
+    if(res.ok){
+      const updated=await res.json();
+      const localIdx=data.findIndex(d=>d._serverDbId===existingId);
+      if(localIdx>=0){data[localIdx]._bidRounds=updated.bidRounds||[];save();}
+      showToast(`\u21bb Bid round added to "${existingName}"`);
+      render();
+    }
+  }catch(e){showToast('\u26a0\ufe0f Failed to add bid round','error');}
+  _bulkFlagged.splice(fi,1);
+  if(_bulkFlagged.length===0){closeBulkConflictModal();}
+  else{showBulkConflictModal(_bulkFlagged);}
+}
+
+function bulkConflictSkip(fi){
+  _bulkFlagged.splice(fi,1);
+  if(_bulkFlagged.length===0){closeBulkConflictModal();}
+  else{showBulkConflictModal(_bulkFlagged);}
+}
+
+let _bulkFlagged=[];
+
+// ── Bid Round History Modal (T007) ──────────────────────────────────────────
+function openBidHistory(oi){
+  const p=data[oi];
+  if(!p)return;
+  document.getElementById('bid-history-title').textContent=`Bid Round History — ${p.projectName||''}`;
+  const rounds=Array.isArray(p._bidRounds)?p._bidRounds:[];
+  const body=document.getElementById('bid-history-body');
+  if(!rounds.length){
+    body.innerHTML='<div style="color:var(--text-dim);font-size:12px;padding:12px 0">No bid rounds recorded yet.</div>';
+  } else {
+    body.innerHTML=rounds.map(r=>`
+      <div class="bid-round-row">
+        <div class="bid-round-num">R${r.roundNumber}</div>
+        <div class="bid-round-detail">
+          <strong>${new Date(r.addedAt).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})}</strong> · Added by ${r.addedBy||'—'}
+          ${r.dueDate?`<br>Due: <strong>${r.dueDate}</strong>`:''}
+          ${r.estimateStatus?`<br>Status: <strong>${r.estimateStatus}</strong>`:''}
+          ${r.proposalTotal?`<br>Total: <strong>$${Number(r.proposalTotal).toLocaleString()}</strong>`:''}
+          ${r.nbsEstimator?`<br>Estimator: <strong>${r.nbsEstimator}</strong>`:''}
+          ${r.notes?`<br>Notes: ${r.notes}`:''}
+        </div>
+      </div>`).join('');
+  }
+  document.getElementById('bid-history-modal').style.display='flex';
+}
+
+function closeBidHistoryModal(){document.getElementById('bid-history-modal').style.display='none';}
+
 checkAuth();
 </script>
+
+<!-- Duplicate Resolution Modal (T005 / T006) -->
+<div class="dup-modal-overlay" id="dup-modal" style="display:none" onclick="if(event.target===this)closeDupModal()">
+  <div class="dup-modal-box">
+    <div class="dup-modal-title">&#9888; Possible Duplicate Detected</div>
+    <div class="dup-modal-sub" id="dup-modal-sub"></div>
+    <div id="dup-match-list"></div>
+    <div class="dup-actions" id="dup-actions"></div>
+  </div>
+</div>
+
+<!-- Bid Round History Modal (T007) -->
+<div class="bid-history-modal-overlay" id="bid-history-modal" style="display:none" onclick="if(event.target===this)closeBidHistoryModal()">
+  <div class="bid-history-modal-box">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+      <div class="bid-history-title" id="bid-history-title">Bid Round History</div>
+      <button class="btn-row" onclick="closeBidHistoryModal()">&#10005;</button>
+    </div>
+    <div id="bid-history-body"></div>
+  </div>
+</div>
+
+<!-- Bulk Conflict Review Modal (T006) -->
+<div class="dup-modal-overlay" id="bulk-conflict-modal" style="display:none" onclick="if(event.target===this)closeBulkConflictModal()">
+  <div class="dup-modal-box" style="width:min(720px,96vw)">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+      <div class="dup-modal-title">&#127981; Bulk Import — Possible Duplicates</div>
+      <button class="btn-row" onclick="closeBulkConflictModal()">&#10005;</button>
+    </div>
+    <div class="dup-modal-sub" id="bulk-conflict-sub"></div>
+    <div id="bulk-conflict-body" style="max-height:52vh;overflow-y:auto"></div>
+    <div style="display:flex;gap:8px;margin-top:14px">
+      <button class="btn-secondary" onclick="closeBulkConflictModal()">Done</button>
+    </div>
+  </div>
+</div>
 
 </body>
 </html>

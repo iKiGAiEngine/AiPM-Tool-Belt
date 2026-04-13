@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import { Link, useLocation } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { ArrowLeft, Upload, FileText, Loader2, CheckCircle, AlertCircle, FolderOpen, CalendarIcon, X, Download, ExternalLink, ImageIcon, Camera } from "lucide-react";
+import { ArrowLeft, Upload, FileText, Loader2, CheckCircle, AlertCircle, FolderOpen, CalendarIcon, X, Download, ExternalLink, ImageIcon, Camera, GitMerge, AlertTriangle } from "lucide-react";
 import { format } from "date-fns";
 import { useTestMode } from "@/lib/testMode";
 import { useToolUsage } from "@/lib/useToolUsage";
@@ -56,6 +56,18 @@ interface ProgressData {
 interface CreatedProjectResponse extends Project {
   hasPlans?: boolean;
   hasSpecs?: boolean;
+}
+
+interface DuplicateMatch {
+  id: number;
+  projectName: string;
+  estimateNumber: string | null;
+  region: string | null;
+  gcEstimateLead: string | null;
+  estimateStatus: string | null;
+  proposalTotal: string | null;
+  createdAt: string;
+  score: number;
 }
 
 export default function ProjectStartPage() {
@@ -113,6 +125,9 @@ export default function ProjectStartPage() {
   const xhrRef = useRef<XMLHttpRequest | null>(null);
   const pollingStartTime = useRef<number>(0);
   const [progressData, setProgressData] = useState<ProgressData | null>(null);
+
+  const [dupModal, setDupModal] = useState<{ open: boolean; matches: DuplicateMatch[] }>({ open: false, matches: [] });
+  const [dupCheckLoading, setDupCheckLoading] = useState(false);
 
   const hasPlans = createdProject?.hasPlans ?? !!plans.file;
   const hasSpecs = createdProject?.hasSpecs ?? !!specs.file;
@@ -348,7 +363,7 @@ export default function ProjectStartPage() {
     }, 2000);
   }, [stopPolling]);
 
-  const handleSubmit = useCallback(() => {
+  const handleSubmit = useCallback((opts?: { mergeIntoProposalLogId?: number; duplicateOverrideNote?: string }) => {
     if (!projectName || !regionCode || !dueDate) return;
 
     const formData = new FormData();
@@ -371,6 +386,9 @@ export default function ProjectStartPage() {
     if (anticipatedFinish) formData.append("anticipatedFinish", anticipatedFinish);
     if (estimateStatus) formData.append("estimateStatus", estimateStatus);
     if (bcLink) formData.append("bcLink", bcLink);
+
+    if (opts?.mergeIntoProposalLogId) formData.append("mergeIntoProposalLogId", String(opts.mergeIntoProposalLogId));
+    if (opts?.duplicateOverrideNote) formData.append("duplicateOverrideNote", opts.duplicateOverrideNote);
 
     if (screenshotFile) {
       formData.append("screenshot", screenshotFile);
@@ -458,6 +476,32 @@ export default function ProjectStartPage() {
     xhr.timeout = 600000;
     xhr.send(formData);
   }, [projectName, regionCode, dueDate, plans.file, specs.file, isTestMode, startProgressPolling, screenshotPreview, extractionResult, primaryMarket, inviteDate, anticipatedStart, anticipatedFinish, estimateStatus, bcLink]);
+
+  const checkDuplicatesThenSubmit = useCallback(async () => {
+    if (!projectName || !regionCode || !dueDate) return;
+    setDupCheckLoading(true);
+    try {
+      const res = await fetch("/api/proposal-log/check-duplicate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ projectName }),
+      });
+      if (res.ok) {
+        const json = await res.json();
+        const matches: DuplicateMatch[] = json.matches || [];
+        if (matches.length > 0) {
+          setDupModal({ open: true, matches });
+          setDupCheckLoading(false);
+          return;
+        }
+      }
+    } catch {
+      // fail open — proceed with submission
+    }
+    setDupCheckLoading(false);
+    handleSubmit();
+  }, [projectName, regionCode, dueDate, handleSubmit]);
 
   const handleGoToProject = () => {
     if (createdProject) {
@@ -1188,14 +1232,116 @@ export default function ProjectStartPage() {
             )}
           </div>
           <Button
-            onClick={handleSubmit}
-            disabled={!isReady}
+            onClick={checkDuplicatesThenSubmit}
+            disabled={!isReady || dupCheckLoading}
             data-testid="button-create-project"
           >
-            Create Project
+            {dupCheckLoading ? (
+              <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Checking…</>
+            ) : "Create Project"}
           </Button>
         </div>
       </div>
+
+      {/* Duplicate Resolution Modal */}
+      <AlertDialog open={dupModal.open} onOpenChange={(open) => !open && setDupModal({ open: false, matches: [] })}>
+        <AlertDialogContent className="max-w-2xl" data-testid="dialog-duplicate-check">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="w-5 h-5 text-yellow-500" />
+              Possible Duplicate Detected
+            </AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div>
+                <p className="mb-3 text-sm">
+                  The project name <span className="font-semibold text-foreground">"{projectName}"</span> is similar to {dupModal.matches.length === 1 ? "an existing project" : `${dupModal.matches.length} existing projects`} in the Proposal Log. How would you like to proceed?
+                </p>
+                <div className="space-y-2 mb-4 max-h-56 overflow-y-auto">
+                  {dupModal.matches.map((m) => (
+                    <div key={m.id} className="rounded-md border border-border bg-muted/40 px-3 py-2 text-xs">
+                      <div className="flex items-start justify-between gap-2">
+                        <div>
+                          <div className="font-semibold text-foreground text-sm">{m.projectName}</div>
+                          <div className="text-muted-foreground mt-0.5">
+                            {[m.estimateNumber, m.region, m.gcEstimateLead].filter(Boolean).join(" · ")}
+                          </div>
+                        </div>
+                        <div className="flex flex-col items-end gap-1 shrink-0">
+                          {m.estimateStatus && (
+                            <span className="inline-block px-2 py-0.5 rounded text-[10px] font-semibold bg-primary/20 text-primary">{m.estimateStatus}</span>
+                          )}
+                          <span className="text-muted-foreground text-[10px]">{Math.round(m.score * 100)}% match</span>
+                        </div>
+                      </div>
+                      {m.proposalTotal && (
+                        <div className="mt-1 text-muted-foreground">Total: {m.proposalTotal}</div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+                <div className="flex flex-col gap-2 sm:flex-row sm:gap-3">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="flex-1"
+                    data-testid="button-dup-cancel"
+                    onClick={() => setDupModal({ open: false, matches: [] })}
+                  >
+                    <X className="w-4 h-4 mr-1" /> Cancel
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="flex-1 border-yellow-600/50 text-yellow-400 hover:bg-yellow-900/20"
+                    data-testid="button-dup-create-anyway"
+                    onClick={() => {
+                      setDupModal({ open: false, matches: [] });
+                      handleSubmit({ duplicateOverrideNote: "User confirmed not a duplicate" });
+                    }}
+                  >
+                    <AlertCircle className="w-4 h-4 mr-1" /> Create Anyway
+                  </Button>
+                  {dupModal.matches.length === 1 && (
+                    <Button
+                      size="sm"
+                      className="flex-1"
+                      data-testid="button-dup-merge"
+                      onClick={() => {
+                        const match = dupModal.matches[0];
+                        setDupModal({ open: false, matches: [] });
+                        handleSubmit({ mergeIntoProposalLogId: match.id });
+                      }}
+                    >
+                      <GitMerge className="w-4 h-4 mr-1" /> Add as Re-Bid to "{dupModal.matches[0]?.projectName?.substring(0, 30)}{(dupModal.matches[0]?.projectName?.length ?? 0) > 30 ? "…" : ""}"
+                    </Button>
+                  )}
+                </div>
+                {dupModal.matches.length > 1 && (
+                  <div className="mt-3 space-y-1">
+                    <p className="text-xs text-muted-foreground font-medium">Or add as a re-bid to one of these:</p>
+                    {dupModal.matches.map((m) => (
+                      <Button
+                        key={m.id}
+                        variant="outline"
+                        size="sm"
+                        className="w-full justify-start text-xs"
+                        data-testid={`button-dup-merge-${m.id}`}
+                        onClick={() => {
+                          setDupModal({ open: false, matches: [] });
+                          handleSubmit({ mergeIntoProposalLogId: m.id });
+                        }}
+                      >
+                        <GitMerge className="w-3 h-3 mr-1.5 shrink-0" />
+                        Re-bid on: {m.projectName} {m.estimateNumber ? `(${m.estimateNumber})` : ""}
+                      </Button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <AlertDialog open={yearCheckOpen} onOpenChange={setYearCheckOpen}>
         <AlertDialogContent data-testid="dialog-year-check">

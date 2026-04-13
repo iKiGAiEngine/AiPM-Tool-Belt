@@ -1,0 +1,65 @@
+Feature: Fuzzy Duplicate Detection & Bid Round Merging in the Proposal Log
+Before building: Inspect the current proposal log database table schema, the Project Start creation flow, the manual proposal creation flow, and the Google Sheets import flow. Understand all three entry paths fully before writing any code. Do not modify any existing functionality — this is purely additive.
+
+The Problem:
+Duplicate proposal log entries get created when the same project is entered more than once — either re-bid, re-imported, or entered slightly differently. This inflates project counts in reporting. The existing name-match warning is too strict and misses variations. There is no way to merge a new bid into an existing project record.
+
+PART 1 — Fuzzy Duplicate Detection
+On all three entry paths (Project Start OCR, manual create form, Google Sheets import), before any new record is saved, run a fuzzy match check against all existing projectName values:
+
+Normalize both names before comparing: lowercase, trim whitespace, remove punctuation, strip these noise words: "the, at, and, or, of, a, an, LLC, Inc, builders, construction, group, co, company, phase"
+Tokenize both names into individual words after normalization
+Calculate similarity using Jaccard similarity on the word token sets (intersection divided by union)
+Flag for review if similarity score ≥ 0.40 (40% word overlap — intentionally loose to catch variations)
+Show a maximum of 5 matches, ranked highest score first
+Do not hard-block the save. Always give the user the choice to proceed
+
+For Google Sheets bulk import specifically:
+
+Run the fuzzy check on each row individually before inserting
+If any row has a match ≥ 0.40, do not insert that row automatically
+Instead, collect all flagged rows and show them in a Bulk Conflict Review screen — a list where each flagged row shows the incoming data on the left and the top matching existing record on the right, with three options per row: "Add as Bid Round," "Create as New," or "Skip This Row"
+Rows with no match import normally without interruption
+
+
+PART 2 — Duplicate Resolution Modal (single entry paths)
+When a match is found during Project Start or manual create, pause the save and show a modal with:
+
+A header: "Possible Duplicate Detected"
+Up to 5 matching existing records shown as summary cards, sorted by match score descending. Each card shows: Project Name, Region, GC Estimate Lead, Status, Proposal Total, Created Date, and match score as a percentage
+Three action buttons:
+
+"Add as New Bid Round" — merges the new entry into the selected existing record (user must select which card if multiple are shown)
+"Create as Separate Project" — saves as a new row; also saves a duplicateOverrideNote field on the new record with value: "User confirmed new project despite similarity to [matched project name] on [date]"
+"Cancel" — closes modal, returns user to the form with their data intact
+
+
+
+
+PART 3 — Bid Rounds Data Structure
+Add a bidRounds column (JSONB type) to the proposal log table. Default value: empty array [].
+When "Add as New Bid Round" is chosen:
+
+Pull the following fields from the new form data the user just submitted: nbsEstimator, proposalTotal, estimateStatus, dueDate, notes
+Append a new object to the existing record's bidRounds array with those fields plus: roundNumber (auto-incremented, length of existing array + 1), addedAt (current timestamp), addedBy (currently logged-in user's name)
+Update the top-level record fields to reflect the latest round: set proposalTotal, estimateStatus, nbsEstimator, and dueDate to the values from the new round
+Do not create a new row. The existing record is the single source of truth for this project
+
+Also add a duplicateOverrideNote column (text, nullable) to the proposal log table for the override paper trail described in Part 2.
+
+PART 4 — Bid Round History in the Table View
+In the Proposal Log table, on any row where bidRounds array length is greater than 1:
+
+Show a small pill badge next to the project name: "X Rounds" (e.g., "3 Rounds") styled consistently with the existing status pills
+Clicking the badge opens a modal (not inline expand) titled "Bid Round History — [Project Name]"
+The modal shows a simple timeline list of all rounds, each showing: Round #, Date Added, Estimator, Proposal Total, Status at that round, Notes
+Most recent round at the top
+
+
+PART 5 — Reporting Integrity
+
+All existing dashboard stat calculations (total proposals, win rate, pipeline value, active count) must count by unique project rows only — one row = one project regardless of bid round count
+Audit every existing stats calculation and confirm it is not double-counting. Do not change the calculation method, just verify and note if any adjustment was needed
+
+
+Do not change: table column layout, existing status options, filter behavior, search behavior, auth, Google Sheets sync logic (outside of the import conflict handling above), or any other existing feature. All changes are additive only.
