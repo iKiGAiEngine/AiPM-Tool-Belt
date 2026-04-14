@@ -958,8 +958,10 @@ function EstimatingModuleInner() {
         setReviewChecked(new Set(rows.map(r => r.id)));
       }
     } catch (err: any) {
-      toast({ title: "Processing failed", description: err.message, variant: "destructive" });
-      setQuotes(prev => prev.map(q => q.id === quoteId ? { ...q, status: "failed" } : q));
+      const errMsg = err.message || "Network error — processing failed";
+      toast({ title: "Processing failed", description: errMsg, variant: "destructive" });
+      setQuotes(prev => prev.map(q => q.id === quoteId ? { ...q, status: "failed", latestError: errMsg } : q));
+      setReviewQuote(prev => prev && prev.id === quoteId ? { ...prev, status: "failed", latestError: errMsg } : prev);
     } finally {
       setReviewProcessing(false);
     }
@@ -2392,13 +2394,22 @@ ${html}
                       <span style={{ color: "#f97316" }}>Freight: {fmt(n(q.freight))}</span>
                       {q.taxIncluded && <span className="px-1 py-0.5 rounded text-xs" style={{ background: "#f9731610", color: "#f97316" }}>Tax Incl</span>}
                       <div className="flex items-center gap-1 ml-auto">
-                        {q.hasBackup && q.status !== "approved" && (
+                        {q.hasBackup && (q.status === null || q.status === "failed") && (
+                          <button
+                            onClick={() => processQuote(q.id)}
+                            disabled={reviewProcessing}
+                            title={q.status === "failed" ? "Retry AI extraction" : "Run AI extraction"}
+                            className="text-xs px-2 py-0.5 rounded flex items-center gap-1 font-semibold"
+                            style={{ background: "#ef444415", border: "1px solid #ef444450", color: "#ef4444", opacity: reviewProcessing ? 0.5 : 1 }}>
+                            <Zap className="w-3 h-3" /> {q.status === "failed" ? "Retry AI" : "Run AI"}
+                          </button>
+                        )}
+                        {q.hasBackup && (q.status === "needs_review" || q.status === "ready_for_approval") && (
                           <button
                             onClick={() => openReviewModal(q)}
-                            disabled={q.status === "processing"}
                             title="AI Review & Approve this quote"
                             className="text-xs px-2 py-0.5 rounded flex items-center gap-1 font-semibold"
-                            style={{ background: "var(--gold)15", border: "1px solid var(--gold)50", color: "var(--gold)", opacity: q.status === "processing" ? 0.5 : 1 }}>
+                            style={{ background: "var(--gold)15", border: "1px solid var(--gold)50", color: "var(--gold)" }}>
                             <Zap className="w-3 h-3" /> Review
                           </button>
                         )}
