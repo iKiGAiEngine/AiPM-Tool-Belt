@@ -2452,6 +2452,16 @@ ${html}
                         </button>
                       </div>
                     </div>
+                    {(q.latestError?.includes("Scanned/image PDF") || q.latestError?.includes("extractable text")) && (
+                      <div className="mt-2 text-xs px-2 py-1 rounded" style={{ background: "#ef44440f", color: "#ef4444", border: "1px solid #ef444430" }}>
+                        Scanned/image PDF detected — this V1 flow only supports PDFs with extractable text.
+                      </div>
+                    )}
+                    {q.latestError && !(q.latestError.includes("Scanned/image PDF") || q.latestError.includes("extractable text")) && q.status === "failed" && (
+                      <div className="mt-2 text-xs px-2 py-1 rounded" style={{ background: "#ef44440f", color: "#ef4444", border: "1px solid #ef444430" }}>
+                        {q.latestError}
+                      </div>
+                    )}
                   </div>
                 ))}
 
@@ -2525,6 +2535,9 @@ ${html}
                           Quote Attachment {extractingTotal && <span style={{ color: "var(--gold)" }}>⟳ extracting…</span>}
                           {newQuoteFile && !extractingTotal && <span style={{ color: "#22c55e" }}> ✓ {newQuoteFile.name}</span>}
                         </label>
+                        <p className="text-xs" style={{ color: "var(--text-muted)" }}>
+                          Text-based PDFs are supported in V1. Scanned/image PDFs are not yet supported.
+                        </p>
                         <input
                           data-testid="input-quote-file"
                           type="file"
