@@ -1278,4 +1278,103 @@ Category context: ${catLabel || category || "Division 10 Specialties"}`;
       res.status(500).json({ message: "Failed to fetch spec section" });
     }
   });
+
+  // ── BULK LINE ITEM OPERATIONS ──
+
+  app.post("/api/estimates/:estimateId/line-items/bulk-transfer", async (req: Request, res: Response) => {
+    try {
+      const estimateId = parseInt(req.params.estimateId);
+      if (isNaN(estimateId)) return res.status(400).json({ message: "Invalid estimate id" });
+      const { lineItemIds, targetScopeId } = req.body;
+      if (!Array.isArray(lineItemIds) || lineItemIds.length === 0) return res.status(400).json({ message: "lineItemIds array required" });
+      if (!targetScopeId) return res.status(400).json({ message: "targetScopeId required" });
+      const failures: { lineItemId: number; reason: string }[] = [];
+      let processed = 0;
+      for (const rawId of lineItemIds) {
+        const itemId = parseInt(rawId);
+        if (isNaN(itemId)) { failures.push({ lineItemId: rawId, reason: "Invalid id" }); continue; }
+        try {
+          const [existing] = await db.select().from(estimateLineItems)
+            .where(and(eq(estimateLineItems.id, itemId), eq(estimateLineItems.estimateId, estimateId)));
+          if (!existing) { failures.push({ lineItemId: itemId, reason: "Not found" }); continue; }
+          await db.update(estimateLineItems).set({ category: targetScopeId }).where(eq(estimateLineItems.id, itemId));
+          processed++;
+        } catch { failures.push({ lineItemId: itemId, reason: "DB error" }); }
+      }
+      res.json({ success: true, processed, failed: failures.length, failures });
+    } catch (err) {
+      console.error("bulk-transfer error:", err);
+      res.status(500).json({ message: "Bulk transfer failed" });
+    }
+  });
+
+  app.post("/api/estimates/:estimateId/line-items/bulk-delete", async (req: Request, res: Response) => {
+    try {
+      const estimateId = parseInt(req.params.estimateId);
+      if (isNaN(estimateId)) return res.status(400).json({ message: "Invalid estimate id" });
+      const { lineItemIds } = req.body;
+      if (!Array.isArray(lineItemIds) || lineItemIds.length === 0) return res.status(400).json({ message: "lineItemIds array required" });
+      const failures: { lineItemId: number; reason: string }[] = [];
+      let processed = 0;
+      for (const rawId of lineItemIds) {
+        const itemId = parseInt(rawId);
+        if (isNaN(itemId)) { failures.push({ lineItemId: rawId, reason: "Invalid id" }); continue; }
+        try {
+          const [existing] = await db.select().from(estimateLineItems)
+            .where(and(eq(estimateLineItems.id, itemId), eq(estimateLineItems.estimateId, estimateId)));
+          if (!existing) { failures.push({ lineItemId: itemId, reason: "Not found" }); continue; }
+          await db.delete(estimateLineItems).where(eq(estimateLineItems.id, itemId));
+          processed++;
+        } catch { failures.push({ lineItemId: itemId, reason: "DB error" }); }
+      }
+      res.json({ success: true, processed, failed: failures.length, failures });
+    } catch (err) {
+      console.error("bulk-delete error:", err);
+      res.status(500).json({ message: "Bulk delete failed" });
+    }
+  });
+
+  app.post("/api/estimates/:estimateId/line-items/bulk-apply-vendor-quote", async (req: Request, res: Response) => {
+    try {
+      const estimateId = parseInt(req.params.estimateId);
+      if (isNaN(estimateId)) return res.status(400).json({ message: "Invalid estimate id" });
+      const { lineItemIds, vendorQuoteId, overrideExistingCosts } = req.body;
+      if (!Array.isArray(lineItemIds) || lineItemIds.length === 0) return res.status(400).json({ message: "lineItemIds array required" });
+      if (!vendorQuoteId) return res.status(400).json({ message: "vendorQuoteId required" });
+      const quoteIdInt = parseInt(vendorQuoteId);
+      if (isNaN(quoteIdInt)) return res.status(400).json({ message: "Invalid vendorQuoteId" });
+      const [quote] = await db.select().from(estimateQuotes)
+        .where(and(eq(estimateQuotes.id, quoteIdInt), eq(estimateQuotes.estimateId, estimateId)));
+      if (!quote) return res.status(404).json({ message: "Quote not found" });
+      const failures: { lineItemId: number; reason: string }[] = [];
+      let processed = 0;
+      for (const rawId of lineItemIds) {
+        const itemId = parseInt(rawId);
+        if (isNaN(itemId)) { failures.push({ lineItemId: rawId, reason: "Invalid id" }); continue; }
+        try {
+          const [existing] = await db.select().from(estimateLineItems)
+            .where(and(eq(estimateLineItems.id, itemId), eq(estimateLineItems.estimateId, estimateId)));
+          if (!existing) { failures.push({ lineItemId: itemId, reason: "Not found" }); continue; }
+          const updates: Record<string, any> = { quoteId: quoteIdInt, hasBackup: true };
+          if (overrideExistingCosts && quote.pricingMode === "lump_sum" && n(quote.lumpSumTotal) > 0) {
+            const linkedIds = lineItemIds.map((id: any) => parseInt(id)).filter((id: number) => !isNaN(id));
+            const linkedItems = await db.select().from(estimateLineItems)
+              .where(and(eq(estimateLineItems.estimateId, estimateId)));
+            const targetItems = linkedItems.filter(i => linkedIds.includes(i.id));
+            const totalQty = targetItems.reduce((s, i) => s + i.qty, 0);
+            if (totalQty > 0) {
+              const unitCost = n(quote.lumpSumTotal) / totalQty;
+              updates.unitCost = String(unitCost.toFixed(2));
+            }
+          }
+          await db.update(estimateLineItems).set(updates).where(eq(estimateLineItems.id, itemId));
+          processed++;
+        } catch { failures.push({ lineItemId: itemId, reason: "DB error" }); }
+      }
+      res.json({ success: true, processed, failed: failures.length, failures });
+    } catch (err) {
+      console.error("bulk-apply-vendor-quote error:", err);
+      res.status(500).json({ message: "Bulk apply vendor quote failed" });
+    }
+  });
 }

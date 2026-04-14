@@ -340,6 +340,16 @@ function EstimatingModuleInner() {
   const specImageInputRef = useRef<HTMLInputElement>(null);
   const specPdfInputRef = useRef<HTMLInputElement>(null);
 
+  const [selectedLineItemIds, setSelectedLineItemIds] = useState<Set<number>>(new Set());
+  const [isBulkActionLoading, setIsBulkActionLoading] = useState(false);
+  const [activeBulkAction, setActiveBulkAction] = useState<"transfer" | "delete" | "vendorQuote" | null>(null);
+  const [isTransferModalOpen, setIsTransferModalOpen] = useState(false);
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [isVendorQuoteModalOpen, setIsVendorQuoteModalOpen] = useState(false);
+  const [transferTargetScope, setTransferTargetScope] = useState("");
+  const [applyQuoteId, setApplyQuoteId] = useState("");
+  const [applyQuoteOverrideCosts, setApplyQuoteOverrideCosts] = useState(false);
+
   // ── Fetch regions for dropdown ──
   const { data: dbRegions = [] } = useQuery<{ id: number; code: string; name: string | null; isActive: boolean }[]>({
     queryKey: ["/api/regions", "active"],
@@ -456,6 +466,11 @@ function EstimatingModuleInner() {
     window.addEventListener("beforeunload", handler);
     return () => window.removeEventListener("beforeunload", handler);
   }, [isDirty]);
+
+  // ── Clear selection when leaving line items stage ──
+  useEffect(() => {
+    if (stage !== "lineItems") setSelectedLineItemIds(new Set());
+  }, [stage]);
 
   // ══════════════════════════════════════════════════
   // CALCULATIONS ENGINE
@@ -737,6 +752,98 @@ function EstimatingModuleInner() {
     try { await apiRequest("DELETE", `/api/estimates/line-items/${itemId}`); }
     catch { toast({ title: "Error", description: "Could not delete item.", variant: "destructive" }); }
   }, []);
+
+  const clearSelection = useCallback(() => setSelectedLineItemIds(new Set()), []);
+
+  const toggleLineItemSelection = useCallback((id: number) => {
+    setSelectedLineItemIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }, []);
+
+  const bulkTransfer = useCallback(async (targetScopeId: string, selectedIds: Set<number>) => {
+    if (!estimateId || !targetScopeId || isBulkActionLoading) return;
+    setIsBulkActionLoading(true);
+    setActiveBulkAction("transfer");
+    try {
+      const res = await fetch(`/api/estimates/${estimateId}/line-items/bulk-transfer`, {
+        method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include",
+        body: JSON.stringify({ lineItemIds: Array.from(selectedIds), targetScopeId }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setLineItems(prev => prev.map(i => selectedIds.has(i.id) ? { ...i, category: targetScopeId } : i));
+        clearSelection();
+        setIsTransferModalOpen(false);
+        setTransferTargetScope("");
+        toast({ title: "Transferred", description: `${data.processed} item(s) moved to ${ALL_SCOPES.find(s => s.id === targetScopeId)?.label || targetScopeId}.` });
+      } else {
+        toast({ title: "Transfer Failed", description: data.message || "Unknown error.", variant: "destructive" });
+      }
+    } catch {
+      toast({ title: "Error", description: "Transfer request failed.", variant: "destructive" });
+    } finally {
+      setIsBulkActionLoading(false);
+      setActiveBulkAction(null);
+    }
+  }, [estimateId, isBulkActionLoading, clearSelection]);
+
+  const bulkDelete = useCallback(async (selectedIds: Set<number>) => {
+    if (!estimateId || isBulkActionLoading) return;
+    setIsBulkActionLoading(true);
+    setActiveBulkAction("delete");
+    try {
+      const res = await fetch(`/api/estimates/${estimateId}/line-items/bulk-delete`, {
+        method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include",
+        body: JSON.stringify({ lineItemIds: Array.from(selectedIds) }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setLineItems(prev => prev.filter(i => !selectedIds.has(i.id)));
+        setAllocations(prev => prev.filter(a => !selectedIds.has(a.lineItemId)));
+        clearSelection();
+        setIsDeleteModalOpen(false);
+        toast({ title: "Deleted", description: `${data.processed} item(s) deleted.` });
+      } else {
+        toast({ title: "Delete Failed", description: data.message || "Unknown error.", variant: "destructive" });
+      }
+    } catch {
+      toast({ title: "Error", description: "Delete request failed.", variant: "destructive" });
+    } finally {
+      setIsBulkActionLoading(false);
+      setActiveBulkAction(null);
+    }
+  }, [estimateId, isBulkActionLoading, clearSelection]);
+
+  const bulkApplyVendorQuote = useCallback(async (quoteId: number, overrideCosts: boolean, selectedIds: Set<number>) => {
+    if (!estimateId || !quoteId || isBulkActionLoading) return;
+    setIsBulkActionLoading(true);
+    setActiveBulkAction("vendorQuote");
+    try {
+      const res = await fetch(`/api/estimates/${estimateId}/line-items/bulk-apply-vendor-quote`, {
+        method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include",
+        body: JSON.stringify({ lineItemIds: Array.from(selectedIds), vendorQuoteId: quoteId, overrideExistingCosts: overrideCosts }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setLineItems(prev => prev.map(i => selectedIds.has(i.id) ? { ...i, quoteId, hasBackup: true } : i));
+        clearSelection();
+        setIsVendorQuoteModalOpen(false);
+        setApplyQuoteId("");
+        setApplyQuoteOverrideCosts(false);
+        toast({ title: "Quote Applied", description: `${data.processed} updated${data.failed > 0 ? `, ${data.failed} skipped` : ""}.` });
+      } else {
+        toast({ title: "Apply Failed", description: data.message || "Unknown error.", variant: "destructive" });
+      }
+    } catch {
+      toast({ title: "Error", description: "Apply request failed.", variant: "destructive" });
+    } finally {
+      setIsBulkActionLoading(false);
+      setActiveBulkAction(null);
+    }
+  }, [estimateId, isBulkActionLoading, clearSelection]);
 
   // ── Quote mutations ──
   const addQuote = useCallback(async () => {
@@ -1371,6 +1478,16 @@ ${html}
 
   const catQuotes = quotes.filter(q => q.category === activeCat);
   const catLineItems = lineItems.filter(i => i.category === activeCat);
+  const selectedCount = selectedLineItemIds.size;
+  const allVisibleSelected = catLineItems.length > 0 && catLineItems.every(i => selectedLineItemIds.has(i.id));
+  const someVisibleSelected = catLineItems.some(i => selectedLineItemIds.has(i.id)) && !allVisibleSelected;
+  const toggleSelectAllVisible = () => {
+    if (allVisibleSelected) {
+      setSelectedLineItemIds(prev => { const next = new Set(prev); catLineItems.forEach(i => next.delete(i.id)); return next; });
+    } else {
+      setSelectedLineItemIds(prev => { const next = new Set(prev); catLineItems.forEach(i => next.add(i.id)); return next; });
+    }
+  };
   const pendingOh = ohLog.filter(l => l.status === "pending" && l.type !== "fee");
   const pendingFee = ohLog.filter(l => l.status === "pending" && l.type === "fee");
 
@@ -2523,11 +2640,42 @@ ${html}
                   </div>
                 )}
 
+                {selectedCount > 0 && (
+                  <div className="flex items-center gap-3 px-4 py-2.5 mb-2 rounded-lg"
+                    style={{ background: "var(--bg-card)", border: "1px solid var(--gold)40", borderLeft: "3px solid var(--gold)" }}>
+                    <span className="text-sm font-semibold" style={{ color: "var(--gold)" }}>{selectedCount} selected</span>
+                    <div className="flex gap-2 flex-1 flex-wrap">
+                      <button onClick={() => setIsTransferModalOpen(true)} disabled={isBulkActionLoading}
+                        className="text-xs px-3 py-1.5 rounded font-semibold transition-opacity"
+                        style={{ background: "#06b6d415", border: "1px solid #06b6d440", color: "#06b6d4", opacity: isBulkActionLoading ? 0.5 : 1 }}>
+                        ↗ Transfer to Scope
+                      </button>
+                      <button onClick={() => setIsVendorQuoteModalOpen(true)} disabled={isBulkActionLoading}
+                        className="text-xs px-3 py-1.5 rounded font-semibold transition-opacity"
+                        style={{ background: "#a855f715", border: "1px solid #a855f740", color: "#a855f7", opacity: isBulkActionLoading ? 0.5 : 1 }}>
+                        📎 Apply Vendor Quote
+                      </button>
+                      <button onClick={() => setIsDeleteModalOpen(true)} disabled={isBulkActionLoading}
+                        className="text-xs px-3 py-1.5 rounded font-semibold transition-opacity"
+                        style={{ background: "#ef444415", border: "1px solid #ef444440", color: "#ef4444", opacity: isBulkActionLoading ? 0.5 : 1 }}>
+                        🗑 Delete
+                      </button>
+                    </div>
+                    <button onClick={clearSelection} className="text-xs" style={{ color: "var(--text-muted)" }}>✕ Clear</button>
+                  </div>
+                )}
+
                 {catLineItems.length > 0 && (
                   <div className="overflow-x-auto">
                     <table className="w-full text-xs">
                       <thead>
                         <tr style={{ background: "var(--bg3)", borderBottom: "1px solid var(--border-ds)" }}>
+                          <th className="px-2 py-2 text-center" style={{ width: "3%" }}>
+                            <input type="checkbox" aria-label="Select all line items"
+                              checked={allVisibleSelected} ref={el => { if (el) el.indeterminate = someVisibleSelected; }}
+                              onChange={toggleSelectAllVisible}
+                              style={{ accentColor: "var(--gold)", cursor: "pointer" }} />
+                          </th>
                           <th className="text-left px-3 py-2 font-semibold" style={{ color: "var(--text-muted)", width: "10%" }}>Plan Callout</th>
                           <th className="text-left px-2 py-2 font-semibold" style={{ color: "var(--text-muted)", width: "28%" }}>Description</th>
                           <th className="text-left px-2 py-2 font-semibold" style={{ color: "var(--text-muted)", width: "12%" }}>Manufacturer</th>
@@ -2548,8 +2696,14 @@ ${html}
                           const isExpanded = expandedItems.has(item.id);
                           return (
                             <Fragment key={item.id}>
-                              <tr style={{ borderBottom: "1px solid var(--border-ds)", background: idx % 2 === 0 ? "transparent" : "var(--bg3)50" }}
+                              <tr style={{ borderBottom: "1px solid var(--border-ds)", background: selectedLineItemIds.has(item.id) ? "var(--gold)08" : idx % 2 === 0 ? "transparent" : "var(--bg3)50" }}
                                 className="hover:bg-blue-500/5 transition-colors">
+                                <td className="px-2 py-1.5 text-center">
+                                  <input type="checkbox" aria-label={`Select line item ${item.name || item.id}`}
+                                    checked={selectedLineItemIds.has(item.id)}
+                                    onChange={() => toggleLineItemSelection(item.id)}
+                                    style={{ accentColor: "var(--gold)", cursor: "pointer" }} />
+                                </td>
                                 <td className="px-3 py-1.5">
                                   <input value={item.planCallout || ""} onChange={e => updateLineItem(item.id, "planCallout", e.target.value)}
                                     className="w-full text-xs bg-transparent border-none outline-none"
@@ -2625,7 +2779,7 @@ ${html}
                               {/* Allocation row */}
                               {isExpanded && breakoutGroups.length > 0 && (
                                 <tr key={`alloc-${item.id}`} style={{ background: "#06b6d408", borderBottom: "1px solid var(--border-ds)" }}>
-                                  <td colSpan={11} className="px-4 py-2">
+                                  <td colSpan={12} className="px-4 py-2">
                                     <div className="flex items-center gap-3 text-xs">
                                       <span style={{ color: "#06b6d4", fontWeight: 600, minWidth: 80 }}>Allocate Qty {item.qty}:</span>
                                       {breakoutGroups.map(g => {
@@ -3822,6 +3976,100 @@ ${html}
                 </div>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* ── BULK ACTION MODALS ── */}
+
+      {isTransferModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: "rgba(0,0,0,0.6)" }}
+          onClick={e => { if (e.target === e.currentTarget) setIsTransferModalOpen(false); }}>
+          <div className="rounded-xl p-6 w-full max-w-md shadow-2xl" style={{ background: "var(--bg-card)", border: "1px solid var(--border-ds)" }}>
+            <h3 className="text-base font-semibold mb-1" style={{ color: "var(--text)" }}>Transfer to Scope</h3>
+            <p className="text-xs mb-4" style={{ color: "var(--text-muted)" }}>Move {selectedCount} line item(s) to a different scope.</p>
+            <label className="block text-xs font-semibold mb-1" style={{ color: "var(--text-secondary)" }}>Target Scope</label>
+            <select value={transferTargetScope} onChange={e => setTransferTargetScope(e.target.value)}
+              className="w-full text-sm px-3 py-2 rounded mb-4"
+              style={{ background: "var(--bg3)", border: "1px solid var(--border-ds)", color: "var(--text)" }}>
+              <option value="">— Select scope —</option>
+              {ALL_SCOPES.filter(s => s.id !== activeCat).map(s => (
+                <option key={s.id} value={s.id}>{s.icon} {s.label}</option>
+              ))}
+            </select>
+            {transferTargetScope && (
+              <p className="text-xs mb-4" style={{ color: "var(--text-muted)" }}>
+                Transfer {selectedCount} item(s) to <strong style={{ color: "var(--text)" }}>{ALL_SCOPES.find(s => s.id === transferTargetScope)?.label}</strong>?
+              </p>
+            )}
+            <div className="flex justify-end gap-2">
+              <button onClick={() => { setIsTransferModalOpen(false); setTransferTargetScope(""); }}
+                className="text-xs px-4 py-2 rounded" style={{ background: "var(--bg3)", color: "var(--text-secondary)" }}>Cancel</button>
+              <button onClick={() => bulkTransfer(transferTargetScope, selectedLineItemIds)}
+                disabled={!transferTargetScope || isBulkActionLoading}
+                className="text-xs px-4 py-2 rounded font-semibold"
+                style={{ background: "#06b6d4", color: "#fff", opacity: !transferTargetScope || isBulkActionLoading ? 0.5 : 1 }}>
+                {isBulkActionLoading && activeBulkAction === "transfer" ? "Transferring…" : "Transfer"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {isDeleteModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: "rgba(0,0,0,0.6)" }}
+          onClick={e => { if (e.target === e.currentTarget) setIsDeleteModalOpen(false); }}>
+          <div className="rounded-xl p-6 w-full max-w-md shadow-2xl" style={{ background: "var(--bg-card)", border: "1px solid #ef444440" }}>
+            <h3 className="text-base font-semibold mb-1" style={{ color: "#ef4444" }}>Delete Line Items</h3>
+            <p className="text-sm mb-4" style={{ color: "var(--text-secondary)" }}>
+              Delete <strong>{selectedCount} selected line item(s)</strong>? This cannot be undone.
+            </p>
+            <div className="flex justify-end gap-2">
+              <button onClick={() => setIsDeleteModalOpen(false)}
+                className="text-xs px-4 py-2 rounded" style={{ background: "var(--bg3)", color: "var(--text-secondary)" }}>Cancel</button>
+              <button onClick={() => bulkDelete(selectedLineItemIds)}
+                disabled={isBulkActionLoading}
+                className="text-xs px-4 py-2 rounded font-semibold"
+                style={{ background: "#ef4444", color: "#fff", opacity: isBulkActionLoading ? 0.5 : 1 }}>
+                {isBulkActionLoading && activeBulkAction === "delete" ? "Deleting…" : `Delete ${selectedCount} Item(s)`}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {isVendorQuoteModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: "rgba(0,0,0,0.6)" }}
+          onClick={e => { if (e.target === e.currentTarget) setIsVendorQuoteModalOpen(false); }}>
+          <div className="rounded-xl p-6 w-full max-w-md shadow-2xl" style={{ background: "var(--bg-card)", border: "1px solid var(--border-ds)" }}>
+            <h3 className="text-base font-semibold mb-1" style={{ color: "var(--text)" }}>Apply Vendor Quote</h3>
+            <p className="text-xs mb-4" style={{ color: "var(--text-muted)" }}>Link {selectedCount} item(s) to a vendor quote.</p>
+            <label className="block text-xs font-semibold mb-1" style={{ color: "var(--text-secondary)" }}>Vendor Quote</label>
+            <select value={applyQuoteId} onChange={e => setApplyQuoteId(e.target.value)}
+              className="w-full text-sm px-3 py-2 rounded mb-3"
+              style={{ background: "var(--bg3)", border: "1px solid var(--border-ds)", color: "var(--text)" }}>
+              <option value="">— Select quote —</option>
+              {quotes.map(q => (
+                <option key={q.id} value={String(q.id)}>
+                  {q.vendor}{q.note ? ` (${q.note})` : ""} — {ALL_SCOPES.find(s => s.id === q.category)?.label || q.category}
+                </option>
+              ))}
+            </select>
+            <label className="flex items-center gap-2 text-xs cursor-pointer mb-4" style={{ color: "var(--text-secondary)" }}>
+              <input type="checkbox" checked={applyQuoteOverrideCosts} onChange={e => setApplyQuoteOverrideCosts(e.target.checked)}
+                style={{ accentColor: "var(--gold)" }} />
+              Override existing unit costs (lump-sum quotes only)
+            </label>
+            <div className="flex justify-end gap-2">
+              <button onClick={() => { setIsVendorQuoteModalOpen(false); setApplyQuoteId(""); setApplyQuoteOverrideCosts(false); }}
+                className="text-xs px-4 py-2 rounded" style={{ background: "var(--bg3)", color: "var(--text-secondary)" }}>Cancel</button>
+              <button onClick={() => bulkApplyVendorQuote(parseInt(applyQuoteId), applyQuoteOverrideCosts, selectedLineItemIds)}
+                disabled={!applyQuoteId || isBulkActionLoading}
+                className="text-xs px-4 py-2 rounded font-semibold"
+                style={{ background: "#a855f7", color: "#fff", opacity: !applyQuoteId || isBulkActionLoading ? 0.5 : 1 }}>
+                {isBulkActionLoading && activeBulkAction === "vendorQuote" ? "Applying…" : "Apply Quote"}
+              </button>
+            </div>
           </div>
         </div>
       )}

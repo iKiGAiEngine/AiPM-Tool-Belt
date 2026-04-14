@@ -1,0 +1,238 @@
+Objective
+Add row checkboxes + bulk actions for line items. Selected items can be:
+
+Transferred to another scope
+
+Deleted
+
+Updated with a vendor quote
+
+Files to update
+Use the existing Estimating page/component where line items are rendered (the map that renders line item <tr> rows in the Line Items stage). If there is a dedicated table component, put table logic there; otherwise keep logic in EstimatingModulePage.tsx and helper hooks in a nearby file.
+
+Functional requirements
+1) Selection UX
+Add a checkbox column as the first column in the line items table.
+
+Each row has a checkbox.
+
+Table header has a Select All (current filtered view) checkbox.
+
+Header checkbox states:
+
+unchecked: none selected in current view
+
+checked: all selected in current view
+
+indeterminate: partial selection in current view
+
+Selection must persist while navigating between scopes/stages only if that list is still visible; otherwise clear when leaving Line Items stage.
+
+Use stable IDs only (item.id) for selection state; never array index.
+
+2) Bulk action bar
+Show sticky bulk action bar when selectedCount > 0.
+
+Bar text: “{N} selected”.
+
+Actions in bar:
+
+Transfer to Scope
+
+Apply Vendor Quote
+
+Delete
+
+Clear Selection
+
+Disable action buttons while action request is running.
+
+After successful action: clear selection and refresh/recompute table data.
+
+3) Transfer to Scope action
+Clicking “Transfer to Scope” opens modal:
+
+required dropdown: target scope
+
+prevent selecting same scope if all selected items already in same scope
+
+confirmation text: “Transfer X line item(s) to [Scope Name]?”
+
+On confirm:
+
+call backend bulk transfer endpoint (create it if missing)
+
+payload: { estimateId, lineItemIds: string[], targetScopeId: string }
+
+Show success toast with count moved.
+
+Handle partial failures with per-item errors if backend returns them.
+
+4) Delete action
+Clicking “Delete” opens destructive confirmation modal:
+
+text: “Delete X selected line item(s)? This cannot be undone.”
+
+On confirm:
+
+call backend bulk delete endpoint (create if missing)
+
+payload: { estimateId, lineItemIds: string[] }
+
+Remove deleted rows from UI immediately after success (or refetch).
+
+Show success toast with count deleted.
+
+5) Apply Vendor Quote action
+Clicking “Apply Vendor Quote” opens modal:
+
+required dropdown: vendor quote (list available quotes relevant to selected scope/project)
+
+option toggle:
+
+“Override existing unit costs”
+
+default OFF
+
+On confirm:
+
+call backend bulk apply quote endpoint (create if missing)
+
+payload: { estimateId, lineItemIds: string[], vendorQuoteId: string, overrideExistingCosts: boolean }
+
+For each selected line item, apply quote pricing/mapping according to existing quote logic.
+
+Show summary toast: updated count + skipped count.
+
+6) Validation & guardrails
+If no selection, action buttons must not be shown.
+
+If selected items span incompatible scopes for quote application, either:
+
+block with clear message, or
+
+process compatible items and report skipped items.
+
+Don’t allow duplicate submissions.
+
+Keep row keys correct (Fragment key={item.id} where needed).
+
+State management requirements
+Use explicit state names:
+
+selectedLineItemIds: Set<string>
+
+isBulkActionLoading: boolean
+
+activeBulkAction: 'transfer' | 'delete' | 'vendorQuote' | null
+
+modal states:
+
+isTransferModalOpen
+
+isDeleteModalOpen
+
+isVendorQuoteModalOpen
+
+Derived values:
+
+selectedCount
+
+visibleLineItemIds (current filtered/sorted rows)
+
+allVisibleSelected
+
+someVisibleSelected
+
+Implement pure helper functions:
+
+toggleLineItemSelection(id: string)
+
+toggleSelectAllVisible()
+
+clearSelection()
+
+getSelectedLineItems()
+
+API requirements
+If endpoints do not exist, add them with transactional safety:
+
+POST /api/estimates/:estimateId/line-items/bulk-transfer
+
+POST /api/estimates/:estimateId/line-items/bulk-delete
+
+POST /api/estimates/:estimateId/line-items/bulk-apply-vendor-quote
+
+Return shape:
+
+{
+  "success": true,
+  "processed": 8,
+  "failed": 1,
+  "failures": [
+    { "lineItemId": "abc", "reason": "..." }
+  ]
+}
+UI/Accessibility requirements
+Checkbox inputs must have aria labels:
+
+row checkbox: Select line item {item description or code}
+
+header checkbox: Select all line items
+
+Keyboard accessible:
+
+tab to checkboxes/buttons
+
+space toggles checkbox
+
+Delete button uses destructive styling.
+
+Keep layout responsive; action bar should not overlap table content.
+
+Acceptance criteria (must all pass)
+User can select one or many line items via checkboxes.
+
+Select All selects only currently visible filtered rows.
+
+Bulk action bar appears only when at least one row is selected.
+
+Transfer moves selected items to chosen scope and refreshes list.
+
+Delete removes selected items after confirmation.
+
+Apply Vendor Quote updates selected items and shows result counts.
+
+No React key warnings in console.
+
+No action runs twice on double-click.
+
+Selection clears after successful operation.
+
+Existing single-item workflows remain intact.
+
+Tests to add/update
+Unit:
+
+selection reducer/helpers (toggle, select all, clear)
+
+Component:
+
+renders action bar when items selected
+
+indeterminate header behavior
+
+modals open/close and submit disabled while loading
+
+API:
+
+bulk transfer/delete/vendor quote endpoints with success + partial failure
+
+Final output required from Replit
+List of files changed
+
+Short summary of implementation
+
+Test results
+
+Any migration or endpoint notes
