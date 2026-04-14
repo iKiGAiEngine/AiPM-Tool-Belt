@@ -1412,7 +1412,7 @@ ${html}
               <div className="flex items-center gap-2">
                 {isDirty && <div className="w-2 h-2 rounded-full" style={{ background: "var(--gold)" }} />}
                 <button
-                  onClick={saveEstimate}
+                  onClick={() => saveEstimate()}
                   disabled={isSaving || !isDirty || !estimateId}
                   className="px-3 py-1.5 rounded text-xs font-semibold transition-all"
                   style={{
@@ -3241,7 +3241,7 @@ ${html}
 
           {/* Final action */}
           <div className="flex gap-3 flex-wrap">
-            <button onClick={saveEstimate} disabled={isSaving || !estimateId}
+            <button onClick={() => saveEstimate()} disabled={isSaving || !estimateId}
               className="px-6 py-3 rounded-lg text-sm font-semibold flex items-center gap-2"
               style={{ background: "var(--gold)", color: "#000" }}>
               💾 Save & Sync to Proposal Log Dashboard
