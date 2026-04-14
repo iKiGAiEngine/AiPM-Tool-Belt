@@ -1170,9 +1170,14 @@ ${html}
       const data = await r.json();
       // Auto-check scopes that received items
       const newScopes = [...new Set(toImport.map(i => i._assignedScope!).filter(Boolean))];
-      setActiveScopes(prev => [...new Set([...prev, ...newScopes])]);
-      markDirty();
-      // Refresh estimate data
+      const mergedScopes = [...new Set([...activeScopes, ...newScopes])];
+      setActiveScopes(mergedScopes);
+      // Persist merged scopes to DB immediately — before invalidateQueries triggers a
+      // refetch that would run initFromEstimate and overwrite the in-memory state
+      try {
+        await apiRequest("PATCH", `/api/estimates/${estimateId}`, { activeScopes: mergedScopes });
+      } catch { /* non-critical — state is already correct in memory */ }
+      // Refresh estimate data (safe now that DB is up-to-date)
       qc.invalidateQueries({ queryKey: ["/api/estimates/by-proposal", proposalLogId] });
       setShowScheduleExtractor(false);
       setExtractedItems([]);
@@ -3528,7 +3533,7 @@ ${html}
                                   color: item._assignedScope ? "#22c55e" : "#ef4444",
                                 }}>
                                 <option value="">🔴 Unassigned</option>
-                                {(activeScopes.length > 0 ? ALL_SCOPES.filter(s => activeScopes.includes(s.id)) : ALL_SCOPES).map(s => (
+                                {ALL_SCOPES.map(s => (
                                   <option key={s.id} value={s.id}>{s.label}</option>
                                 ))}
                               </select>

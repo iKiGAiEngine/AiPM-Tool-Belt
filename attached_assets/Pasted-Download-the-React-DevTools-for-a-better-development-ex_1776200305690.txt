@@ -1,0 +1,18 @@
+Download the React DevTools for a better development experience: https://reactjs.org/link/react-devtools
+react_jsx-dev-runtime.js?v=7dfba68d:64 Warning: Each child in a list should have a unique "key" prop.
+
+Check the render method of `EstimatingModuleInner`. See https://reactjs.org/link/warning-keys for more information.
+    at EstimatingModuleInner (https://f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.dev/src/pages/EstimatingModulePage.tsx:92:24)
+    at EstimatingModulePage (https://f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.dev/src/pages/EstimatingModulePage.tsx:8653:54)
+    at Route (https://f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/wouter.js?v=7dfba68d:322:16)
+    at Switch (https://f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/wouter.js?v=7dfba68d:378:17)
+    at Router
+    at div
+    at TestModeProvider (https://f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.dev/src/lib/testMode.tsx:25:36)
+    at AuthGate (https://f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.dev/src/App.tsx:207:51)
+    at AuthProvider (https://f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.dev/src/lib/auth.tsx:29:32)
+    at Provider (https://f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/chunk-6BRII5CC.js?v=7dfba68d:37:15)
+    at TooltipProvider (https://f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/@radix-ui_react-tooltip.js?v=7dfba68d:159:5)
+    at ThemeProvider (https://f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.dev/src/lib/theme.tsx:20:33)
+    at QueryClientProvider (https://f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/@tanstack_react-query.js?v=7dfba68d:2747:3)
+    at App
