@@ -1274,13 +1274,12 @@ export default function ProjectLogPage() {
                                   target="_blank"
                                   rel="noopener noreferrer"
                                   title="Open in BuildingConnected"
-                                  className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md font-medium w-fit whitespace-nowrap hover:opacity-80 transition-opacity"
-                                  style={{ color: "var(--info, #60a5fa)", background: "color-mix(in srgb, #60a5fa 10%, transparent)" }}
+                                  className="inline-flex items-center px-2 py-0.5 rounded font-bold tracking-wide w-fit hover:opacity-80 transition-opacity"
+                                  style={{ color: "var(--info, #60a5fa)", background: "color-mix(in srgb, #60a5fa 10%, transparent)", fontSize: "11px" }}
                                   onClick={(e) => e.stopPropagation()}
                                   data-testid={`link-bc-${entry.id}`}
                                 >
-                                  <Link2 className="w-3 h-3 flex-shrink-0" />
-                                  <span>BC Invite</span>
+                                  BC
                                 </a>
                               )}
                               {!entry.screenshotPath && !entry.bcLink && <span style={{ color: "var(--text-dim)" }}>—</span>}
