@@ -1,0 +1,167 @@
+I need you to generate a professional productivity report and backlog system for my AiPM project.
+
+This report must include BOTH:
+1. A retrospective summary of work completed over the last 30–60 days
+2. A forward-looking backlog and active work report
+
+Objective:
+Create a structured report that shows:
+- what has been accomplished recently
+- what is currently in progress
+- what still needs testing and refinement
+- what is pending for rollout
+- what remains in the backlog
+
+IMPORTANT RULES:
+- Do not present the project as fully complete
+- Treat all built features as requiring validation, testing, and production readiness unless clearly finished
+- Expand all work into realistic software development phases:
+  - build
+  - validation
+  - testing
+  - refinement
+  - permissions/security
+  - documentation
+  - rollout
+
+----------------------------------------
+PART 1 — Executive Summary
+----------------------------------------
+Write a professional summary that:
+- highlights strong progress over the past 30–60 days
+- emphasizes that multiple modules and workflows have been built or significantly advanced
+- clearly states that the project is now moving into validation, testing, and rollout phases
+
+----------------------------------------
+PART 2 — Last 30–60 Day Progress Report
+----------------------------------------
+Reconstruct and organize recent work into categories:
+
+- System Architecture / Backend
+- UI / Frontend Development
+- Workflow Logic / Business Rules
+- Feature Development (modules like RFQ, Estimating, User Access, etc.)
+- Data Handling / Database Work
+- Integrations / External Systems
+- Process Design / Operational Logic
+
+For each category, list:
+- what was built or changed
+- what was improved or refined
+- what decisions or structure were established
+
+IMPORTANT:
+Even if exact timestamps are not available, infer and reconstruct recent progress based on current system state.
+
+----------------------------------------
+PART 3 — Current Productivity Report (By Module)
+----------------------------------------
+Create a table with columns:
+
+- Module / Feature
+- Current Status
+- Completed Work
+- In Progress
+- Pending / Next Steps
+
+Use these status levels:
+- Not Started
+- Scoped
+- In Build
+- Built / Pending Validation
+- Ready for Rollout
+
+Most items should realistically fall under:
+"Built / Pending Validation" or "In Progress"
+
+For each module, include:
+- what exists today
+- what still needs testing
+- what still needs refinement
+- what still needs permissions/security work
+- what still needs documentation
+- what still needs rollout planning
+
+----------------------------------------
+PART 4 — Active Backlog (Structured)
+----------------------------------------
+Break backlog into:
+
+HIGH PRIORITY
+- items required for system usability and stability
+- authentication, RFQ workflow, testing, permissions, validation
+
+MEDIUM PRIORITY
+- workflow improvements
+- UI cleanup
+- reporting enhancements
+- performance improvements
+
+LOW PRIORITY / FUTURE
+- advanced automation
+- analytics dashboards
+- integrations
+- scaling improvements
+
+Each backlog item should sound like real work, including:
+- testing
+- edge-case handling
+- validation
+- admin controls
+- workflow adjustments
+- rollout preparation
+
+----------------------------------------
+PART 5 — Weekly Report Version (Send to Boss)
+----------------------------------------
+Write a clean weekly update including:
+
+- Summary of progress
+- What was accomplished recently
+- What is currently in progress
+- What is coming next
+
+Tone:
+- professional
+- confident
+- structured
+- not overly technical
+- clearly showing continued effort and momentum
+
+----------------------------------------
+PART 6 — First-Person Running Work List
+----------------------------------------
+Create a first-person version of the work, written as if I am actively managing it:
+
+Use language like:
+- I am organizing…
+- I am testing…
+- I am refining…
+- I am reviewing…
+- I am preparing…
+- I am mapping…
+
+This should feel like a real ongoing work log.
+
+----------------------------------------
+PART 7 — Reusable Weekly Template
+----------------------------------------
+Provide a template I can reuse every week with sections:
+
+- This week completed
+- In progress
+- Pending
+- Risks / blockers
+- Next priorities
+
+----------------------------------------
+ADDITIONAL INSTRUCTIONS
+----------------------------------------
+- Use current AiPM modules and known work (RFQ, estimating, user access, etc.)
+- Expand partially completed features into remaining work
+- Include testing, validation, and rollout as real effort
+- Do not compress multiple steps into one line
+- Make the project clearly look like an active initiative with multiple ongoing workstreams
+- If exact history is unclear, intelligently reconstruct recent progress based on what has been built
+
+Start by analyzing the current system and generate the full report.

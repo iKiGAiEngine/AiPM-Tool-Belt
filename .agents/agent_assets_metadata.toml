@@ -1,0 +1,8 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "qBPM5mXi7QIdHGZuoR3zl"
+uri = "file://AiPM_Productivity_Report.md"
+type = "text"
+title = "AiPM Tool Belt — Productivity & Backlog Report"
