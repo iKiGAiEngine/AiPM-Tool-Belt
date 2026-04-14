@@ -5,6 +5,7 @@ import {
   estimates, estimateLineItems, estimateQuotes, estimateBreakoutGroups,
   estimateBreakoutAllocations, estimateVersions, estimateReviewComments, ohApprovalLog,
   proposalLogEntries, estimateSpecSections, users,
+  vendorQuoteLineItems, vendorQuoteToEstimateLineItemMap,
 } from "@shared/schema";
 import OpenAI from "openai";
 import multer from "multer";
@@ -683,6 +684,225 @@ export function registerEstimateRoutes(app: Express) {
     } catch (err) {
       console.error("DELETE quote backup error:", err);
       res.status(500).json({ message: "Failed to remove quote backup" });
+    }
+  });
+
+  // ── VENDOR QUOTE AI EXTRACTION ──
+
+  app.post("/api/estimates/quotes/:quoteId/process", async (req: Request, res: Response) => {
+    const quoteId = parseInt(req.params.quoteId);
+    if (isNaN(quoteId)) return res.status(400).json({ message: "Invalid quote id" });
+    try {
+      const [quote] = await db.select().from(estimateQuotes).where(eq(estimateQuotes.id, quoteId));
+      if (!quote) return res.status(404).json({ message: "Quote not found" });
+      if (!quote.backupFileData) return res.status(400).json({ message: "No PDF file uploaded for this quote" });
+
+      await db.update(estimateQuotes).set({ status: "processing", latestError: null }).where(eq(estimateQuotes.id, quoteId));
+
+      let pdfText = "";
+      try {
+        if (quote.backupMimeType === "application/pdf") {
+          pdfText = await extractPdfText(quote.backupFileData as Buffer);
+        }
+      } catch { pdfText = ""; }
+
+      let aiResult: any = null;
+      try {
+        const systemPrompt = `You are an expert at extracting structured line item data from vendor quotes for Division 10 construction materials (FURNISH ONLY — no labor/installation).
+Extract the following from the quote document:
+1. Header: vendor name (if different from file), quote number, quote date, grand total, notes
+2. Line items array — for each row extract: description, part_number (if present), qty (number), unit (EA/LF/SF etc), unit_cost (number), extended_cost (number), notes
+3. For each line item, assign a confidence score 0-1 based on how complete and clear the data is:
+   - 1.0 = description + qty + unit_cost clearly present
+   - 0.7-0.9 = mostly complete, minor ambiguity
+   - 0.4-0.6 = description present but cost missing or ambiguous
+   - 0.0-0.3 = very incomplete
+
+Respond ONLY with valid JSON:
+{
+  "header": { "vendor": string|null, "quoteNumber": string|null, "quoteDate": string|null, "grandTotal": number|null, "notes": string|null },
+  "lineItems": [{ "description": string, "partNumber": string|null, "qty": number|null, "unit": string|null, "unitCost": number|null, "extendedCost": number|null, "confidence": number, "notes": string|null }],
+  "quoteConfidence": number
+}`;
+
+        const messages: any[] = [{ role: "system", content: systemPrompt }];
+        if (pdfText && pdfText.trim().length >= 20) {
+          messages.push({ role: "user", content: `Extract line items from this vendor quote:\n\n${pdfText.trim().slice(0, 12000)}` });
+          const response = await openai.chat.completions.create({
+            model: "gpt-4o-mini",
+            messages,
+            response_format: { type: "json_object" },
+            max_tokens: 4000,
+          });
+          aiResult = JSON.parse(response.choices[0].message.content || "{}");
+        } else if (quote.backupMimeType?.startsWith("image/")) {
+          const base64 = (quote.backupFileData as Buffer).toString("base64");
+          const dataUrl = `data:${quote.backupMimeType};base64,${base64}`;
+          const response = await openai.chat.completions.create({
+            model: "gpt-4o",
+            messages: [
+              { role: "system", content: systemPrompt },
+              { role: "user", content: [
+                { type: "text", text: "Extract line items from this vendor quote image:" },
+                { type: "image_url", image_url: { url: dataUrl, detail: "high" } },
+              ]},
+            ],
+            response_format: { type: "json_object" },
+            max_tokens: 4000,
+          });
+          aiResult = JSON.parse(response.choices[0].message.content || "{}");
+        } else {
+          throw new Error("Could not extract text from PDF and file is not an image");
+        }
+      } catch (aiErr: any) {
+        await db.update(estimateQuotes).set({
+          status: "failed",
+          latestError: aiErr?.message || "AI extraction failed",
+        }).where(eq(estimateQuotes.id, quoteId));
+        return res.status(500).json({ message: "AI extraction failed", error: aiErr?.message });
+      }
+
+      const lineItems: any[] = Array.isArray(aiResult?.lineItems) ? aiResult.lineItems : [];
+      const quoteConfidence: number = typeof aiResult?.quoteConfidence === "number" ? aiResult.quoteConfidence : 0.5;
+
+      const CONFIDENCE_THRESHOLD = 0.6;
+      const hasIncomplete = lineItems.some((li: any) =>
+        !li.description || (li.unitCost == null && li.extendedCost == null)
+      );
+      const newStatus = (lineItems.length === 0 || quoteConfidence < CONFIDENCE_THRESHOLD || hasIncomplete)
+        ? "needs_review"
+        : "ready_for_approval";
+
+      await db.delete(vendorQuoteLineItems).where(eq(vendorQuoteLineItems.quoteId, quoteId));
+      if (lineItems.length > 0) {
+        await db.insert(vendorQuoteLineItems).values(
+          lineItems.map((li: any, idx: number) => ({
+            quoteId,
+            sortOrder: idx,
+            description: li.description || null,
+            partNumber: li.partNumber || null,
+            qty: li.qty != null ? String(li.qty) : null,
+            unit: li.unit || null,
+            unitCost: li.unitCost != null ? String(li.unitCost) : null,
+            extendedCost: li.extendedCost != null ? String(li.extendedCost) : null,
+            confidence: String(li.confidence ?? 0.5),
+            notes: li.notes || null,
+            isApproved: false,
+          }))
+        );
+      }
+
+      await db.update(estimateQuotes).set({
+        status: newStatus,
+        latestExtractionJson: aiResult.header || null,
+        processingMetadataJson: { quoteConfidence, rowCount: lineItems.length },
+        latestError: null,
+      }).where(eq(estimateQuotes.id, quoteId));
+
+      const [updatedQuote] = await db.select().from(estimateQuotes).where(eq(estimateQuotes.id, quoteId));
+      const { backupFileData: _bd, ...safeQuote } = updatedQuote;
+      res.json({ quote: safeQuote, lineItemCount: lineItems.length, quoteConfidence, status: newStatus });
+    } catch (err) {
+      console.error("process quote error:", err);
+      await db.update(estimateQuotes).set({ status: "failed", latestError: String(err) }).where(eq(estimateQuotes.id, quoteId));
+      res.status(500).json({ message: "Processing failed" });
+    }
+  });
+
+  app.get("/api/estimates/quotes/:quoteId/line-items", async (req: Request, res: Response) => {
+    try {
+      const quoteId = parseInt(req.params.quoteId);
+      if (isNaN(quoteId)) return res.status(400).json({ message: "Invalid quote id" });
+      const items = await db.select().from(vendorQuoteLineItems)
+        .where(eq(vendorQuoteLineItems.quoteId, quoteId))
+        .orderBy(vendorQuoteLineItems.sortOrder);
+      res.json(items);
+    } catch (err) {
+      console.error("GET quote line-items error:", err);
+      res.status(500).json({ message: "Failed to fetch line items" });
+    }
+  });
+
+  app.patch("/api/estimates/quotes/:quoteId/line-items/:itemId", async (req: Request, res: Response) => {
+    try {
+      const quoteId = parseInt(req.params.quoteId);
+      const itemId = parseInt(req.params.itemId);
+      if (isNaN(quoteId) || isNaN(itemId)) return res.status(400).json({ message: "Invalid id" });
+      const allowed = ["description", "partNumber", "qty", "unit", "unitCost", "extendedCost", "notes", "isApproved"];
+      const updates: Record<string, any> = {};
+      for (const f of allowed) {
+        if (req.body[f] !== undefined) {
+          if (["qty", "unitCost", "extendedCost"].includes(f)) {
+            updates[f] = req.body[f] != null && req.body[f] !== "" ? String(req.body[f]) : null;
+          } else {
+            updates[f] = req.body[f];
+          }
+        }
+      }
+      const [item] = await db.update(vendorQuoteLineItems).set(updates)
+        .where(and(eq(vendorQuoteLineItems.id, itemId), eq(vendorQuoteLineItems.quoteId, quoteId)))
+        .returning();
+      res.json(item);
+    } catch (err) {
+      console.error("PATCH quote line-item error:", err);
+      res.status(500).json({ message: "Failed to update line item" });
+    }
+  });
+
+  app.post("/api/estimates/quotes/:quoteId/approve", async (req: Request, res: Response) => {
+    try {
+      const quoteId = parseInt(req.params.quoteId);
+      if (isNaN(quoteId)) return res.status(400).json({ message: "Invalid quote id" });
+      const [quote] = await db.select().from(estimateQuotes).where(eq(estimateQuotes.id, quoteId));
+      if (!quote) return res.status(404).json({ message: "Quote not found" });
+      const { approvedIds } = req.body;
+      const rows = await db.select().from(vendorQuoteLineItems)
+        .where(eq(vendorQuoteLineItems.quoteId, quoteId));
+      const toApprove = Array.isArray(approvedIds) && approvedIds.length > 0
+        ? rows.filter(r => approvedIds.includes(r.id))
+        : rows;
+
+      const n = (v: any) => parseFloat(v) || 0;
+      let createdCount = 0;
+      for (const row of toApprove) {
+        const existingMap = await db.select().from(vendorQuoteToEstimateLineItemMap)
+          .where(and(
+            eq(vendorQuoteToEstimateLineItemMap.quoteId, quoteId),
+            eq(vendorQuoteToEstimateLineItemMap.vendorQuoteLineItemId, row.id)
+          ));
+        if (existingMap.length > 0) {
+          await db.update(estimateLineItems).set({
+            description: row.description || "",
+            qty: row.qty != null ? n(row.qty) : 1,
+            unitCost: row.unitCost != null ? String(n(row.unitCost)) : "0",
+            unit: row.unit || "EA",
+          }).where(eq(estimateLineItems.id, existingMap[0].estimateLineItemId));
+        } else {
+          const [newItem] = await db.insert(estimateLineItems).values({
+            estimateId: quote.estimateId,
+            category: quote.category,
+            description: row.description || "(from vendor quote)",
+            qty: row.qty != null ? n(row.qty) : 1,
+            unit: row.unit || "EA",
+            unitCost: row.unitCost != null ? String(n(row.unitCost)) : "0",
+            quoteId: quote.id,
+            hasBackup: true,
+            source: "vendor_quote",
+          }).returning();
+          await db.insert(vendorQuoteToEstimateLineItemMap).values({
+            quoteId,
+            vendorQuoteLineItemId: row.id,
+            estimateLineItemId: newItem.id,
+          });
+          createdCount++;
+        }
+        await db.update(vendorQuoteLineItems).set({ isApproved: true }).where(eq(vendorQuoteLineItems.id, row.id));
+      }
+      await db.update(estimateQuotes).set({ status: "approved" }).where(eq(estimateQuotes.id, quoteId));
+      res.json({ success: true, createdCount, quoteId });
+    } catch (err) {
+      console.error("approve quote error:", err);
+      res.status(500).json({ message: "Approval failed" });
     }
   });
 

@@ -1362,11 +1362,41 @@ export const estimateQuotes = pgTable("estimate_quotes", {
   backupFileData: quoteByteaType("backup_file_data"),
   backupMimeType: varchar("backup_mime_type", { length: 100 }),
   createdAt: timestamp("created_at").notNull().defaultNow(),
+  status: varchar("status", { length: 30 }),
+  latestExtractionJson: jsonb("latest_extraction_json"),
+  latestError: text("latest_error"),
+  processingMetadataJson: jsonb("processing_metadata_json"),
 });
 
 export const insertEstimateQuoteSchema = createInsertSchema(estimateQuotes).omit({ id: true, createdAt: true });
 export type InsertEstimateQuote = z.infer<typeof insertEstimateQuoteSchema>;
 export type EstimateQuote = typeof estimateQuotes.$inferSelect;
+
+export const vendorQuoteLineItems = pgTable("vendor_quote_line_items", {
+  id: serial("id").primaryKey(),
+  quoteId: integer("quote_id").notNull(),
+  sortOrder: integer("sort_order").default(0),
+  description: text("description"),
+  partNumber: varchar("part_number", { length: 200 }),
+  qty: numeric("qty", { precision: 10, scale: 2 }),
+  unit: varchar("unit", { length: 30 }),
+  unitCost: numeric("unit_cost", { precision: 12, scale: 2 }),
+  extendedCost: numeric("extended_cost", { precision: 12, scale: 2 }),
+  confidence: numeric("confidence", { precision: 5, scale: 4 }),
+  notes: text("notes"),
+  isApproved: boolean("is_approved").default(false),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export type VendorQuoteLineItem = typeof vendorQuoteLineItems.$inferSelect;
+
+export const vendorQuoteToEstimateLineItemMap = pgTable("vendor_quote_to_estimate_line_item_map", {
+  id: serial("id").primaryKey(),
+  quoteId: integer("quote_id").notNull(),
+  vendorQuoteLineItemId: integer("vendor_quote_line_item_id").notNull(),
+  estimateLineItemId: integer("estimate_line_item_id").notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
 
 export const estimateBreakoutGroups = pgTable("estimate_breakout_groups", {
   id: serial("id").primaryKey(),

@@ -1,0 +1,510 @@
+Implement a production-ready Vendor Quote Ingestion + AI Extraction + Human-in-the-loop correction workflow in Estimating → Line Items.
+
+Do not reinterpret requirements. Implement exactly as specified.
+
+0) Scope summary
+Add a full workflow for vendor quote PDFs:
+
+Upload and persist PDF.
+
+OCR + AI extraction of quote metadata and line items.
+
+Confidence scoring and failover.
+
+Manual region-selection mode in PDF preview when needed.
+
+Re-extraction from selected bounding boxes.
+
+Approval flow to convert extracted rows into estimate line items.
+
+Persist all artifacts (PDF, extraction runs, annotations, decisions).
+
+Upsert normalized entities into vendor/manufacturer pricing database.
+
+1) UX behavior (Line Items stage)
+1.1 Upload entry point
+In Line Items stage, add button: “Upload Vendor Quote”.
+
+Accept only .pdf (max 25 MB).
+
+On upload, show progress and create a quote record immediately.
+
+1.2 Processing states
+After upload, show a quote status card with these states:
+
+uploaded
+
+processing
+
+needs_review
+
+ready_for_approval
+
+approved
+
+rejected
+
+failed
+
+1.3 Automatic parse result
+When AI parse completes:
+
+Show extracted summary:
+
+vendor name
+
+quote number
+
+quote date
+
+total
+
+line item count
+
+average confidence
+
+Show extracted table preview with per-row confidence badges.
+
+1.4 Confidence gating
+Use these thresholds:
+
+HIGH_CONFIDENCE >= 0.85
+
+MEDIUM_CONFIDENCE 0.65–0.84
+
+LOW_CONFIDENCE < 0.65
+
+Rules:
+
+If average confidence < 0.65 OR any required fields missing (item description + unit cost), set status needs_review.
+
+If OCR/AI fails, set status failed and offer manual review directly.
+
+If user clicks “Reject Parse”, set status needs_review.
+
+1.5 Manual review mode (box selection)
+In needs_review, show PDF preview with:
+
+page navigation
+
+zoom
+
+rectangular box drawing tool
+
+edit/delete rectangles
+
+label per rectangle (one of):
+
+line_items_table
+
+vendor_header
+
+totals_section
+
+notes
+
+Save annotations as normalized coordinates (x, y, width, height, page, 0–1 scale).
+
+Buttons:
+
+“Re-run AI on Selected Regions”
+
+“Cancel Review”
+
+Re-run must pass annotation coordinates to extraction service and prioritize only selected regions.
+
+1.6 Approval step
+After successful extraction:
+
+Show side-by-side:
+
+left: PDF preview
+
+right: editable extracted line items table
+
+User can edit rows before approval.
+
+Buttons:
+
+“Approve and Create Line Items”
+
+“Reject and Return to Review”
+
+On approve:
+
+Create/update estimate line items.
+
+Persist mapping from quote item → estimate line item.
+
+Status becomes approved.
+
+2) Data model changes (DB)
+Create migrations for these tables (or equivalent if existing schema partially matches):
+
+2.1 vendor_quotes
+id (uuid pk)
+
+project_id (fk)
+
+estimate_id (fk)
+
+scope_id (fk nullable)
+
+vendor_id (fk nullable)
+
+manufacturer_id (fk nullable)
+
+file_storage_key (text, required)
+
+file_name (text)
+
+file_mime (text)
+
+file_size_bytes (int)
+
+status enum (uploaded|processing|needs_review|ready_for_approval|approved|rejected|failed)
+
+quote_number (text nullable)
+
+quote_date (date nullable)
+
+currency (text default USD)
+
+subtotal (numeric nullable)
+
+tax (numeric nullable)
+
+total (numeric nullable)
+
+avg_confidence (numeric nullable)
+
+created_by (fk user)
+
+created_at, updated_at
+
+2.2 vendor_quote_extractions
+id (uuid pk)
+
+vendor_quote_id (fk)
+
+run_type enum (auto|manual_regions)
+
+model_name (text)
+
+ocr_engine (text)
+
+status enum (started|succeeded|failed)
+
+avg_confidence (numeric)
+
+raw_json (jsonb)
+
+error_message (text nullable)
+
+created_at
+
+2.3 vendor_quote_annotation_regions
+id (uuid pk)
+
+vendor_quote_id (fk)
+
+page_number (int)
+
+label enum (line_items_table|vendor_header|totals_section|notes)
+
+x_norm, y_norm, w_norm, h_norm (numeric 0..1)
+
+created_by (fk user)
+
+created_at
+
+2.4 vendor_quote_line_items
+id (uuid pk)
+
+vendor_quote_id (fk)
+
+extraction_id (fk)
+
+source_page (int nullable)
+
+source_bbox (jsonb nullable)
+
+raw_description (text)
+
+normalized_description (text nullable)
+
+quantity (numeric nullable)
+
+uom (text nullable)
+
+unit_cost (numeric nullable)
+
+extended_cost (numeric nullable)
+
+part_number (text nullable)
+
+manufacturer_name_raw (text nullable)
+
+manufacturer_id (fk nullable)
+
+confidence (numeric)
+
+is_user_edited (boolean default false)
+
+created_at, updated_at
+
+2.5 vendor_quote_to_estimate_line_item_map
+id (uuid pk)
+
+vendor_quote_line_item_id (fk)
+
+estimate_line_item_id (fk)
+
+applied_at
+
+applied_by
+
+3) Storage requirements
+Store original uploaded PDF in persistent object storage (S3-compatible or existing file store).
+
+Store file_storage_key in DB.
+
+Keep file accessible for future viewing/download from Vendor Quote history.
+
+Never delete source PDF when parsing fails.
+
+Enforce access control by project membership.
+
+4) API endpoints
+Implement/extend endpoints:
+
+POST /api/estimates/:estimateId/vendor-quotes/upload
+
+multipart PDF upload
+
+creates vendor_quotes row
+
+returns quote id + status
+
+POST /api/vendor-quotes/:quoteId/process
+
+triggers OCR + AI extraction (background job)
+
+optional regions[] for manual re-run
+
+sets status transitions
+
+GET /api/vendor-quotes/:quoteId
+
+quote metadata + latest extraction summary + status
+
+GET /api/vendor-quotes/:quoteId/line-items
+
+extracted line items with confidence
+
+POST /api/vendor-quotes/:quoteId/annotations
+
+save manual boxes
+
+POST /api/vendor-quotes/:quoteId/reprocess-from-annotations
+
+run extraction constrained to annotation regions
+
+POST /api/vendor-quotes/:quoteId/approve
+
+payload includes optional edited line items
+
+creates/updates estimate line items + mapping
+
+writes vendor/manufacturer intelligence records
+
+POST /api/vendor-quotes/:quoteId/reject
+
+sets rejected and reason
+
+GET /api/vendor-quotes/:quoteId/file-url
+
+signed URL for secure preview/download
+
+All write endpoints must be authenticated and project-scoped.
+
+5) AI extraction contract
+Create a single extraction service interface:
+
+type ExtractionInput = {
+  fileUrl: string;
+  regions?: Array<{ page: number; x: number; y: number; w: number; h: number; label: string }>;
+};
+
+type ExtractedLineItem = {
+  description: string;
+  quantity?: number;
+  uom?: string;
+  unitCost?: number;
+  extendedCost?: number;
+  partNumber?: string;
+  manufacturer?: string;
+  confidence: number;
+  sourcePage?: number;
+  sourceBbox?: { x: number; y: number; w: number; h: number };
+};
+
+type ExtractionOutput = {
+  vendorName?: string;
+  quoteNumber?: string;
+  quoteDate?: string;
+  subtotal?: number;
+  tax?: number;
+  total?: number;
+  currency?: string;
+  lineItems: ExtractedLineItem[];
+  avgConfidence: number;
+  requiredFieldsMissing: string[];
+};
+Required fields per line item to be “usable”:
+
+description
+
+one of (unitCost, extendedCost)
+
+If missing, flag for review.
+
+6) Vendor/manufacturer intelligence feed
+On approval:
+
+Normalize vendor + manufacturer names (trim/case/punctuation normalization).
+
+Upsert vendor and manufacturer master records if missing.
+
+Create/update pricing history table entries with:
+
+project
+
+quote date
+
+item normalized description
+
+unit cost
+
+vendor
+
+manufacturer
+
+part number
+
+Link pricing record back to vendor_quote_line_items.id.
+
+This data must be queryable later for:
+
+historical pricing trends
+
+manufacturer cost comparisons
+
+vendor performance analysis
+
+7) Frontend implementation details
+Add components:
+
+VendorQuoteUploadDialog
+
+VendorQuoteProcessingCard
+
+VendorQuoteReviewWorkspace (PDF + box annotations)
+
+VendorQuoteExtractedTableEditor
+
+Use optimistic UI only for non-destructive operations.
+
+For destructive state transitions, use server-confirmed updates.
+
+Show toasts for:
+
+upload success/failure
+
+processing started/completed/failed
+
+approval completed
+
+reprocess results
+
+8) Error handling (required)
+If OCR fails: status failed, show retry + manual review option.
+
+If AI parse returns empty line items: status needs_review.
+
+If reprocess fails: keep prior extraction, show error, do not lose annotations.
+
+If approve fails partially: show row-level errors and keep editable state.
+
+9) Security/compliance
+Validate MIME and extension.
+
+Virus scan hook (if available in existing pipeline).
+
+Signed URLs expire in <= 15 minutes.
+
+Audit log events:
+
+upload
+
+process start/finish
+
+annotation save
+
+approve/reject
+
+line item creation from quote
+
+10) Testing requirements
+Add tests (unit + integration + component):
+
+Upload creates quote record and stored file key.
+
+Processing transitions statuses correctly.
+
+Low-confidence result routes to needs_review.
+
+Annotation save and reprocess uses only boxed regions.
+
+Approval creates estimate line items and mapping records.
+
+Vendor/manufacturer upsert + pricing history writes.
+
+Access control rejects users outside project.
+
+PDF preview endpoint issues signed URL.
+
+11) Acceptance criteria (must all pass)
+User can upload PDF in Line Items stage.
+
+System parses and shows extracted line items with confidence.
+
+Low confidence/failure/rejection reliably opens manual review workflow.
+
+User can draw boxes and re-run extraction on selected regions.
+
+Approved extraction creates estimate line items.
+
+Original PDF and extraction history are persisted and re-openable later.
+
+Vendor/manufacturer analytics tables receive normalized data on approval.
+
+No regression to existing estimating workflows.
+
+12) Deliverables from Replit
+Return:
+
+Files changed
+
+DB migrations added
+
+API routes added/updated
+
+UI components added/updated
+
+Test results
+
+Any feature flags/env vars required
+
+Do not mark complete unless all acceptance criteria pass.
+

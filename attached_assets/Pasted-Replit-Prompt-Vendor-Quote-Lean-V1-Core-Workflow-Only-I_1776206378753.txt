@@ -1,0 +1,169 @@
+Replit Prompt: Vendor Quote Lean V1 (Core Workflow Only)
+
+Implement a lean V1 of Vendor Quote ingestion in Estimating → Line Items.
+Follow this spec exactly. Do not add deferred features.
+
+Phase 0: Required output before coding
+Before making any code changes, output:
+
+* Short implementation plan (max 10 bullets)
+* Removed/deferred list from prior full spec (explicit bullets)
+* Files you expect to touch
+
+Then implement.
+
+V1 Goal (must keep)
+Build only the core workflow:
+
+* Upload vendor quote PDF
+* Persist PDF in storage
+* Create vendor quote record immediately on upload
+* Process PDF with AI extraction (header + line items)
+* Store extracted line items
+* Show quote-level and row-level confidence
+* Route low-confidence/incomplete extraction to needs_review
+* Allow manual table edits of extracted rows
+* Approve rows into estimate line items
+* Persist mapping quote line item → estimate line item
+* Keep original PDF accessible later via secure URL
+
+Explicitly deferred (must NOT implement in V1)
+Do not build any of this:
+
+* Manual PDF box/region drawing
+* Reprocess from selected regions
+* Extraction history multi-run architecture
+* Vendor/manufacturer intelligence upserts
+* Pricing analytics writes
+* New advanced audit subsystem
+* Complex rejected workflow (unless trivially already present)
+* Complex side-by-side review workspace
+* New async/background job architecture if sync processing is sufficient
+
+If any deferred code already exists, leave it untouched unless needed for compile/runtime fixes.
+
+Implementation constraints
+
+* Prefer existing services/utilities over new infrastructure.
+* Keep schema and API minimal.
+* Do not add optional future-proof systems in V1.
+* Do not refactor unrelated modules, shared utilities, or surrounding estimating workflows unless required to complete this V1 or fix compile/runtime errors caused by this change.
+* Keep migrations minimal and additive only. Do not redesign existing estimating tables unless required for this V1.
+* Do not build data backfill scripts or retroactive migration logic for legacy vendor quote records in V1.
+* If a production OCR/AI extraction pipeline does not already exist, implement the leanest integration path using existing project patterns. Do not introduce a new orchestration framework, queueing system, or provider-abstraction layer in V1.
+
+Data model (V1 only)
+Use only these tables (or exact equivalents already present):
+
+* vendor_quotes
+* vendor_quote_line_items
+* vendor_quote_to_estimate_line_item_map
+
+Allowed fields on vendor_quotes for extraction storage:
+
+* latest_extraction_json (json/jsonb)
+* latest_error (text)
+* processing_metadata_json (json/jsonb)
+
+Do not add annotation tables.
+Do not add extraction-history tables.
+
+Status model (exact)
+Use only:
+
+* uploaded
+* processing
+* needs_review
+* ready_for_approval
+* approved
+* failed
+
+No additional status values.
+
+API surface (V1 only)
+Implement/keep only endpoints required for:
+
+* Upload
+* Process
+* Get quote
+* Get quote line items
+* Approve
+* Get secure file URL
+
+Defer/remove endpoints for:
+
+* annotations
+* reprocess-from-annotations
+* analytics/inference side channels
+
+Extraction behavior
+On process:
+
+* Extract quote header fields (vendor name, quote number/date if available, totals if available).
+* Extract line items with confidence per row.
+* Compute quote-level confidence (average or defined aggregate).
+
+Required row completeness minimum:
+
+* description
+* and at least one of unit_cost/extended_cost
+
+Routing:
+
+* If extraction fails → failed
+* If low confidence or incomplete required fields → needs_review
+* Else → ready_for_approval
+
+Store extracted payload in vendor_quotes.latest_extraction_json and normalized rows in vendor_quote_line_items.
+
+Review UX (simple V1)
+In Line Items stage review screen:
+
+* Show PDF preview OR secure file link (either acceptable for V1)
+* Show editable extracted line-items table
+* Show confidence badges at quote + row levels
+* If quote is needs_review, allow user to edit rows and then approve
+* No rectangle tools, no annotation canvas
+
+Prefer secure file link over building a custom PDF viewer unless a simple existing preview component already exists in the codebase.
+
+Approval behavior
+On approve:
+
+* Create new estimate line items from approved vendor quote rows by default.
+* Only update existing estimate line items if an existing explicit mapping already exists.
+* Do not invent fuzzy matching logic in V1.
+* Persist mapping records in vendor_quote_to_estimate_line_item_map
+* Set quote status approved
+* Keep PDF + quote record accessible after approval
+* Do not delete source quote data after approval
+
+Security/access
+
+* All endpoints require auth + project/estimate authorization
+* File URL endpoint returns signed/secure URL (time-limited)
+* Unauthorized users must receive proper access denial
+
+Tests
+Add only the minimum targeted tests needed to validate the V1 acceptance criteria:
+
+* Upload creates quote record + file key
+* Processing transitions statuses correctly
+* Low-confidence routes to needs_review
+* Approval creates estimate line items + mapping
+* Unauthorized access is rejected
+* File URL endpoint returns secure preview/download URL
+
+Do not add tests for deferred features.
+
+Final response format required from Replit
+Return in this exact structure:
+
+* Plan
+* Removed/Deferred from original spec
+* Files changed
+* Migrations
+* API changes
+* UI changes
+* Test results
+* Known limitations intentionally deferred to V2

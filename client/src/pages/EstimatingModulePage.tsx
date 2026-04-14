@@ -12,7 +12,7 @@ import {
   CheckSquare, Square, AlertTriangle, BarChart3, Send, RotateCcw,
   ClipboardList, Lock, Users, ChevronDown, ChevronUp, Copy,
   Upload, ClipboardPaste, ImageIcon, BookOpen, Loader2, FileSpreadsheet,
-  Paperclip, CheckCircle2
+  Paperclip, CheckCircle2, ExternalLink, RefreshCw
 } from "lucide-react";
 import { exportEstimateToExcel } from "@/lib/exportEstimateExcel";
 
@@ -94,6 +94,25 @@ interface Quote {
   breakoutGroupId: number | null;
   hasBackup: boolean;
   filePath: string | null;
+  status: string | null;
+  latestExtractionJson: any | null;
+  latestError: string | null;
+  processingMetadataJson: any | null;
+}
+
+interface VendorQuoteLineItemRow {
+  id: number;
+  quoteId: number;
+  sortOrder: number;
+  description: string | null;
+  partNumber: string | null;
+  qty: string | null;
+  unit: string | null;
+  unitCost: string | null;
+  extendedCost: string | null;
+  confidence: string | null;
+  notes: string | null;
+  isApproved: boolean;
 }
 
 interface BreakoutGroup {
@@ -315,6 +334,14 @@ function EstimatingModuleInner() {
   const [aiParseTab, setAiParseTab] = useState<"text" | "pdf">("text");
   const [pdfDragActive, setPdfDragActive] = useState(false);
   const [pdfParsing, setPdfParsing] = useState(false);
+
+  // ── Vendor quote AI review state ──
+  const [reviewQuote, setReviewQuote] = useState<Quote | null>(null);
+  const [reviewRows, setReviewRows] = useState<VendorQuoteLineItemRow[]>([]);
+  const [reviewLoading, setReviewLoading] = useState(false);
+  const [reviewProcessing, setReviewProcessing] = useState(false);
+  const [reviewApproving, setReviewApproving] = useState(false);
+  const [reviewChecked, setReviewChecked] = useState<Set<number>>(new Set());
 
   // ── Extraction panel state ──
   const [showScheduleExtractor, setShowScheduleExtractor] = useState(false);
@@ -889,6 +916,94 @@ function EstimatingModuleInner() {
     try { await apiRequest("DELETE", `/api/estimates/quotes/${qId}`); }
     catch { toast({ title: "Error", description: "Could not delete quote.", variant: "destructive" }); }
   }, []);
+
+  // ── Vendor quote AI review handlers ──
+  const openReviewModal = useCallback(async (q: Quote) => {
+    setReviewQuote(q);
+    setReviewRows([]);
+    setReviewChecked(new Set());
+    setReviewLoading(true);
+    try {
+      const res = await fetch(`/api/estimates/quotes/${q.id}/line-items`, { credentials: "include" });
+      if (res.ok) {
+        const rows: VendorQuoteLineItemRow[] = await res.json();
+        setReviewRows(rows);
+        setReviewChecked(new Set(rows.map(r => r.id)));
+      }
+    } finally {
+      setReviewLoading(false);
+    }
+  }, []);
+
+  const processQuote = useCallback(async (quoteId: number) => {
+    setReviewProcessing(true);
+    setQuotes(prev => prev.map(q => q.id === quoteId ? { ...q, status: "processing" } : q));
+    try {
+      const res = await fetch(`/api/estimates/quotes/${quoteId}/process`, { method: "POST", credentials: "include" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || "Processing failed");
+      setQuotes(prev => prev.map(q => q.id === quoteId ? { ...q, ...data.quote, status: data.status } : q));
+      setReviewQuote(prev => prev && prev.id === quoteId ? { ...prev, ...data.quote, status: data.status } : prev);
+      const rowsRes = await fetch(`/api/estimates/quotes/${quoteId}/line-items`, { credentials: "include" });
+      if (rowsRes.ok) {
+        const rows: VendorQuoteLineItemRow[] = await rowsRes.json();
+        setReviewRows(rows);
+        setReviewChecked(new Set(rows.map(r => r.id)));
+      }
+    } catch (err: any) {
+      toast({ title: "Processing failed", description: err.message, variant: "destructive" });
+      setQuotes(prev => prev.map(q => q.id === quoteId ? { ...q, status: "failed" } : q));
+    } finally {
+      setReviewProcessing(false);
+    }
+  }, [toast]);
+
+  const updateReviewRow = useCallback(async (id: number, field: string, value: any) => {
+    setReviewRows(prev => prev.map(r => r.id === id ? { ...r, [field]: value } : r));
+    const quoteId = reviewRows.find(r => r.id === id)?.quoteId;
+    if (!quoteId) return;
+    try {
+      await fetch(`/api/estimates/quotes/${quoteId}/line-items/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ [field]: value }),
+      });
+    } catch { }
+  }, [reviewRows]);
+
+  const approveQuote = useCallback(async (quoteId: number) => {
+    if (reviewChecked.size === 0) {
+      toast({ title: "No rows selected", description: "Check at least one row to approve.", variant: "destructive" });
+      return;
+    }
+    setReviewApproving(true);
+    try {
+      const res = await fetch(`/api/estimates/quotes/${quoteId}/approve`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ approvedIds: Array.from(reviewChecked) }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || "Approval failed");
+      setQuotes(prev => prev.map(q => q.id === quoteId ? { ...q, status: "approved" } : q));
+      setReviewQuote(prev => prev && prev.id === quoteId ? { ...prev, status: "approved" } : prev);
+      if (estimateId) {
+        const r = await fetch(`/api/estimates/${estimateId}`, { credentials: "include" });
+        if (r.ok) {
+          const est = await r.json();
+          setLineItems(est.lineItems || []);
+        }
+      }
+      toast({ title: "Quote approved", description: `${data.createdCount} line item(s) added to estimate.` });
+      setReviewQuote(null);
+    } catch (err: any) {
+      toast({ title: "Approval failed", description: err.message, variant: "destructive" });
+    } finally {
+      setReviewApproving(false);
+    }
+  }, [reviewChecked, estimateId, toast]);
 
   // ── Breakout group mutations ──
   const addBreakoutGroup = useCallback(async () => {
@@ -2253,6 +2368,12 @@ ${html}
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="font-semibold" style={{ color: "#a855f7" }}>{q.vendor}</span>
                       {q.note && <span style={{ color: "var(--text-muted)" }}>({q.note})</span>}
+                      {q.status === "processing" && <span className="px-1.5 py-0.5 rounded text-xs flex items-center gap-1" style={{ background: "#06b6d415", color: "#06b6d4", border: "1px solid #06b6d440" }}><Loader2 className="w-2.5 h-2.5 animate-spin" />Processing…</span>}
+                      {q.status === "needs_review" && <span className="px-1.5 py-0.5 rounded text-xs" style={{ background: "#f5a62315", color: "#f5a623", border: "1px solid #f5a62340" }}>⚠ Needs Review</span>}
+                      {q.status === "ready_for_approval" && <span className="px-1.5 py-0.5 rounded text-xs" style={{ background: "#22c55e15", color: "#22c55e", border: "1px solid #22c55e40" }}>✓ Ready to Approve</span>}
+                      {q.status === "approved" && <span className="px-1.5 py-0.5 rounded text-xs" style={{ background: "#22c55e20", color: "#22c55e", border: "1px solid #22c55e50" }}>✓ Approved</span>}
+                      {q.status === "failed" && <span className="px-1.5 py-0.5 rounded text-xs" style={{ background: "#ef444415", color: "#ef4444", border: "1px solid #ef444440" }}>✗ Failed</span>}
+                      {q.status === "uploaded" && <span className="px-1.5 py-0.5 rounded text-xs" style={{ background: "#a855f715", color: "#a855f7", border: "1px solid #a855f740" }}>Uploaded</span>}
                       <span className="px-1.5 py-0.5 rounded text-xs" style={{ background: q.pricingMode === "lump_sum" ? "#f9731615" : "#22c55e15", color: q.pricingMode === "lump_sum" ? "#f97316" : "#22c55e", border: `1px solid ${q.pricingMode === "lump_sum" ? "#f9731640" : "#22c55e40"}` }}>
                         {q.pricingMode === "lump_sum" ? `LS: ${fmt(n(q.lumpSumTotal))}` : "Per Item"}
                       </span>
@@ -2264,6 +2385,16 @@ ${html}
                       <span style={{ color: "#f97316" }}>Freight: {fmt(n(q.freight))}</span>
                       {q.taxIncluded && <span className="px-1 py-0.5 rounded text-xs" style={{ background: "#f9731610", color: "#f97316" }}>Tax Incl</span>}
                       <div className="flex items-center gap-1 ml-auto">
+                        {q.hasBackup && q.status !== "approved" && (
+                          <button
+                            onClick={() => openReviewModal(q)}
+                            disabled={q.status === "processing"}
+                            title="AI Review & Approve this quote"
+                            className="text-xs px-2 py-0.5 rounded flex items-center gap-1 font-semibold"
+                            style={{ background: "var(--gold)15", border: "1px solid var(--gold)50", color: "var(--gold)", opacity: q.status === "processing" ? 0.5 : 1 }}>
+                            <Zap className="w-3 h-3" /> Review
+                          </button>
+                        )}
                         <input type="number" step={10} value={n(q.freight)} onChange={e => updateQuote(q.id, "freight", e.target.value)}
                           placeholder="Freight $" className="w-20 text-xs px-1.5 py-0.5 rounded" style={{ background: "var(--bg3)", border: "1px solid var(--border-ds)", color: "#f97316" }} />
                         {/* Backup file attachment */}
@@ -2279,11 +2410,12 @@ ${html}
                             try {
                               const fd = new FormData();
                               fd.append("file", file);
-                              const res = await fetch(`/api/estimates/quotes/${q.id}/backup-file`, { method: "POST", body: fd });
+                              const res = await fetch(`/api/estimates/quotes/${q.id}/backup-file`, { method: "POST", body: fd, credentials: "include" });
                               if (!res.ok) throw new Error("Upload failed");
                               const updated = await res.json();
-                              setQuotes(prev => prev.map(x => x.id === q.id ? { ...x, filePath: updated.filePath, hasBackup: updated.hasBackup } : x));
-                              toast({ title: "Backup attached", description: `${file.name} saved to this quote.` });
+                              setQuotes(prev => prev.map(x => x.id === q.id ? { ...x, filePath: updated.filePath, hasBackup: updated.hasBackup, status: "uploaded" } : x));
+                              toast({ title: "Backup attached", description: `${file.name} saved. Starting AI extraction…` });
+                              processQuote(q.id);
                             } catch {
                               toast({ title: "Upload failed", description: "Could not attach backup file.", variant: "destructive" });
                             }
@@ -3972,6 +4104,174 @@ ${html}
                     className="text-xs px-4 py-2 rounded font-semibold flex items-center gap-1.5"
                     style={{ background: "var(--gold)", color: "#000", opacity: savingSpecs ? 0.7 : 1 }}>
                     {savingSpecs ? <><Loader2 className="w-3 h-3 animate-spin" /> Saving…</> : `Save ${extractedSpecs.filter(s => s._selected).length} Spec Sections to Estimate`}
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ── VENDOR QUOTE REVIEW MODAL ── */}
+      {reviewQuote && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: "rgba(0,0,0,0.7)" }}
+          onClick={e => { if (e.target === e.currentTarget) setReviewQuote(null); }}>
+          <div className="rounded-xl shadow-2xl flex flex-col" style={{ background: "var(--bg-card)", border: "1px solid var(--border-ds)", width: "min(900px, 96vw)", maxHeight: "88vh" }}>
+            {/* Header */}
+            <div className="flex items-center justify-between px-5 py-3 border-b" style={{ borderColor: "var(--border-ds)" }}>
+              <div className="flex items-center gap-3">
+                <Zap className="w-4 h-4" style={{ color: "var(--gold)" }} />
+                <span className="font-semibold text-sm" style={{ color: "var(--text)" }}>AI Quote Review — {reviewQuote.vendor}</span>
+                {reviewQuote.status === "needs_review" && <span className="px-2 py-0.5 rounded text-xs" style={{ background: "#f5a62315", color: "#f5a623", border: "1px solid #f5a62340" }}>⚠ Needs Review</span>}
+                {reviewQuote.status === "ready_for_approval" && <span className="px-2 py-0.5 rounded text-xs" style={{ background: "#22c55e15", color: "#22c55e", border: "1px solid #22c55e40" }}>✓ Ready</span>}
+                {reviewQuote.status === "approved" && <span className="px-2 py-0.5 rounded text-xs" style={{ background: "#22c55e20", color: "#22c55e", border: "1px solid #22c55e50" }}>✓ Approved</span>}
+                {reviewQuote.status === "failed" && <span className="px-2 py-0.5 rounded text-xs" style={{ background: "#ef444415", color: "#ef4444", border: "1px solid #ef444440" }}>✗ Extraction Failed</span>}
+                {reviewQuote.processingMetadataJson && (
+                  <span className="text-xs" style={{ color: "var(--text-muted)" }}>
+                    Confidence: <strong style={{ color: (reviewQuote.processingMetadataJson as any).quoteConfidence >= 0.7 ? "#22c55e" : "#f5a623" }}>
+                      {Math.round(((reviewQuote.processingMetadataJson as any).quoteConfidence || 0) * 100)}%
+                    </strong>
+                  </span>
+                )}
+              </div>
+              <div className="flex items-center gap-2">
+                {reviewQuote.filePath && (
+                  <button onClick={async () => {
+                    try {
+                      const res = await fetch(`/api/estimates/quotes/${reviewQuote.id}/backup-file`, { credentials: "include" });
+                      if (!res.ok) throw new Error();
+                      const blob = await res.blob();
+                      window.open(URL.createObjectURL(blob), "_blank");
+                    } catch { toast({ title: "Could not open file", variant: "destructive" }); }
+                  }} className="text-xs px-3 py-1.5 rounded flex items-center gap-1" style={{ background: "var(--bg3)", border: "1px solid var(--border-ds)", color: "var(--text-secondary)" }}>
+                    <ExternalLink className="w-3 h-3" /> View PDF
+                  </button>
+                )}
+                {(reviewQuote.status === "needs_review" || reviewQuote.status === "failed" || !reviewQuote.status) && (
+                  <button onClick={() => processQuote(reviewQuote.id)} disabled={reviewProcessing}
+                    className="text-xs px-3 py-1.5 rounded flex items-center gap-1 font-semibold"
+                    style={{ background: "#06b6d415", border: "1px solid #06b6d440", color: "#06b6d4", opacity: reviewProcessing ? 0.6 : 1 }}>
+                    {reviewProcessing ? <><Loader2 className="w-3 h-3 animate-spin" />Re-processing…</> : <><RefreshCw className="w-3 h-3" />Re-process</>}
+                  </button>
+                )}
+                <button onClick={() => setReviewQuote(null)} className="p-1.5 rounded hover:bg-red-500/10">
+                  <X className="w-4 h-4" style={{ color: "var(--text-muted)" }} />
+                </button>
+              </div>
+            </div>
+
+            {/* Header info from extraction */}
+            {reviewQuote.latestExtractionJson && (
+              <div className="px-5 py-2 flex items-center gap-4 text-xs border-b flex-wrap" style={{ borderColor: "var(--border-ds)", background: "var(--bg3)" }}>
+                {(reviewQuote.latestExtractionJson as any).quoteNumber && <span><span style={{ color: "var(--text-muted)" }}>Quote #:</span> <strong style={{ color: "var(--text)" }}>{(reviewQuote.latestExtractionJson as any).quoteNumber}</strong></span>}
+                {(reviewQuote.latestExtractionJson as any).quoteDate && <span><span style={{ color: "var(--text-muted)" }}>Date:</span> <strong style={{ color: "var(--text)" }}>{(reviewQuote.latestExtractionJson as any).quoteDate}</strong></span>}
+                {(reviewQuote.latestExtractionJson as any).grandTotal && <span><span style={{ color: "var(--text-muted)" }}>Grand Total:</span> <strong style={{ color: "var(--gold)" }}>{fmt((reviewQuote.latestExtractionJson as any).grandTotal)}</strong></span>}
+                {(reviewQuote.latestExtractionJson as any).notes && <span style={{ color: "var(--text-muted)" }}>{(reviewQuote.latestExtractionJson as any).notes}</span>}
+              </div>
+            )}
+
+            {/* Error message */}
+            {reviewQuote.latestError && (
+              <div className="px-5 py-2 text-xs" style={{ background: "#ef444408", color: "#ef4444" }}>⚠ {reviewQuote.latestError}</div>
+            )}
+
+            {/* Rows table */}
+            <div className="flex-1 overflow-auto px-2 py-2">
+              {reviewLoading || reviewProcessing ? (
+                <div className="flex items-center justify-center py-12 gap-2 text-sm" style={{ color: "var(--text-muted)" }}>
+                  <Loader2 className="w-5 h-5 animate-spin" /> {reviewProcessing ? "Extracting with AI…" : "Loading…"}
+                </div>
+              ) : reviewRows.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-12 gap-3 text-center">
+                  <p className="text-sm" style={{ color: "var(--text-muted)" }}>No extracted rows yet.</p>
+                  {reviewQuote.hasBackup && (
+                    <button onClick={() => processQuote(reviewQuote.id)} className="text-xs px-4 py-2 rounded font-semibold flex items-center gap-1.5"
+                      style={{ background: "var(--gold)", color: "#000" }}>
+                      <Zap className="w-3 h-3" /> Run AI Extraction
+                    </button>
+                  )}
+                  {!reviewQuote.hasBackup && <p className="text-xs" style={{ color: "var(--text-muted)" }}>Attach a PDF backup file to this quote first, then run extraction.</p>}
+                </div>
+              ) : (
+                <table className="w-full text-xs border-collapse">
+                  <thead>
+                    <tr style={{ borderBottom: "1px solid var(--border-ds)" }}>
+                      <th className="px-2 py-1.5 text-left w-6">
+                        <input type="checkbox"
+                          checked={reviewRows.length > 0 && reviewChecked.size === reviewRows.length}
+                          onChange={e => setReviewChecked(e.target.checked ? new Set(reviewRows.map(r => r.id)) : new Set())}
+                          style={{ accentColor: "var(--gold)" }} />
+                      </th>
+                      <th className="px-2 py-1.5 text-left" style={{ color: "var(--text-secondary)" }}>Description</th>
+                      <th className="px-2 py-1.5 text-left" style={{ color: "var(--text-secondary)" }}>Part #</th>
+                      <th className="px-2 py-1.5 text-right" style={{ color: "var(--text-secondary)" }}>Qty</th>
+                      <th className="px-2 py-1.5 text-left" style={{ color: "var(--text-secondary)" }}>Unit</th>
+                      <th className="px-2 py-1.5 text-right" style={{ color: "var(--text-secondary)" }}>Unit Cost</th>
+                      <th className="px-2 py-1.5 text-right" style={{ color: "var(--text-secondary)" }}>Ext. Cost</th>
+                      <th className="px-2 py-1.5 text-center" style={{ color: "var(--text-secondary)" }}>Conf.</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {reviewRows.map(row => {
+                      const conf = parseFloat(row.confidence || "0");
+                      const confColor = conf >= 0.8 ? "#22c55e" : conf >= 0.6 ? "#f5a623" : "#ef4444";
+                      const isChecked = reviewChecked.has(row.id);
+                      return (
+                        <tr key={row.id} style={{ borderBottom: "1px solid var(--border-ds)08", background: isChecked ? "var(--gold)05" : "transparent" }}>
+                          <td className="px-2 py-1.5">
+                            <input type="checkbox" checked={isChecked}
+                              onChange={e => setReviewChecked(prev => { const s = new Set(prev); e.target.checked ? s.add(row.id) : s.delete(row.id); return s; })}
+                              style={{ accentColor: "var(--gold)" }} />
+                          </td>
+                          <td className="px-2 py-1">
+                            <input value={row.description || ""} onChange={e => updateReviewRow(row.id, "description", e.target.value)}
+                              className="w-full text-xs px-1.5 py-0.5 rounded" style={{ background: "var(--bg3)", border: "1px solid var(--border-ds)", color: "var(--text)", minWidth: 200 }} />
+                          </td>
+                          <td className="px-2 py-1">
+                            <input value={row.partNumber || ""} onChange={e => updateReviewRow(row.id, "partNumber", e.target.value)}
+                              className="w-full text-xs px-1.5 py-0.5 rounded" style={{ background: "var(--bg3)", border: "1px solid var(--border-ds)", color: "var(--text)", minWidth: 80 }} />
+                          </td>
+                          <td className="px-2 py-1">
+                            <input type="number" value={row.qty || ""} onChange={e => updateReviewRow(row.id, "qty", e.target.value)}
+                              className="w-16 text-xs px-1.5 py-0.5 rounded text-right" style={{ background: "var(--bg3)", border: "1px solid var(--border-ds)", color: "var(--text)" }} />
+                          </td>
+                          <td className="px-2 py-1">
+                            <input value={row.unit || ""} onChange={e => updateReviewRow(row.id, "unit", e.target.value)}
+                              className="w-14 text-xs px-1.5 py-0.5 rounded" style={{ background: "var(--bg3)", border: "1px solid var(--border-ds)", color: "var(--text)" }} />
+                          </td>
+                          <td className="px-2 py-1">
+                            <input type="number" value={row.unitCost || ""} onChange={e => updateReviewRow(row.id, "unitCost", e.target.value)}
+                              className="w-24 text-xs px-1.5 py-0.5 rounded text-right" style={{ background: "var(--bg3)", border: "1px solid var(--border-ds)", color: "var(--text)" }} />
+                          </td>
+                          <td className="px-2 py-1">
+                            <input type="number" value={row.extendedCost || ""} onChange={e => updateReviewRow(row.id, "extendedCost", e.target.value)}
+                              className="w-24 text-xs px-1.5 py-0.5 rounded text-right" style={{ background: "var(--bg3)", border: "1px solid var(--border-ds)", color: "var(--text)" }} />
+                          </td>
+                          <td className="px-2 py-1.5 text-center">
+                            <span className="px-1.5 py-0.5 rounded font-mono" style={{ background: `${confColor}15`, color: confColor, border: `1px solid ${confColor}30`, fontSize: "10px" }}>
+                              {Math.round(conf * 100)}%
+                            </span>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              )}
+            </div>
+
+            {/* Footer */}
+            {reviewRows.length > 0 && reviewQuote.status !== "approved" && (
+              <div className="flex items-center justify-between px-5 py-3 border-t" style={{ borderColor: "var(--border-ds)" }}>
+                <span className="text-xs" style={{ color: "var(--text-muted)" }}>
+                  {reviewChecked.size} of {reviewRows.length} row(s) selected for approval
+                </span>
+                <div className="flex items-center gap-2">
+                  <button onClick={() => setReviewQuote(null)} className="text-xs px-4 py-2 rounded" style={{ background: "var(--bg3)", color: "var(--text-secondary)" }}>Cancel</button>
+                  <button onClick={() => approveQuote(reviewQuote.id)} disabled={reviewApproving || reviewChecked.size === 0}
+                    className="text-xs px-4 py-2 rounded font-semibold flex items-center gap-1.5"
+                    style={{ background: "var(--gold)", color: "#000", opacity: reviewApproving || reviewChecked.size === 0 ? 0.6 : 1 }}>
+                    {reviewApproving ? <><Loader2 className="w-3 h-3 animate-spin" />Approving…</> : <>✓ Approve {reviewChecked.size} Row(s) → Estimate</>}
                   </button>
                 </div>
               </div>

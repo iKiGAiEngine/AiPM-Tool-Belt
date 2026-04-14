@@ -38,6 +38,7 @@ All persistent data is stored in PostgreSQL, managed by Drizzle ORM. Key tables 
 - **BuildingConnected Integration**: OAuth 2.0 integration for connecting BuildingConnected accounts, allowing admin-only opportunity synchronization with preview/confirm workflows and draft proposal log entry creation.
 - **Notification System**: In-app notifications with real-time updates and read/unread management.
 - **Draft Review & Project Start**: Manages draft proposal log entries from BC sync, enabling admin review, approval (creating projects and generating estimate numbers), and rejection.
+- **Vendor Quote AI Extraction (V1)**: Bolt-on AI extraction workflow for existing estimate quote cards. When a PDF/image backup is attached to a quote, AI extraction automatically triggers (GPT-4o-mini for PDFs, GPT-4o for images). Stores extracted header info and per-row line items in `vendor_quote_line_items` with per-row confidence scores. Routes to `needs_review` (low confidence) or `ready_for_approval`. Review modal shows editable extracted rows table with confidence badges, a View PDF button, and approve action that creates estimate line items and persists mappings in `vendor_quote_to_estimate_line_item_map`. Status badges on each quote card reflect the extraction lifecycle: uploaded → processing → needs_review / ready_for_approval → approved / failed.
 
 ### Authentication & Access Control
 - **OTP Email Login**: Secure login via 6-digit email codes.
