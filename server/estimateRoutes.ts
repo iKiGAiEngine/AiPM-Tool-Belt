@@ -693,21 +693,69 @@ export function registerEstimateRoutes(app: Express) {
     const quoteId = parseInt(req.params.quoteId);
     if (isNaN(quoteId)) return res.status(400).json({ message: "Invalid quote id" });
     try {
+      console.log("[VendorQuoteProcess] start", {
+        quoteId,
+        userId: (req.session as any)?.userId || null,
+      });
       const [quote] = await db.select().from(estimateQuotes).where(eq(estimateQuotes.id, quoteId));
-      if (!quote) return res.status(404).json({ message: "Quote not found" });
-      if (!quote.backupFileData) return res.status(400).json({ message: "No PDF file uploaded for this quote" });
+      if (!quote) {
+        console.log("[VendorQuoteProcess] quote not found", { quoteId });
+        return res.status(404).json({ message: "Quote not found" });
+      }
+      if (!quote.backupFileData) {
+        console.log("[VendorQuoteProcess] missing backup file", { quoteId, mime: quote.backupMimeType || null });
+        return res.status(400).json({ message: "No PDF file uploaded for this quote" });
+      }
 
       await db.update(estimateQuotes).set({ status: "processing", latestError: null }).where(eq(estimateQuotes.id, quoteId));
 
       let pdfText = "";
+      let pdfPages = 0;
       try {
         if (quote.backupMimeType === "application/pdf") {
-          pdfText = await extractPdfText(quote.backupFileData as Buffer);
+          const extracted = await extractPdfText(quote.backupFileData as Buffer);
+          pdfText = extracted.text || "";
+          pdfPages = extracted.numpages || 0;
         }
-      } catch { pdfText = ""; }
+      } catch (pdfErr: any) {
+        console.log("[VendorQuoteProcess] pdf text extraction failed", {
+          quoteId,
+          mime: quote.backupMimeType || null,
+          message: pdfErr?.message || String(pdfErr),
+        });
+        await db.update(estimateQuotes).set({
+          status: "failed",
+          latestError: `PDF text extraction failed: ${pdfErr?.message || "Unknown error"}`,
+          processingMetadataJson: { mime: quote.backupMimeType || null, pdfPages, textLength: 0 },
+        }).where(eq(estimateQuotes.id, quoteId));
+        return res.status(422).json({
+          message: "PDF text extraction failed",
+          error: pdfErr?.message || "Unknown error",
+          code: "PDF_TEXT_EXTRACTION_FAILED",
+        });
+      }
+
+      console.log("[VendorQuoteProcess] pdf extracted", {
+        quoteId,
+        mime: quote.backupMimeType || null,
+        pdfPages,
+        textLength: pdfText.length,
+      });
+
+      if (quote.backupMimeType === "application/pdf" && pdfText.trim().length < 20) {
+        const message = "This PDF does not contain extractable text. Scanned/image PDFs are not supported in this V1 flow.";
+        console.log("[VendorQuoteProcess] non-text pdf detected", { quoteId, pdfPages, textLength: pdfText.length });
+        await db.update(estimateQuotes).set({
+          status: "needs_review",
+          latestError: message,
+          processingMetadataJson: { mime: quote.backupMimeType || null, pdfPages, textLength: pdfText.length, parsed: false },
+        }).where(eq(estimateQuotes.id, quoteId));
+        return res.status(422).json({ message, code: "SCANNED_PDF_NOT_SUPPORTED" });
+      }
 
       let aiResult: any = null;
       try {
+        console.log("[VendorQuoteProcess] ai extraction start", { quoteId, hasText: pdfText.trim().length >= 20 });
         const systemPrompt = `You are an expert at extracting structured line item data from vendor quotes for Division 10 construction materials (FURNISH ONLY — no labor/installation).
 Extract the following from the quote document:
 1. Header: vendor name (if different from file), quote number, quote date, grand total, notes
@@ -755,6 +803,10 @@ Respond ONLY with valid JSON:
           throw new Error("Could not extract text from PDF and file is not an image");
         }
       } catch (aiErr: any) {
+        console.log("[VendorQuoteProcess] ai extraction failed", {
+          quoteId,
+          message: aiErr?.message || String(aiErr),
+        });
         await db.update(estimateQuotes).set({
           status: "failed",
           latestError: aiErr?.message || "AI extraction failed",
@@ -775,6 +827,7 @@ Respond ONLY with valid JSON:
 
       await db.delete(vendorQuoteLineItems).where(eq(vendorQuoteLineItems.quoteId, quoteId));
       if (lineItems.length > 0) {
+        console.log("[VendorQuoteProcess] writing extracted rows", { quoteId, rowCount: lineItems.length, status: newStatus });
         await db.insert(vendorQuoteLineItems).values(
           lineItems.map((li: any, idx: number) => ({
             quoteId,

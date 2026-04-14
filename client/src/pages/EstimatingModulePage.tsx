@@ -1170,7 +1170,7 @@ function EstimatingModuleInner() {
       });
       if (!r.ok) {
         const err = await r.json().catch(() => ({ message: "Upload failed" }));
-        throw new Error(err.message);
+        throw new Error(err.message || err.code || "Upload failed");
       }
       const data = await r.json();
       setParsedQuote(data);
