@@ -941,7 +941,14 @@ function EstimatingModuleInner() {
     try {
       const res = await fetch(`/api/estimates/quotes/${quoteId}/process`, { method: "POST", credentials: "include" });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.message || "Processing failed");
+      if (!res.ok) {
+        const errMsg = data.message || "Processing failed";
+        const newStatus = data.code === "SCANNED_PDF_NOT_SUPPORTED" ? "needs_review" : "failed";
+        setQuotes(prev => prev.map(q => q.id === quoteId ? { ...q, status: newStatus, latestError: errMsg } : q));
+        setReviewQuote(prev => prev && prev.id === quoteId ? { ...prev, status: newStatus, latestError: errMsg } : prev);
+        toast({ title: "Processing failed", description: errMsg, variant: "destructive" });
+        return;
+      }
       setQuotes(prev => prev.map(q => q.id === quoteId ? { ...q, ...data.quote, status: data.status } : q));
       setReviewQuote(prev => prev && prev.id === quoteId ? { ...prev, ...data.quote, status: data.status } : prev);
       const rowsRes = await fetch(`/api/estimates/quotes/${quoteId}/line-items`, { credentials: "include" });
