@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback, useRef, useEffect } from "react";
+import { useState, useMemo, useCallback, useRef, useEffect, Fragment } from "react";
 import { useParams, useLocation } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
@@ -2547,8 +2547,8 @@ ${html}
                           const quoteOpts = [{ id: "", label: "— No Quote —" }, ...catQuotes.map(q => ({ id: String(q.id), label: q.vendor + (q.note ? ` (${q.note})` : "") }))];
                           const isExpanded = expandedItems.has(item.id);
                           return (
-                            <>
-                              <tr key={item.id} style={{ borderBottom: "1px solid var(--border-ds)", background: idx % 2 === 0 ? "transparent" : "var(--bg3)50" }}
+                            <Fragment key={item.id}>
+                              <tr style={{ borderBottom: "1px solid var(--border-ds)", background: idx % 2 === 0 ? "transparent" : "var(--bg3)50" }}
                                 className="hover:bg-blue-500/5 transition-colors">
                                 <td className="px-3 py-1.5">
                                   <input value={item.planCallout || ""} onChange={e => updateLineItem(item.id, "planCallout", e.target.value)}
@@ -2649,7 +2649,7 @@ ${html}
                                   </td>
                                 </tr>
                               )}
-                            </>
+                            </Fragment>
                           );
                         })}
                       </tbody>
