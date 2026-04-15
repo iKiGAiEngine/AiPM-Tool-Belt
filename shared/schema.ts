@@ -820,7 +820,7 @@ export const users = pgTable("users", {
   displayName: varchar("display_name", { length: 255 }),
   initials: varchar("initials", { length: 10 }),
   role: varchar("role", { length: 20 }).notNull().default("user"),
-  isActive: boolean("is_active").notNull().default(true),
+  isActive: boolean("is_active").notNull().default(false),
   status: varchar("status", { length: 20 }).notNull().default("invited"),
   passwordHash: text("password_hash"),
   resetToken: text("reset_token"),

@@ -182,9 +182,13 @@ export function registerAdminRoutes(app: Express) {
         resetTokenExpiresAt: inviteExpiresAt,
       }).returning();
 
-      await sendInviteEmail(normalizedEmail, rawInviteToken).catch(err => {
+      let emailWarning: string | undefined;
+      try {
+        await sendInviteEmail(normalizedEmail, rawInviteToken);
+      } catch (err: any) {
         console.error("[Admin] Failed to send invite email:", err.message);
-      });
+        emailWarning = "User created but invite email could not be sent. Use Resend Invite to retry.";
+      }
 
       const [actor] = await db.select().from(users).where(eq(users.id, actorId));
       await auditLog({
@@ -200,7 +204,7 @@ export function registerAdminRoutes(app: Express) {
         requestMethod: req.method,
       });
 
-      res.status(201).json(newUser);
+      res.status(201).json({ ...newUser, ...(emailWarning ? { warning: emailWarning } : {}) });
     } catch (error) {
       console.error("[Admin] Create user error:", error);
       res.status(500).json({ message: "Failed to create user" });
