@@ -243,6 +243,19 @@ export default function AdminPage() {
     },
   });
 
+  const resendInviteMutation = useMutation({
+    mutationFn: async (userId: number) => {
+      await apiRequest("POST", `/api/admin/users/${userId}/resend-invite`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
+      toast({ title: "Invite sent" });
+    },
+    onError: (err: Error) => {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    },
+  });
+
   const changeRoleMutation = useMutation({
     mutationFn: async ({ userId, role }: { userId: number; role: string }) => {
       await apiRequest("PATCH", `/api/admin/users/${userId}/role`, { role });
@@ -512,6 +525,18 @@ export default function AdminPage() {
                               <UserCheck className="w-4 h-4 text-green-600" />
                             )}
                           </Button>
+                          {!u.isActive && (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => resendInviteMutation.mutate(u.id)}
+                              disabled={resendInviteMutation.isPending}
+                              title="Resend invite"
+                              data-testid={`button-resend-invite-${u.id}`}
+                            >
+                              <Mail className="w-4 h-4 text-muted-foreground" />
+                            </Button>
+                          )}
                           <Button
                             variant="ghost"
                             size="icon"

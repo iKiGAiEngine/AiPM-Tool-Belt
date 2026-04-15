@@ -211,6 +211,49 @@ export function registerAdminRoutes(app: Express) {
     }
   });
 
+  app.post("/api/admin/users/:id/resend-invite", requireAdmin, async (req: Request, res: Response) => {
+    try {
+      const userId = parseInt(req.params.id);
+      const actorId = (req.session as any)?.userId;
+      const [user] = await db.select().from(users).where(eq(users.id, userId));
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+
+      const rawInviteToken = randomBytes(32).toString("hex");
+      const inviteTokenHash = hashToken(rawInviteToken);
+      const inviteExpiresAt = new Date(Date.now() + 72 * 60 * 60 * 1000);
+
+      await db.update(users).set({
+        status: "invited",
+        isActive: false,
+        resetToken: inviteTokenHash,
+        resetTokenExpiresAt: inviteExpiresAt,
+      }).where(eq(users.id, userId));
+
+      await sendInviteEmail(user.email, rawInviteToken);
+
+      const [actor] = await db.select().from(users).where(eq(users.id, actorId));
+      await auditLog({
+        actionType: "invite_resent",
+        actorUserId: actorId,
+        actorEmail: actor?.email,
+        entityType: "user",
+        entityId: String(user.id),
+        summary: `Resent invite to ${user.email}`,
+        ipAddress: (req.headers["x-forwarded-for"] as string)?.split(",")[0] || req.socket.remoteAddress || "",
+        userAgent: req.headers["user-agent"] || "",
+        requestPath: req.path,
+        requestMethod: req.method,
+      });
+
+      res.json({ message: "Invite sent" });
+    } catch (error: any) {
+      console.error("[Admin] Resend invite error:", error);
+      res.status(500).json({ message: "Failed to resend invite" });
+    }
+  });
+
   app.patch("/api/admin/users/:id/profile", requireAdmin, async (req: Request, res: Response) => {
     try {
       const userId = parseInt(req.params.id);
