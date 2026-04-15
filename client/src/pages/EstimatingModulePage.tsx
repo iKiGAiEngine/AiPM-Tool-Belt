@@ -2483,6 +2483,16 @@ ${html}
                   </div>
                 ))}
 
+                {/* Empty state — different messages for no-quotes-on-this-tab vs no-quotes-at-all */}
+                {catQuotes.length === 0 && !showNewQuote && (
+                  <div className="py-3 text-xs" style={{ color: "var(--text-muted)" }}>
+                    {quotes.length > 0
+                      ? <>No vendor quotes on this tab. Quotes exist under: {quotes.map(q => q.category).filter((c, i, a) => a.indexOf(c) === i).join(", ")}. Navigate to the matching scope tab to see them, or add a new quote here.</>
+                      : <>No vendor quotes yet. Use <span style={{ color: "#a855f7" }}>+ Manual</span> or <span style={{ color: "var(--gold)" }}>AI Parse Quote</span> above to add one.</>
+                    }
+                  </div>
+                )}
+
                 {/* New quote form (manual) */}
                 {showNewQuote && !showAiParse && (
                   <div className="mt-3 p-3 rounded-lg" style={{ background: "var(--bg3)", border: "1px dashed #a855f740" }}>

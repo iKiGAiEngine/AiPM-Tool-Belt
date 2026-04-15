@@ -499,7 +499,7 @@ export function registerEstimateRoutes(app: Express) {
         qty: item.qty || 1, unitCost: String(item.unitCost || 0),
         escOverride: item.escOverride != null ? String(item.escOverride) : null,
         quoteId: item.quoteId || null, source: item.source || "vendor_quote",
-        note: item.note || null, hasBackup: item.hasBackup || true, sortOrder: idx,
+        note: item.note || null, hasBackup: item.hasBackup ?? false, sortOrder: idx,
       }));
       const inserted = await db.insert(estimateLineItems).values(rows).returning();
       res.status(201).json(inserted);
