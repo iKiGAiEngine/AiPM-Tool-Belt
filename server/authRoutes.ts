@@ -6,7 +6,7 @@ import { randomBytes, createHash } from "crypto";
 import bcrypt from "bcrypt";
 import { auditLog } from "./auditService";
 import { storage } from "./storage";
-import { sendInviteEmail, sendPasswordResetEmail } from "./emailService";
+import { sendPasswordResetEmail } from "./emailService";
 
 const ALLOWED_DOMAINS = (process.env.ALLOWED_EMAIL_DOMAINS || "nationalbuildingspecialties.com,swinerton.com")
   .split(",")

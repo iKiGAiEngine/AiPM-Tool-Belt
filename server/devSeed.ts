@@ -73,13 +73,14 @@ export async function runDevSeed(): Promise<void> {
           displayName: account.displayName,
           initials: account.initials,
         };
-        if (passwordHash) updates.passwordHash = passwordHash;
         if (account.invited) {
+          updates.passwordHash = null;
           if (!existing.resetToken) {
             updates.resetToken = createHash("sha256").update(randomBytes(32).toString("hex")).digest("hex");
             updates.resetTokenExpiresAt = new Date(Date.now() + 72 * 60 * 60 * 1000);
           }
         } else {
+          if (passwordHash) updates.passwordHash = passwordHash;
           updates.resetToken = null;
           updates.resetTokenExpiresAt = null;
         }
