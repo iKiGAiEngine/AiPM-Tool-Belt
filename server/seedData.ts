@@ -8,6 +8,18 @@ async function ensureUserAuthColumns(): Promise<void> {
     await db.execute(sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS password_hash TEXT`);
     await db.execute(sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS reset_token TEXT`);
     await db.execute(sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS reset_token_expires_at TIMESTAMP`);
+    // Enforce valid status values at DB level
+    await db.execute(sql`
+      DO $$ BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.table_constraints
+          WHERE table_name = 'users' AND constraint_name = 'users_status_check'
+        ) THEN
+          ALTER TABLE users ADD CONSTRAINT users_status_check
+            CHECK (status IN ('invited', 'active', 'inactive'));
+        END IF;
+      END $$
+    `);
     // Back-fill: active users created before the status column existed get status='active'
     // (Deactivated users without a reset_token are old accounts — mark them inactive)
     await db.execute(sql`UPDATE users SET status = 'active' WHERE is_active = true AND status = 'invited' AND reset_token IS NULL`);
