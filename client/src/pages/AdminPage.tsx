@@ -48,6 +48,7 @@ import {
   KeyRound,
   ClipboardList,
   Trash2,
+  Mail,
 } from "lucide-react";
 import { Link } from "wouter";
 import { queryClient, apiRequest } from "@/lib/queryClient";
