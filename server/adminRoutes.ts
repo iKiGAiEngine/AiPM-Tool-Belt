@@ -246,6 +246,18 @@ export function registerAdminRoutes(app: Express) {
         requestPath: req.path,
         requestMethod: req.method,
       });
+      await db.insert(auditLogs).values({
+        actionType: "invite_email_sent",
+        actorUserId: actorId,
+        actorEmail: actor?.email,
+        entityType: "user",
+        entityId: String(user.id),
+        summary: `Invite email sent to ${user.email}`,
+        ipAddress: (req.headers["x-forwarded-for"] as string)?.split(",")[0] || req.socket.remoteAddress || "",
+        userAgent: req.headers["user-agent"] || "",
+        requestPath: req.path,
+        requestMethod: req.method,
+      });
 
       res.json({ message: "Invite sent" });
     } catch (error: any) {
