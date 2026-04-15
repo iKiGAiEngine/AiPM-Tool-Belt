@@ -436,6 +436,7 @@ export async function sendInviteEmail(to: string, token: string): Promise<void> 
       console.log(`[Email] Invite sent to ${to} via SendGrid`);
     } catch (error: any) {
       console.error(`[Email] SendGrid error sending invite:`, error?.response?.body || error.message);
+      throw new Error("Failed to send invite email");
     }
   } else {
     console.log(`\n========================================`);
@@ -470,6 +471,7 @@ export async function sendPasswordResetEmail(to: string, token: string): Promise
       console.log(`[Email] Password reset sent to ${to} via SendGrid`);
     } catch (error: any) {
       console.error(`[Email] SendGrid error sending password reset:`, error?.response?.body || error.message);
+      throw new Error("Failed to send password reset email");
     }
   } else {
     console.log(`\n========================================`);

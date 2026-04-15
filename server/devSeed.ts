@@ -43,8 +43,9 @@ export async function runDevSeed(): Promise<void> {
   try {
     for (const account of DEV_ACCOUNTS) {
       const [existing] = await db.select().from(users).where(eq(users.email, account.email));
+      const passwordHash = account.password ? await bcrypt.hash(account.password, 12) : null;
+
       if (!existing) {
-        const passwordHash = account.password ? await bcrypt.hash(account.password, 12) : null;
         const resetToken = account.invited
           ? createHash("sha256").update(randomBytes(32).toString("hex")).digest("hex")
           : null;
@@ -63,9 +64,26 @@ export async function runDevSeed(): Promise<void> {
           resetTokenExpiresAt,
         });
         console.log(`[DevSeed] Created dev account: ${account.email}`);
-      } else if (account.invited && existing.status !== "invited") {
-        await db.update(users).set({ status: "invited", isActive: false }).where(eq(users.id, existing.id));
-        console.log(`[DevSeed] Reset status to invited for: ${account.email}`);
+      } else {
+        const updates: Record<string, unknown> = {
+          role: account.role,
+          status: account.status,
+          isActive: account.isActive,
+          displayName: account.displayName,
+          initials: account.initials,
+        };
+        if (passwordHash) updates.passwordHash = passwordHash;
+        if (account.invited) {
+          if (!existing.resetToken) {
+            updates.resetToken = createHash("sha256").update(randomBytes(32).toString("hex")).digest("hex");
+            updates.resetTokenExpiresAt = new Date(Date.now() + 72 * 60 * 60 * 1000);
+          }
+        } else {
+          updates.resetToken = null;
+          updates.resetTokenExpiresAt = null;
+        }
+        await db.update(users).set(updates as any).where(eq(users.id, existing.id));
+        console.log(`[DevSeed] Refreshed dev account: ${account.email}`);
       }
     }
   } catch (error: any) {
