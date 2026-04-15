@@ -4,7 +4,7 @@ import { emailTemplateConfig } from "@shared/schema";
 import { eq } from "drizzle-orm";
 
 const EMAIL_PROVIDER = process.env.SENDGRID_API_KEY ? "sendgrid" : "console";
-const EMAIL_FROM = process.env.EMAIL_FROM || "noreply@aipm-toolbelt.com";
+const EMAIL_FROM = process.env.EMAIL_FROM || "no-reply@aipmapp.com";
 
 if (process.env.SENDGRID_API_KEY) {
   sgMail.setApiKey(process.env.SENDGRID_API_KEY);
@@ -414,7 +414,7 @@ export async function sendProjectWonEmail(
 export async function sendInviteEmail(to: string, token: string): Promise<void> {
   const baseUrl = process.env.APP_BASE_URL || "http://localhost:5000";
   const link = `${baseUrl}/reset-password?token=${token}`;
-  const subject = "AiPM Tool Belt — You're Invited";
+  const subject = "You've been invited to AiPM — set your password.";
   const text = `You have been invited to AiPM Tool Belt.\n\nSet your password using the link below (valid for 72 hours):\n${link}\n\nIf you did not expect this email, you can ignore it.`;
   const html = `
     <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 480px; margin: 0 auto; padding: 32px;">
@@ -448,7 +448,7 @@ export async function sendInviteEmail(to: string, token: string): Promise<void> 
 export async function sendPasswordResetEmail(to: string, token: string): Promise<void> {
   const baseUrl = process.env.APP_BASE_URL || "http://localhost:5000";
   const link = `${baseUrl}/reset-password?token=${token}`;
-  const subject = "AiPM Tool Belt — Password Reset";
+  const subject = "Reset your AiPM password.";
   const text = `You requested a password reset for your AiPM Tool Belt account.\n\nReset your password using the link below (valid for 1 hour):\n${link}\n\nIf you did not request this, please ignore this email.`;
   const html = `
     <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 480px; margin: 0 auto; padding: 32px;">

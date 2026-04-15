@@ -214,7 +214,11 @@ export function registerAuthRoutes(app: Express) {
       }
 
       const [user] = await db.select().from(users).where(eq(users.id, userId));
-      if (!user || !user.passwordHash) {
+      if (!user || !user.isActive || user.status !== "active") {
+        (req.session as any).userId = null;
+        return res.status(401).json({ message: "Authentication required" });
+      }
+      if (!user.passwordHash) {
         return res.status(400).json({ message: "No password set on this account" });
       }
 
