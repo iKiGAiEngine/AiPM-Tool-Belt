@@ -52,7 +52,6 @@ import { eq, sql } from "drizzle-orm";
 import { resolveChangedByName, recordFieldChanges, recordEntryCreation, recordEntryDeletion, recordDeletionRequested, recordDeletionRejected, recordDeleteCancelled } from "./changeLogger";
 import { db } from "./db";
 import { sendBidAssignmentEmail, getBidAssignmentTemplate, saveBidAssignmentTemplate, sendProjectWonEmail, getProjectWonTemplate, saveProjectWonTemplate } from "./emailService";
-import { QUICK_LOGIN_USERS } from "./authRoutes";
 import { createNotification, createNotificationForAdmins } from "./notificationRoutes";
 import { userCanAccessProject } from "./projectAccessControl";
 import { TERMINAL_ESTIMATE_STATUSES } from "./constants";
@@ -2095,11 +2094,6 @@ export function registerProjectRoutes(app: Express) {
                 .filter(Boolean);
 
               for (const initials of estimatorTokens) {
-                const quickLoginKey = initials.toLowerCase();
-                const quickLoginUser = QUICK_LOGIN_USERS[quickLoginKey];
-                if (quickLoginUser?.email) {
-                  recipientEmails.add(quickLoginUser.email.toLowerCase());
-                }
                 const [estimatorUser] = await db.select().from(users).where(eq(users.initials, initials));
                 if (estimatorUser?.email) {
                   recipientEmails.add(estimatorUser.email.toLowerCase());
@@ -2193,21 +2187,13 @@ export function registerProjectRoutes(app: Express) {
           (async () => {
             try {
               const initials = newEstimator.toUpperCase();
-              const quickLoginKey = initials.toLowerCase();
-              const quickLoginUser = QUICK_LOGIN_USERS[quickLoginKey];
-
               let email: string | null = null;
               let displayName: string = initials;
 
-              if (quickLoginUser) {
-                email = quickLoginUser.email;
-                displayName = quickLoginUser.displayName || initials;
-              } else {
-                const [estimatorUser] = await db.select().from(users).where(eq(users.initials, initials));
-                if (estimatorUser?.email) {
-                  email = estimatorUser.email;
-                  displayName = estimatorUser.displayName || initials;
-                }
+              const [estimatorUser] = await db.select().from(users).where(eq(users.initials, initials));
+              if (estimatorUser?.email) {
+                email = estimatorUser.email;
+                displayName = estimatorUser.displayName || initials;
               }
 
               if (email) {

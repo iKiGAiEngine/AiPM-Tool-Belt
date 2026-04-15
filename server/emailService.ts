@@ -411,6 +411,74 @@ export async function sendProjectWonEmail(
   }
 }
 
+export async function sendInviteEmail(to: string, token: string): Promise<void> {
+  const baseUrl = process.env.APP_BASE_URL || "http://localhost:5000";
+  const link = `${baseUrl}/reset-password?token=${token}`;
+  const subject = "AiPM Tool Belt — You're Invited";
+  const text = `You have been invited to AiPM Tool Belt.\n\nSet your password using the link below (valid for 72 hours):\n${link}\n\nIf you did not expect this email, you can ignore it.`;
+  const html = `
+    <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 480px; margin: 0 auto; padding: 32px;">
+      <div style="border-bottom: 3px solid #D4A843; padding-bottom: 12px; margin-bottom: 24px;">
+        <h2 style="margin: 0; font-size: 20px; color: #111;">AiPM Tool Belt</h2>
+      </div>
+      <p style="color: #333; font-size: 15px;">You have been invited to access <strong>AiPM Tool Belt</strong>.</p>
+      <p style="color: #555; font-size: 14px;">Click the button below to set your password and activate your account. This link is valid for <strong>72 hours</strong>.</p>
+      <div style="text-align: center; margin: 28px 0;">
+        <a href="${link}" style="display: inline-block; padding: 13px 28px; background: linear-gradient(135deg, #D4A843, #B8903C); color: #fff; font-weight: 700; font-size: 15px; border-radius: 8px; text-decoration: none; letter-spacing: 0.5px;">Set Your Password</a>
+      </div>
+      <p style="color: #888; font-size: 12px;">If you did not expect this invitation, you can safely ignore this email.</p>
+    </div>
+  `;
+
+  if (EMAIL_PROVIDER === "sendgrid") {
+    try {
+      await sgMail.send({ to, from: EMAIL_FROM, subject, text, html });
+      console.log(`[Email] Invite sent to ${to} via SendGrid`);
+    } catch (error: any) {
+      console.error(`[Email] SendGrid error sending invite:`, error?.response?.body || error.message);
+    }
+  } else {
+    console.log(`\n========================================`);
+    console.log(`[Email-DEV] Invite for ${to}`);
+    console.log(`Link: ${link}`);
+    console.log(`========================================\n`);
+  }
+}
+
+export async function sendPasswordResetEmail(to: string, token: string): Promise<void> {
+  const baseUrl = process.env.APP_BASE_URL || "http://localhost:5000";
+  const link = `${baseUrl}/reset-password?token=${token}`;
+  const subject = "AiPM Tool Belt — Password Reset";
+  const text = `You requested a password reset for your AiPM Tool Belt account.\n\nReset your password using the link below (valid for 1 hour):\n${link}\n\nIf you did not request this, please ignore this email.`;
+  const html = `
+    <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 480px; margin: 0 auto; padding: 32px;">
+      <div style="border-bottom: 3px solid #D4A843; padding-bottom: 12px; margin-bottom: 24px;">
+        <h2 style="margin: 0; font-size: 20px; color: #111;">AiPM Tool Belt</h2>
+      </div>
+      <p style="color: #333; font-size: 15px;">We received a request to reset your password.</p>
+      <p style="color: #555; font-size: 14px;">Click the button below to choose a new password. This link is valid for <strong>1 hour</strong>.</p>
+      <div style="text-align: center; margin: 28px 0;">
+        <a href="${link}" style="display: inline-block; padding: 13px 28px; background: linear-gradient(135deg, #D4A843, #B8903C); color: #fff; font-weight: 700; font-size: 15px; border-radius: 8px; text-decoration: none; letter-spacing: 0.5px;">Reset Password</a>
+      </div>
+      <p style="color: #888; font-size: 12px;">If you did not request a password reset, you can safely ignore this email.</p>
+    </div>
+  `;
+
+  if (EMAIL_PROVIDER === "sendgrid") {
+    try {
+      await sgMail.send({ to, from: EMAIL_FROM, subject, text, html });
+      console.log(`[Email] Password reset sent to ${to} via SendGrid`);
+    } catch (error: any) {
+      console.error(`[Email] SendGrid error sending password reset:`, error?.response?.body || error.message);
+    }
+  } else {
+    console.log(`\n========================================`);
+    console.log(`[Email-DEV] Password Reset for ${to}`);
+    console.log(`Link: ${link}`);
+    console.log(`========================================\n`);
+  }
+}
+
 export async function sendOTPEmail(to: string, code: string): Promise<void> {
   const subject = "AiPM Tool Belt - Your Login Code";
   const text = `Your verification code is: ${code}\n\nThis code expires in 10 minutes.\n\nIf you did not request this, please ignore this email.`;

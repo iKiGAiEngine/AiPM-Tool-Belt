@@ -2,6 +2,20 @@ import { db } from "./db";
 import { regions, scopeDictionaries, vendors, div10Products } from "@shared/schema";
 import { count, sql } from "drizzle-orm";
 
+async function ensureUserAuthColumns(): Promise<void> {
+  try {
+    await db.execute(sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS status VARCHAR(20) NOT NULL DEFAULT 'invited'`);
+    await db.execute(sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS password_hash TEXT`);
+    await db.execute(sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS reset_token TEXT`);
+    await db.execute(sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS reset_token_expires_at TIMESTAMP`);
+    // Back-fill: active users who were already created with isActive=true get status='active'
+    await db.execute(sql`UPDATE users SET status = 'active' WHERE is_active = true AND status = 'invited'`);
+    await db.execute(sql`UPDATE users SET status = 'inactive' WHERE is_active = false AND status = 'invited'`);
+  } catch (e: any) {
+    console.log("[Migration] user auth columns check:", e.message);
+  }
+}
+
 async function ensureRegionAliasesColumn(): Promise<void> {
   try {
     await db.execute(sql`ALTER TABLE regions ADD COLUMN IF NOT EXISTS aliases text[]`);
@@ -39,6 +53,7 @@ async function ensureProposalLogExtraColumns(): Promise<void> {
 
 export async function seedDefaultData(): Promise<void> {
   try {
+    await ensureUserAuthColumns();
     await ensureRegionAliasesColumn();
     await ensureProposalLogExtraColumns();
     await ensureProposalChangeLogTable();

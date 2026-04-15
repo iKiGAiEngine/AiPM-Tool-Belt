@@ -87,6 +87,11 @@ app.use((req, res, next) => {
 (async () => {
   await seedDefaultData();
 
+  if (process.env.NODE_ENV === "development") {
+    const { runDevSeed } = await import("./devSeed");
+    await runDevSeed();
+  }
+
   // Initialize permissions table
   const { initializePermissions } = await import("./permissionsInit");
   await initializePermissions();

@@ -1,4 +1,4 @@
-import { Switch, Route } from "wouter";
+import { Switch, Route, useLocation } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
@@ -18,6 +18,8 @@ import ProjectLogPage from "@/pages/ProjectLogPage";
 import ScheduleConverterPage from "@/pages/ScheduleConverterPage";
 import SpecExtractorPage from "@/pages/SpecExtractorPage";
 import LoginPage from "@/pages/LoginPage";
+import ForgotPasswordPage from "@/pages/ForgotPasswordPage";
+import ResetPasswordPage from "@/pages/ResetPasswordPage";
 import AdminPage from "@/pages/AdminPage";
 import AuditLogPage from "@/pages/AuditLogPage";
 import SubmittalBuilderPage from "@/submittal-builder/SubmittalBuilderPage";
@@ -27,6 +29,8 @@ import ChangelogPage from "@/pages/ChangelogPage";
 import ProposalChangeLogPage from "@/pages/ProposalChangeLogPage";
 import EstimatingModulePage from "@/pages/EstimatingModulePage";
 import NotFound from "@/pages/not-found";
+
+const PUBLIC_PATHS = ["/forgot-password", "/reset-password"];
 
 function AdminRoute({ component: Component }: { component: React.ComponentType }) {
   const { isAdmin } = useAuth();
@@ -62,7 +66,19 @@ function Router() {
 }
 
 function AuthGate() {
-  const { isAuthenticated, isLoading, isAdmin } = useAuth();
+  const { isAuthenticated, isLoading } = useAuth();
+  const [location] = useLocation();
+
+  const isPublicPath = PUBLIC_PATHS.some(p => location.startsWith(p));
+
+  if (isPublicPath) {
+    return (
+      <Switch>
+        <Route path="/forgot-password" component={ForgotPasswordPage} />
+        <Route path="/reset-password" component={ResetPasswordPage} />
+      </Switch>
+    );
+  }
 
   if (isLoading) {
     return (

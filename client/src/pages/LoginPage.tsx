@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
+import { Link } from "wouter";
 
 function AnimatedCanvas() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -124,10 +125,8 @@ function AnimatedCanvas() {
       t += .016;
       ctx!.clearRect(0, 0, w, h);
       ctx!.fillStyle = "#0C0E14"; ctx!.fillRect(0, 0, w, h);
-
       drawGrid();
       drawBeams();
-
       for (var i = 0; i < blobs.length; i++) {
         var b = blobs[i];
         b.x += b.vx; b.y += b.vy;
@@ -135,7 +134,6 @@ function AnimatedCanvas() {
         if (b.y < -200) b.vy = Math.abs(b.vy); if (b.y > h + 200) b.vy = -Math.abs(b.vy);
         drawBlob(b);
       }
-
       drawConnections();
       for (var i = 0; i < particles.length; i++) {
         var p = particles[i];
@@ -145,7 +143,6 @@ function AnimatedCanvas() {
         ctx!.fillStyle = "rgba(200,164,78," + po + ")";
         ctx!.beginPath(); ctx!.arc(p.x, p.y, p.size, 0, Math.PI * 2); ctx!.fill();
       }
-
       animId = requestAnimationFrame(animate);
     }
     animate();
@@ -159,134 +156,49 @@ function AnimatedCanvas() {
   return (
     <canvas
       ref={canvasRef}
-      id="bgCanvas"
       style={{ position: "fixed", inset: 0, width: "100%", height: "100%", zIndex: 0 }}
     />
   );
 }
 
-const shieldPath = "M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z";
-const personPaths = [
-  "M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2",
-];
-const personCircle = { cx: 12, cy: 7, r: 4 };
-const chevronPath = "m9 18 6-6-6-6";
-const eyeOpenPath = "M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z";
-const eyeOpenCircle = { cx: 12, cy: 12, r: 3 };
-const eyeClosedPath = "M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24";
-const successCheckPath = "M22 11.08V12a10 10 0 1 1-5.93-9.14";
-const successCheckPoly = "22 4 12 14.01 9 11.01";
-
 export default function LoginPage() {
-  const [step, setStep] = useState<0 | 1 | 2 | 3>(0);
-  const [selectedRole, setSelectedRole] = useState<"admin" | "user" | null>(null);
   const [email, setEmail] = useState("");
-  const [code, setCode] = useState("");
+  const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
-  const [sentEmail, setSentEmail] = useState("");
+  const [success, setSuccess] = useState(false);
 
-  const requestMutation = useMutation({
-    mutationFn: async (emailVal: string) => {
-      const res = await fetch("/api/auth/request", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: emailVal }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message);
-      return data;
-    },
-    onSuccess: (data) => {
-      setSentEmail(data.email);
-      setStep(2);
-      setError("");
-    },
-    onError: (err: Error) => {
-      setError(err.message);
-    },
-  });
-
-  const verifyMutation = useMutation({
-    mutationFn: async ({ emailVal, codeVal }: { emailVal: string; codeVal: string }) => {
-      const res = await fetch("/api/auth/verify", {
+  const loginMutation = useMutation({
+    mutationFn: async ({ email, password }: { email: string; password: string }) => {
+      const res = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ email: emailVal, code: codeVal }),
+        body: JSON.stringify({ email, password }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message);
       return data;
     },
     onSuccess: () => {
-      setStep(3);
+      setSuccess(true);
       setError("");
       queryClient.removeQueries({ queryKey: ["/api/user/features"] });
       setTimeout(() => {
         queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
-      }, 1500);
+      }, 800);
     },
     onError: (err: Error) => {
       setError(err.message);
     },
   });
 
-  const quickLoginMutation = useMutation({
-    mutationFn: async (username: string) => {
-      const res = await fetch("/api/auth/quick-login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ username }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message);
-      return data;
-    },
-    onSuccess: () => {
-      setStep(3);
-      setError("");
-      queryClient.removeQueries({ queryKey: ["/api/user/features"] });
-      setTimeout(() => {
-        queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
-      }, 1500);
-    },
-    onError: (err: Error) => {
-      setError(err.message);
-    },
-  });
-
-  const quickLoginUsers = [
-    { key: "hk", initials: "HK", name: "Haley Kruse", subtitle: "Admin", isAdmin: true },
-    { key: "gm", initials: "GM", name: "Gonzalo Martinez", subtitle: "Estimator", isAdmin: false },
-    { key: "gt", initials: "GT", name: "Gene Trabert", subtitle: "Estimator", isAdmin: false },
-    { key: "kr", initials: "KR", name: "Kenny Ruester", subtitle: "President", isAdmin: false },
-    { key: "ck", initials: "CK", name: "Christina Keith", subtitle: "Project Manager", isAdmin: false },
-    { key: "hc", initials: "HC", name: "Hallyn Crozier", subtitle: "Project Manager", isAdmin: false },
-    { key: "mm", initials: "MM", name: "Melissa Magallanes", subtitle: "Project Manager", isAdmin: false },
-    { key: "jw", initials: "JW", name: "Joey White", subtitle: "Controller", isAdmin: false },
-  ];
-
-  const handleQuickLogin = useCallback((username: string) => {
-    setSelectedRole(username === "hk" ? "admin" : "user");
+  const handleSubmit = useCallback((e: React.FormEvent) => {
+    e.preventDefault();
+    if (!email.trim() || !password) return;
     setError("");
-    quickLoginMutation.mutate(username);
-  }, [quickLoginMutation]);
-
-  const handleEmailNext = useCallback((e?: React.FormEvent) => {
-    e?.preventDefault();
-    if (!email.trim()) return;
-    setError("");
-    requestMutation.mutate(email.trim());
-  }, [email, requestMutation]);
-
-  const handleVerify = useCallback((e?: React.FormEvent) => {
-    e?.preventDefault();
-    if (!code.trim()) return;
-    setError("");
-    verifyMutation.mutate({ emailVal: sentEmail, codeVal: code.trim() });
-  }, [code, sentEmail, verifyMutation]);
+    loginMutation.mutate({ email: email.trim(), password });
+  }, [email, password, loginMutation]);
 
   const inputStyles: React.CSSProperties = {
     width: "100%",
@@ -337,26 +249,6 @@ export default function LoginPage() {
           border-color: #C8A44E !important;
           box-shadow: 0 0 0 3px rgba(200,164,78,0.1) !important;
         }
-        .role-btn {
-          display: flex;
-          align-items: center;
-          gap: 0.85rem;
-          width: 100%;
-          padding: 0.85rem 1rem;
-          background: rgba(255,255,255,0.02);
-          border: 1px solid rgba(255,255,255,0.08);
-          border-radius: 12px;
-          cursor: pointer;
-          transition: all 0.2s;
-          text-align: left;
-        }
-        .role-btn:hover {
-          border-color: rgba(200,164,78,0.4);
-          background: rgba(200,164,78,0.06);
-          transform: translateY(-1px);
-          box-shadow: 0 4px 20px rgba(200,164,78,0.1);
-        }
-        .role-btn:hover .role-chevron { color: #C8A44E; }
         .gold-btn:hover { filter: brightness(1.1); transform: translateY(-1px); }
         .gold-btn:active { transform: translateY(0); }
         .gold-btn:disabled { opacity: 0.6; cursor: not-allowed; transform: none; filter: none; }
@@ -369,6 +261,7 @@ export default function LoginPage() {
           font-family: 'DM Sans', sans-serif;
           padding: 0.25rem 0;
           transition: color 0.2s;
+          text-decoration: none;
         }
         .link-btn:hover { color: #C8A44E; }
         .spinner {
@@ -383,6 +276,12 @@ export default function LoginPage() {
         @keyframes scaleIn { from { opacity: 0; transform: scale(0.8); } to { opacity: 1; transform: scale(1); } }
         .step-animate { animation: fadeIn 0.35s ease-out; }
         .success-animate { animation: scaleIn 0.5s ease-out; }
+        .pw-toggle {
+          position: absolute; right: 0.75rem; top: 50%; transform: translateY(-50%);
+          background: none; border: none; cursor: pointer; color: #5C6170; padding: 0.2rem;
+          transition: color 0.2s;
+        }
+        .pw-toggle:hover { color: #C8A44E; }
       `}</style>
 
       <div className="login-page-root" style={{ fontFamily: "'DM Sans', sans-serif", background: "var(--bg)", minHeight: "100vh", overflow: "hidden" }}>
@@ -393,7 +292,7 @@ export default function LoginPage() {
             className="login-card"
             style={{
               width: "100%",
-              maxWidth: "440px",
+              maxWidth: "420px",
               background: "rgba(14,17,24,0.88)",
               backdropFilter: "blur(40px)",
               WebkitBackdropFilter: "blur(40px)",
@@ -424,72 +323,24 @@ export default function LoginPage() {
               </span>
             </div>
 
-            {step === 0 && (
-              <div className="step-animate" key="step0" style={{ textAlign: "center" }}>
-                <h2 style={{ fontFamily: "'Rajdhani', sans-serif", fontSize: "1.55rem", fontWeight: 700, color: "var(--text)", margin: "0 0 0.4rem" }} data-testid="text-login-title">Sign in</h2>
-                <p style={{ fontSize: "0.88rem", color: "#8A8F9E", margin: "0 0 1.5rem" }}>Select your access level to continue.</p>
-
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.5rem", marginBottom: "1.25rem" }}>
-                  {quickLoginUsers.map((user) => (
-                    <button
-                      key={user.key}
-                      className="role-btn"
-                      onClick={() => handleQuickLogin(user.key)}
-                      disabled={quickLoginMutation.isPending}
-                      data-testid={`button-login-${user.key}`}
-                      style={{ flexDirection: "column", alignItems: "center", textAlign: "center", padding: "0.7rem 0.5rem", gap: "0.4rem" }}
-                    >
-                      <div style={{ width: "36px", height: "36px", borderRadius: "8px", background: "rgba(200,164,78,0.1)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                        {user.isAdmin ? (
-                          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#C8A44E" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                            <path d={shieldPath}/>
-                          </svg>
-                        ) : (
-                          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#C8A44E" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                            {personPaths.map((d, i) => <path key={i} d={d}/>)}
-                            <circle cx={personCircle.cx} cy={personCircle.cy} r={personCircle.r}/>
-                          </svg>
-                        )}
-                      </div>
-                      <div>
-                        <div style={{ fontSize: "0.82rem", fontWeight: 600, color: "#F0F0F2" }}>{user.initials} — {user.name}</div>
-                        <div style={{ fontSize: "0.7rem", color: "#5C6170" }}>{user.subtitle}</div>
-                      </div>
-                    </button>
-                  ))}
+            {success ? (
+              <div className="success-animate" style={{ textAlign: "center", padding: "1rem 0" }}>
+                <div style={{ width: "60px", height: "60px", borderRadius: "50%", background: "rgba(200,164,78,0.12)", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 1rem" }}>
+                  <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#C8A44E" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+                    <polyline points="22 4 12 14.01 9 11.01"/>
+                  </svg>
                 </div>
-
-                {quickLoginMutation.isPending && (
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "0.5rem", color: "#8A8F9E", fontSize: "0.82rem" }}>
-                    <div className="spinner" style={{ borderColor: "rgba(200,164,78,0.3)", borderTopColor: "#C8A44E" }}></div>
-                    Signing in...
-                  </div>
-                )}
-
-                {error && (
-                  <p style={{ color: "#ef4444", fontSize: "0.82rem", marginTop: "0.5rem" }} data-testid="text-error">{error}</p>
-                )}
-
-                <div style={{ marginTop: "1rem", borderTop: "1px solid rgba(255,255,255,0.06)", paddingTop: "1rem" }}>
-                  <button
-                    className="link-btn"
-                    onClick={() => { setStep(1); setError(""); }}
-                    data-testid="button-email-login"
-                    style={{ fontSize: "0.82rem" }}
-                  >
-                    Sign in with email code instead
-                  </button>
-                </div>
+                <h2 style={{ fontFamily: "'Rajdhani', sans-serif", fontSize: "1.4rem", fontWeight: 700, color: "var(--text)", margin: "0 0 0.5rem" }}>Signed in!</h2>
+                <p style={{ color: "#8A8F9E", fontSize: "0.85rem" }}>Loading your workspace…</p>
               </div>
-            )}
+            ) : (
+              <div className="step-animate">
+                <h2 style={{ fontFamily: "'Rajdhani', sans-serif", fontSize: "1.55rem", fontWeight: 700, color: "var(--text)", margin: "0 0 0.3rem", textAlign: "center" }}>Sign in</h2>
+                <p style={{ fontSize: "0.85rem", color: "#8A8F9E", margin: "0 0 1.5rem", textAlign: "center" }}>Enter your email and password to continue.</p>
 
-            {step === 1 && (
-              <div className="step-animate" key="step1" style={{ textAlign: "center" }}>
-                <h2 style={{ fontFamily: "'Rajdhani', sans-serif", fontSize: "1.55rem", fontWeight: 700, color: "var(--text)", margin: "0 0 0.4rem" }}>Sign in</h2>
-                <p style={{ fontSize: "0.88rem", color: "var(--text-dim)", margin: "0 0 1.5rem" }}>Enter your email address to continue.</p>
-
-                <form onSubmit={handleEmailNext}>
-                  <div style={{ textAlign: "left", marginBottom: "1rem" }}>
+                <form onSubmit={handleSubmit}>
+                  <div style={{ marginBottom: "1rem" }}>
                     <label style={{ display: "block", fontSize: "0.8rem", fontWeight: 500, color: "#8A8F9E", marginBottom: "0.4rem" }}>Email</label>
                     <input
                       className="login-input"
@@ -500,8 +351,51 @@ export default function LoginPage() {
                       style={inputStyles}
                       required
                       autoFocus
+                      autoComplete="username"
                       data-testid="input-email"
                     />
+                  </div>
+
+                  <div style={{ marginBottom: "0.5rem" }}>
+                    <label style={{ display: "block", fontSize: "0.8rem", fontWeight: 500, color: "#8A8F9E", marginBottom: "0.4rem" }}>Password</label>
+                    <div style={{ position: "relative" }}>
+                      <input
+                        className="login-input"
+                        type={showPassword ? "text" : "password"}
+                        placeholder="••••••••"
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        style={{ ...inputStyles, paddingRight: "2.5rem" }}
+                        required
+                        autoComplete="current-password"
+                        data-testid="input-password"
+                      />
+                      <button
+                        type="button"
+                        className="pw-toggle"
+                        onClick={() => setShowPassword(p => !p)}
+                        aria-label={showPassword ? "Hide password" : "Show password"}
+                      >
+                        {showPassword ? (
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/>
+                            <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/>
+                            <line x1="1" y1="1" x2="23" y2="23"/>
+                          </svg>
+                        ) : (
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                            <circle cx="12" cy="12" r="3"/>
+                          </svg>
+                        )}
+                      </button>
+                    </div>
+                  </div>
+
+                  <div style={{ textAlign: "right", marginBottom: "1.25rem" }}>
+                    <Link href="/forgot-password" className="link-btn" style={{ fontSize: "0.78rem" }} data-testid="link-forgot-password">
+                      Forgot password?
+                    </Link>
                   </div>
 
                   {error && (
@@ -511,135 +405,16 @@ export default function LoginPage() {
                   <button
                     className="gold-btn"
                     type="submit"
-                    disabled={requestMutation.isPending || !email.trim()}
+                    disabled={loginMutation.isPending || !email.trim() || !password}
                     style={goldBtnStyles}
-                    data-testid="button-request-code"
+                    data-testid="button-sign-in"
                   >
-                    {requestMutation.isPending ? <div className="spinner"></div> : "Next"}
+                    {loginMutation.isPending ? <div className="spinner"></div> : "Sign In"}
                   </button>
                 </form>
-
-                <div style={{ marginTop: "1.25rem", display: "flex", justifyContent: "space-between", alignItems: "center", gap: "1rem", flexWrap: "wrap" }}>
-                  <button className="link-btn" onClick={() => { setStep(0); setError(""); setEmail(""); }} data-testid="button-back-role">
-                    &#8592; Back
-                  </button>
-                  <span style={{ fontSize: "0.78rem", color: "#5C6170" }}>No account yet? <button className="link-btn" style={{ fontSize: "0.78rem", display: "inline", color: "#8A8F9E" }}>Request Access</button></span>
-                </div>
-              </div>
-            )}
-
-            {step === 2 && (
-              <div className="step-animate" key="step2" style={{ textAlign: "center" }}>
-                <h2 style={{ fontFamily: "'Rajdhani', sans-serif", fontSize: "1.55rem", fontWeight: 700, color: "var(--text)", margin: "0 0 0.4rem" }}>Welcome back</h2>
-                <p style={{ fontSize: "0.88rem", color: "#C8A44E", margin: "0 0 0.3rem" }}>{sentEmail}</p>
-                <p style={{ fontSize: "0.78rem", color: "#5C6170", margin: "0 0 1.5rem" }}>Check your email for a 6-digit verification code</p>
-
-                <form onSubmit={handleVerify}>
-                  <div style={{ textAlign: "left", marginBottom: "1rem", position: "relative" }}>
-                    <label style={{ display: "block", fontSize: "0.8rem", fontWeight: 500, color: "#8A8F9E", marginBottom: "0.4rem" }}>Verification Code</label>
-                    <div style={{ position: "relative" }}>
-                      <input
-                        className="login-input"
-                        type={showPassword ? "text" : "password"}
-                        placeholder="Enter 6-digit code"
-                        value={code}
-                        onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
-                        style={{ ...inputStyles, paddingRight: "2.75rem", fontFamily: "monospace", fontSize: "1rem", letterSpacing: "0.15em", textAlign: "center" }}
-                        required
-                        autoFocus
-                        inputMode="numeric"
-                        maxLength={6}
-                        data-testid="input-code"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowPassword(!showPassword)}
-                        style={{
-                          position: "absolute", right: "0.6rem", top: "50%", transform: "translateY(-50%)",
-                          background: "none", border: "none", cursor: "pointer", padding: "0.25rem",
-                          display: "flex", alignItems: "center",
-                        }}
-                        data-testid="button-toggle-visibility"
-                      >
-                        {showPassword ? (
-                          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#5C6170" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                            <path d={eyeOpenPath}/>
-                            <circle cx={eyeOpenCircle.cx} cy={eyeOpenCircle.cy} r={eyeOpenCircle.r}/>
-                          </svg>
-                        ) : (
-                          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#5C6170" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                            <path d={eyeClosedPath}/>
-                            <line x1="1" y1="1" x2="23" y2="23"/>
-                          </svg>
-                        )}
-                      </button>
-                    </div>
-                  </div>
-
-                  {error && (
-                    <p style={{ color: "#ef4444", fontSize: "0.82rem", marginBottom: "0.75rem", textAlign: "left" }} data-testid="text-verify-error">{error}</p>
-                  )}
-
-                  <button
-                    className="gold-btn"
-                    type="submit"
-                    disabled={verifyMutation.isPending || code.length < 6}
-                    style={goldBtnStyles}
-                    data-testid="button-verify-code"
-                  >
-                    {verifyMutation.isPending ? <div className="spinner"></div> : "Sign In"}
-                  </button>
-                </form>
-
-                <div style={{ marginTop: "0.75rem", textAlign: "center" }}>
-                  <button
-                    className="link-btn"
-                    onClick={() => { setError(""); requestMutation.mutate(sentEmail); }}
-                    disabled={requestMutation.isPending}
-                    data-testid="button-resend-code"
-                    style={{ fontSize: "0.78rem" }}
-                  >
-                    {requestMutation.isPending ? "Sending..." : "Resend code"}
-                  </button>
-                </div>
-                <div style={{ marginTop: "0.75rem", display: "flex", justifyContent: "space-between", alignItems: "center", gap: "1rem", flexWrap: "wrap" }}>
-                  <button className="link-btn" onClick={() => { setStep(1); setCode(""); setError(""); }} data-testid="button-back-email">
-                    &#8592; Back
-                  </button>
-                  <button className="link-btn" style={{ fontSize: "0.8rem" }}>Forgot password?</button>
-                </div>
-              </div>
-            )}
-
-            {step === 3 && (
-              <div className="step-animate success-animate" key="step3" style={{ textAlign: "center", padding: "1rem 0" }}>
-                <div style={{
-                  width: "64px", height: "64px", borderRadius: "50%",
-                  background: "rgba(78,203,113,0.1)", border: "2px solid rgba(78,203,113,0.3)",
-                  display: "flex", alignItems: "center", justifyContent: "center",
-                  margin: "0 auto 1.25rem",
-                }}>
-                  <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#4ECB71" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d={successCheckPath}/>
-                    <polyline points={successCheckPoly}/>
-                  </svg>
-                </div>
-                <h2 style={{ fontFamily: "'Rajdhani', sans-serif", fontSize: "1.55rem", fontWeight: 700, color: "var(--text)", margin: "0 0 0.4rem" }} data-testid="text-success">You're in!</h2>
-                <p style={{ fontSize: "0.88rem", color: "#8A8F9E" }}>
-                  {selectedRole === "admin" ? "Redirecting to admin dashboard..." : "Redirecting to your dashboard..."}
-                </p>
               </div>
             )}
           </div>
-        </div>
-
-        <div style={{ position: "fixed", bottom: "1.25rem", left: "1.5rem", zIndex: 10, fontSize: "0.75rem", color: "#5C6170" }}>
-          Issues signing in? <button className="link-btn" style={{ fontSize: "0.75rem", display: "inline" }}>Get help</button>
-        </div>
-        <div style={{ position: "fixed", bottom: "1.25rem", right: "1.5rem", zIndex: 10, fontSize: "0.72rem", color: "#5C6170", display: "flex", alignItems: "center", gap: "0.4rem" }}>
-          <span style={{ fontWeight: 600, color: "#8A8F9E" }}>NBS</span>
-          <span style={{ opacity: 0.4 }}>·</span>
-          National Building Specialties
         </div>
       </div>
     </>

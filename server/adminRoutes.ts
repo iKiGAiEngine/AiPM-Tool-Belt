@@ -4,6 +4,8 @@ import { users, auditLogs, FEATURES, DEFAULT_ROLE_FEATURES, Feature, permissionP
 import { eq, desc, and, gte, lte, like, or, sql } from "drizzle-orm";
 import { requireAdmin, isAllowedDomain } from "./authRoutes";
 import { auditLog } from "./auditService";
+import { randomBytes } from "crypto";
+import { sendInviteEmail } from "./emailService";
 import { storage } from "./storage";
 
 export function registerAdminRoutes(app: Express) {
@@ -28,9 +30,11 @@ export function registerAdminRoutes(app: Express) {
       const [user] = await db.select().from(users).where(eq(users.id, userId));
       if (!user) return res.status(404).json({ message: "User not found" });
 
+      const newActive = !user.isActive;
+      const newStatus = newActive ? "active" : "inactive";
       const [updated] = await db
         .update(users)
-        .set({ isActive: !user.isActive })
+        .set({ isActive: newActive, status: newStatus })
         .where(eq(users.id, userId))
         .returning();
 
@@ -158,13 +162,23 @@ export function registerAdminRoutes(app: Express) {
 
       const autoInitials = initials || (displayName ? displayName.split(/\s+/).map((w: string) => w[0]).join("").toUpperCase().substring(0, 3) : "");
 
+      const inviteToken = randomBytes(32).toString("hex");
+      const inviteExpiresAt = new Date(Date.now() + 72 * 60 * 60 * 1000);
+
       const [newUser] = await db.insert(users).values({
         email: normalizedEmail,
         displayName: displayName || null,
         initials: autoInitials || null,
         role: role || "user",
-        isActive: true,
+        isActive: false,
+        status: "invited",
+        resetToken: inviteToken,
+        resetTokenExpiresAt: inviteExpiresAt,
       }).returning();
+
+      await sendInviteEmail(normalizedEmail, inviteToken).catch(err => {
+        console.error("[Admin] Failed to send invite email:", err.message);
+      });
 
       const [actor] = await db.select().from(users).where(eq(users.id, actorId));
       await auditLog({
@@ -173,7 +187,7 @@ export function registerAdminRoutes(app: Express) {
         actorEmail: actor?.email,
         entityType: "user",
         entityId: String(newUser.id),
-        summary: `Created user ${newUser.email}${newUser.displayName ? ` (${newUser.displayName})` : ""}`,
+        summary: `Invited user ${newUser.email}${newUser.displayName ? ` (${newUser.displayName})` : ""}`,
         ipAddress: (req.headers["x-forwarded-for"] as string)?.split(",")[0] || req.socket.remoteAddress || "",
         userAgent: req.headers["user-agent"] || "",
         requestPath: req.path,
