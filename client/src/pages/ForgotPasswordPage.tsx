@@ -5,32 +5,23 @@ import { Link } from "wouter";
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState("");
   const [sent, setSent] = useState(false);
-  const [error, setError] = useState("");
 
   const mutation = useMutation({
     mutationFn: async (email: string) => {
-      const res = await fetch("/api/auth/forgot-password", {
+      await fetch("/api/auth/forgot-password", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email }),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message);
-      return data;
     },
-    onSuccess: () => {
+    onSettled: () => {
       setSent(true);
-      setError("");
-    },
-    onError: (err: Error) => {
-      setError(err.message);
     },
   });
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!email.trim()) return;
-    setError("");
     mutation.mutate(email.trim());
   };
 
@@ -157,10 +148,6 @@ export default function ForgotPasswordPage() {
                     data-testid="input-email"
                   />
                 </div>
-
-                {error && (
-                  <p style={{ color: "#ef4444", fontSize: "0.82rem", marginBottom: "0.75rem" }} data-testid="text-error">{error}</p>
-                )}
 
                 <button
                   className="fp-btn"

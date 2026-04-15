@@ -133,23 +133,28 @@ export function registerAuthRoutes(app: Express) {
       const normalizedEmail = email.trim().toLowerCase();
       const ip = getClientIP(req);
 
-      if (!checkRateLimit(`forgot:${ip}`, 5)) {
-        return res.status(429).json({ message: "Too many requests. Please try again later." });
-      }
+      const rateLimitPassed = checkRateLimit(`forgot:${ip}`, 5);
 
-      const [user] = await db.select().from(users).where(eq(users.email, normalizedEmail));
-
-      if (user && user.status === "active" && user.isActive) {
-        const { raw, hash } = generateToken();
-        const expiresAt = new Date(Date.now() + 60 * 60 * 1000);
-        await db.update(users).set({ resetToken: hash, resetTokenExpiresAt: expiresAt }).where(eq(users.id, user.id));
-        await sendPasswordResetEmail(normalizedEmail, raw);
+      if (rateLimitPassed) {
+        const [user] = await db.select().from(users).where(eq(users.email, normalizedEmail));
+        if (user && user.status === "active" && user.isActive) {
+          const { raw, hash } = generateToken();
+          const expiresAt = new Date(Date.now() + 60 * 60 * 1000);
+          await db.update(users).set({ resetToken: hash, resetTokenExpiresAt: expiresAt }).where(eq(users.id, user.id));
+          try {
+            await sendPasswordResetEmail(normalizedEmail, raw);
+          } catch (emailErr: any) {
+            console.error("[Auth] Failed to send password reset email:", emailErr.message);
+          }
+        }
+      } else {
+        console.warn(`[Auth] Forgot-password rate limit exceeded for IP ${ip}`);
       }
 
       res.json({ message: "If that email is registered and active, you will receive a password reset link." });
     } catch (error: any) {
       console.error("[Auth] Forgot password error:", error);
-      res.status(500).json({ message: "Failed to process request" });
+      res.json({ message: "If that email is registered and active, you will receive a password reset link." });
     }
   });
 
