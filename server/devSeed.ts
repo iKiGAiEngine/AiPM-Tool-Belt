@@ -27,7 +27,7 @@ const DEV_ACCOUNTS = [
     invited: false,
   },
   {
-    email: "test-invited@aipmapp.com",
+    email: "hkkruse@gmail.com",
     password: null,
     displayName: "Test Invited",
     initials: "TI",
