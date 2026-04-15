@@ -578,21 +578,34 @@ export function registerEstimateRoutes(app: Express) {
 
         let materialTotalCost: number | null = null;
 
+        let vendor: string | null = null;
+
         if (file.mimetype === "application/pdf") {
-          const text = await extractPdfText(file.buffer);
-          if (text && text.trim().length >= 10) {
+          const extracted = await extractPdfText(file.buffer);
+          const text = extracted.text || "";
+          if (text.trim().length >= 10) {
             const response = await openai.chat.completions.create({
               model: "gpt-4o-mini",
               messages: [
-                { role: "system", content: "You extract the total material cost from a vendor quote document. Respond ONLY with valid JSON: {\"materialTotalCost\": number_or_null}. Look for a grand total, subtotal, or total material amount. Ignore labor, installation, or tax lines unless they are the only total available. If you cannot confidently find a total, return null." },
-                { role: "user", content: `Extract the total material cost from this quote:\n\n${text.trim().slice(0, 6000)}` },
+                { role: "system", content: `You extract key fields from a vendor quote document for construction materials.
+Respond ONLY with valid JSON:
+{"materialTotalCost": number_or_null, "vendor": string_or_null}
+
+Rules:
+- materialTotalCost: Look for a grand total, net total, subtotal, or total line. If none exists but individual line item prices are present, SUM all "Net Price" values to get the total. Return a number, never null if prices are visible.
+- vendor: The company NAME that issued the quote (not the customer). Look for company name near the top, letterhead, or "Quoted By" / "Company" field.
+- Return null only if truly not determinable.` },
+                { role: "user", content: `Extract vendor name and total material cost from this quote:\n\n${text.trim().slice(0, 8000)}` },
               ],
               response_format: { type: "json_object" },
-              max_tokens: 100,
+              max_tokens: 150,
             });
             const parsed = JSON.parse(response.choices[0].message.content || "{}");
             if (typeof parsed.materialTotalCost === "number" && parsed.materialTotalCost > 0) {
               materialTotalCost = parsed.materialTotalCost;
+            }
+            if (typeof parsed.vendor === "string" && parsed.vendor.trim()) {
+              vendor = parsed.vendor.trim();
             }
           }
         } else if (file.mimetype.startsWith("image/")) {
@@ -601,22 +614,31 @@ export function registerEstimateRoutes(app: Express) {
           const response = await openai.chat.completions.create({
             model: "gpt-4o",
             messages: [
-              { role: "system", content: "You extract the total material cost from a vendor quote document image. Respond ONLY with valid JSON: {\"materialTotalCost\": number_or_null}. Look for a grand total, subtotal, or total material amount. If you cannot confidently find a total, return null." },
+              { role: "system", content: `You extract key fields from a vendor quote document image.
+Respond ONLY with valid JSON:
+{"materialTotalCost": number_or_null, "vendor": string_or_null}
+
+Rules:
+- materialTotalCost: Grand total, net total, or sum of line items. Return a number if any prices are visible.
+- vendor: Company name that issued the quote.` },
               { role: "user", content: [
-                { type: "text", text: "Extract the total material cost from this quote image:" },
+                { type: "text", text: "Extract vendor name and total material cost from this quote image:" },
                 { type: "image_url", image_url: { url: dataUrl, detail: "low" } },
               ]},
             ],
             response_format: { type: "json_object" },
-            max_tokens: 100,
+            max_tokens: 150,
           });
           const parsed = JSON.parse(response.choices[0].message.content || "{}");
           if (typeof parsed.materialTotalCost === "number" && parsed.materialTotalCost > 0) {
             materialTotalCost = parsed.materialTotalCost;
           }
+          if (typeof parsed.vendor === "string" && parsed.vendor.trim()) {
+            vendor = parsed.vendor.trim();
+          }
         }
 
-        res.json({ materialTotalCost });
+        res.json({ materialTotalCost, vendor });
       } catch (err) {
         console.error("extract-total error:", err);
         res.json({ materialTotalCost: null });

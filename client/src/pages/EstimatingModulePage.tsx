@@ -885,21 +885,23 @@ function EstimatingModuleInner() {
       });
       let q = await r.json();
       setQuotes(prev => [...prev, q]);
+      setNewQuote({ vendor: "", note: "", freight: 0, taxIncluded: false, pricingMode: "per_item", lumpSumTotal: 0, materialTotalCost: "" });
+      setNewQuoteFile(null);
+      setAiExtractNote(null);
+      setShowNewQuote(false);
       if (newQuoteFile) {
         const fd = new FormData();
         fd.append("file", newQuoteFile);
         const br = await fetch(`/api/estimates/quotes/${q.id}/backup-file`, { method: "POST", body: fd, credentials: "include" });
         if (br.ok) {
           const updated = await br.json();
-          setQuotes(prev => prev.map(x => x.id === q.id ? { ...x, filePath: updated.filePath, hasBackup: updated.hasBackup } : x));
+          setQuotes(prev => prev.map(x => x.id === q.id ? { ...x, filePath: updated.filePath, hasBackup: updated.hasBackup, status: "uploaded" } : x));
+          toast({ title: "Quote created", description: `${newQuoteFile.name} attached. Starting AI extraction…` });
+          processQuote(q.id);
         }
       }
-      setNewQuote({ vendor: "", note: "", freight: 0, taxIncluded: false, pricingMode: "per_item", lumpSumTotal: 0, materialTotalCost: "" });
-      setNewQuoteFile(null);
-      setAiExtractNote(null);
-      setShowNewQuote(false);
     } catch { toast({ title: "Error", description: "Could not add quote.", variant: "destructive" }); }
-  }, [estimateId, activeCat, newQuote, newQuoteFile]);
+  }, [estimateId, activeCat, newQuote, newQuoteFile, processQuote]);
 
   const updateQuote = useCallback(async (qId: number, field: string, value: any) => {
     setQuotes(prev => prev.map(q => q.id === qId ? { ...q, [field]: value } : q));
@@ -2583,11 +2585,14 @@ ${html}
                               fd.append("file", f);
                               const r = await fetch("/api/estimates/quotes/extract-total", { method: "POST", body: fd, credentials: "include" });
                               const data = await r.json();
+                              const updates: Record<string, string> = {};
+                              if (data.materialTotalCost != null) updates.materialTotalCost = String(data.materialTotalCost);
+                              if (data.vendor) updates.vendor = data.vendor;
+                              if (Object.keys(updates).length > 0) setNewQuote(p => ({ ...p, ...updates }));
                               if (data.materialTotalCost != null) {
-                                setNewQuote(p => ({ ...p, materialTotalCost: String(data.materialTotalCost) }));
-                                setAiExtractNote(`✓ AI found: $${Number(data.materialTotalCost).toLocaleString()}`);
+                                setAiExtractNote(`✓ AI found: $${Number(data.materialTotalCost).toLocaleString()}${data.vendor ? ` · ${data.vendor}` : ""}`);
                               } else {
-                                setAiExtractNote("AI could not find a total — enter manually");
+                                setAiExtractNote(data.vendor ? `✓ Vendor: ${data.vendor} — enter total manually` : "AI could not find a total — enter manually");
                               }
                             } catch {
                               setAiExtractNote("Extraction failed — enter manually");
