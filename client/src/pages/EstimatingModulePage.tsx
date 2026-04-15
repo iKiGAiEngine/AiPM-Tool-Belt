@@ -872,6 +872,39 @@ function EstimatingModuleInner() {
     }
   }, [estimateId, isBulkActionLoading, clearSelection]);
 
+  // ── Vendor quote AI processing ──
+  const processQuote = useCallback(async (quoteId: number) => {
+    setReviewProcessing(true);
+    setQuotes(prev => prev.map(q => q.id === quoteId ? { ...q, status: "processing" } : q));
+    try {
+      const res = await fetch(`/api/estimates/quotes/${quoteId}/process`, { method: "POST", credentials: "include" });
+      const data = await res.json();
+      if (!res.ok) {
+        const errMsg = data.message || "Processing failed";
+        const newStatus = data.code === "SCANNED_PDF_NOT_SUPPORTED" ? "needs_review" : "failed";
+        setQuotes(prev => prev.map(q => q.id === quoteId ? { ...q, status: newStatus, latestError: errMsg } : q));
+        setReviewQuote(prev => prev && prev.id === quoteId ? { ...prev, status: newStatus, latestError: errMsg } : prev);
+        toast({ title: "Processing failed", description: errMsg, variant: "destructive" });
+        return;
+      }
+      setQuotes(prev => prev.map(q => q.id === quoteId ? { ...q, ...data.quote, status: data.status } : q));
+      setReviewQuote(prev => prev && prev.id === quoteId ? { ...prev, ...data.quote, status: data.status } : prev);
+      const rowsRes = await fetch(`/api/estimates/quotes/${quoteId}/line-items`, { credentials: "include" });
+      if (rowsRes.ok) {
+        const rows: VendorQuoteLineItemRow[] = await rowsRes.json();
+        setReviewRows(rows);
+        setReviewChecked(new Set(rows.map(r => r.id)));
+      }
+    } catch (err: any) {
+      const errMsg = err.message || "Network error — processing failed";
+      toast({ title: "Processing failed", description: errMsg, variant: "destructive" });
+      setQuotes(prev => prev.map(q => q.id === quoteId ? { ...q, status: "failed", latestError: errMsg } : q));
+      setReviewQuote(prev => prev && prev.id === quoteId ? { ...prev, status: "failed", latestError: errMsg } : prev);
+    } finally {
+      setReviewProcessing(false);
+    }
+  }, [toast]);
+
   // ── Quote mutations ──
   const addQuote = useCallback(async () => {
     if (!estimateId || !newQuote.vendor.trim()) return;
@@ -936,38 +969,6 @@ function EstimatingModuleInner() {
       setReviewLoading(false);
     }
   }, []);
-
-  const processQuote = useCallback(async (quoteId: number) => {
-    setReviewProcessing(true);
-    setQuotes(prev => prev.map(q => q.id === quoteId ? { ...q, status: "processing" } : q));
-    try {
-      const res = await fetch(`/api/estimates/quotes/${quoteId}/process`, { method: "POST", credentials: "include" });
-      const data = await res.json();
-      if (!res.ok) {
-        const errMsg = data.message || "Processing failed";
-        const newStatus = data.code === "SCANNED_PDF_NOT_SUPPORTED" ? "needs_review" : "failed";
-        setQuotes(prev => prev.map(q => q.id === quoteId ? { ...q, status: newStatus, latestError: errMsg } : q));
-        setReviewQuote(prev => prev && prev.id === quoteId ? { ...prev, status: newStatus, latestError: errMsg } : prev);
-        toast({ title: "Processing failed", description: errMsg, variant: "destructive" });
-        return;
-      }
-      setQuotes(prev => prev.map(q => q.id === quoteId ? { ...q, ...data.quote, status: data.status } : q));
-      setReviewQuote(prev => prev && prev.id === quoteId ? { ...prev, ...data.quote, status: data.status } : prev);
-      const rowsRes = await fetch(`/api/estimates/quotes/${quoteId}/line-items`, { credentials: "include" });
-      if (rowsRes.ok) {
-        const rows: VendorQuoteLineItemRow[] = await rowsRes.json();
-        setReviewRows(rows);
-        setReviewChecked(new Set(rows.map(r => r.id)));
-      }
-    } catch (err: any) {
-      const errMsg = err.message || "Network error — processing failed";
-      toast({ title: "Processing failed", description: errMsg, variant: "destructive" });
-      setQuotes(prev => prev.map(q => q.id === quoteId ? { ...q, status: "failed", latestError: errMsg } : q));
-      setReviewQuote(prev => prev && prev.id === quoteId ? { ...prev, status: "failed", latestError: errMsg } : prev);
-    } finally {
-      setReviewProcessing(false);
-    }
-  }, [toast]);
 
   const updateReviewRow = useCallback(async (id: number, field: string, value: any) => {
     setReviewRows(prev => prev.map(r => r.id === id ? { ...r, [field]: value } : r));
