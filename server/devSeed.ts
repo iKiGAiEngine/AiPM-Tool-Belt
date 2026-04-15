@@ -3,6 +3,7 @@ import { createHash, randomBytes } from "crypto";
 import { db } from "./db";
 import { users } from "@shared/schema";
 import { eq } from "drizzle-orm";
+import type { InferInsertModel } from "drizzle-orm";
 
 const DEV_ACCOUNTS = [
   {
@@ -65,7 +66,7 @@ export async function runDevSeed(): Promise<void> {
         });
         console.log(`[DevSeed] Created dev account: ${account.email}`);
       } else {
-        const updates: Record<string, unknown> = {
+        const updates: Partial<InferInsertModel<typeof users>> = {
           role: account.role,
           status: account.status,
           isActive: account.isActive,
@@ -82,7 +83,7 @@ export async function runDevSeed(): Promise<void> {
           updates.resetToken = null;
           updates.resetTokenExpiresAt = null;
         }
-        await db.update(users).set(updates as any).where(eq(users.id, existing.id));
+        await db.update(users).set(updates).where(eq(users.id, existing.id));
         console.log(`[DevSeed] Refreshed dev account: ${account.email}`);
       }
     }
