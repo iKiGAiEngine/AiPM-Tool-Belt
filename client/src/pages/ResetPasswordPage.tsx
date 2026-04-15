@@ -3,13 +3,14 @@ import { useMutation } from "@tanstack/react-query";
 import { Link, useLocation } from "wouter";
 
 export default function ResetPasswordPage() {
-  const [location] = useLocation();
+  const [location, navigate] = useLocation();
   const [token, setToken] = useState("");
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [done, setDone] = useState(false);
   const [error, setError] = useState("");
+  const [countdown, setCountdown] = useState(3);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -17,6 +18,21 @@ export default function ResetPasswordPage() {
     setToken(t);
     if (!t) setError("No reset token found. Please request a new link.");
   }, [location]);
+
+  useEffect(() => {
+    if (!done) return;
+    const interval = setInterval(() => {
+      setCountdown(n => {
+        if (n <= 1) {
+          clearInterval(interval);
+          navigate("/");
+          return 0;
+        }
+        return n - 1;
+      });
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [done, navigate]);
 
   const mutation = useMutation({
     mutationFn: async ({ token, password }: { token: string; password: string }) => {
@@ -154,8 +170,9 @@ export default function ResetPasswordPage() {
                 </svg>
               </div>
               <h2 style={{ fontFamily: "'Rajdhani', sans-serif", fontSize: "1.4rem", fontWeight: 700, color: "#F0F0F2", margin: "0 0 0.5rem" }}>Password set!</h2>
-              <p style={{ color: "#8A8F9E", fontSize: "0.85rem", marginBottom: "1.5rem" }}>Your password has been saved. You can now sign in.</p>
-              <Link href="/" className="rp-link" data-testid="link-go-to-login">Go to sign in &#8594;</Link>
+              <p style={{ color: "#8A8F9E", fontSize: "0.85rem", marginBottom: "0.75rem" }}>Your password has been saved.</p>
+              <p style={{ color: "#5C6170", fontSize: "0.8rem", marginBottom: "1.25rem" }}>Redirecting to sign in in {countdown}…</p>
+              <Link href="/" className="rp-link" data-testid="link-go-to-login">Sign in now &#8594;</Link>
             </div>
           ) : (
             <>

@@ -2,7 +2,7 @@ import type { Express, Request, Response, NextFunction } from "express";
 import { db } from "./db";
 import { users, DEFAULT_ROLE_FEATURES, userFeatureAccess } from "@shared/schema";
 import { eq } from "drizzle-orm";
-import { randomBytes } from "crypto";
+import { randomBytes, createHash } from "crypto";
 import bcrypt from "bcrypt";
 import { auditLog } from "./auditService";
 import { storage } from "./storage";
@@ -13,19 +13,27 @@ const ALLOWED_DOMAINS = (process.env.ALLOWED_EMAIL_DOMAINS || "nationalbuildings
   .map(d => d.trim().toLowerCase());
 
 const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
-const RATE_LIMIT_MAX = 10;
 const RATE_LIMIT_WINDOW_MS = 15 * 60 * 1000;
 
-function checkRateLimit(key: string): boolean {
+function checkRateLimit(key: string, max: number): boolean {
   const now = Date.now();
   const entry = rateLimitMap.get(key);
   if (!entry || now > entry.resetAt) {
     rateLimitMap.set(key, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS });
     return true;
   }
-  if (entry.count >= RATE_LIMIT_MAX) return false;
+  if (entry.count >= max) return false;
   entry.count++;
   return true;
+}
+
+function hashToken(raw: string): string {
+  return createHash("sha256").update(raw).digest("hex");
+}
+
+function generateToken(): { raw: string; hash: string } {
+  const raw = randomBytes(32).toString("hex");
+  return { raw, hash: hashToken(raw) };
 }
 
 export function isAllowedDomain(email: string): boolean {
@@ -48,21 +56,23 @@ export function registerAuthRoutes(app: Express) {
       const normalizedEmail = email.trim().toLowerCase();
       const ip = getClientIP(req);
 
-      if (!checkRateLimit(`login:${ip}`) || !checkRateLimit(`login:${normalizedEmail}`)) {
+      if (!checkRateLimit(`login:${ip}`, 10) || !checkRateLimit(`login:${normalizedEmail}`, 10)) {
         return res.status(429).json({ message: "Too many login attempts. Please try again later." });
       }
 
       const [user] = await db.select().from(users).where(eq(users.email, normalizedEmail));
-      if (!user) {
+
+      if (!user || !user.passwordHash || user.status !== "active" || !user.isActive) {
+        await auditLog({
+          actionType: "login_failed",
+          actorEmail: normalizedEmail,
+          summary: "Failed login attempt",
+          ipAddress: ip,
+          userAgent: req.headers["user-agent"] || "",
+          requestPath: req.path,
+          requestMethod: req.method,
+        });
         return res.status(401).json({ message: "Invalid email or password" });
-      }
-
-      if (user.status === "invited" || !user.passwordHash) {
-        return res.status(403).json({ message: "Your account invitation is pending. Please check your email for an invite link to set your password." });
-      }
-
-      if (user.status === "inactive" || !user.isActive) {
-        return res.status(403).json({ message: "Your account has been deactivated. Please contact an administrator." });
       }
 
       const valid = await bcrypt.compare(password, user.passwordHash);
@@ -123,17 +133,17 @@ export function registerAuthRoutes(app: Express) {
       const normalizedEmail = email.trim().toLowerCase();
       const ip = getClientIP(req);
 
-      if (!checkRateLimit(`forgot:${ip}`) || !checkRateLimit(`forgot:${normalizedEmail}`)) {
+      if (!checkRateLimit(`forgot:${ip}`, 5)) {
         return res.status(429).json({ message: "Too many requests. Please try again later." });
       }
 
       const [user] = await db.select().from(users).where(eq(users.email, normalizedEmail));
 
       if (user && user.status === "active" && user.isActive) {
-        const token = randomBytes(32).toString("hex");
+        const { raw, hash } = generateToken();
         const expiresAt = new Date(Date.now() + 60 * 60 * 1000);
-        await db.update(users).set({ resetToken: token, resetTokenExpiresAt: expiresAt }).where(eq(users.id, user.id));
-        await sendPasswordResetEmail(normalizedEmail, token);
+        await db.update(users).set({ resetToken: hash, resetTokenExpiresAt: expiresAt }).where(eq(users.id, user.id));
+        await sendPasswordResetEmail(normalizedEmail, raw);
       }
 
       res.json({ message: "If that email is registered and active, you will receive a password reset link." });
@@ -154,16 +164,17 @@ export function registerAuthRoutes(app: Express) {
         return res.status(400).json({ message: "Password must be at least 8 characters" });
       }
 
+      const tokenHash = hashToken(token);
       const now = new Date();
-      const [user] = await db.select().from(users).where(eq(users.resetToken, token));
+      const [user] = await db.select().from(users).where(eq(users.resetToken, tokenHash));
 
       if (!user || !user.resetTokenExpiresAt || user.resetTokenExpiresAt < now) {
-        return res.status(400).json({ message: "This reset link has expired or is invalid. Please request a new one." });
+        return res.status(400).json({ message: "This link has expired or is invalid. Please request a new one." });
       }
 
-      const hash = await bcrypt.hash(password, 12);
+      const passwordHash = await bcrypt.hash(password, 12);
       await db.update(users).set({
-        passwordHash: hash,
+        passwordHash,
         resetToken: null,
         resetTokenExpiresAt: null,
         status: "active",
@@ -179,7 +190,7 @@ export function registerAuthRoutes(app: Express) {
         requestMethod: req.method,
       });
 
-      res.json({ message: "Password has been set successfully. You may now log in." });
+      res.json({ message: "Password has been set successfully. You may now sign in." });
     } catch (error: any) {
       console.error("[Auth] Reset password error:", error);
       res.status(500).json({ message: "Failed to reset password" });

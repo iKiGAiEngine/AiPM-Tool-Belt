@@ -1,4 +1,5 @@
 import bcrypt from "bcrypt";
+import { createHash, randomBytes } from "crypto";
 import { db } from "./db";
 import { users } from "@shared/schema";
 import { eq } from "drizzle-orm";
@@ -12,6 +13,7 @@ const DEV_ACCOUNTS = [
     role: "admin" as const,
     status: "active",
     isActive: true,
+    invited: false,
   },
   {
     email: "test-user@aipmapp.com",
@@ -21,6 +23,7 @@ const DEV_ACCOUNTS = [
     role: "user" as const,
     status: "active",
     isActive: true,
+    invited: false,
   },
   {
     email: "test-invited@aipmapp.com",
@@ -30,6 +33,7 @@ const DEV_ACCOUNTS = [
     role: "user" as const,
     status: "invited",
     isActive: false,
+    invited: true,
   },
 ];
 
@@ -41,6 +45,12 @@ export async function runDevSeed(): Promise<void> {
       const [existing] = await db.select().from(users).where(eq(users.email, account.email));
       if (!existing) {
         const passwordHash = account.password ? await bcrypt.hash(account.password, 12) : null;
+        const resetToken = account.invited
+          ? createHash("sha256").update(randomBytes(32).toString("hex")).digest("hex")
+          : null;
+        const resetTokenExpiresAt = account.invited
+          ? new Date(Date.now() + 72 * 60 * 60 * 1000)
+          : null;
         await db.insert(users).values({
           email: account.email,
           displayName: account.displayName,
@@ -49,8 +59,13 @@ export async function runDevSeed(): Promise<void> {
           status: account.status,
           isActive: account.isActive,
           passwordHash,
+          resetToken,
+          resetTokenExpiresAt,
         });
         console.log(`[DevSeed] Created dev account: ${account.email}`);
+      } else if (account.invited && existing.status !== "invited") {
+        await db.update(users).set({ status: "invited", isActive: false }).where(eq(users.id, existing.id));
+        console.log(`[DevSeed] Reset status to invited for: ${account.email}`);
       }
     }
   } catch (error: any) {

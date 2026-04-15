@@ -4,9 +4,14 @@ import { users, auditLogs, FEATURES, DEFAULT_ROLE_FEATURES, Feature, permissionP
 import { eq, desc, and, gte, lte, like, or, sql } from "drizzle-orm";
 import { requireAdmin, isAllowedDomain } from "./authRoutes";
 import { auditLog } from "./auditService";
-import { randomBytes } from "crypto";
+import { randomBytes, createHash } from "crypto";
 import { sendInviteEmail } from "./emailService";
+
 import { storage } from "./storage";
+
+function hashToken(raw: string): string {
+  return createHash("sha256").update(raw).digest("hex");
+}
 
 export function registerAdminRoutes(app: Express) {
   app.get("/api/admin/users", requireAdmin, async (req: Request, res: Response) => {
@@ -162,7 +167,8 @@ export function registerAdminRoutes(app: Express) {
 
       const autoInitials = initials || (displayName ? displayName.split(/\s+/).map((w: string) => w[0]).join("").toUpperCase().substring(0, 3) : "");
 
-      const inviteToken = randomBytes(32).toString("hex");
+      const rawInviteToken = randomBytes(32).toString("hex");
+      const inviteTokenHash = hashToken(rawInviteToken);
       const inviteExpiresAt = new Date(Date.now() + 72 * 60 * 60 * 1000);
 
       const [newUser] = await db.insert(users).values({
@@ -172,11 +178,11 @@ export function registerAdminRoutes(app: Express) {
         role: role || "user",
         isActive: false,
         status: "invited",
-        resetToken: inviteToken,
+        resetToken: inviteTokenHash,
         resetTokenExpiresAt: inviteExpiresAt,
       }).returning();
 
-      await sendInviteEmail(normalizedEmail, inviteToken).catch(err => {
+      await sendInviteEmail(normalizedEmail, rawInviteToken).catch(err => {
         console.error("[Admin] Failed to send invite email:", err.message);
       });
 

@@ -337,7 +337,7 @@ export default function LoginPage() {
             ) : (
               <div className="step-animate">
                 <h2 style={{ fontFamily: "'Rajdhani', sans-serif", fontSize: "1.55rem", fontWeight: 700, color: "var(--text)", margin: "0 0 0.3rem", textAlign: "center" }}>Sign in</h2>
-                <p style={{ fontSize: "0.85rem", color: "#8A8F9E", margin: "0 0 1.5rem", textAlign: "center" }}>Enter your email and password to continue.</p>
+                <p style={{ fontSize: "0.82rem", color: "#8A8F9E", margin: "0 0 1.5rem", textAlign: "center" }}>Access is by authorized invite only. Contact your administrator for access.</p>
 
                 <form onSubmit={handleSubmit}>
                   <div style={{ marginBottom: "1rem" }}>
