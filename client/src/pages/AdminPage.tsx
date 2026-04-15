@@ -226,7 +226,7 @@ export default function AdminPage() {
   const [formOpen, setFormOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
 
-  const { data: usersList = [], isLoading } = useQuery<User[]>({
+  const { data: usersList = [], isLoading, isError, refetch } = useQuery<User[]>({
     queryKey: ["/api/admin/users"],
     placeholderData: (prev) => prev,
   });
@@ -442,6 +442,12 @@ export default function AdminPage() {
                   <TableRow>
                     <TableCell colSpan={6} className="text-center py-8">
                       <Loader2 className="w-5 h-5 animate-spin mx-auto text-muted-foreground" />
+                    </TableCell>
+                  </TableRow>
+                ) : isError ? (
+                  <TableRow>
+                    <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                      Failed to load users. <button type="button" onClick={() => refetch()} style={{ textDecoration: "underline" }}>Try again</button>
                     </TableCell>
                   </TableRow>
                 ) : usersList.length === 0 ? (
