@@ -1,0 +1,131 @@
+7Error while parsing the 'sandbox' attribute: 'allow-downloads-without-user-activation' is an invalid sandbox flag.Understand this error
+0i8wy8tbht2ow.js:2 Unrecognized feature: 'ambient-light-sensor'.
+C @ 0i8wy8tbht2ow.js:2Understand this warning
+0i8wy8tbht2ow.js:2 Unrecognized feature: 'battery'.
+C @ 0i8wy8tbht2ow.js:2Understand this warning
+0i8wy8tbht2ow.js:2 Unrecognized feature: 'execution-while-not-rendered'.
+C @ 0i8wy8tbht2ow.js:2Understand this warning
+0i8wy8tbht2ow.js:2 Unrecognized feature: 'execution-while-out-of-viewport'.
+C @ 0i8wy8tbht2ow.js:2Understand this warning
+0i8wy8tbht2ow.js:2 Unrecognized feature: 'layout-animations'.
+C @ 0i8wy8tbht2ow.js:2Understand this warning
+0i8wy8tbht2ow.js:2 Unrecognized feature: 'legacy-image-formats'.
+C @ 0i8wy8tbht2ow.js:2Understand this warning
+0i8wy8tbht2ow.js:2 Unrecognized feature: 'navigation-override'.
+C @ 0i8wy8tbht2ow.js:2Understand this warning
+0i8wy8tbht2ow.js:2 Unrecognized feature: 'oversized-images'.
+C @ 0i8wy8tbht2ow.js:2Understand this warning
+0i8wy8tbht2ow.js:2 Unrecognized feature: 'publickey-credentials'.
+C @ 0i8wy8tbht2ow.js:2Understand this warning
+0i8wy8tbht2ow.js:2 Unrecognized feature: 'speaker-selection'.
+C @ 0i8wy8tbht2ow.js:2Understand this warning
+0i8wy8tbht2ow.js:2 Unrecognized feature: 'unoptimized-images'.
+C @ 0i8wy8tbht2ow.js:2Understand this warning
+0i8wy8tbht2ow.js:2 Unrecognized feature: 'unsized-media'.
+C @ 0i8wy8tbht2ow.js:2Understand this warning
+0i8wy8tbht2ow.js:2 Unrecognized feature: 'pointer-lock'.
+C @ 0i8wy8tbht2ow.js:2Understand this warning
+0i8wy8tbht2ow.js:2 Allow attribute will take precedence over 'allowfullscreen'.
+C @ 0i8wy8tbht2ow.js:2Understand this warning
+0i8wy8tbht2ow.js:2 Allow attribute will take precedence over 'allowpaymentrequest'.
+C @ 0i8wy8tbht2ow.js:2Understand this warning
+0k~_ulqz725-r.js:21 Missing field 'autonomyLevel' while writing result {
+  "__typename": "AgentSettings",
+  "thinkingEnabled": null,
+  "modelProfile": "MODEL_PROFILE_ADVANCED",
+  "enableAutomatedTesting": false,
+  "enableAutoCheckpointing": null,
+  "autoApprovePlan": true,
+  "webSearchEnabled": null,
+  "imageGenerationEnabled": null,
+  "chatMode": "general",
+  "maxAutonomyEnabled": null
+}
+(anonymous) @ 0k~_ulqz725-r.js:21Understand this error
+240k~_ulqz725-r.js:21 Haven't heard from the server in a while, resetting connection...
+(anonymous) @ 0k~_ulqz725-r.js:21Understand this warning
+0zx-p0mi02xsr.js:2 WebSocket connection to 'wss://replit.com/graphql_subscriptions' failed: 
+(anonymous) @ 0zx-p0mi02xsr.js:2Understand this error
+110k~_ulqz725-r.js:21 Haven't heard from the server in a while, resetting connection...
+(anonymous) @ 0k~_ulqz725-r.js:21Understand this warning
+workspace_iframe.html?initialPath=%2F&id=default-start-application:32 Unrecognized feature: 'ambient-light-sensor'.Understand this warning
+workspace_iframe.html?initialPath=%2F&id=default-start-application:32 Unrecognized feature: 'battery'.Understand this warning
+workspace_iframe.html?initialPath=%2F&id=default-start-application:32 Unrecognized feature: 'execution-while-not-rendered'.Understand this warning
+workspace_iframe.html?initialPath=%2F&id=default-start-application:32 Unrecognized feature: 'execution-while-out-of-viewport'.Understand this warning
+workspace_iframe.html?initialPath=%2F&id=default-start-application:32 Unrecognized feature: 'layout-animations'.Understand this warning
+workspace_iframe.html?initialPath=%2F&id=default-start-application:32 Unrecognized feature: 'legacy-image-formats'.Understand this warning
+workspace_iframe.html?initialPath=%2F&id=default-start-application:32 Unrecognized feature: 'navigation-override'.Understand this warning
+workspace_iframe.html?initialPath=%2F&id=default-start-application:32 Unrecognized feature: 'oversized-images'.Understand this warning
+workspace_iframe.html?initialPath=%2F&id=default-start-application:32 Unrecognized feature: 'publickey-credentials'.Understand this warning
+workspace_iframe.html?initialPath=%2F&id=default-start-application:32 Unrecognized feature: 'speaker-selection'.Understand this warning
+workspace_iframe.html?initialPath=%2F&id=default-start-application:32 Unrecognized feature: 'unoptimized-images'.Understand this warning
+workspace_iframe.html?initialPath=%2F&id=default-start-application:32 Unrecognized feature: 'unsized-media'.Understand this warning
+workspace_iframe.html?initialPath=%2F&id=default-start-application:32 Allow attribute will take precedence over 'allowfullscreen'.Understand this warning
+workspace_iframe.html?initialPath=%2F&id=default-start-application:32 Allow attribute will take precedence over 'allowpaymentrequest'.Understand this warning
+stallwart.build.js:1 stallwart: failed ping 1
+stallwart.build.js:1 stallwart: failed ping 2
+stallwart.build.js:1 stallwart: failed ping 3
+20k~_ulqz725-r.js:21 Haven't heard from the server in a while, resetting connection...
+(anonymous) @ 0k~_ulqz725-r.js:21Understand this warning
+f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.dev/api/projects:1  Failed to load resource: the server responded with a status of 401 (Unauthorized)Understand this error
+f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.dev/api/notifications:1  Failed to load resource: the server responded with a status of 401 (Unauthorized)Understand this error
+f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.dev/api/projects:1  Failed to load resource: the server responded with a status of 401 (Unauthorized)Understand this error
+stallwart.build.js:1 stallwart: failed ping 1
+stallwart.build.js:1 stallwart: failed ping 2
+stallwart.build.js:1 stallwart: failed ping 3
+stallwart.build.js:1 stallwart: failed ping 4
+stallwart.build.js:1 stallwart: failed ping 1
+stallwart.build.js:1 stallwart: failed ping 2
+stallwart.build.js:1 stallwart: failed ping 3
+f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.dev/api/projects:1  Failed to load resource: the server responded with a status of 401 (Unauthorized)Understand this error
+f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.dev/api/notifications:1  Failed to load resource: the server responded with a status of 401 (Unauthorized)Understand this error
+f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.dev/api/projects:1  Failed to load resource: the server responded with a status of 401 (Unauthorized)Understand this error
+f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.dev/api/projects:1  Failed to load resource: the server responded with a status of 401 (Unauthorized)Understand this error
+f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.dev/api/projects:1  Failed to load resource: the server responded with a status of 401 (Unauthorized)Understand this error
+f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.dev/api/admin/users/3/toggle-active:1  Failed to load resource: the server responded with a status of 401 (Unauthorized)Understand this error
+f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.dev/api/projects:1  Failed to load resource: the server responded with a status of 401 (Unauthorized)Understand this error
+injected.js:214  GET https://f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.dev/api/projects 401 (Unauthorized)
+apply @ injected.js:214
+(anonymous) @ queryClient.ts:32
+fetchFn @ @tanstack_react-query.js?v=bbafc074:812
+run @ @tanstack_react-query.js?v=bbafc074:477
+start @ @tanstack_react-query.js?v=bbafc074:518
+fetch @ @tanstack_react-query.js?v=bbafc074:893
+#executeFetch @ @tanstack_react-query.js?v=bbafc074:1963
+(anonymous) @ @tanstack_react-query.js?v=bbafc074:2000Understand this error
+injected.js:214  GET https://f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.dev/api/projects 401 (Unauthorized)
+apply @ injected.js:214
+(anonymous) @ queryClient.ts:32
+fetchFn @ @tanstack_react-query.js?v=bbafc074:812
+run @ @tanstack_react-query.js?v=bbafc074:477
+start @ @tanstack_react-query.js?v=bbafc074:518
+fetch @ @tanstack_react-query.js?v=bbafc074:893
+#executeFetch @ @tanstack_react-query.js?v=bbafc074:1963
+(anonymous) @ @tanstack_react-query.js?v=bbafc074:2000
+setInterval
+#updateRefetchInterval @ @tanstack_react-query.js?v=bbafc074:1998
+#updateTimers @ @tanstack_react-query.js?v=bbafc074:2006
+onQueryUpdate @ @tanstack_react-query.js?v=bbafc074:2219
+(anonymous) @ @tanstack_react-query.js?v=bbafc074:965
+(anonymous) @ @tanstack_react-query.js?v=bbafc074:964
+batch @ @tanstack_react-query.js?v=bbafc074:565
+#dispatch @ @tanstack_react-query.js?v=bbafc074:963
+onError @ @tanstack_react-query.js?v=bbafc074:832
+reject @ @tanstack_react-query.js?v=bbafc074:450
+(anonymous) @ @tanstack_react-query.js?v=bbafc074:490
+Promise.catch
+run @ @tanstack_react-query.js?v=bbafc074:481
+start @ @tanstack_react-query.js?v=bbafc074:518
+fetch @ @tanstack_react-query.js?v=bbafc074:893
+#executeFetch @ @tanstack_react-query.js?v=bbafc074:1963
+(anonymous) @ @tanstack_react-query.js?v=bbafc074:2000Understand this error
+injected.js:214  GET https://f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.dev/api/notifications 401 (Unauthorized)
+apply @ injected.js:214
+(anonymous) @ queryClient.ts:32
+fetchFn @ @tanstack_react-query.js?v=bbafc074:812
+run @ @tanstack_react-query.js?v=bbafc074:477
+start @ @tanstack_react-query.js?v=bbafc074:518
+fetch @ @tanstack_react-query.js?v=bbafc074:893
+#executeFetch @ @tanstack_react-query.js?v=bbafc074:1963
+(anonymous) @ @tanstack_react-query.js?v=bbafc074:2000Understand this error
+injected.js:214  GET https://f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.dev/api/projects 401 (Unauthorized)
