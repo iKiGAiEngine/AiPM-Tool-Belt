@@ -302,6 +302,38 @@ export default function AdminPage() {
     deleteUserMutation.mutate(u.id);
   };
 
+  const bulkTempPasswordMutation = useMutation<{ updated: number; emails: string[] }, Error, { tempPassword: string; includeInactive: boolean }>({
+    mutationFn: async (payload) => {
+      const res = await apiRequest("POST", "/api/admin/users/bulk-set-temp-password", payload);
+      return res.json();
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
+      toast({
+        title: `Temporary password set for ${data.updated} user${data.updated !== 1 ? "s" : ""}`,
+        description: "Each user will be required to change it on next login.",
+      });
+    },
+    onError: (err) => toast({ title: "Error", description: err.message, variant: "destructive" }),
+  });
+
+  const handleBulkTempPassword = () => {
+    const tempPassword = window.prompt(
+      "Enter a temporary password (min 8 chars). It will be applied to ALL users except yourself. Each user will be forced to change it on next login.\n\nShare this password securely with your team.",
+    );
+    if (!tempPassword) return;
+    if (tempPassword.length < 8) {
+      toast({ title: "Password must be at least 8 characters", variant: "destructive" });
+      return;
+    }
+    const includeInactive = window.confirm(
+      "Include INACTIVE users too? Click OK to include them (they will also be activated). Click Cancel to apply to active users only.",
+    );
+    const targetCount = usersList.filter((u) => (includeInactive ? true : u.isActive)).length;
+    if (!window.confirm(`This will set the temporary password "${tempPassword}" for ${targetCount} user(s) and require them to change it on next login. Continue?`)) return;
+    bulkTempPasswordMutation.mutate({ tempPassword, includeInactive });
+  };
+
   const handleDeleteAllInactive = () => {
     const inactiveCount = usersList.filter((u) => !u.isActive).length;
     if (inactiveCount === 0) {
@@ -419,6 +451,20 @@ export default function AdminPage() {
                   Delete All Inactive
                 </Button>
               )}
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={handleBulkTempPassword}
+                disabled={bulkTempPasswordMutation.isPending}
+                data-testid="button-bulk-temp-password"
+              >
+                {bulkTempPasswordMutation.isPending ? (
+                  <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
+                ) : (
+                  <KeyRound className="w-3.5 h-3.5 mr-1.5" />
+                )}
+                Set Temp Password for All
+              </Button>
               <Button size="sm" onClick={openCreateDialog} data-testid="button-add-user">
                 <Plus className="w-3.5 h-3.5 mr-1.5" />
                 Add User

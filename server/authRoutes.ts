@@ -115,7 +115,7 @@ export function registerAuthRoutes(app: Express) {
       });
 
       res.json({
-        user: { id: user.id, email: user.email, role: user.role, initials: user.initials, displayName: user.displayName, username: user.username, dashboardScope: user.dashboardScope, dashboardLayout: user.dashboardLayout, assignedRegion: user.assignedRegion },
+        user: { id: user.id, email: user.email, role: user.role, initials: user.initials, displayName: user.displayName, username: user.username, dashboardScope: user.dashboardScope, dashboardLayout: user.dashboardLayout, assignedRegion: user.assignedRegion, mustChangePassword: user.mustChangePassword },
       });
     } catch (error: any) {
       console.error("[Auth] Login error:", error);
@@ -233,7 +233,7 @@ export function registerAuthRoutes(app: Express) {
       }
 
       const hash = await bcrypt.hash(newPassword, 12);
-      await db.update(users).set({ passwordHash: hash }).where(eq(users.id, user.id));
+      await db.update(users).set({ passwordHash: hash, mustChangePassword: false }).where(eq(users.id, user.id));
 
       await auditLog({
         actionType: "password_changed",
@@ -264,7 +264,7 @@ export function registerAuthRoutes(app: Express) {
         return res.status(401).json({ message: "Not authenticated" });
       }
 
-      res.json({ user: { id: user.id, email: user.email, role: user.role, displayName: user.displayName, initials: user.initials, username: user.username, dashboardScope: user.dashboardScope, dashboardLayout: user.dashboardLayout, assignedRegion: user.assignedRegion } });
+      res.json({ user: { id: user.id, email: user.email, role: user.role, displayName: user.displayName, initials: user.initials, username: user.username, dashboardScope: user.dashboardScope, dashboardLayout: user.dashboardLayout, assignedRegion: user.assignedRegion, mustChangePassword: user.mustChangePassword } });
     } catch (error) {
       res.status(500).json({ message: "Failed to get user info" });
     }

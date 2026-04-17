@@ -20,6 +20,7 @@ import SpecExtractorPage from "@/pages/SpecExtractorPage";
 import LoginPage from "@/pages/LoginPage";
 import ForgotPasswordPage from "@/pages/ForgotPasswordPage";
 import ResetPasswordPage from "@/pages/ResetPasswordPage";
+import ForcePasswordChangePage from "@/pages/ForcePasswordChangePage";
 import AdminPage from "@/pages/AdminPage";
 import AuditLogPage from "@/pages/AuditLogPage";
 import SubmittalBuilderPage from "@/submittal-builder/SubmittalBuilderPage";
@@ -66,7 +67,7 @@ function Router() {
 }
 
 function AuthGate() {
-  const { isAuthenticated, isLoading } = useAuth();
+  const { isAuthenticated, isLoading, mustChangePassword } = useAuth();
   const [location] = useLocation();
 
   const isPublicPath = PUBLIC_PATHS.some(p => location.startsWith(p));
@@ -90,6 +91,10 @@ function AuthGate() {
 
   if (!isAuthenticated) {
     return <LoginPage />;
+  }
+
+  if (mustChangePassword) {
+    return <ForcePasswordChangePage />;
   }
 
   return (

@@ -825,6 +825,7 @@ export const users = pgTable("users", {
   passwordHash: text("password_hash"),
   resetToken: text("reset_token"),
   resetTokenExpiresAt: timestamp("reset_token_expires_at"),
+  mustChangePassword: boolean("must_change_password").notNull().default(false),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   lastLoginAt: timestamp("last_login_at"),
   dashboardScope: varchar("dashboard_scope", { length: 30 }).default("my_projects"),

@@ -1,7 +1,8 @@
 import type { Express, Request, Response } from "express";
 import { db } from "./db";
 import { users, auditLogs, FEATURES, DEFAULT_ROLE_FEATURES, Feature, permissionProfiles, userFeatureAccess } from "@shared/schema";
-import { eq, desc, and, gte, lte, like, or, sql } from "drizzle-orm";
+import { eq, desc, and, gte, lte, like, or, sql, inArray } from "drizzle-orm";
+import bcrypt from "bcrypt";
 import { requireAdmin, isAllowedDomain } from "./authRoutes";
 import { auditLog } from "./auditService";
 import { randomBytes, createHash } from "crypto";
@@ -208,6 +209,47 @@ export function registerAdminRoutes(app: Express) {
     } catch (error) {
       console.error("[Admin] Create user error:", error);
       res.status(500).json({ message: "Failed to create user" });
+    }
+  });
+
+  app.post("/api/admin/users/bulk-set-temp-password", requireAdmin, async (req: Request, res: Response) => {
+    try {
+      const { tempPassword, includeInactive } = req.body || {};
+      const actorId = (req.session as any)?.userId;
+      if (!tempPassword || typeof tempPassword !== "string" || tempPassword.length < 8) {
+        return res.status(400).json({ message: "Temporary password must be at least 8 characters" });
+      }
+      const hash = await bcrypt.hash(tempPassword, 12);
+      const allUsers = await db.select().from(users);
+      const targets = allUsers.filter((u) => u.id !== actorId && (includeInactive ? true : u.isActive));
+      if (targets.length === 0) {
+        return res.json({ updated: 0, emails: [] });
+      }
+      await db.update(users).set({
+        passwordHash: hash,
+        mustChangePassword: true,
+        status: "active",
+        isActive: true,
+        resetToken: null,
+        resetTokenExpiresAt: null,
+      }).where(inArray(users.id, targets.map((t) => t.id)));
+
+      const [actor] = await db.select().from(users).where(eq(users.id, actorId));
+      await auditLog({
+        actionType: "bulk_temp_password_set",
+        actorUserId: actorId,
+        actorEmail: actor?.email,
+        summary: `Set temporary password for ${targets.length} user(s); they must change on next login`,
+        ipAddress: (req.headers["x-forwarded-for"] as string)?.split(",")[0] || req.socket.remoteAddress || "",
+        userAgent: req.headers["user-agent"] || "",
+        requestPath: req.path,
+        requestMethod: req.method,
+      });
+
+      res.json({ updated: targets.length, emails: targets.map((t) => t.email) });
+    } catch (error: any) {
+      console.error("[Admin] Bulk temp password error:", error);
+      res.status(500).json({ message: "Failed to set temporary passwords" });
     }
   });
 

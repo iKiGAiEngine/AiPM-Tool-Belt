@@ -9,6 +9,7 @@ interface AuthUser {
   displayName?: string | null;
   initials?: string | null;
   username?: string | null;
+  mustChangePassword?: boolean;
 }
 
 interface AuthContextType {
@@ -16,6 +17,7 @@ interface AuthContextType {
   isLoading: boolean;
   isAuthenticated: boolean;
   isAdmin: boolean;
+  mustChangePassword: boolean;
   logout: () => void;
 }
 
@@ -24,6 +26,7 @@ const AuthContext = createContext<AuthContextType>({
   isLoading: true,
   isAuthenticated: false,
   isAdmin: false,
+  mustChangePassword: false,
   logout: () => {},
 });
 
@@ -59,6 +62,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         isLoading,
         isAuthenticated: !!user,
         isAdmin: user?.role === "admin",
+        mustChangePassword: !!user?.mustChangePassword,
         logout: () => logoutMutation.mutate(),
       }}
     >
