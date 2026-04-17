@@ -1,7 +1,7 @@
 import type { Express, Request, Response, NextFunction } from "express";
 import { db } from "./db";
 import { users, DEFAULT_ROLE_FEATURES, userFeatureAccess } from "@shared/schema";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { randomBytes, createHash } from "crypto";
 import bcrypt from "bcrypt";
 import { auditLog } from "./auditService";
@@ -60,7 +60,7 @@ export function registerAuthRoutes(app: Express) {
         return res.status(429).json({ message: "Too many login attempts. Please try again later." });
       }
 
-      const [user] = await db.select().from(users).where(eq(users.email, normalizedEmail));
+      const [user] = await db.select().from(users).where(sql`LOWER(${users.email}) = ${normalizedEmail}`);
 
       if (!user || !user.passwordHash || user.status !== "active" || !user.isActive) {
         await auditLog({
@@ -136,7 +136,7 @@ export function registerAuthRoutes(app: Express) {
       const rateLimitPassed = checkRateLimit(`forgot:${ip}`, 5);
 
       if (rateLimitPassed) {
-        const [user] = await db.select().from(users).where(eq(users.email, normalizedEmail));
+        const [user] = await db.select().from(users).where(sql`LOWER(${users.email}) = ${normalizedEmail}`);
         if (user && user.status === "active" && user.isActive) {
           const { raw, hash } = generateToken();
           const expiresAt = new Date(Date.now() + 60 * 60 * 1000);
