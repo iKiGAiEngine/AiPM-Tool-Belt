@@ -66,20 +66,26 @@ export async function runDevSeed(): Promise<void> {
         });
         console.log(`[DevSeed] Created dev account: ${account.email}`);
       } else {
+        if (account.invited && existing.passwordHash) {
+          console.log(`[DevSeed] Skipping ${account.email} (already activated)`);
+          continue;
+        }
         const updates: Partial<InferInsertModel<typeof users>> = {
           role: account.role,
-          status: account.status,
-          isActive: account.isActive,
           displayName: account.displayName,
           initials: account.initials,
         };
         if (account.invited) {
+          updates.status = account.status;
+          updates.isActive = account.isActive;
           updates.passwordHash = null;
           if (!existing.resetToken) {
             updates.resetToken = createHash("sha256").update(randomBytes(32).toString("hex")).digest("hex");
             updates.resetTokenExpiresAt = new Date(Date.now() + 72 * 60 * 60 * 1000);
           }
         } else {
+          updates.status = account.status;
+          updates.isActive = account.isActive;
           if (passwordHash) updates.passwordHash = passwordHash;
           updates.resetToken = null;
           updates.resetTokenExpiresAt = null;
