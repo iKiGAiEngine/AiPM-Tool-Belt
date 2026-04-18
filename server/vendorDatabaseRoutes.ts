@@ -199,11 +199,15 @@ export function registerVendorDatabaseRoutes(app: Express) {
   app.post("/api/mfr/vendors/:id/contacts", async (req: Request, res: Response) => {
     try {
       const vendorId = Number(req.params.id);
-      const { name, role, email, phone, territory, isPrimary, notes } = req.body;
+      const { name, role, email, phone, territory, isPrimary, notes, scopes, manufacturerIds } = req.body;
       if (isPrimary) {
         await db.update(mfrContacts).set({ isPrimary: false }).where(eq(mfrContacts.vendorId, vendorId));
       }
-      const [contact] = await db.insert(mfrContacts).values({ vendorId, name, role, email, phone, territory, isPrimary: !!isPrimary, notes }).returning();
+      const [contact] = await db.insert(mfrContacts).values({
+        vendorId, name, role, email, phone, territory, isPrimary: !!isPrimary, notes,
+        scopes: Array.isArray(scopes) ? scopes : null,
+        manufacturerIds: Array.isArray(manufacturerIds) ? manufacturerIds.map((n: any) => Number(n)).filter((n: number) => Number.isFinite(n)) : null,
+      }).returning();
       res.json(contact);
     } catch (err: any) {
       res.status(500).json({ error: err.message });
@@ -214,12 +218,16 @@ export function registerVendorDatabaseRoutes(app: Express) {
     try {
       const vendorId = Number(req.params.id);
       const cid = Number(req.params.cid);
-      const { name, role, email, phone, territory, isPrimary, notes } = req.body;
+      const { name, role, email, phone, territory, isPrimary, notes, scopes, manufacturerIds } = req.body;
       if (isPrimary) {
         await db.update(mfrContacts).set({ isPrimary: false }).where(eq(mfrContacts.vendorId, vendorId));
       }
       const [updated] = await db.update(mfrContacts)
-        .set({ name, role, email, phone, territory, isPrimary: !!isPrimary, notes })
+        .set({
+          name, role, email, phone, territory, isPrimary: !!isPrimary, notes,
+          scopes: Array.isArray(scopes) ? scopes : null,
+          manufacturerIds: Array.isArray(manufacturerIds) ? manufacturerIds.map((n: any) => Number(n)).filter((n: number) => Number.isFinite(n)) : null,
+        })
         .where(eq(mfrContacts.id, cid))
         .returning();
       res.json(updated);

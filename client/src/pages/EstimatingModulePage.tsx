@@ -285,6 +285,10 @@ function EstimatingModuleInner() {
   const [newMfrName, setNewMfrName] = useState("");
   const [creatingMfr, setCreatingMfr] = useState(false);
 
+  // ── RFQ Recipient Picker ──
+  const [rfqPickerMfr, setRfqPickerMfr] = useState<string | null>(null);
+  const [rfqSelectedContactIds, setRfqSelectedContactIds] = useState<Set<number>>(new Set());
+
   // ── Dirty tracking ──
   const [isDirty, setIsDirty] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -1572,7 +1576,16 @@ ${html}
     vendors: Array<{
       vendorId: number;
       vendorName: string;
-      contacts: Array<{ id: number; name: string; email: string | null; isPrimary: boolean }>;
+      contacts: Array<{
+        id: number;
+        name: string;
+        role?: string | null;
+        email: string | null;
+        phone?: string | null;
+        isPrimary: boolean;
+        scopes?: string[];
+        manufacturerIds?: number[];
+      }>;
     }>;
   };
   const approvedMfrsQueryKey = ["/api/estimates", estimateId, "scopes", activeCat, "approved-manufacturers"] as const;
@@ -3235,14 +3248,25 @@ ${html}
                       )}
                       {combined.map(({ name, approved }) => {
                         const rfq = generateRfqEmail(name);
-                        const toEmails: string[] = [];
+                        // Build full contact list eligible for this scope's RFQ.
+                        // Eligible if: vendor primary belongs to one of approved/line-item mfrs OR contact tagged with that manufacturer
+                        // AND (contact has no scope tags OR includes activeCat).
+                        const eligibleContacts: Array<{ id: number; name: string; role?: string | null; email: string | null; isPrimary: boolean; vendorName: string }> = [];
                         if (approved) {
+                          const mfrId = approved.manufacturerId;
                           for (const v of approved.vendors) {
-                            const primary = v.contacts.find(c => c.isPrimary) || v.contacts[0];
-                            if (primary?.email) toEmails.push(primary.email);
+                            for (const c of v.contacts) {
+                              const scopesOk = !c.scopes || c.scopes.length === 0 || c.scopes.includes(activeCat);
+                              // Manufacturer tag rule: if contact has any manufacturerIds tags, they must include this mfr.
+                              // If untagged, fall back to the vendor->mfr link (vendor is already linked).
+                              const mfrOk = !c.manufacturerIds || c.manufacturerIds.length === 0 || c.manufacturerIds.includes(mfrId);
+                              if (scopesOk && mfrOk) {
+                                eligibleContacts.push({ id: c.id, name: c.name, role: c.role, email: c.email, isPrimary: c.isPrimary, vendorName: v.vendorName });
+                              }
+                            }
                           }
                         }
-                        const mailto = `mailto:${encodeURIComponent(toEmails.join(","))}?subject=${encodeURIComponent(rfq.subject)}&body=${encodeURIComponent(rfq.body)}`;
+                        const eligibleCount = eligibleContacts.length;
                         return (
                           <div key={name} className="mb-3 p-3 rounded-lg" style={{ background: "var(--bg3)", border: "1px solid var(--border-ds)" }} data-testid={`rfq-card-${name}`}>
                             <div className="flex items-center justify-between mb-2">
@@ -3250,7 +3274,7 @@ ${html}
                                 <span className="text-xs font-semibold" style={{ color: "var(--gold)" }}>{name}</span>
                                 {approved && <Badge className="text-[10px]" style={{ background: "var(--gold)15", color: "var(--gold)", border: "1px solid var(--gold)40" }}>Approved</Badge>}
                                 {approved?.isBasisOfDesign && <Badge className="text-[10px]" style={{ background: "#22c55e20", color: "#22c55e", border: "1px solid #22c55e40" }}>BOD</Badge>}
-                                {toEmails.length > 0 && <span className="text-[10px]" style={{ color: "var(--text-muted)" }}>To: {toEmails.join(", ")}</span>}
+                                <span className="text-[10px]" style={{ color: "var(--text-muted)" }}>{eligibleCount} eligible contact{eligibleCount === 1 ? "" : "s"}</span>
                               </div>
                               <div className="flex gap-2">
                                 <button onClick={() => { navigator.clipboard.writeText(rfq.body); toast({ title: "Copied", description: "RFQ body copied to clipboard." }); }}
@@ -3258,11 +3282,19 @@ ${html}
                                   data-testid={`button-copy-rfq-${name}`}>
                                   <Copy className="w-3 h-3" /> Copy
                                 </button>
-                                <a href={mailto}
-                                  className="text-xs px-2 py-1 rounded flex items-center gap-1" style={{ background: "var(--gold)15", border: "1px solid var(--gold)40", color: "var(--gold)", textDecoration: "none" }}
-                                  data-testid={`link-email-rfq-${name}`}>
-                                  <Send className="w-3 h-3" /> Open in Email
-                                </a>
+                                <button
+                                  onClick={() => {
+                                    setRfqPickerMfr(name);
+                                    // Pre-check all eligible contacts (fresh on every open)
+                                    setRfqSelectedContactIds(new Set(eligibleContacts.map(c => c.id)));
+                                  }}
+                                  disabled={eligibleCount === 0}
+                                  className="text-xs px-2 py-1 rounded flex items-center gap-1"
+                                  style={{ background: "var(--gold)15", border: "1px solid var(--gold)40", color: "var(--gold)", opacity: eligibleCount === 0 ? 0.5 : 1, cursor: eligibleCount === 0 ? "not-allowed" : "pointer" }}
+                                  title={eligibleCount === 0 ? "No eligible contacts — tag contacts in Vendor DB" : "Pick recipients and send RFQ"}
+                                  data-testid={`button-pick-recipients-${name}`}>
+                                  <Send className="w-3 h-3" /> Pick Recipients & Send
+                                </button>
                               </div>
                             </div>
                             <pre className="text-xs whitespace-pre-wrap" style={{ color: "var(--text-muted)", maxHeight: 120, overflow: "hidden" }}>
@@ -4702,6 +4734,140 @@ ${html}
               <div className="flex justify-end gap-2 mt-2">
                 <button onClick={() => setShowAddMfrModal(false)}
                   className="text-xs px-4 py-2 rounded" style={{ background: "var(--bg3)", color: "var(--text-secondary)" }}>Close</button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* ── RFQ Recipient Picker Modal ── */}
+      {rfqPickerMfr && rfqLookupEnabled && (() => {
+        const mfrName = rfqPickerMfr;
+        const approved = approvedMfrs.find(a => a.manufacturerName === mfrName);
+        // Build grouped recipient list, filtered by activeCat scope tag
+        const groups: Array<{
+          vendorId: number;
+          vendorName: string;
+          contacts: Array<{ id: number; name: string; role?: string | null; email: string | null; isPrimary: boolean; scopes?: string[] }>;
+        }> = [];
+        if (approved) {
+          for (const v of approved.vendors) {
+            const eligible = v.contacts.filter(c => !c.scopes || c.scopes.length === 0 || c.scopes.includes(activeCat));
+            if (eligible.length > 0) groups.push({ vendorId: v.vendorId, vendorName: v.vendorName, contacts: eligible });
+          }
+        }
+        const allEligibleIds = groups.flatMap(g => g.contacts.map(c => c.id));
+        const allChecked = allEligibleIds.length > 0 && allEligibleIds.every(id => rfqSelectedContactIds.has(id));
+        const someChecked = allEligibleIds.some(id => rfqSelectedContactIds.has(id));
+        const toggleAll = () => {
+          if (allChecked) setRfqSelectedContactIds(new Set());
+          else setRfqSelectedContactIds(new Set(allEligibleIds));
+        };
+        const toggleOne = (id: number) => {
+          setRfqSelectedContactIds(prev => {
+            const next = new Set(prev);
+            if (next.has(id)) next.delete(id); else next.add(id);
+            return next;
+          });
+        };
+        const toggleGroup = (g: typeof groups[number]) => {
+          const ids = g.contacts.map(c => c.id);
+          setRfqSelectedContactIds(prev => {
+            const allOn = ids.every(id => prev.has(id));
+            const next = new Set(prev);
+            if (allOn) ids.forEach(id => next.delete(id));
+            else ids.forEach(id => next.add(id));
+            return next;
+          });
+        };
+        const selectedEmails = groups
+          .flatMap(g => g.contacts)
+          .filter(c => rfqSelectedContactIds.has(c.id) && c.email)
+          .map(c => c.email!) as string[];
+        const sendNow = () => {
+          if (selectedEmails.length === 0) {
+            toast({ title: "No recipients selected", description: "Tick at least one contact to send the RFQ.", variant: "destructive" });
+            return;
+          }
+          const rfq = generateRfqEmail(mfrName);
+          const mailto = `mailto:${encodeURIComponent(selectedEmails.join(","))}?subject=${encodeURIComponent(rfq.subject)}&body=${encodeURIComponent(rfq.body)}`;
+          window.location.href = mailto;
+          setRfqPickerMfr(null);
+        };
+        const catLabel = ALL_SCOPES.find(s => s.id === activeCat)?.label || activeCat;
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: "rgba(0,0,0,0.6)" }}
+            onClick={e => { if (e.target === e.currentTarget) setRfqPickerMfr(null); }}>
+            <div className="rounded-xl p-6 w-full max-w-2xl shadow-2xl" style={{ background: "var(--bg-card)", border: "1px solid var(--border-ds)", maxHeight: "85vh", display: "flex", flexDirection: "column" }} data-testid="modal-rfq-recipients">
+              <div className="flex items-center justify-between mb-1">
+                <div>
+                  <h3 className="text-base font-semibold" style={{ color: "var(--text)" }}>Pick RFQ Recipients</h3>
+                  <p className="text-xs" style={{ color: "var(--text-muted)" }}>{mfrName} · {catLabel}</p>
+                </div>
+                <button onClick={() => setRfqPickerMfr(null)} className="p-1 rounded hover:bg-[var(--bg3)]" data-testid="button-close-rfq-picker">
+                  <X className="w-4 h-4" style={{ color: "var(--text-muted)" }} />
+                </button>
+              </div>
+              {groups.length === 0 ? (
+                <div className="mt-4 p-4 rounded text-xs" style={{ background: "var(--bg3)", color: "var(--text-muted)" }}>
+                  No eligible contacts found. Make sure this manufacturer has at least one linked vendor with contacts in the Vendor Database, and that those contacts are tagged with the "{catLabel}" scope (or have no scope tags).
+                </div>
+              ) : (
+                <>
+                  <div className="flex items-center justify-between mt-3 mb-2">
+                    <label className="flex items-center gap-2 text-xs cursor-pointer" style={{ color: "var(--text-secondary)" }}>
+                      <input type="checkbox" checked={allChecked} ref={el => { if (el) el.indeterminate = someChecked && !allChecked; }} onChange={toggleAll} style={{ accentColor: "var(--gold)" }} />
+                      Select all ({allEligibleIds.length})
+                    </label>
+                    <span className="text-xs" style={{ color: "var(--text-muted)" }}>{rfqSelectedContactIds.size} selected</span>
+                  </div>
+                  <div className="overflow-y-auto rounded" style={{ background: "var(--bg3)", border: "1px solid var(--border-ds)", flex: 1 }}>
+                    {groups.map(g => {
+                      const groupIds = g.contacts.map(c => c.id);
+                      const groupAll = groupIds.every(id => rfqSelectedContactIds.has(id));
+                      const groupSome = groupIds.some(id => rfqSelectedContactIds.has(id));
+                      return (
+                        <div key={g.vendorId} style={{ borderBottom: "1px solid var(--border-ds)" }}>
+                          <div className="flex items-center justify-between px-3 py-2" style={{ background: "var(--bg-card)" }}>
+                            <label className="flex items-center gap-2 text-xs font-semibold cursor-pointer" style={{ color: "var(--gold)" }}>
+                              <input type="checkbox" checked={groupAll} ref={el => { if (el) el.indeterminate = groupSome && !groupAll; }} onChange={() => toggleGroup(g)} style={{ accentColor: "var(--gold)" }} />
+                              {g.vendorName}
+                            </label>
+                            <span className="text-[10px]" style={{ color: "var(--text-muted)" }}>{g.contacts.length} contact{g.contacts.length === 1 ? "" : "s"}</span>
+                          </div>
+                          {g.contacts.map(c => (
+                            <label key={c.id} className="flex items-center gap-3 px-5 py-2 cursor-pointer hover:bg-[var(--bg-card)]" style={{ borderTop: "1px solid var(--border-ds)20" }} data-testid={`row-rfq-contact-${c.id}`}>
+                              <input type="checkbox" checked={rfqSelectedContactIds.has(c.id)} onChange={() => toggleOne(c.id)} style={{ accentColor: "var(--gold)" }} />
+                              <div style={{ flex: 1, minWidth: 0 }}>
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <span className="text-xs font-semibold" style={{ color: "var(--text)" }}>{c.name || "(no name)"}</span>
+                                  {c.isPrimary && <span style={{ fontSize: 9, fontWeight: 700, padding: "1px 6px", borderRadius: 3, background: "rgba(201,168,76,0.2)", color: "var(--gold)" }}>PRIMARY</span>}
+                                  {c.role && <span className="text-[10px]" style={{ color: "var(--text-muted)" }}>{c.role}</span>}
+                                </div>
+                                <div className="text-[11px]" style={{ color: c.email ? "#5B8DEF" : "var(--text-muted)" }}>{c.email || "(no email — won't be included)"}</div>
+                              </div>
+                            </label>
+                          ))}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </>
+              )}
+              <div className="flex justify-between items-center gap-2 mt-3">
+                <span className="text-xs" style={{ color: "var(--text-muted)" }}>{selectedEmails.length} email{selectedEmails.length === 1 ? "" : "s"} will be added to To:</span>
+                <div className="flex gap-2">
+                  <button onClick={() => setRfqPickerMfr(null)}
+                    className="text-xs px-4 py-2 rounded" style={{ background: "var(--bg3)", color: "var(--text-secondary)" }}
+                    data-testid="button-cancel-rfq-picker">Cancel</button>
+                  <button onClick={sendNow}
+                    disabled={selectedEmails.length === 0}
+                    className="text-xs px-4 py-2 rounded flex items-center gap-1 font-semibold"
+                    style={{ background: "var(--gold)", color: "#000", opacity: selectedEmails.length === 0 ? 0.5 : 1 }}
+                    data-testid="button-send-rfq">
+                    <Send className="w-3 h-3" /> Open in Email
+                  </button>
+                </div>
               </div>
             </div>
           </div>

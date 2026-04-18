@@ -76,8 +76,12 @@ export function registerScopeManufacturerRoutes(app: Express) {
           contacts: (contactsByVendor.get(l.vendorId) || []).map(c => ({
             id: c.id,
             name: c.name,
+            role: c.role,
             email: c.email,
+            phone: c.phone,
             isPrimary: !!c.isPrimary,
+            scopes: c.scopes || [],
+            manufacturerIds: c.manufacturerIds || [],
           })),
         });
         vendorsByMfr.set(l.manufacturerId, list);

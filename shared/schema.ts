@@ -1065,6 +1065,8 @@ export const mfrContacts = pgTable("mfr_contacts", {
   territory: varchar("territory", { length: 255 }),
   isPrimary: boolean("is_primary").default(false),
   notes: text("notes"),
+  scopes: text("scopes").array(),
+  manufacturerIds: integer("manufacturer_ids").array(),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 export type MfrContact = typeof mfrContacts.$inferSelect;

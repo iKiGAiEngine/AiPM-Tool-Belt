@@ -10,7 +10,8 @@ import {
 } from "lucide-react";
 
 // ---- Types ----
-interface MfrContact { id: number; vendorId: number; name: string | null; role: string | null; email: string | null; phone: string | null; territory: string | null; isPrimary: boolean | null; notes: string | null; }
+interface MfrContact { id: number; vendorId: number; name: string | null; role: string | null; email: string | null; phone: string | null; territory: string | null; isPrimary: boolean | null; notes: string | null; scopes: string[] | null; manufacturerIds: number[] | null; }
+interface MfrManufacturerRow { id: number; name: string }
 interface MfrProduct { id: number; vendorId: number; model: string | null; description: string | null; csiCode: string | null; listPrice: string | null; unit: string | null; notes: string | null; }
 interface MfrPricing { discountTier: string | null; paymentTerms: string | null; notes: string | null; }
 interface MfrLogistics { avgLeadTimeDays: number | null; shipsFrom: string | null; freightNotes: string | null; }
@@ -22,6 +23,30 @@ interface MfrVendorFull extends MfrVendorSummary { notes: string | null; contact
 interface DashboardData { totalVendors: number; w9OnFile: number; w9Missing: number; certsTotal: number; certsSent: number; certsConfirmed: number; certsExpiring: number; certsExpired: number; certsNotSent: number; vendorsNoCerts: { id: number; name: string }[]; }
 
 const CATEGORIES = ["Toilet Accessories", "Partitions", "Lockers", "Appliances", "Plumbing Fixtures", "Fire Protection", "Division 10 Specialties", "Doors & Hardware", "Signage", "Postal Specialties", "Visual Display", "Flagpoles", "Other"];
+
+// Scope tags for contacts. Mirrors ALL_SCOPES in EstimatingModulePage so contacts
+// can be tagged with the scope category they cover for RFQ recipient picking.
+const CONTACT_SCOPE_OPTIONS: Array<{ id: string; label: string }> = [
+  { id: "accessories",      label: "Toilet Accessories" },
+  { id: "partitions",       label: "Toilet Compartments" },
+  { id: "fire_ext",         label: "FEC" },
+  { id: "corner_guards",    label: "Wall Protection" },
+  { id: "appliances",       label: "Appliances" },
+  { id: "lockers",          label: "Lockers" },
+  { id: "display_boards",   label: "Visual Displays" },
+  { id: "bike_racks",       label: "Bike Racks" },
+  { id: "wire_mesh",        label: "Wire Mesh Partitions" },
+  { id: "cubicle_curtains", label: "Cubicle Curtains" },
+  { id: "med_equipment",    label: "Med Equipment" },
+  { id: "expansion_joints", label: "Expansion Joints" },
+  { id: "storage_units",    label: "Shelving" },
+  { id: "equipment",        label: "Equipment" },
+  { id: "entrance_mats",    label: "Entrance Mats" },
+  { id: "mailboxes",        label: "Mailbox" },
+  { id: "flagpoles",        label: "Flagpole" },
+  { id: "knox_box",         label: "Knox Box" },
+  { id: "site_furnishing",  label: "Site Furnishing" },
+];
 const CSI_CODES = ["10 21 00 - Compartments & Cubicles", "10 28 00 - Toilet Accessories", "10 44 00 - Fire Extinguisher Cabinets", "10 51 00 - Lockers", "10 55 00 - Postal Specialties", "10 56 00 - Storage Assemblies", "10 11 00 - Visual Display Units", "10 71 00 - Exterior Protection", "10 73 00 - Protective Covers", "10 75 00 - Flagpoles", "22 40 00 - Plumbing Fixtures", "08 10 00 - Doors & Frames", "Custom"];
 const FILE_TYPES = ["W-9", "Resale Cert", "Exemption Cert", "Price Sheet", "Credit App", "Other"];
 const US_STATES = ["AL","AK","AZ","AR","CA","CO","CT","DE","FL","GA","HI","ID","IL","IN","IA","KS","KY","LA","ME","MD","MA","MI","MN","MS","MO","MT","NE","NV","NH","NJ","NM","NY","NC","ND","OH","OK","OR","PA","RI","SC","SD","TN","TX","UT","VT","VA","WA","WV","WI","WY"];
@@ -182,6 +207,81 @@ function TagInput({ tags, onChange }: { tags: string[]; onChange: (t: string[]) 
   );
 }
 
+// ---- Scope Tag Picker (multi-select chips from CONTACT_SCOPE_OPTIONS) ----
+function ScopeTagPicker({ selected, onChange }: { selected: string[]; onChange: (s: string[]) => void }) {
+  const toggle = (id: string) => {
+    if (selected.includes(id)) onChange(selected.filter(x => x !== id));
+    else onChange([...selected, id]);
+  };
+  return (
+    <div style={{ display: "flex", flexWrap: "wrap", gap: 6, padding: "8px 10px", borderRadius: 6, border: "1px solid var(--border-ds)", background: "var(--bg-card)", minHeight: 38 }}>
+      {CONTACT_SCOPE_OPTIONS.map(opt => {
+        const on = selected.includes(opt.id);
+        return (
+          <button
+            key={opt.id}
+            onClick={() => toggle(opt.id)}
+            type="button"
+            style={{
+              padding: "3px 9px", borderRadius: 12, fontSize: 11, cursor: "pointer", fontWeight: 600,
+              background: on ? "rgba(91,141,239,0.18)" : "transparent",
+              border: on ? "1px solid rgba(91,141,239,0.5)" : "1px solid var(--border-ds)",
+              color: on ? "#5B8DEF" : "var(--text-dim)",
+            }}
+            data-testid={`scope-tag-${opt.id}`}
+          >
+            {opt.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+// ---- Manufacturer Tag Picker (searchable multi-select from manufacturers list) ----
+function ManufacturerTagPicker({ manufacturers, selectedIds, onChange }: { manufacturers: MfrManufacturerRow[]; selectedIds: number[]; onChange: (ids: number[]) => void }) {
+  const [search, setSearch] = useState("");
+  const selectedSet = new Set(selectedIds);
+  const selectedRows = manufacturers.filter(m => selectedSet.has(m.id));
+  const matches = search.trim()
+    ? manufacturers.filter(m => !selectedSet.has(m.id) && m.name.toLowerCase().includes(search.toLowerCase())).slice(0, 12)
+    : [];
+  return (
+    <div style={{ padding: "8px 10px", borderRadius: 6, border: "1px solid var(--border-ds)", background: "var(--bg-card)" }}>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: selectedRows.length > 0 ? 8 : 0 }}>
+        {selectedRows.map(m => (
+          <span key={m.id} style={{ display: "flex", alignItems: "center", gap: 4, padding: "2px 8px", borderRadius: 10, background: "rgba(201,168,76,0.18)", color: "var(--gold)", fontSize: 12, fontWeight: 600 }}>
+            {m.name}
+            <X size={11} style={{ cursor: "pointer" }} onClick={() => onChange(selectedIds.filter(id => id !== m.id))} />
+          </span>
+        ))}
+      </div>
+      <input
+        value={search}
+        onChange={(e) => setSearch(e.target.value)}
+        placeholder="Search manufacturers to add…"
+        style={{ width: "100%", border: "1px solid var(--border-ds)", background: "var(--bg)", color: "var(--text-primary)", fontSize: 12, padding: "6px 8px", borderRadius: 4, outline: "none" }}
+        data-testid="input-mfr-tag-search"
+      />
+      {matches.length > 0 && (
+        <div style={{ marginTop: 6, maxHeight: 180, overflowY: "auto", border: "1px solid var(--border-ds)", borderRadius: 4 }}>
+          {matches.map(m => (
+            <button
+              key={m.id}
+              type="button"
+              onClick={() => { onChange([...selectedIds, m.id]); setSearch(""); }}
+              style={{ display: "block", width: "100%", textAlign: "left", padding: "6px 10px", background: "transparent", border: "none", color: "var(--text-primary)", fontSize: 12, cursor: "pointer" }}
+              data-testid={`mfr-tag-option-${m.id}`}
+            >
+              {m.name}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ---- Excel Upload Modal ----
 function ExcelUploadModal({ onClose, onSuccess }: { onClose: () => void; onSuccess: () => void }) {
   const [dragging, setDragging] = useState(false);
@@ -268,8 +368,13 @@ function VendorDetail({ vendorId, onBack, qc }: { vendorId: number; onBack: () =
   const [initialized, setInitialized] = useState(false);
   const [expandedProduct, setExpandedProduct] = useState<number | null>(null);
   const [productForms, setProductForms] = useState<Record<number, MfrProduct>>({});
-  const [newContact, setNewContact] = useState({ name: "", role: "", email: "", phone: "", territory: "", isPrimary: false, notes: "" });
+  const [newContact, setNewContact] = useState<{ name: string; role: string; email: string; phone: string; territory: string; isPrimary: boolean; notes: string; scopes: string[]; manufacturerIds: number[] }>({ name: "", role: "", email: "", phone: "", territory: "", isPrimary: false, notes: "", scopes: [], manufacturerIds: [] });
   const [showAddContact, setShowAddContact] = useState(false);
+  const [editingContactId, setEditingContactId] = useState<number | null>(null);
+  const [editContact, setEditContact] = useState<{ name: string; role: string; email: string; phone: string; territory: string; isPrimary: boolean; notes: string; scopes: string[]; manufacturerIds: number[] }>({ name: "", role: "", email: "", phone: "", territory: "", isPrimary: false, notes: "", scopes: [], manufacturerIds: [] });
+  const { data: allMfrs = [] } = useQuery<MfrManufacturerRow[]>({ queryKey: ["/api/mfr/manufacturers"] });
+  const mfrNameById = useMemo(() => Object.fromEntries(allMfrs.map(m => [m.id, m.name])) as Record<number, string>, [allMfrs]);
+  const scopeLabelById = useMemo(() => Object.fromEntries(CONTACT_SCOPE_OPTIONS.map(s => [s.id, s.label])) as Record<string, string>, []);
   const [newProduct, setNewProduct] = useState({ model: "", description: "", csiCode: "", listPrice: "", unit: "", notes: "" });
   const [showAddProduct, setShowAddProduct] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -308,7 +413,7 @@ function VendorDetail({ vendorId, onBack, qc }: { vendorId: number; onBack: () =
   };
 
   const addContact = async () => {
-    try { await apiRequest("POST", `/api/mfr/vendors/${vendorId}/contacts`, newContact); invalidate(); setShowAddContact(false); setNewContact({ name: "", role: "", email: "", phone: "", territory: "", isPrimary: false, notes: "" }); toast({ title: "Contact added" }); } catch { toast({ title: "Failed", variant: "destructive" }); }
+    try { await apiRequest("POST", `/api/mfr/vendors/${vendorId}/contacts`, newContact); invalidate(); setShowAddContact(false); setNewContact({ name: "", role: "", email: "", phone: "", territory: "", isPrimary: false, notes: "", scopes: [], manufacturerIds: [] }); toast({ title: "Contact added" }); } catch { toast({ title: "Failed", variant: "destructive" }); }
   };
   const deleteContact = async (cid: number) => {
     if (!confirm("Delete this contact?")) return;
@@ -316,6 +421,23 @@ function VendorDetail({ vendorId, onBack, qc }: { vendorId: number; onBack: () =
   };
   const togglePrimary = async (contact: MfrContact) => {
     try { await apiRequest("PUT", `/api/mfr/vendors/${vendorId}/contacts/${contact.id}`, { ...contact, isPrimary: true }); invalidate(); } catch { toast({ title: "Failed", variant: "destructive" }); }
+  };
+  const startEditContact = (c: MfrContact) => {
+    setEditingContactId(c.id);
+    setEditContact({
+      name: c.name || "", role: c.role || "", email: c.email || "", phone: c.phone || "",
+      territory: c.territory || "", isPrimary: !!c.isPrimary, notes: c.notes || "",
+      scopes: c.scopes || [], manufacturerIds: c.manufacturerIds || [],
+    });
+  };
+  const saveEditContact = async () => {
+    if (editingContactId == null) return;
+    try {
+      await apiRequest("PUT", `/api/mfr/vendors/${vendorId}/contacts/${editingContactId}`, editContact);
+      invalidate();
+      setEditingContactId(null);
+      toast({ title: "Contact updated" });
+    } catch { toast({ title: "Save failed", variant: "destructive" }); }
   };
 
   const addProduct = async () => {
@@ -389,7 +511,33 @@ function VendorDetail({ vendorId, onBack, qc }: { vendorId: number; onBack: () =
       {/* Contacts */}
       <Section title="Contacts" icon={Phone} count={vendor.contacts.length}>
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-          {vendor.contacts.map((c) => (
+          {vendor.contacts.map((c) => editingContactId === c.id ? (
+            <div key={c.id} style={{ padding: 14, borderRadius: 8, border: "1px solid var(--gold)", background: "var(--bg-card)" }} data-testid={`edit-contact-${c.id}`}>
+              <div style={grid2}>
+                <Field label="Name"><InpText value={editContact.name} onChange={(v) => setEditContact({ ...editContact, name: v })} /></Field>
+                <Field label="Role / Title"><InpText value={editContact.role} onChange={(v) => setEditContact({ ...editContact, role: v })} /></Field>
+                <Field label="Email"><InpText value={editContact.email} onChange={(v) => setEditContact({ ...editContact, email: v })} /></Field>
+                <Field label="Phone"><InpText value={editContact.phone} onChange={(v) => setEditContact({ ...editContact, phone: v })} /></Field>
+                <Field label="Territory"><InpText value={editContact.territory} onChange={(v) => setEditContact({ ...editContact, territory: v })} /></Field>
+                <Field label=""><InpCheck label="Primary contact" checked={editContact.isPrimary} onChange={(v) => setEditContact({ ...editContact, isPrimary: v })} /></Field>
+              </div>
+              <div style={{ marginTop: 10 }}>
+                <Field label="Scope Tags (which scope categories this contact covers)">
+                  <ScopeTagPicker selected={editContact.scopes} onChange={(s) => setEditContact({ ...editContact, scopes: s })} />
+                </Field>
+              </div>
+              <div style={{ marginTop: 10 }}>
+                <Field label="Manufacturer Tags (which manufacturers this contact reps — beyond their own vendor)">
+                  <ManufacturerTagPicker manufacturers={allMfrs} selectedIds={editContact.manufacturerIds} onChange={(ids) => setEditContact({ ...editContact, manufacturerIds: ids })} />
+                </Field>
+              </div>
+              <div style={{ marginTop: 10 }}><Field label="Notes"><InpText value={editContact.notes} onChange={(v) => setEditContact({ ...editContact, notes: v })} /></Field></div>
+              <div style={{ display: "flex", gap: 8, marginTop: 10, justifyContent: "flex-end" }}>
+                <Btn label="Cancel" onClick={() => setEditingContactId(null)} />
+                <Btn label="Save Contact" variant="gold" onClick={saveEditContact} />
+              </div>
+            </div>
+          ) : (
             <div key={c.id} style={{ padding: "12px 14px", borderRadius: 8, border: `1px solid ${c.isPrimary ? "rgba(201,168,76,0.4)" : "var(--border-ds)"}`, background: c.isPrimary ? "rgba(201,168,76,0.05)" : "var(--bg-card)", display: "flex", gap: 12, alignItems: "flex-start" }} data-testid={`card-contact-${c.id}`}>
               <button onClick={() => togglePrimary(c)} title="Set as primary" style={{ background: "none", border: "none", cursor: "pointer", padding: 0, flexShrink: 0 }}>
                 <Star size={15} style={{ color: c.isPrimary ? "var(--gold)" : "var(--border-ds)", fill: c.isPrimary ? "var(--gold)" : "none" }} />
@@ -405,20 +553,43 @@ function VendorDetail({ vendorId, onBack, qc }: { vendorId: number; onBack: () =
                   {c.phone && <span style={{ fontSize: 12, color: "var(--text-dim)", display: "flex", alignItems: "center", gap: 4 }}><Phone size={11} />{c.phone}</span>}
                   {c.territory && <span style={{ fontSize: 12, color: "var(--text-dim)" }}>Territory: {c.territory}</span>}
                 </div>
+                {((c.scopes && c.scopes.length > 0) || (c.manufacturerIds && c.manufacturerIds.length > 0)) && (
+                  <div style={{ display: "flex", gap: 4, marginTop: 6, flexWrap: "wrap" }}>
+                    {(c.scopes || []).map(sid => (
+                      <span key={`s-${sid}`} style={{ fontSize: 10, padding: "2px 7px", borderRadius: 4, background: "rgba(91,141,239,0.12)", color: "#5B8DEF", fontWeight: 600 }}>{scopeLabelById[sid] || sid}</span>
+                    ))}
+                    {(c.manufacturerIds || []).map(mid => (
+                      <span key={`m-${mid}`} style={{ fontSize: 10, padding: "2px 7px", borderRadius: 4, background: "rgba(201,168,76,0.12)", color: "var(--gold)", fontWeight: 600 }}>{mfrNameById[mid] || `Mfr #${mid}`}</span>
+                    ))}
+                  </div>
+                )}
                 {c.notes && <div style={{ fontSize: 11, color: "var(--text-dim)", marginTop: 4 }}>{c.notes}</div>}
               </div>
-              <Btn variant="danger" icon={Trash2} onClick={() => deleteContact(c.id)} size="xs" />
+              <div style={{ display: "flex", gap: 6 }}>
+                <Btn variant="ghost" label="Edit" onClick={() => startEditContact(c)} size="xs" />
+                <Btn variant="danger" icon={Trash2} onClick={() => deleteContact(c.id)} size="xs" />
+              </div>
             </div>
           ))}
           {showAddContact ? (
             <div style={{ padding: 14, borderRadius: 8, border: "1px solid var(--border-ds)", background: "var(--bg-card)" }}>
               <div style={grid2}>
                 <Field label="Name"><InpText value={newContact.name} onChange={(v) => setNewContact({ ...newContact, name: v })} /></Field>
-                <Field label="Role / Company"><InpText value={newContact.role} onChange={(v) => setNewContact({ ...newContact, role: v })} /></Field>
+                <Field label="Role / Title"><InpText value={newContact.role} onChange={(v) => setNewContact({ ...newContact, role: v })} /></Field>
                 <Field label="Email"><InpText value={newContact.email} onChange={(v) => setNewContact({ ...newContact, email: v })} /></Field>
                 <Field label="Phone"><InpText value={newContact.phone} onChange={(v) => setNewContact({ ...newContact, phone: v })} /></Field>
                 <Field label="Territory"><InpText value={newContact.territory} onChange={(v) => setNewContact({ ...newContact, territory: v })} /></Field>
                 <Field label=""><InpCheck label="Primary contact" checked={newContact.isPrimary} onChange={(v) => setNewContact({ ...newContact, isPrimary: v })} /></Field>
+              </div>
+              <div style={{ marginTop: 10 }}>
+                <Field label="Scope Tags (which scope categories this contact covers)">
+                  <ScopeTagPicker selected={newContact.scopes} onChange={(s) => setNewContact({ ...newContact, scopes: s })} />
+                </Field>
+              </div>
+              <div style={{ marginTop: 10 }}>
+                <Field label="Manufacturer Tags (which manufacturers this contact reps — beyond their own vendor)">
+                  <ManufacturerTagPicker manufacturers={allMfrs} selectedIds={newContact.manufacturerIds} onChange={(ids) => setNewContact({ ...newContact, manufacturerIds: ids })} />
+                </Field>
               </div>
               <div style={{ marginTop: 10 }}><Field label="Notes"><InpText value={newContact.notes} onChange={(v) => setNewContact({ ...newContact, notes: v })} /></Field></div>
               <div style={{ display: "flex", gap: 8, marginTop: 10, justifyContent: "flex-end" }}>
