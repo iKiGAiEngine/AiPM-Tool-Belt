@@ -1,0 +1,222 @@
+# AiPM Build Spec: Scope-Level Approved Manufacturers + RFQ Vendor Lookup
+
+**Owner:** Haley Kruse (NBS / Ikigai Engine)
+**Scope:** Small, focused upgrade to the existing RFQ Generator. No SOF, no spec parsing.
+**Goal:** Let an estimator (a) define approved manufacturers per scope, and (b) when generating an RFQ, auto-fill the recipient email by looking up the manufacturer in the existing Vendor/Manufacturer module.
+
+-----
+
+## Global guardrails
+
+1. **Preserve existing behavior.** The current RFQ Generator (pulling mfrs from `estimate_line_items.mfr`) must keep working for any scope that doesn’t have approved manufacturers defined yet.
+1. **Mirror existing patterns.** Inline expandable card UI. `requireAuth` middleware. `auditLog()` for mutations. Drizzle migrations via `npm run db:push`.
+1. **One feature flag:** `RFQ_VENDOR_LOOKUP`. Gate only the new UI elements. Backend endpoints can exist without the flag.
+1. **No AI.** This build has zero Claude/OpenAI calls. Pure CRUD + joins.
+1. **Stop and ask if ambiguous.** If any step conflicts with existing code, pause and surface it before deciding.
+
+-----
+
+## Part 1 — Schema changes
+
+Add ONE new table to `shared/schema.ts`:
+
+```ts
+export const estimateScopeManufacturers = pgTable("estimate_scope_manufacturers", {
+  id: serial("id").primaryKey(),
+  estimateId: integer("estimate_id").notNull().references(() => estimates.id),
+  scopeId: text("scope_id").notNull(), // matches ALL_SCOPES[i].id
+  manufacturerId: integer("manufacturer_id")
+    .notNull()
+    .references(() => mfrManufacturers.id),
+  isBasisOfDesign: boolean("is_basis_of_design").notNull().default(false),
+  notes: text("notes"),
+  addedByUserId: integer("added_by_user_id").references(() => users.id),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => ({
+  uniqueScopeMfr: unique().on(table.estimateId, table.scopeId, table.manufacturerId),
+}));
+```
+
+**What this does:** One row per (estimate, scope, manufacturer). The unique constraint prevents duplicates. `isBasisOfDesign` lets you mark the primary/basis-of-design mfr for the scope.
+
+**No other schema changes.** Do NOT modify `estimate_line_items`, `mfr_manufacturers`, `mfr_vendors`, or `mfr_contacts`.
+
+Run `npm run db:push` to apply.
+
+-----
+
+## Part 2 — Backend routes
+
+Create `server/scopeManufacturerRoutes.ts`:
+
+- `GET /api/estimates/:estimateId/scopes/:scopeId/approved-manufacturers` — return all approved manufacturers for this scope, with their linked vendors and primary contact info. Expected response shape:
+
+```ts
+[
+  {
+    id: 101,
+    manufacturerId: 42,
+    manufacturerName: "Bobrick Washroom Equipment",
+    isBasisOfDesign: true,
+    notes: null,
+    vendors: [
+      {
+        vendorId: 77,
+        vendorName: "Bobrick Direct",
+        contacts: [
+          { id: 5, name: "John Smith", email: "john@bobrick.com", isPrimary: true },
+          { id: 6, name: "Jane Doe", email: "jane@bobrick.com", isPrimary: false }
+        ]
+      },
+      {
+        vendorId: 78,
+        vendorName: "PBS Pacific Building Specialties",
+        contacts: [
+          { id: 12, name: "Pat Rep", email: "pat@pbs.com", isPrimary: true }
+        ]
+      }
+    ]
+  }
+]
+```
+
+The vendor list comes from joining `mfr_manufacturers` → `mfr_vendor_manufacturers` → `mfr_vendors` → `mfr_contacts`. A manufacturer can have multiple vendors (e.g., Bobrick direct + PBS as a distributor). Include all vendors linked to the manufacturer. Contacts should be ordered with `isPrimary = true` first.
+
+- `POST /api/estimates/:estimateId/scopes/:scopeId/approved-manufacturers` — add a manufacturer to the scope. Body: `{ manufacturerId, isBasisOfDesign?, notes? }`. Return the created row.
+- `PATCH /api/estimates/:estimateId/scopes/:scopeId/approved-manufacturers/:id` — update `isBasisOfDesign` or `notes`.
+- `DELETE /api/estimates/:estimateId/scopes/:scopeId/approved-manufacturers/:id` — remove a manufacturer from the scope. Hard delete is fine (this is just a junction row).
+
+All routes go through `requireAuth` and existing audit middleware.
+
+-----
+
+## Part 3 — Frontend: Approved Manufacturers editor
+
+Add a new inline expandable card on each scope tab in `EstimatingModulePage.tsx`, following the pattern of the existing Spec Reference Panel (around line 2298 per prior survey) and RFQ Generator (around line 3049).
+
+Card title: **“Approved Manufacturers”**
+
+Collapsed state: shows count badge, e.g., “Approved Manufacturers (3)”
+
+Expanded state:
+
+- List of currently approved manufacturers as rows:
+  - Manufacturer name (bold)
+  - “Basis of Design” pill if `isBasisOfDesign = true`
+  - Notes (if any), inline
+  - Edit button (opens small modal to toggle BoD + edit notes)
+  - Remove button (with confirmation)
+- “+ Add Manufacturer” button below the list
+
+Add Manufacturer flow:
+
+- Opens a modal with a searchable dropdown of all `mfr_manufacturers` records (alphabetical by name)
+- Checkbox: “Set as Basis of Design”
+- Optional notes field
+- Save button → POST to the route above
+- If the manufacturer doesn’t exist yet, show a “+ Create new manufacturer” link that opens the existing manufacturer creation flow from the Vendor/Manufacturer module (do NOT duplicate that form; link to it)
+
+No sorting, filtering, or bulk-add features. Keep it simple.
+
+-----
+
+## Part 4 — Frontend: RFQ Generator upgrade
+
+Modify the existing RFQ Generator panel in `EstimatingModulePage.tsx` (current logic at lines 1546–1577 and 3049–3089 per survey).
+
+**Keep the existing behavior:** the panel currently builds RFQ cards by grouping `estimate_line_items` for the scope by `.mfr` field. That stays.
+
+**Add one new section above the existing cards:** “Approved Manufacturers for this Scope”
+
+This section shows RFQ cards for each approved manufacturer from the new table. For each approved manufacturer card:
+
+**Header:**
+
+- Manufacturer name + “Basis of Design” pill if applicable
+- Small badge: “✓ On line items” if this mfr appears on any line items for this scope, otherwise “Not on line items” (informational only — no blocking)
+
+**Vendor selector (NEW — this is the key upgrade):**
+
+- If the manufacturer has **one** vendor linked: show it as the selected vendor, no dropdown needed
+- If **multiple** vendors (e.g., Bobrick direct + PBS distributor): show a dropdown: “Send RFQ via: [Bobrick Direct ▾]” — estimator picks which vendor
+- If **no** vendor linked yet: show helper “No vendor linked to this manufacturer. [Link vendor in Vendor module]” (the link is informational; don’t block)
+
+**Recipient email (NEW — the auto-fill):**
+
+- **To:** field, pre-filled with the selected vendor’s primary contact email
+- **Quick-pick buttons** for other contacts on that vendor: tap to swap the email, or tap “+ Add” to append. Example:
+  
+  ```
+  To: john@bobrick.com  [× clear]
+  Other contacts: [jane@bobrick.com] [+ add]
+  ```
+- Field stays editable — estimator can type a different email or add multiple (comma-separated)
+- If no primary contact exists, leave blank and show: “No primary contact set for this vendor. [Manage contacts]”
+
+**Actions:**
+
+- Existing “Copy” and “Open in Email” buttons stay
+- “Open in Email” uses the To: field value; if multiple emails, they go comma-separated in the mailto:
+
+**Email body:** Use the existing `generateRfqEmail` function unchanged. It already stitches together line items and project info per the notes from Replit.
+
+**Below the new section, the existing line-item-derived RFQ cards continue to render unchanged.** If a mfr appears both as approved AND on line items, the approved-mfr card takes precedence — but de-dupe so it doesn’t appear twice. (Check line items mfr string against approved mfr names; case-insensitive direct match is fine for now. No fuzzy matching.)
+
+-----
+
+## Part 5 — Feature flag
+
+Add `RFQ_VENDOR_LOOKUP` to the `FEATURES` constant (per the survey, `user_feature_access` with `FEATURES` constant already exists).
+
+Gate visibility of:
+
+- The “Approved Manufacturers” card on scope tabs
+- The new “Approved Manufacturers for this Scope” section in RFQ Generator
+
+The underlying backend routes can exist without the flag. Existing RFQ Generator behavior is untouched for users without the flag.
+
+-----
+
+## Part 6 — Acceptance criteria
+
+Before marking complete, verify end-to-end on a test estimate:
+
+1. A user with `RFQ_VENDOR_LOOKUP` enabled sees the “Approved Manufacturers” card on each scope tab
+1. They can add Bobrick as a manufacturer via the modal, mark it Basis of Design, add a note
+1. Bobrick appears in the RFQ Generator’s new “Approved Manufacturers for this Scope” section
+1. If Bobrick has one linked vendor with one primary contact → the To: field auto-fills that email
+1. If Bobrick has two linked vendors (Bobrick Direct + PBS) → the vendor dropdown appears and switching vendors swaps the auto-filled email
+1. If the selected vendor has multiple contacts → quick-pick buttons show the non-primary ones and work
+1. “Open in Email” opens the user’s mail client with correct To:, subject, and body
+1. A scope that has zero approved manufacturers shows only the original line-item-derived RFQ cards (unchanged behavior)
+1. Users without the feature flag see zero changes
+1. All writes appear in `audit_logs`
+
+-----
+
+## Out of scope (explicit non-goals for this build)
+
+- SOF Builder, spec parsing, Claude integration — separate future build
+- Manufacturer name normalization or aliases — not needed; estimator picks from existing mfr records
+- Fuzzy matching between line item mfrs and approved mfrs — case-insensitive direct match only
+- Bulk-add approved manufacturers — one at a time is fine for now
+- Copying approved-mfr lists across estimates — future enhancement
+- Auto-suggesting approved mfrs based on scope type — future enhancement
+- RFQ sent logging — future build
+- Auto-creating a new manufacturer inline from the Add Mfr modal — link out to the existing Vendor module flow instead
+
+-----
+
+## If ambiguity arises during build
+
+STOP and ask the user before deciding if:
+
+1. The `mfr_vendor_manufacturers` join table structure differs from what the example response in Part 2 assumes
+1. A manufacturer can exist without any linked vendor (it can; handle gracefully per Part 4)
+1. Any existing UI pattern conflicts with the inline expandable card approach described
+1. The `generateRfqEmail` function signature needs to change to accept a different vendor context
+
+-----
+
+End of spec. This is a single-phase build — complete all six parts, then report back with a summary of changes before any follow-up work.
