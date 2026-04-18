@@ -509,9 +509,9 @@ function VendorDetail({ vendorId, onBack, qc }: { vendorId: number; onBack: () =
       </Section>
 
       {/* Contacts */}
-      <Section title="Contacts" icon={Phone} count={vendor.contacts.length}>
+      <Section title="Contacts" icon={Phone} count={(vendor.contacts ?? []).length}>
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-          {vendor.contacts.map((c) => editingContactId === c.id ? (
+          {(vendor.contacts ?? []).map((c) => editingContactId === c.id ? (
             <div key={c.id} style={{ padding: 14, borderRadius: 8, border: "1px solid var(--gold)", background: "var(--bg-card)" }} data-testid={`edit-contact-${c.id}`}>
               <div style={grid2}>
                 <Field label="Name"><InpText value={editContact.name} onChange={(v) => setEditContact({ ...editContact, name: v })} /></Field>
@@ -896,7 +896,7 @@ function CertificateTracker({ onVendorClick }: { onVendorClick: (id: number) => 
         </div>
       )}
 
-      {dash && dash.vendorsNoCerts.length > 0 && (
+      {dash && (dash.vendorsNoCerts ?? []).length > 0 && (
         <div style={{ marginTop: 24, padding: "16px 18px", borderRadius: 10, border: "1px solid rgba(224,82,82,0.3)", background: "rgba(224,82,82,0.04)" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12, fontSize: 13, fontWeight: 700, color: "#E05252" }}>
             <AlertTriangle size={15} />
