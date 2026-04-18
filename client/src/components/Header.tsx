@@ -185,7 +185,7 @@ export function Header() {
       <ChangePasswordDialog open={changePwOpen} onClose={() => setChangePwOpen(false)} />
       <header
         className="sticky top-0 z-50 flex h-14 items-center gap-4 border-b px-4 md:px-6"
-        style={{ background: "var(--card-bg)", borderColor: "var(--border-ds)" }}
+        style={{ background: "var(--bg-header)", borderColor: "var(--border-ds)", backdropFilter: "blur(8px)", WebkitBackdropFilter: "blur(8px)" }}
       >
         <div className="flex flex-1 items-center gap-4">
           <Link href="/" className="flex items-center gap-2.5" data-testid="link-logo">
