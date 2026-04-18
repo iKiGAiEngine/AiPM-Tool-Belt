@@ -451,6 +451,12 @@ function EstimatingModuleInner() {
     setIsDirty(false);
   }, [activeCat]);
 
+  // Track which estimate id has already been hydrated into local state.
+  // Once hydrated, we ignore subsequent refetches so they cannot blow away
+  // unsaved local edits (line items, scope toggles, etc). All ongoing
+  // changes flow through immediate API mutations + local setState.
+  const initializedEstimateIdRef = useRef<number | null>(null);
+
   useEffect(() => {
     if (estimateData === null && proposalEntry) {
       // Seed activeScopes from proposal log's nbsSelectedScopes if available
@@ -469,8 +475,9 @@ function EstimatingModuleInner() {
         activeScopes: seedScopes,
         createdBy: user?.displayName || user?.username || user?.email || null,
       });
-    } else if (estimateData) {
+    } else if (estimateData && initializedEstimateIdRef.current !== estimateData.id) {
       initFromEstimate(estimateData);
+      initializedEstimateIdRef.current = estimateData.id;
     }
   }, [estimateData, proposalEntry]);
 
@@ -1411,7 +1418,10 @@ ${html}
       try {
         await apiRequest("PATCH", `/api/estimates/${estimateId}`, { activeScopes: mergedScopes });
       } catch { /* non-critical — state is already correct in memory */ }
-      // Refresh estimate data (safe now that DB is up-to-date)
+      // Refresh estimate data (safe now that DB is up-to-date).
+      // Reset the init-once gate so the refetched estimate (with the newly
+      // imported line items) actually re-hydrates local state.
+      initializedEstimateIdRef.current = null;
       qc.invalidateQueries({ queryKey: ["/api/estimates/by-proposal", proposalLogId] });
       setShowScheduleExtractor(false);
       setExtractedItems([]);
@@ -2085,8 +2095,15 @@ ${html}
                 </button>
               </div>
 
-              {/* Category tabs */}
-              <div className="flex gap-1.5 mb-4 overflow-x-auto pb-1">
+              {/* Category tabs — sticky below the estimate header so scopes
+                  stay visible while scrolling. Header sticks at top-14 and is
+                  ~170px tall, so we offset to top-[180px] with a lower z-index
+                  than the header (z-30 vs header z-40). */}
+              <div
+                className="sticky top-[180px] z-30 flex gap-1.5 mb-4 overflow-x-auto pb-2 pt-2 -mx-6 px-6"
+                style={{ background: "var(--bg-page)", borderBottom: "1px solid var(--border-ds)", backdropFilter: "blur(8px)" }}
+                data-testid="scope-tabs-sticky"
+              >
                 {CATEGORIES.map(c => {
                   const d = calcData[c.id];
                   return (
