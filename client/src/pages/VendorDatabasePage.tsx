@@ -1,6 +1,7 @@
 import { useState, useMemo, useCallback, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
+import { handleAuthError } from "@/lib/handleAuthError";
 import { useToast } from "@/hooks/use-toast";
 import {
   ChevronDown, ChevronRight, ChevronLeft, Plus, Trash2, Star,
@@ -974,7 +975,7 @@ export default function VendorDatabasePage() {
     try {
       const r = await fetch("/api/mfr/vendors", { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(newVendor) });
       if (r.status === 401) {
-        toast({ title: "Session expired", description: "Please log in again to create vendors.", variant: "destructive" });
+        handleAuthError();
         return;
       }
       if (!r.ok) {

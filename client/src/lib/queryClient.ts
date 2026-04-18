@@ -1,4 +1,5 @@
-import { QueryClient, QueryFunction } from "@tanstack/react-query";
+import { QueryClient, QueryCache, MutationCache, QueryFunction } from "@tanstack/react-query";
+import { handleIfAuthError } from "./handleAuthError";
 
 async function throwIfResNotOk(res: Response) {
   if (!res.ok) {
@@ -42,6 +43,20 @@ export const getQueryFn: <T>(options: {
   };
 
 export const queryClient = new QueryClient({
+  queryCache: new QueryCache({
+    onError: (err, query) => {
+      // Don't trigger auth handler for the auth check itself or for queries that
+      // explicitly opt out of 401 throwing.
+      const key = Array.isArray(query.queryKey) ? query.queryKey[0] : "";
+      if (key === "/api/auth/me") return;
+      handleIfAuthError(err);
+    },
+  }),
+  mutationCache: new MutationCache({
+    onError: (err) => {
+      handleIfAuthError(err);
+    },
+  }),
   defaultOptions: {
     queries: {
       queryFn: getQueryFn({ on401: "throw" }),
