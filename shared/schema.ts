@@ -1205,6 +1205,7 @@ export const FEATURES = {
   CENTRAL_SETTINGS: "central-settings",
   PROJECT_START: "project-start",
   ESTIMATING_MODULE: "estimating-module",
+  RFQ_VENDOR_LOOKUP: "rfq-vendor-lookup",
 } as const;
 
 export type Feature = typeof FEATURES[keyof typeof FEATURES];
@@ -1345,6 +1346,25 @@ export const estimateSpecSections = pgTable("estimate_spec_sections", {
 export const insertEstimateSpecSectionSchema = createInsertSchema(estimateSpecSections).omit({ id: true, createdAt: true, updatedAt: true });
 export type InsertEstimateSpecSection = z.infer<typeof insertEstimateSpecSectionSchema>;
 export type EstimateSpecSection = typeof estimateSpecSections.$inferSelect;
+
+// Approved manufacturers per (estimate, scope)
+export const estimateScopeManufacturers = pgTable("estimate_scope_manufacturers", {
+  id: serial("id").primaryKey(),
+  estimateId: integer("estimate_id").notNull(),
+  scopeId: text("scope_id").notNull(),
+  manufacturerId: integer("manufacturer_id").notNull().references(() => mfrManufacturers.id, { onDelete: "cascade" }),
+  isBasisOfDesign: boolean("is_basis_of_design").notNull().default(false),
+  notes: text("notes"),
+  addedByUserId: integer("added_by_user_id"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => ({
+  uniqueScopeMfr: unique().on(table.estimateId, table.scopeId, table.manufacturerId),
+}));
+
+export const insertEstimateScopeManufacturerSchema = createInsertSchema(estimateScopeManufacturers).omit({ id: true, createdAt: true, updatedAt: true });
+export type InsertEstimateScopeManufacturer = z.infer<typeof insertEstimateScopeManufacturerSchema>;
+export type EstimateScopeManufacturer = typeof estimateScopeManufacturers.$inferSelect;
 
 const quoteByteaType = customType<{ data: Buffer; driverData: Buffer }>({
   dataType() { return "bytea"; },

@@ -27,6 +27,7 @@ import { registerNotificationRoutes } from "./notificationRoutes";
 import { registerBackupRoutes } from "./backupRestore";
 import { registerVendorDatabaseRoutes } from "./vendorDatabaseRoutes";
 import { registerEstimateRoutes } from "./estimateRoutes";
+import { registerScopeManufacturerRoutes } from "./scopeManufacturerRoutes";
 import { auditLog } from "./auditService";
 import { db } from "./db";
 import { users as usersTable } from "@shared/schema";
@@ -292,6 +293,7 @@ export async function registerRoutes(
   registerToolUsageRoutes(app);
   registerNotificationRoutes(app);
   registerVendorDatabaseRoutes(app);
+  registerScopeManufacturerRoutes(app);
   registerBcSyncRoutes(app);
   registerBackupRoutes(app);
   registerEstimateRoutes(app);

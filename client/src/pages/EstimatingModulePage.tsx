@@ -273,10 +273,17 @@ function EstimatingModuleInner() {
   const { user, isAdmin } = useAuth();
   const { toast } = useToast();
   const qc = useQueryClient();
+  const { hasFeature } = useFeatureAccess();
 
   // ── Stage navigation ──
   const [stage, setStage] = useState<"intake" | "lineItems" | "calculations" | "output">("intake");
   const [activeCat, setActiveCat] = useState<string>("");
+
+  // ── Approved Manufacturers (RFQ Vendor Lookup) ──
+  const [showAddMfrModal, setShowAddMfrModal] = useState(false);
+  const [mfrSearchTerm, setMfrSearchTerm] = useState("");
+  const [newMfrName, setNewMfrName] = useState("");
+  const [creatingMfr, setCreatingMfr] = useState(false);
 
   // ── Dirty tracking ──
   const [isDirty, setIsDirty] = useState(false);
@@ -1542,13 +1549,104 @@ ${html}
     }
   }, [estimateId, extractedSpecs, toast, markDirty, refetchSpecSections]);
 
+  // ══════════════════════════════════════════════════
+  // APPROVED MANUFACTURERS (RFQ Vendor Lookup)
+  // ══════════════════════════════════════════════════
+
+  const rfqLookupEnabled = hasFeature("rfq-vendor-lookup");
+
+  // All manufacturers (for the picker dropdown)
+  type MfrRow = { id: number; name: string; website?: string | null };
+  const { data: allManufacturers = [] } = useQuery<MfrRow[]>({
+    queryKey: ["/api/mfr/manufacturers"],
+    enabled: rfqLookupEnabled,
+  });
+
+  // Approved manufacturers for the active scope
+  type ApprovedMfr = {
+    id: number;
+    manufacturerId: number;
+    manufacturerName: string;
+    isBasisOfDesign: boolean;
+    notes: string | null;
+    vendors: Array<{
+      vendorId: number;
+      vendorName: string;
+      contacts: Array<{ id: number; name: string; email: string | null; isPrimary: boolean }>;
+    }>;
+  };
+  const approvedMfrsQueryKey = ["/api/estimates", estimateId, "scopes", activeCat, "approved-manufacturers"] as const;
+  const { data: approvedMfrs = [] } = useQuery<ApprovedMfr[]>({
+    queryKey: approvedMfrsQueryKey,
+    enabled: rfqLookupEnabled && !!estimateId && !!activeCat,
+  });
+
+  const invalidateApprovedMfrs = useCallback(() => {
+    qc.invalidateQueries({ queryKey: ["/api/estimates", estimateId, "scopes", activeCat, "approved-manufacturers"] });
+  }, [qc, estimateId, activeCat]);
+
+  const addApprovedMfrMutation = useMutation({
+    mutationFn: async (manufacturerId: number) => {
+      return await apiRequest("POST", `/api/estimates/${estimateId}/scopes/${activeCat}/approved-manufacturers`, { manufacturerId });
+    },
+    onSuccess: () => { invalidateApprovedMfrs(); toast({ title: "Manufacturer added" }); },
+    onError: (e: any) => {
+      const msg = e?.message?.includes("already approved") ? "Manufacturer is already in this scope" : (e?.message || "Failed to add");
+      toast({ title: "Could not add", description: msg, variant: "destructive" });
+    },
+  });
+
+  const removeApprovedMfrMutation = useMutation({
+    mutationFn: async (id: number) => apiRequest("DELETE", `/api/estimates/${estimateId}/scopes/${activeCat}/approved-manufacturers/${id}`),
+    onSuccess: () => { invalidateApprovedMfrs(); toast({ title: "Manufacturer removed" }); },
+  });
+
+  const toggleBasisOfDesignMutation = useMutation({
+    mutationFn: async ({ id, isBasisOfDesign }: { id: number; isBasisOfDesign: boolean }) =>
+      apiRequest("PATCH", `/api/estimates/${estimateId}/scopes/${activeCat}/approved-manufacturers/${id}`, { isBasisOfDesign }),
+    onSuccess: () => invalidateApprovedMfrs(),
+  });
+
+  const createMfrInline = useCallback(async () => {
+    const name = newMfrName.trim();
+    if (!name) return;
+    setCreatingMfr(true);
+    try {
+      const created: MfrRow = await apiRequest("POST", "/api/mfr/manufacturers", { name }) as any;
+      qc.invalidateQueries({ queryKey: ["/api/mfr/manufacturers"] });
+      // Auto-select: add it to the current scope
+      await addApprovedMfrMutation.mutateAsync(created.id);
+      setNewMfrName("");
+      setMfrSearchTerm("");
+      setShowAddMfrModal(false);
+    } catch (e: any) {
+      toast({ title: "Could not create", description: e?.message || "Failed", variant: "destructive" });
+    } finally {
+      setCreatingMfr(false);
+    }
+  }, [newMfrName, qc, addApprovedMfrMutation, toast]);
+
+  // Case-insensitive name match helper:
+  // - if either name is shorter than 3 chars → strict equality (case-insensitive)
+  // - else → bidirectional substring match
+  const namesMatch = useCallback((a: string, b: string): boolean => {
+    const x = (a || "").trim().toLowerCase();
+    const y = (b || "").trim().toLowerCase();
+    if (!x || !y) return false;
+    if (x.length < 3 || y.length < 3) return x === y;
+    return x === y || x.includes(y) || y.includes(x);
+  }, []);
+
   // ── RFQ email ──
   const generateRfqEmail = useCallback((mfr: string) => {
     const catLabel = ALL_SCOPES.find(s => s.id === activeCat)?.label || activeCat;
-    const catItems = lineItems.filter(i => i.category === activeCat && i.mfr === mfr);
+    // Match line items to manufacturer using flexible name match (3-char min substring)
+    const catItems = lineItems.filter(i => i.category === activeCat && i.mfr && namesMatch(i.mfr, mfr));
     const estimatorName = user?.displayName || user?.username || user?.email || "NBS Estimating";
     const subject = `RFQ — ${proposalEntry?.projectName || ""} — ${catLabel}`;
-    const itemLines = catItems.map(i => `  - ${i.name}${i.model ? ` (${i.model})` : ""} — Qty: ${i.qty}`).join("\n");
+    const itemLines = catItems.length > 0
+      ? catItems.map(i => `  - ${i.name}${i.model ? ` (${i.model})` : ""} — Qty: ${i.qty}`).join("\n")
+      : "  - TBD — see attached plans and specs";
 
     // Spec requirements block (if saved spec data exists for this scope)
     const specRef = specSectionForScope(activeCat);
@@ -3046,6 +3144,71 @@ ${html}
                 )}
               </div>
 
+              {/* Approved Manufacturers (RFQ Vendor Lookup) — only when feature is enabled */}
+              {rfqLookupEnabled && (
+                <div className="mb-4 p-4 rounded-lg" style={{ background: "var(--bg-card)", border: "1px solid var(--border-ds)", borderLeft: "3px solid var(--gold)" }} data-testid="card-approved-manufacturers">
+                  <div className="flex items-center justify-between mb-3">
+                    <div>
+                      <div className="text-sm font-semibold" style={{ color: "var(--text)" }}>Approved Manufacturers</div>
+                      <div className="text-xs" style={{ color: "var(--text-muted)" }}>Curate the manufacturers you'll RFQ for this scope. Linked vendor contacts auto-populate the RFQ email.</div>
+                    </div>
+                    <button
+                      onClick={() => { setMfrSearchTerm(""); setNewMfrName(""); setShowAddMfrModal(true); }}
+                      className="text-xs px-3 py-1.5 rounded flex items-center gap-1"
+                      style={{ background: "var(--gold)15", border: "1px solid var(--gold)40", color: "var(--gold)" }}
+                      data-testid="button-add-approved-mfr"
+                    >
+                      <Plus className="w-3 h-3" /> Add Manufacturer
+                    </button>
+                  </div>
+                  {approvedMfrs.length === 0 ? (
+                    <p className="text-xs" style={{ color: "var(--text-muted)" }}>No approved manufacturers yet. Add one to drive the RFQ Generator below.</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {approvedMfrs.map(am => (
+                        <div key={am.id} className="p-3 rounded" style={{ background: "var(--bg3)", border: "1px solid var(--border-ds)" }} data-testid={`row-approved-mfr-${am.manufacturerId}`}>
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs font-semibold" style={{ color: "var(--gold)" }}>{am.manufacturerName}</span>
+                              {am.isBasisOfDesign && <Badge className="text-[10px]" style={{ background: "#22c55e20", color: "#22c55e", border: "1px solid #22c55e40" }}>Basis of Design</Badge>}
+                              {am.vendors.length === 0 && <span className="text-[10px]" style={{ color: "var(--text-muted)" }}>(no linked vendor)</span>}
+                            </div>
+                            <div className="flex gap-1">
+                              <button
+                                onClick={() => toggleBasisOfDesignMutation.mutate({ id: am.id, isBasisOfDesign: !am.isBasisOfDesign })}
+                                className="text-[10px] px-2 py-0.5 rounded"
+                                style={{ background: "var(--bg-card)", border: "1px solid var(--border-ds)", color: "var(--text-muted)" }}
+                                data-testid={`button-toggle-bod-${am.manufacturerId}`}
+                              >{am.isBasisOfDesign ? "Unset BOD" : "Set BOD"}</button>
+                              <button
+                                onClick={() => removeApprovedMfrMutation.mutate(am.id)}
+                                className="text-[10px] px-2 py-0.5 rounded flex items-center gap-1"
+                                style={{ background: "#ef444415", border: "1px solid #ef444440", color: "#ef4444" }}
+                                data-testid={`button-remove-approved-mfr-${am.manufacturerId}`}
+                              ><Trash2 className="w-3 h-3" /></button>
+                            </div>
+                          </div>
+                          {am.vendors.length > 0 && (
+                            <div className="mt-2 text-[11px]" style={{ color: "var(--text-muted)" }}>
+                              {am.vendors.map(v => {
+                                const primary = v.contacts.find(c => c.isPrimary) || v.contacts[0];
+                                return (
+                                  <div key={v.vendorId} className="flex items-center gap-1.5">
+                                    <Users className="w-3 h-3" />
+                                    <span style={{ color: "var(--text-secondary)" }}>{v.vendorName}</span>
+                                    {primary && <span>· {primary.name}{primary.email ? ` <${primary.email}>` : ""}</span>}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
               {/* RFQ Generator */}
               <div className="mb-4">
                 <button onClick={() => setShowRfq(!showRfq)}
@@ -3053,39 +3216,69 @@ ${html}
                   style={{ background: "var(--bg-card)", border: "1px solid var(--border-ds)", color: "var(--text-secondary)" }}>
                   <Send className="w-3 h-3" /> RFQ Generator {showRfq ? "▲" : "▼"}
                 </button>
-                {showRfq && (
-                  <div className="mt-2 p-4 rounded-lg" style={{ background: "var(--bg-card)", border: "1px solid var(--border-ds)" }}>
-                    <p className="text-xs mb-3" style={{ color: "var(--text-muted)" }}>Generate RFQ emails for manufacturers of items in this scope section.</p>
-                    {Array.from(new Set(catLineItems.map(i => i.mfr).filter(Boolean))).map(mfr => {
-                      const rfq = generateRfqEmail(mfr!);
-                      return (
-                        <div key={mfr} className="mb-3 p-3 rounded-lg" style={{ background: "var(--bg3)", border: "1px solid var(--border-ds)" }}>
-                          <div className="flex items-center justify-between mb-2">
-                            <span className="text-xs font-semibold" style={{ color: "var(--gold)" }}>{mfr}</span>
-                            <div className="flex gap-2">
-                              <button onClick={() => { navigator.clipboard.writeText(rfq.body); toast({ title: "Copied", description: "RFQ body copied to clipboard." }); }}
-                                className="text-xs px-2 py-1 rounded flex items-center gap-1" style={{ background: "var(--bg-card)", border: "1px solid var(--border-ds)", color: "var(--text-secondary)" }}>
-                                <Copy className="w-3 h-3" /> Copy
-                              </button>
-                              <a href={`mailto:?subject=${encodeURIComponent(rfq.subject)}&body=${encodeURIComponent(rfq.body)}`}
-                                className="text-xs px-2 py-1 rounded flex items-center gap-1" style={{ background: "var(--gold)15", border: "1px solid var(--gold)40", color: "var(--gold)", textDecoration: "none" }}>
-                                <Send className="w-3 h-3" /> Open in Email
-                              </a>
+                {showRfq && (() => {
+                  // Combine approved manufacturers + manufacturers found on line items
+                  const lineItemMfrs = Array.from(new Set(catLineItems.map(i => i.mfr).filter(Boolean))) as string[];
+                  const approvedNames = approvedMfrs.map(a => a.manufacturerName);
+                  const combined: Array<{ name: string; approved?: ApprovedMfr }> = [];
+                  // Approved first
+                  for (const am of approvedMfrs) combined.push({ name: am.manufacturerName, approved: am });
+                  // Then line-item-only mfrs that don't match an approved one (3-char min substring)
+                  for (const li of lineItemMfrs) {
+                    if (!approvedNames.some(an => namesMatch(an, li))) combined.push({ name: li });
+                  }
+                  return (
+                    <div className="mt-2 p-4 rounded-lg" style={{ background: "var(--bg-card)", border: "1px solid var(--border-ds)" }}>
+                      <p className="text-xs mb-3" style={{ color: "var(--text-muted)" }}>Generate RFQ emails for approved manufacturers and any others found on line items. Vendor contact emails are auto-filled when available.</p>
+                      {combined.length === 0 && (
+                        <p className="text-xs" style={{ color: "var(--text-muted)" }}>No manufacturers yet. Add an approved manufacturer above or assign manufacturers to line items.</p>
+                      )}
+                      {combined.map(({ name, approved }) => {
+                        const rfq = generateRfqEmail(name);
+                        const toEmails: string[] = [];
+                        if (approved) {
+                          for (const v of approved.vendors) {
+                            const primary = v.contacts.find(c => c.isPrimary) || v.contacts[0];
+                            if (primary?.email) toEmails.push(primary.email);
+                          }
+                        }
+                        const mailto = `mailto:${encodeURIComponent(toEmails.join(","))}?subject=${encodeURIComponent(rfq.subject)}&body=${encodeURIComponent(rfq.body)}`;
+                        return (
+                          <div key={name} className="mb-3 p-3 rounded-lg" style={{ background: "var(--bg3)", border: "1px solid var(--border-ds)" }} data-testid={`rfq-card-${name}`}>
+                            <div className="flex items-center justify-between mb-2">
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs font-semibold" style={{ color: "var(--gold)" }}>{name}</span>
+                                {approved && <Badge className="text-[10px]" style={{ background: "var(--gold)15", color: "var(--gold)", border: "1px solid var(--gold)40" }}>Approved</Badge>}
+                                {approved?.isBasisOfDesign && <Badge className="text-[10px]" style={{ background: "#22c55e20", color: "#22c55e", border: "1px solid #22c55e40" }}>BOD</Badge>}
+                                {toEmails.length > 0 && <span className="text-[10px]" style={{ color: "var(--text-muted)" }}>To: {toEmails.join(", ")}</span>}
+                              </div>
+                              <div className="flex gap-2">
+                                <button onClick={() => { navigator.clipboard.writeText(rfq.body); toast({ title: "Copied", description: "RFQ body copied to clipboard." }); }}
+                                  className="text-xs px-2 py-1 rounded flex items-center gap-1" style={{ background: "var(--bg-card)", border: "1px solid var(--border-ds)", color: "var(--text-secondary)" }}
+                                  data-testid={`button-copy-rfq-${name}`}>
+                                  <Copy className="w-3 h-3" /> Copy
+                                </button>
+                                <a href={mailto}
+                                  className="text-xs px-2 py-1 rounded flex items-center gap-1" style={{ background: "var(--gold)15", border: "1px solid var(--gold)40", color: "var(--gold)", textDecoration: "none" }}
+                                  data-testid={`link-email-rfq-${name}`}>
+                                  <Send className="w-3 h-3" /> Open in Email
+                                </a>
+                              </div>
                             </div>
+                            <pre className="text-xs whitespace-pre-wrap" style={{ color: "var(--text-muted)", maxHeight: 120, overflow: "hidden" }}>
+                              {rfq.body.slice(0, 200)}...
+                            </pre>
                           </div>
-                          <pre className="text-xs whitespace-pre-wrap" style={{ color: "var(--text-muted)", maxHeight: 120, overflow: "hidden" }}>
-                            {rfq.body.slice(0, 200)}...
-                          </pre>
-                        </div>
-                      );
-                    })}
-                    {catLineItems.filter(i => !i.mfr).length > 0 && (
-                      <p className="text-xs" style={{ color: "var(--text-muted)" }}>
-                        {catLineItems.filter(i => !i.mfr).length} item(s) have no manufacturer assigned — add manufacturer names to line items to generate RFQs.
-                      </p>
-                    )}
-                  </div>
-                )}
+                        );
+                      })}
+                      {catLineItems.filter(i => !i.mfr).length > 0 && (
+                        <p className="text-xs mt-2" style={{ color: "var(--text-muted)" }}>
+                          {catLineItems.filter(i => !i.mfr).length} item(s) have no manufacturer assigned.
+                        </p>
+                      )}
+                    </div>
+                  );
+                })()}
               </div>
 
               {/* Line items checklist */}
@@ -4437,6 +4630,84 @@ ${html}
           </div>
         </div>
       )}
+
+      {/* ── Add Approved Manufacturer Modal ── */}
+      {showAddMfrModal && rfqLookupEnabled && (() => {
+        const term = mfrSearchTerm.trim().toLowerCase();
+        const approvedIds = new Set(approvedMfrs.map(a => a.manufacturerId));
+        const filtered = allManufacturers
+          .filter(m => !approvedIds.has(m.id))
+          .filter(m => !term || m.name.toLowerCase().includes(term))
+          .slice(0, 50);
+        const exactMatch = allManufacturers.find(m => m.name.toLowerCase() === term);
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: "rgba(0,0,0,0.6)" }}
+            onClick={e => { if (e.target === e.currentTarget) setShowAddMfrModal(false); }}>
+            <div className="rounded-xl p-6 w-full max-w-md shadow-2xl" style={{ background: "var(--bg-card)", border: "1px solid var(--border-ds)" }} data-testid="modal-add-approved-mfr">
+              <div className="flex items-center justify-between mb-1">
+                <h3 className="text-base font-semibold" style={{ color: "var(--text)" }}>Add Approved Manufacturer</h3>
+                <button onClick={() => setShowAddMfrModal(false)} className="p-1 rounded hover:bg-[var(--bg3)]" data-testid="button-close-add-mfr">
+                  <X className="w-4 h-4" style={{ color: "var(--text-muted)" }} />
+                </button>
+              </div>
+              <p className="text-xs mb-3" style={{ color: "var(--text-muted)" }}>Search the manufacturer database, or create a new one inline.</p>
+              <input
+                autoFocus
+                value={mfrSearchTerm}
+                onChange={e => setMfrSearchTerm(e.target.value)}
+                placeholder="Search manufacturers…"
+                className="w-full text-sm px-3 py-2 rounded mb-3"
+                style={{ background: "var(--bg3)", border: "1px solid var(--border-ds)", color: "var(--text)" }}
+                data-testid="input-search-mfr"
+              />
+              <div className="max-h-64 overflow-y-auto rounded mb-3" style={{ background: "var(--bg3)", border: "1px solid var(--border-ds)" }}>
+                {filtered.length === 0 ? (
+                  <div className="p-3 text-xs" style={{ color: "var(--text-muted)" }}>No matches.</div>
+                ) : filtered.map(m => (
+                  <button
+                    key={m.id}
+                    onClick={() => { addApprovedMfrMutation.mutate(m.id); setShowAddMfrModal(false); }}
+                    disabled={addApprovedMfrMutation.isPending}
+                    className="w-full text-left px-3 py-2 text-xs hover:bg-[var(--bg-card)]"
+                    style={{ color: "var(--text)", borderBottom: "1px solid var(--border-ds)" }}
+                    data-testid={`button-pick-mfr-${m.id}`}
+                  >
+                    {m.name}
+                  </button>
+                ))}
+              </div>
+              {!exactMatch && term.length > 0 && (
+                <div className="p-3 rounded mb-2" style={{ background: "var(--bg3)", border: "1px dashed var(--gold)40" }}>
+                  <div className="text-xs mb-2" style={{ color: "var(--text-muted)" }}>Don't see it? Create a new manufacturer:</div>
+                  <div className="flex gap-2">
+                    <input
+                      value={newMfrName || mfrSearchTerm}
+                      onChange={e => setNewMfrName(e.target.value)}
+                      placeholder="Manufacturer name"
+                      className="flex-1 text-sm px-3 py-2 rounded"
+                      style={{ background: "var(--bg-card)", border: "1px solid var(--border-ds)", color: "var(--text)" }}
+                      data-testid="input-new-mfr-name"
+                    />
+                    <button
+                      onClick={() => { if (!newMfrName) setNewMfrName(mfrSearchTerm); createMfrInline(); }}
+                      disabled={creatingMfr || (!newMfrName && !mfrSearchTerm)}
+                      className="text-xs px-3 py-2 rounded font-semibold flex items-center gap-1"
+                      style={{ background: "var(--gold)", color: "#000", opacity: creatingMfr ? 0.6 : 1 }}
+                      data-testid="button-create-mfr"
+                    >
+                      {creatingMfr ? <Loader2 className="w-3 h-3 animate-spin" /> : <Plus className="w-3 h-3" />} Create & Add
+                    </button>
+                  </div>
+                </div>
+              )}
+              <div className="flex justify-end gap-2 mt-2">
+                <button onClick={() => setShowAddMfrModal(false)}
+                  className="text-xs px-4 py-2 rounded" style={{ background: "var(--bg3)", color: "var(--text-secondary)" }}>Close</button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }

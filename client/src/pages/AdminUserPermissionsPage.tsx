@@ -31,6 +31,7 @@ const FEATURE_LABELS: Record<string, string> = {
   "central-settings": "Central Settings",
   "project-start": "Project Start",
   "estimating-module": "Estimating Module",
+  "rfq-vendor-lookup": "RFQ Vendor Lookup (Approved Mfrs)",
 };
 
 export function AdminUserPermissionsPage() {

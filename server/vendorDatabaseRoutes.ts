@@ -43,6 +43,43 @@ async function getFullVendor(id: number) {
 
 export function registerVendorDatabaseRoutes(app: Express) {
 
+  // ---- MANUFACTURERS (lightweight list + create) ----
+
+  app.get("/api/mfr/manufacturers", async (req: Request, res: Response) => {
+    try {
+      const { search } = req.query as Record<string, string>;
+      let rows = await db.select().from(mfrManufacturers).orderBy(mfrManufacturers.name);
+      if (search) {
+        const s = search.toLowerCase();
+        rows = rows.filter(m => m.name.toLowerCase().includes(s));
+      }
+      res.json(rows);
+    } catch (err: any) {
+      console.error("[mfr/manufacturers GET]", err);
+      res.status(500).json({ message: err.message || "Failed to load manufacturers" });
+    }
+  });
+
+  app.post("/api/mfr/manufacturers", async (req: Request, res: Response) => {
+    try {
+      const name = String(req.body?.name || "").trim();
+      if (!name) return res.status(400).json({ message: "Name required" });
+      // De-dupe: case-insensitive name match
+      const existing = await db.select().from(mfrManufacturers);
+      const dup = existing.find(m => m.name.toLowerCase() === name.toLowerCase());
+      if (dup) return res.status(200).json(dup); // idempotent — return existing
+      const [row] = await db.insert(mfrManufacturers).values({
+        name,
+        website: req.body?.website || null,
+        notes: req.body?.notes || null,
+      }).returning();
+      res.status(201).json(row);
+    } catch (err: any) {
+      console.error("[mfr/manufacturers POST]", err);
+      res.status(500).json({ message: err.message || "Failed to create manufacturer" });
+    }
+  });
+
   // ---- VENDORS ----
 
   app.get("/api/mfr/vendors", async (req: Request, res: Response) => {
