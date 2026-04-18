@@ -359,7 +359,24 @@ function ExcelUploadModal({ onClose, onSuccess }: { onClose: () => void; onSucce
 // ---- Vendor Detail ----
 function VendorDetail({ vendorId, onBack, qc }: { vendorId: number; onBack: () => void; qc: any }) {
   const { toast } = useToast();
-  const { data: vendor, isLoading } = useQuery<MfrVendorFull>({ queryKey: ["/api/mfr/vendors", vendorId], queryFn: () => fetch(`/api/mfr/vendors/${vendorId}`, { credentials: "include" }).then((r) => r.json()) });
+  const { data: vendor, isLoading } = useQuery<MfrVendorFull>({
+    queryKey: ["/api/mfr/vendors", vendorId],
+    queryFn: async () => {
+      const r = await fetch(`/api/mfr/vendors/${vendorId}`, { credentials: "include" });
+      if (!r.ok) throw new Error(r.status === 401 ? "Session expired — please log in again." : `Failed to load vendor (${r.status})`);
+      const v = await r.json();
+      if (!v || typeof v !== "object" || !v.id) throw new Error("Vendor not found");
+      // Coerce nested collections to arrays so downstream rendering is safe
+      return {
+        ...v,
+        contacts: Array.isArray(v.contacts) ? v.contacts : [],
+        products: Array.isArray(v.products) ? v.products : [],
+        certs: Array.isArray(v.certs) ? v.certs : [],
+        files: Array.isArray(v.files) ? v.files : [],
+        tags: Array.isArray(v.tags) ? v.tags : [],
+      };
+    },
+  });
 
   const [form, setForm] = useState({ name: "", category: "", website: "", notes: "", tags: [] as string[] });
   const [pricingForm, setPricingForm] = useState({ discountTier: "", paymentTerms: "", notes: "" });
@@ -604,9 +621,9 @@ function VendorDetail({ vendorId, onBack, qc }: { vendorId: number; onBack: () =
       </Section>
 
       {/* Products */}
-      <Section title="Products & Models" icon={Package} count={vendor.products.length}>
+      <Section title="Products & Models" icon={Package} count={(vendor.products ?? []).length}>
         <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-          {vendor.products.map((p) => {
+          {(vendor.products ?? []).map((p) => {
             const isExpanded = expandedProduct === p.id;
             const pf = productForms[p.id] || p;
             const setpf = (v: Partial<MfrProduct>) => setProductForms({ ...productForms, [p.id]: { ...pf, ...v } as MfrProduct });
@@ -695,13 +712,13 @@ function VendorDetail({ vendorId, onBack, qc }: { vendorId: number; onBack: () =
         )}
         <div style={{ marginTop: 12 }}><Field label="Tax Notes"><InpTextArea value={taxForm.taxNotes} onChange={(v) => setTaxForm({ ...taxForm, taxNotes: v })} /></Field></div>
         <div style={{ marginTop: 8, fontSize: 12, color: "var(--text-dim)" }}>
-          {vendor.certs.length} resale cert{vendor.certs.length !== 1 ? "s" : ""} on file. Use the <span style={{ color: "var(--gold)", cursor: "pointer" }}>Certificate Tracker</span> tab for full cert management.
+          {(vendor.certs ?? []).length} resale cert{(vendor.certs ?? []).length !== 1 ? "s" : ""} on file. Use the <span style={{ color: "var(--gold)", cursor: "pointer" }}>Certificate Tracker</span> tab for full cert management.
         </div>
         <div style={{ marginTop: 12, display: "flex", justifyContent: "flex-end" }}><Btn label="Save Tax Info" variant="gold" onClick={saveTax} /></div>
       </Section>
 
       {/* Files */}
-      <Section title="Files & Documents" icon={FileText} count={vendor.files.length}>
+      <Section title="Files & Documents" icon={FileText} count={(vendor.files ?? []).length}>
         <div style={{ marginBottom: 14, display: "flex", gap: 10, alignItems: "center" }}>
           <select style={{ ...inputStyle, width: "auto" }} value={fileType} onChange={(e) => setFileType(e.target.value)}>
             {FILE_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
@@ -709,11 +726,11 @@ function VendorDetail({ vendorId, onBack, qc }: { vendorId: number; onBack: () =
           <Btn label={uploadingFile ? "Uploading…" : "Upload File"} icon={Upload} onClick={() => fileInputRef.current?.click()} disabled={uploadingFile} />
           <input ref={fileInputRef} type="file" style={{ display: "none" }} onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadFile(f); }} />
         </div>
-        {vendor.files.length === 0 ? (
+        {(vendor.files ?? []).length === 0 ? (
           <div style={{ textAlign: "center", padding: "20px 0", color: "var(--text-dim)", fontSize: 13 }}>No files uploaded yet.</div>
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-            {vendor.files.map((f) => (
+            {(vendor.files ?? []).map((f) => (
               <div key={f.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 12px", borderRadius: 6, border: "1px solid var(--border-ds)", background: "var(--bg-card)" }} data-testid={`file-row-${f.id}`}>
                 <File size={14} style={{ color: "var(--gold)", flexShrink: 0 }} />
                 <div style={{ flex: 1, minWidth: 0 }}>
