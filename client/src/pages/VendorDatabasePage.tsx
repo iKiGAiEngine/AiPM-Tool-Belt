@@ -934,15 +934,19 @@ export default function VendorDatabasePage() {
   const [showExcelUpload, setShowExcelUpload] = useState(false);
   const [newVendor, setNewVendor] = useState({ name: "", category: "", website: "", notes: "" });
 
-  const { data: vendors = [], isLoading } = useQuery<MfrVendorSummary[]>({
+  const { data: vendorsRaw, isLoading } = useQuery<MfrVendorSummary[]>({
     queryKey: ["/api/mfr/vendors", search, categoryFilter],
-    queryFn: () => {
+    queryFn: async () => {
       const params = new URLSearchParams();
       if (search) params.set("search", search);
       if (categoryFilter) params.set("category", categoryFilter);
-      return fetch(`/api/mfr/vendors?${params}`, { credentials: "include" }).then((r) => r.json());
+      const r = await fetch(`/api/mfr/vendors?${params}`, { credentials: "include" });
+      if (!r.ok) throw new Error(`Failed to load vendors (${r.status})`);
+      const json = await r.json();
+      return Array.isArray(json) ? json : [];
     },
   });
+  const vendors: MfrVendorSummary[] = Array.isArray(vendorsRaw) ? vendorsRaw : [];
 
   const { data: dash } = useQuery<DashboardData>({ queryKey: ["/api/mfr/dashboard"], queryFn: () => fetch("/api/mfr/dashboard", { credentials: "include" }).then((r) => r.json()) });
 
