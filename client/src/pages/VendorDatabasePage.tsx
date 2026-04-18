@@ -955,13 +955,29 @@ export default function VendorDatabasePage() {
   const createVendor = async () => {
     if (!newVendor.name.trim()) { toast({ title: "Name required", variant: "destructive" }); return; }
     try {
-      const v = await (await fetch("/api/mfr/vendors", { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(newVendor) })).json();
+      const r = await fetch("/api/mfr/vendors", { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(newVendor) });
+      if (r.status === 401) {
+        toast({ title: "Session expired", description: "Please log in again to create vendors.", variant: "destructive" });
+        return;
+      }
+      if (!r.ok) {
+        const err = await r.json().catch(() => ({}));
+        toast({ title: "Failed to create vendor", description: err?.error || err?.message || `HTTP ${r.status}`, variant: "destructive" });
+        return;
+      }
+      const v = await r.json();
+      if (!v?.id) {
+        toast({ title: "Failed to create vendor", description: "Unexpected server response", variant: "destructive" });
+        return;
+      }
       qc.invalidateQueries({ queryKey: ["/api/mfr/vendors"] });
       setShowAddVendor(false);
       setNewVendor({ name: "", category: "", website: "", notes: "" });
       setSelectedVendorId(v.id);
       toast({ title: "Vendor created" });
-    } catch { toast({ title: "Failed", variant: "destructive" }); }
+    } catch (e: any) {
+      toast({ title: "Failed to create vendor", description: e?.message || "Network error", variant: "destructive" });
+    }
   };
 
   const exportAll = async () => {
