@@ -1,0 +1,130 @@
+Before we build the SOF Builder integration, I need you to survey the existing AiPM codebase and answer the questions below. Do NOT write any code yet. Do NOT suggest solutions yet. Just investigate and report back with:
+
+1. The answer to each question
+1. The file path(s) where you found the answer
+1. Any red flags or blockers you spotted while looking
+1. Any questions you have for me that came up during the survey
+
+When you’ve completed the survey, stop and wait for my review. We’ll discuss before moving to the build phase.
+
+-----
+
+SECTION 1 — How specs currently flow through the app
+
+1.1 Where does the existing Spec Extractor store its output? What’s the file path structure or DB table?
+
+1.2 How are Division 10 sections currently identified — by filename, folder, metadata tag, or CSI number parsing?
+
+1.3 Is there a project-level spec library that tracks which specs have been processed, or is it ad-hoc per upload?
+
+1.4 When a user uploads a spec addendum, does the existing Spec Extractor re-run, overwrite, or version?
+
+-----
+
+SECTION 2 — The current spec sections table
+
+2.1 What’s the actual table name for spec sections tied to an estimate/scope tab?
+
+2.2 What columns exist today? Specifically: spec section identifier, scope tab FK, any existing JSON fields, any existing approval/review fields.
+
+2.3 Is there already a JSONB column we could use, or do we need to add new columns?
+
+2.4 What’s the current relationship between a scope tab and its spec section(s) — one-to-one or one-to-many?
+
+-----
+
+SECTION 3 — How scope tabs currently work
+
+3.1 Where is the scope tab UI component defined (file path)?
+
+3.2 How are existing per-scope actions (like the RFQ Generator panel) wired up — sub-components, modals, side panels?
+
+3.3 Is there a consistent pattern for “action panels” on scope tabs that the SOF Review panel should follow?
+
+3.4 How does a scope tab know which CSI section(s) belong to it?
+
+-----
+
+SECTION 4 — Connection between Spec Extractor output and scope tabs
+
+4.1 Is there currently any automatic or manual linking between a split Div 10 section and its matching scope tab?
+
+4.2 If a user has to manually select which spec file goes with which scope, where does that UI live today?
+
+4.3 Are CSI numbers used as the matching key anywhere, or is it purely by filename?
+
+-----
+
+SECTION 5 — Vendor/Manufacturer Database
+
+5.1 What’s the actual table name for the vendor/manufacturer database?
+
+5.2 Does each vendor record have a dedicated “primary RFQ contact email” field, or is email stored generically?
+
+5.3 Is there already a field for manufacturer aliases (alternate names), or just a single name field?
+
+5.4 How is manufacturer name normalized today — or is it not?
+
+-----
+
+SECTION 6 — Skill execution infrastructure
+
+6.1 How does AiPM currently call Anthropic’s API? Is there a central service/file, or is it called from various places?
+
+6.2 Are there existing “skills” in the codebase, or would the SOF Builder be the first one structured this way?
+
+6.3 Where should the sof-builder/ folder live in the project structure?
+
+6.4 How are API calls currently authenticated — env vars, secret manager?
+
+-----
+
+SECTION 7 — Existing RFQ Generator state
+
+7.1 What file(s) contain the current RFQ Generator component?
+
+7.2 How does it currently pull approved manufacturers? Confirm the exact column and logic.
+
+7.3 Is there a callback/event when a new SOF is created that the RFQ Generator would need to react to?
+
+-----
+
+SECTION 8 — Schedule Extractor line items
+
+8.1 What table stores Schedule Extractor line items?
+
+8.2 Is there a manufacturer field on line items? A model number field?
+
+8.3 How are line items linked to scope tabs?
+
+-----
+
+SECTION 9 — Authentication & audit
+
+9.1 How are current_user / session identified in the backend code?
+
+9.2 Is there an existing audit log pattern we should mirror for SOF changes?
+
+-----
+
+SECTION 10 — Testing & rollout
+
+10.1 Is there a staging/dev environment, or does everything happen against production data?
+
+10.2 Is there a feature flag system, or can we gate this behind a “beta” toggle?
+
+10.3 Can we pilot this on one test estimate before enabling across the board?
+
+-----
+
+When you’re done, please format your response like this for each question:
+
+Q[number]: [your answer]
+Found in: [file path or “no file — inferred from…” or “not found”]
+Flags: [anything concerning, or “none”]
+
+At the end, list:
+
+- Any questions you have for me
+- Your overall assessment of integration risk (low / medium / high) with a brief reason
+- Any prerequisites you think we need to handle before the build phase
