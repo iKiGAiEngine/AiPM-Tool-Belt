@@ -1455,7 +1455,7 @@ export default function ProjectLogPage() {
                       <Input
                         value={editForm.owner}
                         onChange={(e) => setEditForm(f => ({ ...f, owner: e.target.value }))}
-                        placeholder="e.g. Swinerton"
+                        placeholder="e.g. GC company name"
                         className="text-sm"
                         data-testid="input-edit-gc-company"
                       />

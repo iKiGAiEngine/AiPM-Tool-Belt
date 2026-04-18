@@ -1670,7 +1670,7 @@ ${html}
       }
     }
 
-    const body = `Dear ${mfr} Sales Team,\n\nNational Building Specialties is requesting pricing for the following Division 10 items on the project below.\n\nPROJECT: ${proposalEntry?.projectName || ""}\nGC: ${proposalEntry?.gcEstimateLead || ""}\nBID DUE: ${proposalEntry?.dueDate || ""}\nNBS ESTIMATE #: ${estimateData?.estimateNumber || ""}${specBlock}\n\nITEMS REQUESTED:\n${itemLines}\n\nPlease provide:\n  1. MATERIAL ONLY unit pricing (NO labor or installation)\n  2. Freight cost to jobsite\n  3. Lead time / availability\n  4. Indicate if pricing includes or excludes sales tax\n\nIMPORTANT: NBS is a FURNISH ONLY subcontractor.\n\nPlease respond by: ${proposalEntry?.dueDate || "bid due date"}\n\nThank you,\n${estimatorName}\nNational Building Specialties\nA Division of Swinerton Builders`;
+    const body = `Dear ${mfr} Sales Team,\n\nNational Building Specialties is requesting pricing for the following Division 10 items on the project below.\n\nPROJECT: ${proposalEntry?.projectName || ""}\nGC: ${proposalEntry?.gcEstimateLead || ""}\nBID DUE: ${proposalEntry?.dueDate || ""}\nNBS ESTIMATE #: ${estimateData?.estimateNumber || ""}${specBlock}\n\nITEMS REQUESTED:\n${itemLines}\n\nPlease provide:\n  1. MATERIAL ONLY unit pricing (NO labor or installation)\n  2. Freight cost to jobsite\n  3. Lead time / availability\n  4. Indicate if pricing includes or excludes sales tax\n\nIMPORTANT: NBS is a FURNISH ONLY subcontractor.\n\nPlease respond by: ${proposalEntry?.dueDate || "bid due date"}\n\nThank you,\n${estimatorName}\nNational Building Specialties`;
     return { mfr, subject, body };
   }, [lineItems, activeCat, proposalEntry, estimateData, user, specSectionForScope]);
 
@@ -1682,7 +1682,7 @@ ${html}
       const itemLines = catItems.map(i => `  • ${i.name}${i.model ? ` (${i.model})` : ""} — Qty: ${i.qty}  ${showUnitPricing ? `@ ${fmt(n(i.unitCost))} = ` : ""}${fmt(n(i.unitCost) * i.qty)}`).join("\n");
       return `${c.label} (${c.csi})\n${itemLines}\n  ${c.label} Total: ${fmt(d.total)}`;
     }).join("\n\n");
-    return `NATIONAL BUILDING SPECIALTIES\nA Division of Swinerton Builders\n\nDate: ${new Date().toLocaleDateString()}\nRe: ${estimateData?.projectName || ""}\nPV#: ${estimateData?.estimateNumber || ""}\n\nNational Building Specialties is pleased to submit the following proposal for FURNISHING Division 10 Specialties:\n\n${catLines}\n\nTOTAL BID (Furnish Only — Material Only): ${fmt(calcData.grandTotal)}\n\nAssumptions:\n${assumptions.map(a => `• ${a}`).join("\n")}\n\nInclusions:\n• Furnish all Division 10 materials per plans and specifications\n• ${taxRate > 0 ? `Sales tax included (${taxRate}%)` : "Sales tax NOT included"}\n• Freight to jobsite included\n\nExclusions:\n• Installation labor by others\n• Blocking, backing, and rough-in by others\n• Offloading, distribution, and handling by others\n• Items not specifically listed above\n\n${risks.length > 0 ? `Notes & Risks:\n${risks.map(r => `⚠ ${r}`).join("\n")}\n\n` : ""}Proposal valid 30 days.\n\nRespectfully,\nNational Building Specialties\nA Division of Swinerton Builders — Furnish Only`;
+    return `NATIONAL BUILDING SPECIALTIES\n\nDate: ${new Date().toLocaleDateString()}\nRe: ${estimateData?.projectName || ""}\nPV#: ${estimateData?.estimateNumber || ""}\n\nNational Building Specialties is pleased to submit the following proposal for FURNISHING Division 10 Specialties:\n\n${catLines}\n\nTOTAL BID (Furnish Only — Material Only): ${fmt(calcData.grandTotal)}\n\nAssumptions:\n${assumptions.map(a => `• ${a}`).join("\n")}\n\nInclusions:\n• Furnish all Division 10 materials per plans and specifications\n• ${taxRate > 0 ? `Sales tax included (${taxRate}%)` : "Sales tax NOT included"}\n• Freight to jobsite included\n\nExclusions:\n• Installation labor by others\n• Blocking, backing, and rough-in by others\n• Offloading, distribution, and handling by others\n• Items not specifically listed above\n\n${risks.length > 0 ? `Notes & Risks:\n${risks.map(r => `⚠ ${r}`).join("\n")}\n\n` : ""}Proposal valid 30 days.\n\nRespectfully,\nNational Building Specialties — Furnish Only`;
   }, [CATEGORIES, calcData, lineItems, estimateData, assumptions, risks, taxRate, showUnitPricing]);
 
   // ══════════════════════════════════════════════════
@@ -3597,8 +3597,7 @@ ${html}
                 </label>
               </div>
               <div id="proposal-print-area" className="p-5 rounded-lg overflow-y-auto" style={{ background: "#fff", color: "#1a1a1a", maxHeight: 500, fontFamily: "Georgia, serif", fontSize: 11, lineHeight: 1.6 }}>
-                <div style={{ fontWeight: 700, fontSize: 14, color: "#1a365d", fontFamily: "'Playfair Display', serif", letterSpacing: 1 }}>NATIONAL BUILDING SPECIALTIES</div>
-                <div style={{ fontSize: 9, color: "#666", marginBottom: 16 }}>A Division of Swinerton Builders</div>
+                <div style={{ fontWeight: 700, fontSize: 14, color: "#1a365d", fontFamily: "'Playfair Display', serif", letterSpacing: 1, marginBottom: 16 }}>NATIONAL BUILDING SPECIALTIES</div>
                 <div style={{ marginBottom: 14, fontSize: 10 }}>
                   Date: {new Date().toLocaleDateString()} | Attn: {proposalEntry?.gcEstimateLead} | Re: {estimateData?.projectName} | PV#: {estimateData?.estimateNumber}
                 </div>
@@ -3656,7 +3655,7 @@ ${html}
                   </div>
                 )}
                 <p style={{ marginTop: 12 }}>Proposal valid 30 days.</p>
-                <p>Respectfully,<br /><strong>National Building Specialties</strong><br /><span style={{ fontSize: 9, color: "#666" }}>A Division of Swinerton Builders — Furnish Only</span></p>
+                <p>Respectfully,<br /><strong>National Building Specialties</strong><br /><span style={{ fontSize: 9, color: "#666" }}>Furnish Only</span></p>
               </div>
 
               <div className="flex gap-2 mt-3 flex-wrap">
