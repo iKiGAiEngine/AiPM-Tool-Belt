@@ -2071,8 +2071,8 @@ ${html}
               </div>
             </div>
 
-            {/* SCOPE CHIPS BAR — sticky below the top app nav */}
-            {activeScopes.length > 0 && (
+            {/* SCOPE CHIPS BAR — only on the Line Items stage (Intake has its own scope picker) */}
+            {stage === "lineItems" && activeScopes.length > 0 && (
               <div className="sticky top-14 z-50 px-4 py-2"
                 style={{ background: "var(--bg-page)", borderBottom: "1px solid var(--border-ds)", backdropFilter: "blur(12px)" }}>
                 <div className="max-w-7xl mx-auto flex gap-1.5 overflow-x-auto" data-testid="bar-scope-chips">
