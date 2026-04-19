@@ -45,6 +45,8 @@ export function registerScopeManufacturerRoutes(app: Express) {
           manufacturerId: mfrVendorManufacturers.manufacturerId,
           vendorId: mfrVendorManufacturers.vendorId,
           vendorName: mfrVendors.name,
+          vendorScopes: mfrVendors.scopes,
+          vendorManufacturerIds: mfrVendors.manufacturerIds,
         })
         .from(mfrVendorManufacturers)
         .innerJoin(mfrVendors, eq(mfrVendorManufacturers.vendorId, mfrVendors.id))
@@ -67,12 +69,14 @@ export function registerScopeManufacturerRoutes(app: Express) {
         contactsByVendor.set(c.vendorId, list);
       }
 
-      const vendorsByMfr = new Map<number, Array<{ vendorId: number; vendorName: string; contacts: any[] }>>();
+      const vendorsByMfr = new Map<number, Array<{ vendorId: number; vendorName: string; scopes: string[]; manufacturerIds: number[]; contacts: any[] }>>();
       for (const l of links) {
         const list = vendorsByMfr.get(l.manufacturerId) || [];
         list.push({
           vendorId: l.vendorId,
           vendorName: l.vendorName,
+          scopes: l.vendorScopes || [],
+          manufacturerIds: l.vendorManufacturerIds || [],
           contacts: (contactsByVendor.get(l.vendorId) || []).map(c => ({
             id: c.id,
             name: c.name,
@@ -80,8 +84,6 @@ export function registerScopeManufacturerRoutes(app: Express) {
             email: c.email,
             phone: c.phone,
             isPrimary: !!c.isPrimary,
-            scopes: c.scopes || [],
-            manufacturerIds: c.manufacturerIds || [],
           })),
         });
         vendorsByMfr.set(l.manufacturerId, list);

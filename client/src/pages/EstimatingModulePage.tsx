@@ -3255,14 +3255,12 @@ ${html}
                         if (approved) {
                           const mfrId = approved.manufacturerId;
                           for (const v of approved.vendors) {
+                            // Vendor-level eligibility: untagged scopes/mfrs = "covers everything"
+                            const scopesOk = !v.scopes || v.scopes.length === 0 || v.scopes.includes(activeCat);
+                            const mfrOk = !v.manufacturerIds || v.manufacturerIds.length === 0 || v.manufacturerIds.includes(mfrId);
+                            if (!scopesOk || !mfrOk) continue;
                             for (const c of v.contacts) {
-                              const scopesOk = !c.scopes || c.scopes.length === 0 || c.scopes.includes(activeCat);
-                              // Manufacturer tag rule: if contact has any manufacturerIds tags, they must include this mfr.
-                              // If untagged, fall back to the vendor->mfr link (vendor is already linked).
-                              const mfrOk = !c.manufacturerIds || c.manufacturerIds.length === 0 || c.manufacturerIds.includes(mfrId);
-                              if (scopesOk && mfrOk) {
-                                eligibleContacts.push({ id: c.id, name: c.name, role: c.role, email: c.email, isPrimary: c.isPrimary, vendorName: v.vendorName });
-                              }
+                              eligibleContacts.push({ id: c.id, name: c.name, role: c.role, email: c.email, isPrimary: c.isPrimary, vendorName: v.vendorName });
                             }
                           }
                         }
@@ -4748,12 +4746,16 @@ ${html}
         const groups: Array<{
           vendorId: number;
           vendorName: string;
-          contacts: Array<{ id: number; name: string; role?: string | null; email: string | null; isPrimary: boolean; scopes?: string[] }>;
+          contacts: Array<{ id: number; name: string; role?: string | null; email: string | null; isPrimary: boolean }>;
         }> = [];
         if (approved) {
+          const mfrId = approved.manufacturerId;
           for (const v of approved.vendors) {
-            const eligible = v.contacts.filter(c => !c.scopes || c.scopes.length === 0 || c.scopes.includes(activeCat));
-            if (eligible.length > 0) groups.push({ vendorId: v.vendorId, vendorName: v.vendorName, contacts: eligible });
+            // Vendor-level eligibility (untagged = covers everything)
+            const scopesOk = !v.scopes || v.scopes.length === 0 || v.scopes.includes(activeCat);
+            const mfrOk = !v.manufacturerIds || v.manufacturerIds.length === 0 || v.manufacturerIds.includes(mfrId);
+            if (!scopesOk || !mfrOk) continue;
+            if (v.contacts.length > 0) groups.push({ vendorId: v.vendorId, vendorName: v.vendorName, contacts: v.contacts });
           }
         }
         const allEligibleIds = groups.flatMap(g => g.contacts.map(c => c.id));

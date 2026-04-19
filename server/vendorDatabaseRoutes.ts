@@ -164,8 +164,13 @@ export function registerVendorDatabaseRoutes(app: Express) {
 
   app.post("/api/mfr/vendors", async (req: Request, res: Response) => {
     try {
-      const { name, category, website, notes, tags } = req.body;
-      const [vendor] = await db.insert(mfrVendors).values({ name, category, website, notes, tags: tags || [] }).returning();
+      const { name, category, website, notes, tags, scopes, manufacturerIds } = req.body;
+      const [vendor] = await db.insert(mfrVendors).values({
+        name, category, website, notes,
+        tags: tags || [],
+        scopes: Array.isArray(scopes) ? scopes : null,
+        manufacturerIds: Array.isArray(manufacturerIds) ? manufacturerIds.map((n: any) => Number(n)).filter((n: number) => Number.isFinite(n)) : null,
+      }).returning();
       res.json(vendor);
     } catch (err: any) {
       res.status(500).json({ error: err.message });
@@ -174,9 +179,15 @@ export function registerVendorDatabaseRoutes(app: Express) {
 
   app.put("/api/mfr/vendors/:id", async (req: Request, res: Response) => {
     try {
-      const { name, category, website, notes, tags } = req.body;
+      const { name, category, website, notes, tags, scopes, manufacturerIds } = req.body;
       const [updated] = await db.update(mfrVendors)
-        .set({ name, category, website, notes, tags: tags || [], updatedAt: new Date() })
+        .set({
+          name, category, website, notes,
+          tags: tags || [],
+          scopes: Array.isArray(scopes) ? scopes : null,
+          manufacturerIds: Array.isArray(manufacturerIds) ? manufacturerIds.map((n: any) => Number(n)).filter((n: number) => Number.isFinite(n)) : null,
+          updatedAt: new Date(),
+        })
         .where(eq(mfrVendors.id, Number(req.params.id)))
         .returning();
       res.json(updated);
@@ -199,14 +210,12 @@ export function registerVendorDatabaseRoutes(app: Express) {
   app.post("/api/mfr/vendors/:id/contacts", async (req: Request, res: Response) => {
     try {
       const vendorId = Number(req.params.id);
-      const { name, role, email, phone, territory, isPrimary, notes, scopes, manufacturerIds } = req.body;
+      const { name, role, email, phone, territory, isPrimary, notes } = req.body;
       if (isPrimary) {
         await db.update(mfrContacts).set({ isPrimary: false }).where(eq(mfrContacts.vendorId, vendorId));
       }
       const [contact] = await db.insert(mfrContacts).values({
         vendorId, name, role, email, phone, territory, isPrimary: !!isPrimary, notes,
-        scopes: Array.isArray(scopes) ? scopes : null,
-        manufacturerIds: Array.isArray(manufacturerIds) ? manufacturerIds.map((n: any) => Number(n)).filter((n: number) => Number.isFinite(n)) : null,
       }).returning();
       res.json(contact);
     } catch (err: any) {
@@ -218,15 +227,13 @@ export function registerVendorDatabaseRoutes(app: Express) {
     try {
       const vendorId = Number(req.params.id);
       const cid = Number(req.params.cid);
-      const { name, role, email, phone, territory, isPrimary, notes, scopes, manufacturerIds } = req.body;
+      const { name, role, email, phone, territory, isPrimary, notes } = req.body;
       if (isPrimary) {
         await db.update(mfrContacts).set({ isPrimary: false }).where(eq(mfrContacts.vendorId, vendorId));
       }
       const [updated] = await db.update(mfrContacts)
         .set({
           name, role, email, phone, territory, isPrimary: !!isPrimary, notes,
-          scopes: Array.isArray(scopes) ? scopes : null,
-          manufacturerIds: Array.isArray(manufacturerIds) ? manufacturerIds.map((n: any) => Number(n)).filter((n: number) => Number.isFinite(n)) : null,
         })
         .where(eq(mfrContacts.id, cid))
         .returning();
@@ -655,6 +662,13 @@ export function registerVendorDatabaseRoutes(app: Express) {
       const existingRelationships = await db.select().from(mfrVendorManufacturers);
       const relationshipSet = new Set(existingRelationships.map((r) => `${r.vendorId}-${r.manufacturerId}`));
 
+      const vendorScopeAccum = new Map<number, Set<string>>();
+      const vendorMfrAccum = new Map<number, Set<number>>();
+      for (const v of existingVendors) {
+        if (v.scopes && v.scopes.length) vendorScopeAccum.set(v.id, new Set(v.scopes));
+        if (v.manufacturerIds && v.manufacturerIds.length) vendorMfrAccum.set(v.id, new Set(v.manufacturerIds));
+      }
+
       for (let i = dataStart; i < rows.length; i++) {
         const row = rows[i] as any[];
         const colA = String(row[0] || "").trim();
@@ -720,6 +734,16 @@ export function registerVendorDatabaseRoutes(app: Express) {
             relationshipSet.add(relKey);
             relationshipsCreated++;
           }
+
+          // Tag vendor with this manufacturer for RFQ eligibility
+          if (!vendorMfrAccum.has(vendorId)) vendorMfrAccum.set(vendorId, new Set());
+          vendorMfrAccum.get(vendorId)!.add(manufacturerId);
+        }
+
+        // Tag vendor with current scope for RFQ eligibility
+        if (currentScope) {
+          if (!vendorScopeAccum.has(vendorId)) vendorScopeAccum.set(vendorId, new Set());
+          vendorScopeAccum.get(vendorId)!.add(currentScope);
         }
 
         // Create contact(s) once per vendor - support up to 3 contacts
@@ -753,6 +777,16 @@ export function registerVendorDatabaseRoutes(app: Express) {
             contactIndex++;
           }
         }
+      }
+
+      // Persist accumulated scope/manufacturer tags onto vendors
+      const allVendorIds = new Set<number>([...vendorScopeAccum.keys(), ...vendorMfrAccum.keys()]);
+      for (const vId of allVendorIds) {
+        await db.update(mfrVendors).set({
+          scopes: Array.from(vendorScopeAccum.get(vId) ?? []),
+          manufacturerIds: Array.from(vendorMfrAccum.get(vId) ?? []),
+          updatedAt: new Date(),
+        }).where(eq(mfrVendors.id, vId));
       }
 
       res.json({ manufacturersCreated, vendorsCreated, relationshipsCreated, contactsCreated });

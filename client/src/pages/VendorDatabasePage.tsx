@@ -11,7 +11,7 @@ import {
 } from "lucide-react";
 
 // ---- Types ----
-interface MfrContact { id: number; vendorId: number; name: string | null; role: string | null; email: string | null; phone: string | null; territory: string | null; isPrimary: boolean | null; notes: string | null; scopes: string[] | null; manufacturerIds: number[] | null; }
+interface MfrContact { id: number; vendorId: number; name: string | null; role: string | null; email: string | null; phone: string | null; territory: string | null; isPrimary: boolean | null; notes: string | null; }
 interface MfrManufacturerRow { id: number; name: string }
 interface MfrProduct { id: number; vendorId: number; model: string | null; description: string | null; csiCode: string | null; listPrice: string | null; unit: string | null; notes: string | null; }
 interface MfrPricing { discountTier: string | null; paymentTerms: string | null; notes: string | null; }
@@ -19,7 +19,7 @@ interface MfrLogistics { avgLeadTimeDays: number | null; shipsFrom: string | nul
 interface MfrTaxInfo { ein: string | null; w9OnFile: boolean | null; w9ReceivedDate: string | null; is1099Eligible: boolean | null; taxExempt: boolean | null; exemptionType: string | null; exemptionCertNumber: string | null; nexusStates: string[] | null; taxNotes: string | null; }
 interface MfrResaleCert { id: number; vendorId: number; vendorName?: string; state: string; certType: string | null; certNumber: string | null; issueDate: string | null; expirationDate: string | null; sent: boolean | null; dateSent: string | null; contactSentTo: string | null; vendorConfirmed: boolean | null; confirmationDate: string | null; blanket: boolean | null; projectName: string | null; notes: string | null; status: string; }
 interface MfrFile { id: number; fileType: string | null; originalName: string | null; mimeType: string | null; sizeBytes: number | null; uploadedBy: string | null; uploadedAt: string; notes: string | null; }
-interface MfrVendorSummary { id: number; name: string; category: string | null; website: string | null; tags: string[]; contactCount: number; productCount: number; certCount: number; w9OnFile: boolean; hasExpiredCert: boolean; hasExpiringCert: boolean; }
+interface MfrVendorSummary { id: number; name: string; category: string | null; website: string | null; tags: string[]; scopes: string[] | null; manufacturerIds: number[] | null; contactCount: number; productCount: number; certCount: number; w9OnFile: boolean; hasExpiredCert: boolean; hasExpiringCert: boolean; }
 interface MfrVendorFull extends MfrVendorSummary { notes: string | null; contacts: MfrContact[]; products: MfrProduct[]; pricing: MfrPricing | null; logistics: MfrLogistics | null; taxInfo: MfrTaxInfo | null; certs: MfrResaleCert[]; files: MfrFile[]; }
 interface DashboardData { totalVendors: number; w9OnFile: number; w9Missing: number; certsTotal: number; certsSent: number; certsConfirmed: number; certsExpiring: number; certsExpired: number; certsNotSent: number; vendorsNoCerts: { id: number; name: string }[]; }
 
@@ -379,20 +379,18 @@ function VendorDetail({ vendorId, onBack, qc }: { vendorId: number; onBack: () =
     },
   });
 
-  const [form, setForm] = useState({ name: "", category: "", website: "", notes: "", tags: [] as string[] });
+  const [form, setForm] = useState({ name: "", category: "", website: "", notes: "", tags: [] as string[], scopes: [] as string[], manufacturerIds: [] as number[] });
   const [pricingForm, setPricingForm] = useState({ discountTier: "", paymentTerms: "", notes: "" });
   const [logisticsForm, setLogisticsForm] = useState({ avgLeadTimeDays: "", shipsFrom: "", freightNotes: "" });
   const [taxForm, setTaxForm] = useState({ ein: "", w9OnFile: false, w9ReceivedDate: "", is1099Eligible: false, taxExempt: false, exemptionType: "", exemptionCertNumber: "", nexusStates: [] as string[], taxNotes: "" });
   const [initialized, setInitialized] = useState(false);
   const [expandedProduct, setExpandedProduct] = useState<number | null>(null);
   const [productForms, setProductForms] = useState<Record<number, MfrProduct>>({});
-  const [newContact, setNewContact] = useState<{ name: string; role: string; email: string; phone: string; territory: string; isPrimary: boolean; notes: string; scopes: string[]; manufacturerIds: number[] }>({ name: "", role: "", email: "", phone: "", territory: "", isPrimary: false, notes: "", scopes: [], manufacturerIds: [] });
+  const [newContact, setNewContact] = useState<{ name: string; role: string; email: string; phone: string; territory: string; isPrimary: boolean; notes: string }>({ name: "", role: "", email: "", phone: "", territory: "", isPrimary: false, notes: "" });
   const [showAddContact, setShowAddContact] = useState(false);
   const [editingContactId, setEditingContactId] = useState<number | null>(null);
-  const [editContact, setEditContact] = useState<{ name: string; role: string; email: string; phone: string; territory: string; isPrimary: boolean; notes: string; scopes: string[]; manufacturerIds: number[] }>({ name: "", role: "", email: "", phone: "", territory: "", isPrimary: false, notes: "", scopes: [], manufacturerIds: [] });
+  const [editContact, setEditContact] = useState<{ name: string; role: string; email: string; phone: string; territory: string; isPrimary: boolean; notes: string }>({ name: "", role: "", email: "", phone: "", territory: "", isPrimary: false, notes: "" });
   const { data: allMfrs = [] } = useQuery<MfrManufacturerRow[]>({ queryKey: ["/api/mfr/manufacturers"] });
-  const mfrNameById = useMemo(() => Object.fromEntries(allMfrs.map(m => [m.id, m.name])) as Record<number, string>, [allMfrs]);
-  const scopeLabelById = useMemo(() => Object.fromEntries(CONTACT_SCOPE_OPTIONS.map(s => [s.id, s.label])) as Record<string, string>, []);
   const [newProduct, setNewProduct] = useState({ model: "", description: "", csiCode: "", listPrice: "", unit: "", notes: "" });
   const [showAddProduct, setShowAddProduct] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -401,7 +399,7 @@ function VendorDetail({ vendorId, onBack, qc }: { vendorId: number; onBack: () =
 
   useMemo(() => {
     if (vendor && !initialized) {
-      setForm({ name: vendor.name, category: vendor.category || "", website: vendor.website || "", notes: vendor.notes || "", tags: vendor.tags || [] });
+      setForm({ name: vendor.name, category: vendor.category || "", website: vendor.website || "", notes: vendor.notes || "", tags: vendor.tags || [], scopes: vendor.scopes || [], manufacturerIds: vendor.manufacturerIds || [] });
       setPricingForm({ discountTier: vendor.pricing?.discountTier || "", paymentTerms: vendor.pricing?.paymentTerms || "", notes: vendor.pricing?.notes || "" });
       setLogisticsForm({ avgLeadTimeDays: String(vendor.logistics?.avgLeadTimeDays || ""), shipsFrom: vendor.logistics?.shipsFrom || "", freightNotes: vendor.logistics?.freightNotes || "" });
       setTaxForm({ ein: vendor.taxInfo?.ein || "", w9OnFile: !!vendor.taxInfo?.w9OnFile, w9ReceivedDate: vendor.taxInfo?.w9ReceivedDate || "", is1099Eligible: !!vendor.taxInfo?.is1099Eligible, taxExempt: !!vendor.taxInfo?.taxExempt, exemptionType: vendor.taxInfo?.exemptionType || "", exemptionCertNumber: vendor.taxInfo?.exemptionCertNumber || "", nexusStates: vendor.taxInfo?.nexusStates || [], taxNotes: vendor.taxInfo?.taxNotes || "" });
@@ -431,7 +429,7 @@ function VendorDetail({ vendorId, onBack, qc }: { vendorId: number; onBack: () =
   };
 
   const addContact = async () => {
-    try { await apiRequest("POST", `/api/mfr/vendors/${vendorId}/contacts`, newContact); invalidate(); setShowAddContact(false); setNewContact({ name: "", role: "", email: "", phone: "", territory: "", isPrimary: false, notes: "", scopes: [], manufacturerIds: [] }); toast({ title: "Contact added" }); } catch { toast({ title: "Failed", variant: "destructive" }); }
+    try { await apiRequest("POST", `/api/mfr/vendors/${vendorId}/contacts`, newContact); invalidate(); setShowAddContact(false); setNewContact({ name: "", role: "", email: "", phone: "", territory: "", isPrimary: false, notes: "" }); toast({ title: "Contact added" }); } catch { toast({ title: "Failed", variant: "destructive" }); }
   };
   const deleteContact = async (cid: number) => {
     if (!confirm("Delete this contact?")) return;
@@ -445,7 +443,6 @@ function VendorDetail({ vendorId, onBack, qc }: { vendorId: number; onBack: () =
     setEditContact({
       name: c.name || "", role: c.role || "", email: c.email || "", phone: c.phone || "",
       territory: c.territory || "", isPrimary: !!c.isPrimary, notes: c.notes || "",
-      scopes: c.scopes || [], manufacturerIds: c.manufacturerIds || [],
     });
   };
   const saveEditContact = async () => {
@@ -519,6 +516,16 @@ function VendorDetail({ vendorId, onBack, qc }: { vendorId: number; onBack: () =
           <Field label="Tags"><TagInput tags={form.tags} onChange={(t) => setForm({ ...form, tags: t })} /></Field>
         </div>
         <div style={{ marginTop: 12 }}>
+          <Field label="Scope Tags (which scope categories this vendor covers)">
+            <ScopeTagPicker selected={form.scopes} onChange={(s) => setForm({ ...form, scopes: s })} />
+          </Field>
+        </div>
+        <div style={{ marginTop: 12 }}>
+          <Field label="Manufacturer Tags (which manufacturers this vendor reps — beyond their own brand)">
+            <ManufacturerTagPicker manufacturers={allMfrs} selectedIds={form.manufacturerIds} onChange={(ids) => setForm({ ...form, manufacturerIds: ids })} />
+          </Field>
+        </div>
+        <div style={{ marginTop: 12 }}>
           <Field label="Notes"><InpTextArea value={form.notes} onChange={(v) => setForm({ ...form, notes: v })} /></Field>
         </div>
         <div style={{ marginTop: 12, display: "flex", justifyContent: "flex-end" }}>
@@ -538,16 +545,6 @@ function VendorDetail({ vendorId, onBack, qc }: { vendorId: number; onBack: () =
                 <Field label="Phone"><InpText value={editContact.phone} onChange={(v) => setEditContact({ ...editContact, phone: v })} /></Field>
                 <Field label="Territory"><InpText value={editContact.territory} onChange={(v) => setEditContact({ ...editContact, territory: v })} /></Field>
                 <Field label=""><InpCheck label="Primary contact" checked={editContact.isPrimary} onChange={(v) => setEditContact({ ...editContact, isPrimary: v })} /></Field>
-              </div>
-              <div style={{ marginTop: 10 }}>
-                <Field label="Scope Tags (which scope categories this contact covers)">
-                  <ScopeTagPicker selected={editContact.scopes} onChange={(s) => setEditContact({ ...editContact, scopes: s })} />
-                </Field>
-              </div>
-              <div style={{ marginTop: 10 }}>
-                <Field label="Manufacturer Tags (which manufacturers this contact reps — beyond their own vendor)">
-                  <ManufacturerTagPicker manufacturers={allMfrs} selectedIds={editContact.manufacturerIds} onChange={(ids) => setEditContact({ ...editContact, manufacturerIds: ids })} />
-                </Field>
               </div>
               <div style={{ marginTop: 10 }}><Field label="Notes"><InpText value={editContact.notes} onChange={(v) => setEditContact({ ...editContact, notes: v })} /></Field></div>
               <div style={{ display: "flex", gap: 8, marginTop: 10, justifyContent: "flex-end" }}>
@@ -571,16 +568,6 @@ function VendorDetail({ vendorId, onBack, qc }: { vendorId: number; onBack: () =
                   {c.phone && <span style={{ fontSize: 12, color: "var(--text-dim)", display: "flex", alignItems: "center", gap: 4 }}><Phone size={11} />{c.phone}</span>}
                   {c.territory && <span style={{ fontSize: 12, color: "var(--text-dim)" }}>Territory: {c.territory}</span>}
                 </div>
-                {((c.scopes && c.scopes.length > 0) || (c.manufacturerIds && c.manufacturerIds.length > 0)) && (
-                  <div style={{ display: "flex", gap: 4, marginTop: 6, flexWrap: "wrap" }}>
-                    {(c.scopes || []).map(sid => (
-                      <span key={`s-${sid}`} style={{ fontSize: 10, padding: "2px 7px", borderRadius: 4, background: "rgba(91,141,239,0.12)", color: "#5B8DEF", fontWeight: 600 }}>{scopeLabelById[sid] || sid}</span>
-                    ))}
-                    {(c.manufacturerIds || []).map(mid => (
-                      <span key={`m-${mid}`} style={{ fontSize: 10, padding: "2px 7px", borderRadius: 4, background: "rgba(201,168,76,0.12)", color: "var(--gold)", fontWeight: 600 }}>{mfrNameById[mid] || `Mfr #${mid}`}</span>
-                    ))}
-                  </div>
-                )}
                 {c.notes && <div style={{ fontSize: 11, color: "var(--text-dim)", marginTop: 4 }}>{c.notes}</div>}
               </div>
               <div style={{ display: "flex", gap: 6 }}>
@@ -598,16 +585,6 @@ function VendorDetail({ vendorId, onBack, qc }: { vendorId: number; onBack: () =
                 <Field label="Phone"><InpText value={newContact.phone} onChange={(v) => setNewContact({ ...newContact, phone: v })} /></Field>
                 <Field label="Territory"><InpText value={newContact.territory} onChange={(v) => setNewContact({ ...newContact, territory: v })} /></Field>
                 <Field label=""><InpCheck label="Primary contact" checked={newContact.isPrimary} onChange={(v) => setNewContact({ ...newContact, isPrimary: v })} /></Field>
-              </div>
-              <div style={{ marginTop: 10 }}>
-                <Field label="Scope Tags (which scope categories this contact covers)">
-                  <ScopeTagPicker selected={newContact.scopes} onChange={(s) => setNewContact({ ...newContact, scopes: s })} />
-                </Field>
-              </div>
-              <div style={{ marginTop: 10 }}>
-                <Field label="Manufacturer Tags (which manufacturers this contact reps — beyond their own vendor)">
-                  <ManufacturerTagPicker manufacturers={allMfrs} selectedIds={newContact.manufacturerIds} onChange={(ids) => setNewContact({ ...newContact, manufacturerIds: ids })} />
-                </Field>
               </div>
               <div style={{ marginTop: 10 }}><Field label="Notes"><InpText value={newContact.notes} onChange={(v) => setNewContact({ ...newContact, notes: v })} /></Field></div>
               <div style={{ display: "flex", gap: 8, marginTop: 10, justifyContent: "flex-end" }}>
