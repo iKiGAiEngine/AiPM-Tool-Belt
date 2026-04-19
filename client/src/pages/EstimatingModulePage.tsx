@@ -583,6 +583,16 @@ function EstimatingModuleInner() {
   const [isSaving, setIsSaving] = useState(false);
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
   const [headerExpanded, setHeaderExpanded] = useState(false);
+  const [isHeaderScrolled, setIsHeaderScrolled] = useState(false);
+  useEffect(() => {
+    const onScroll = () => {
+      const scrolled = window.scrollY > 80;
+      setIsHeaderScrolled(scrolled);
+      if (scrolled) setHeaderExpanded(false);
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
   const markDirty = useCallback(() => setIsDirty(true), []);
 
   // ── Local mutable state (mirrors DB) ──
@@ -2177,12 +2187,14 @@ ${html}
         };
         return (
           <>
-            <div className="px-4 pt-4 pb-2" style={{ background: "var(--bg-page)" }}>
+            <div className="sticky top-14 z-40" style={{ background: "var(--bg-page)" }} data-testid="container-sticky-estimate-header">
+            <div className={isHeaderScrolled ? "px-4 pt-2 pb-1 transition-all" : "px-4 pt-4 pb-2 transition-all"} style={{ background: "var(--bg-page)", boxShadow: isHeaderScrolled ? "0 4px 12px rgba(0,0,0,0.25)" : "none" }}>
               <div className="max-w-7xl mx-auto">
                 {/* Single header card */}
                 <div className="rounded-xl"
                   style={{ background: "var(--bg-card)", border: "1px solid var(--border-ds)", fontFamily: "'Source Sans Pro', system-ui, sans-serif" }}>
-                  {/* Row 1: Project name + Save / Back / Collapse */}
+                  {/* Row 1: Project name + Save / Back / Collapse — hidden when scrolled */}
+                  {!isHeaderScrolled && (
                   <div className="flex items-center justify-between gap-3 px-4 pt-3 pb-2 flex-wrap">
                     <h1 className="min-w-0 flex-1 truncate"
                       style={{ fontFamily: "'Playfair Display', serif", fontSize: 20, fontWeight: 700, lineHeight: 1.2, color: "var(--text)" }}
@@ -2234,6 +2246,7 @@ ${html}
                       </button>
                     </div>
                   </div>
+                  )}
 
                   {/* Row 2: PV# · estimator · Due pill · grand total · status pill */}
                   <div className="flex items-center gap-2 px-4 pb-2 flex-wrap">
@@ -2327,7 +2340,7 @@ ${html}
 
             {/* SCOPE CHIPS BAR — only on the Line Items stage (Intake has its own scope picker) */}
             {stage === "lineItems" && activeScopes.length > 0 && (
-              <div className="sticky top-14 z-50 px-4 py-2"
+              <div className="px-4 py-2"
                 style={{ background: "var(--bg-page)", borderBottom: "1px solid var(--border-ds)", backdropFilter: "blur(12px)" }}>
                 <div className="max-w-7xl mx-auto flex gap-1.5 overflow-x-auto" data-testid="bar-scope-chips">
                   {ALL_SCOPES.filter(s => activeScopes.includes(s.id)).map(s => {
@@ -2350,6 +2363,7 @@ ${html}
                 </div>
               </div>
             )}
+            </div>
           </>
         );
       })()}
