@@ -1680,7 +1680,7 @@ ${html}
   // Discovered manufacturers — line-item-only mfrs that resolve to a manufacturer record.
   // Compute the id list from current line items + the global manufacturer list, fetch vendor+contact data so RFQ eligibility works for them.
   type DiscoveredMfr = { manufacturerId: number; manufacturerName: string; vendors: ApprovedMfr["vendors"] };
-  const discoveredMfrIds = React.useMemo(() => {
+  const discoveredMfrIds = useMemo(() => {
     if (!estimateId || !activeCat) return [] as number[];
     const approvedSet = new Set(approvedMfrs.map(a => a.manufacturerId));
     const ids = new Set<number>();
