@@ -3049,9 +3049,9 @@ ${html}
 
                 {/* Add item form */}
                 {addingItem && (
-                  <div className="px-4 py-3" style={{ background: "var(--bg3)", borderBottom: "1px solid var(--border-ds)" }}>
-                    {isMobile ? (
-                      // Mobile: stacked vertical layout with labels above each field
+                  <div className="px-4 py-3 overflow-x-auto" style={{ background: "var(--bg3)", borderBottom: "1px solid var(--border-ds)" }}>
+                    {false && isMobile ? (
+                      // (legacy mobile stacked layout — disabled in favor of horizontal scroll)
                       <div className="flex flex-col gap-2">
                         <label className="block">
                           <span className="text-[11px] font-semibold block mb-0.5" style={{ color: "var(--text-muted)" }}>Plan Callout</span>
@@ -3202,7 +3202,7 @@ ${html}
                   </div>
                 )}
 
-                {catLineItems.length > 0 && isMobile && (
+                {false && catLineItems.length > 0 && isMobile && (
                   <div className="flex flex-col gap-3 p-3" style={{ background: "var(--bg-card)" }}>
                     {catLineItems.map((item, idx) => {
                       const extended = n(item.unitCost) * item.qty;
@@ -3365,9 +3365,9 @@ ${html}
                   </div>
                 )}
 
-                {catLineItems.length > 0 && !isMobile && (
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-xs">
+                {catLineItems.length > 0 && (
+                  <div className="overflow-x-auto -webkit-overflow-scrolling-touch">
+                    <table className="text-xs" style={{ width: "100%", minWidth: 1100 }}>
                       <thead>
                         <tr style={{ background: "var(--bg3)", borderBottom: "1px solid var(--border-ds)" }}>
                           <th className="px-2 py-2 text-center" style={{ width: "3%" }}>
