@@ -3688,7 +3688,10 @@ ${html}
                       }
                     }
                   }
-                  const vendorGroups = Array.from(byVendor.values()).sort((a, b) => a.vendorName.localeCompare(b.vendorName));
+                  const vendorGroups = Array.from(byVendor.values()).sort((a, b) => {
+                    if (!!a.manufacturerDirect !== !!b.manufacturerDirect) return a.manufacturerDirect ? -1 : 1;
+                    return a.vendorName.localeCompare(b.vendorName);
+                  });
 
                   return (
                     <div className="mt-2 p-4 rounded-lg" style={{ background: "var(--bg-card)", border: "1px solid var(--border-ds)" }}>
@@ -5291,6 +5294,10 @@ ${html}
             if (v.contacts.length > 0) groups.push({ vendorId: v.vendorId, vendorName: v.vendorName, manufacturerDirect: !!v.manufacturerDirect, contacts: v.contacts });
           }
         }
+        groups.sort((a, b) => {
+          if (a.manufacturerDirect !== b.manufacturerDirect) return a.manufacturerDirect ? -1 : 1;
+          return a.vendorName.localeCompare(b.vendorName);
+        });
         const allEligibleIds = groups.flatMap(g => g.contacts.map(c => c.id));
         const allChecked = allEligibleIds.length > 0 && allEligibleIds.every(id => rfqSelectedContactIds.has(id));
         const someChecked = allEligibleIds.some(id => rfqSelectedContactIds.has(id));
@@ -5569,9 +5576,13 @@ ${html}
         const baseVendors = openRfqOnlyDirect
           ? allVendorsForRfq.filter(v => !!v.manufacturerDirect)
           : allVendorsForRfq;
+        const sortedBaseVendors = [...baseVendors].sort((a, b) => {
+          if (!!a.manufacturerDirect !== !!b.manufacturerDirect) return a.manufacturerDirect ? -1 : 1;
+          return a.name.localeCompare(b.name);
+        });
         const filteredVendors = vendorSearchLower
-          ? baseVendors.filter(v => v.name.toLowerCase().includes(vendorSearchLower)).slice(0, 50)
-          : baseVendors.slice(0, 50);
+          ? sortedBaseVendors.filter(v => v.name.toLowerCase().includes(vendorSearchLower)).slice(0, 50)
+          : sortedBaseVendors.slice(0, 50);
 
         const subject = `RFQ — ${proposalEntry?.projectName || ""} — ${catLabel}${vendorName ? ` — ${vendorName}` : ""}`;
         const itemLines = selectedItems.length > 0
