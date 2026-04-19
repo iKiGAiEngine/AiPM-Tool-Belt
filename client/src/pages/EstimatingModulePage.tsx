@@ -264,6 +264,18 @@ const fmt = (n: number) =>
 
 const n = (s: string | null | undefined) => parseFloat(s || "0") || 0;
 
+// Auto-select the contents of a number input on focus when its value is the
+// default 0 (or empty), so the user's first keystroke replaces the placeholder
+// rather than appending to it (e.g. typing "4" into a "0" field becoming "04").
+// Non-zero (previously typed) values are left untouched so the user can
+// position the cursor and append/edit normally.
+const selectIfZero = (e: React.FocusEvent<HTMLInputElement>) => {
+  const v = e.target.value;
+  if (v === "" || v === "0" || parseFloat(v) === 0) {
+    e.target.select();
+  }
+};
+
 // ══════════════════════════════════════════════════
 // MANUFACTURER COMBO (datalist + auto-create on miss)
 // ══════════════════════════════════════════════════
@@ -2515,7 +2527,7 @@ ${html}
                                       }
                                     }}
                                     className="w-12 text-xs px-1 py-0.5 rounded"
-                                    style={{ background: "var(--bg2)", border: "1px solid var(--border-ds)", color: "var(--text)", opacity: isLockedField ? 0.7 : 1, cursor: "auto" }} />
+                                    style={{ background: "var(--bg2)", border: "1px solid var(--border-ds)", color: "var(--text)", opacity: isLockedField ? 0.7 : 1, cursor: "auto" }}  onFocus={selectIfZero}/>
                                   );
                                 })}
                               </div>
@@ -2602,7 +2614,7 @@ ${html}
                       disabled={r.disabled}
                       onChange={e => r.onChange(e.target.value)}
                       className="text-xs text-right px-2 py-1 rounded w-14"
-                      style={{ background: "var(--bg-card)", border: `1px solid ${r.isOvr ? r.color + "60" : "var(--border-ds)"}`, color: r.isOvr ? r.color : "var(--text-muted)", opacity: r.disabled ? 0.6 : 1, cursor: r.disabled ? "not-allowed" : "auto" }} />
+                      style={{ background: "var(--bg-card)", border: `1px solid ${r.isOvr ? r.color + "60" : "var(--border-ds)"}`, color: r.isOvr ? r.color : "var(--text-muted)", opacity: r.disabled ? 0.6 : 1, cursor: r.disabled ? "not-allowed" : "auto" }}  onFocus={selectIfZero}/>
                     <span className="text-xs" style={{ color: "var(--text-muted)" }}>%</span>
                     {r.locked && r.isOvr && <Lock className="w-3 h-3" style={{ color: "#ef4444" }} />}
                   </div>
@@ -2762,7 +2774,7 @@ ${html}
                           </button>
                         )}
                         <input type="number" step={10} value={n(q.freight)} onChange={e => updateQuote(q.id, "freight", e.target.value)}
-                          placeholder="Freight $" className="w-20 text-xs px-1.5 py-0.5 rounded" style={{ background: "var(--bg3)", border: "1px solid var(--border-ds)", color: "#f97316" }} />
+                          placeholder="Freight $" className="w-20 text-xs px-1.5 py-0.5 rounded" style={{ background: "var(--bg3)", border: "1px solid var(--border-ds)", color: "#f97316" }}  onFocus={selectIfZero}/>
                         {/* Backup file attachment */}
                         <input
                           id={`quote-backup-input-${q.id}`}
@@ -2862,7 +2874,7 @@ ${html}
                         <label className="text-xs font-medium" style={{ color: "#f97316" }}>Freight ($)</label>
                         <input data-testid="input-quote-freight" type="number" min={0} step={10} value={newQuote.freight} onChange={e => setNewQuote(p => ({ ...p, freight: parseFloat(e.target.value) || 0 }))}
                           placeholder="0" className="text-xs px-2 py-1.5 rounded"
-                          style={{ background: "var(--bg2)", border: "1px solid var(--border-ds)", color: "#f97316" }} />
+                          style={{ background: "var(--bg2)", border: "1px solid var(--border-ds)", color: "#f97316" }}  onFocus={selectIfZero}/>
                       </div>
                     </div>
                     <div className="grid grid-cols-3 gap-3 mb-3">
@@ -2879,7 +2891,7 @@ ${html}
                           <label className="text-xs font-medium" style={{ color: "#f97316" }}>Lump Sum Total ($)</label>
                           <input data-testid="input-quote-lump-sum" type="number" min={0} step={100} value={newQuote.lumpSumTotal} onChange={e => setNewQuote(p => ({ ...p, lumpSumTotal: parseFloat(e.target.value) || 0 }))}
                             placeholder="0" className="text-xs px-2 py-1.5 rounded"
-                            style={{ background: "var(--bg2)", border: "1px solid var(--border-ds)", color: "#f97316" }} />
+                            style={{ background: "var(--bg2)", border: "1px solid var(--border-ds)", color: "#f97316" }}  onFocus={selectIfZero}/>
                         </div>
                       )}
                       <div className="flex flex-col gap-1">
@@ -2901,7 +2913,7 @@ ${html}
                           onChange={e => setNewQuote(p => ({ ...p, materialTotalCost: e.target.value }))}
                           placeholder="0 — enter or AI-fill from quote file"
                           className="text-xs px-2 py-1.5 rounded"
-                          style={{ background: "var(--bg2)", border: "1px solid var(--gold)40", color: "var(--gold)" }} />
+                          style={{ background: "var(--bg2)", border: "1px solid var(--gold)40", color: "var(--gold)" }}  onFocus={selectIfZero}/>
                         {aiExtractNote && (
                           <span className="text-xs" style={{ color: aiExtractNote.startsWith("✓") ? "var(--gold)" : "var(--text-muted)" }}>{aiExtractNote}</span>
                         )}
@@ -3153,7 +3165,7 @@ ${html}
                             <span className="text-[11px] font-semibold block mb-0.5" style={{ color: "var(--text-muted)" }}>Qty</span>
                             <input type="number" min={1} value={newItemForm.qty} onChange={e => setNewItemForm(p => ({ ...p, qty: parseInt(e.target.value) || 1 }))}
                               className="w-full text-sm px-2 py-2 rounded text-right"
-                              style={{ background: "var(--bg2)", border: "1px solid var(--border-ds)", color: "var(--text)" }} />
+                              style={{ background: "var(--bg2)", border: "1px solid var(--border-ds)", color: "var(--text)" }}  onFocus={selectIfZero}/>
                           </label>
                           <label className="block">
                             <span className="text-[11px] font-semibold block mb-0.5" style={{ color: "var(--text-muted)" }}>UOM</span>
@@ -3169,7 +3181,7 @@ ${html}
                             <span className="text-[11px] font-semibold block mb-0.5" style={{ color: "var(--text-muted)" }}>Unit Cost ($)</span>
                             <input type="number" step={0.01} value={newItemForm.unitCost} onChange={e => setNewItemForm(p => ({ ...p, unitCost: parseFloat(e.target.value) || 0 }))}
                               className="w-full text-sm px-2 py-2 rounded text-right"
-                              style={{ background: "var(--bg2)", border: "1px solid var(--border-ds)", color: "var(--text)" }} />
+                              style={{ background: "var(--bg2)", border: "1px solid var(--border-ds)", color: "var(--text)" }}  onFocus={selectIfZero}/>
                           </label>
                           <label className="block">
                             <span className="text-[11px] font-semibold block mb-0.5" style={{ color: "var(--text-muted)" }}>Line Total</span>
@@ -3214,7 +3226,7 @@ ${html}
                           style={{ background: "var(--bg2)", border: "1px solid var(--border-ds)", color: "var(--text)" }} />
                         <input type="number" min={1} value={newItemForm.qty} onChange={e => setNewItemForm(p => ({ ...p, qty: parseInt(e.target.value) || 1 }))}
                           className="text-xs px-2 py-1.5 rounded text-right"
-                          style={{ background: "var(--bg2)", border: "1px solid var(--border-ds)", color: "var(--text)" }} />
+                          style={{ background: "var(--bg2)", border: "1px solid var(--border-ds)", color: "var(--text)" }}  onFocus={selectIfZero}/>
                         <select value={newItemForm.uom} onChange={e => setNewItemForm(p => ({ ...p, uom: e.target.value }))}
                           className="text-xs px-2 py-1.5 rounded"
                           style={{ background: "var(--bg2)", border: "1px solid var(--border-ds)", color: "var(--text)" }}>
@@ -3222,7 +3234,7 @@ ${html}
                         </select>
                         <input type="number" step={0.01} value={newItemForm.unitCost} onChange={e => setNewItemForm(p => ({ ...p, unitCost: parseFloat(e.target.value) || 0 }))}
                           className="text-xs px-2 py-1.5 rounded text-right"
-                          style={{ background: "var(--bg2)", border: "1px solid var(--border-ds)", color: "var(--text)" }} />
+                          style={{ background: "var(--bg2)", border: "1px solid var(--border-ds)", color: "var(--text)" }}  onFocus={selectIfZero}/>
                         <div className="text-xs px-2 py-1.5 rounded font-semibold flex items-center justify-end"
                           style={{ background: "var(--bg2)", border: "1px solid var(--border-ds)", color: newItemForm.qty * newItemForm.unitCost === 0 ? "var(--text-muted)" : "#22c55e" }}>
                           {fmt(newItemForm.qty * newItemForm.unitCost)}
@@ -3350,7 +3362,7 @@ ${html}
                               <span className="text-[10px] font-semibold block mb-0.5" style={{ color: "var(--text-muted)" }}>Qty</span>
                               <input type="number" min={1} value={item.qty} onChange={e => updateLineItem(item.id, "qty", parseInt(e.target.value) || 1)}
                                 className="w-full text-sm px-2 py-1.5 rounded text-right"
-                                style={{ background: "var(--bg2)", border: "1px solid var(--border-ds)", color: "var(--text)" }} />
+                                style={{ background: "var(--bg2)", border: "1px solid var(--border-ds)", color: "var(--text)" }}  onFocus={selectIfZero}/>
                             </label>
                             <label className="block">
                               <span className="text-[10px] font-semibold block mb-0.5" style={{ color: "var(--text-muted)" }}>UOM</span>
@@ -3365,7 +3377,7 @@ ${html}
                               <input type="number" step={0.01} value={n(item.unitCost)}
                                 onChange={e => updateLineItem(item.id, "unitCost", e.target.value)}
                                 className="w-full text-sm px-2 py-1.5 rounded text-right"
-                                style={{ background: "var(--bg2)", border: "1px solid var(--border-ds)", color: n(item.unitCost) === 0 ? "#ef4444" : "var(--text)" }} />
+                                style={{ background: "var(--bg2)", border: "1px solid var(--border-ds)", color: n(item.unitCost) === 0 ? "#ef4444" : "var(--text)" }}  onFocus={selectIfZero}/>
                             </label>
                           </div>
 
@@ -3403,7 +3415,7 @@ ${html}
                                       <input type="number" min={0} value={alloc}
                                         onChange={e => setAllocation(item.id, g.id, parseInt(e.target.value) || 0)}
                                         className="w-14 text-xs text-center px-1 py-0.5 rounded"
-                                        style={{ background: "var(--bg2)", border: `1px solid ${isOver ? "#ef444440" : "var(--border-ds)"}`, color: isOver ? "#ef4444" : "var(--text)" }} />
+                                        style={{ background: "var(--bg2)", border: `1px solid ${isOver ? "#ef444440" : "var(--border-ds)"}`, color: isOver ? "#ef4444" : "var(--text)" }}  onFocus={selectIfZero}/>
                                     </div>
                                   );
                                 })}
@@ -3502,7 +3514,7 @@ ${html}
                                 <td className="px-2 py-1.5 text-right">
                                   <input type="number" min={1} value={item.qty} onChange={e => updateLineItem(item.id, "qty", parseInt(e.target.value) || 1)}
                                     className="w-12 text-xs text-right bg-transparent border-none outline-none"
-                                    style={{ color: "var(--text)" }} />
+                                    style={{ color: "var(--text)" }}  onFocus={selectIfZero}/>
                                 </td>
                                 <td className="px-2 py-1.5">
                                   <select value={item.uom || "EA"} onChange={e => updateLineItem(item.id, "uom", e.target.value)}
@@ -3515,7 +3527,7 @@ ${html}
                                   <input type="number" step={0.01} value={n(item.unitCost)}
                                     onChange={e => updateLineItem(item.id, "unitCost", e.target.value)}
                                     className="w-20 text-xs text-right bg-transparent border-none outline-none"
-                                    style={{ color: n(item.unitCost) === 0 ? "#ef4444" : "var(--text)" }} />
+                                    style={{ color: n(item.unitCost) === 0 ? "#ef4444" : "var(--text)" }}  onFocus={selectIfZero}/>
                                 </td>
                                 <td className="px-2 py-1.5 text-right font-semibold">
                                   <span style={{ color: extended === 0 ? "#ef4444" : "#22c55e" }}>{fmt(extended)}</span>
@@ -3566,7 +3578,7 @@ ${html}
                                             <input type="number" min={0} value={alloc}
                                               onChange={e => setAllocation(item.id, g.id, parseInt(e.target.value) || 0)}
                                               className="w-12 text-xs text-center px-1 py-0.5 rounded"
-                                              style={{ background: "var(--bg2)", border: `1px solid ${isOver ? "#ef444440" : "var(--border-ds)"}`, color: isOver ? "#ef4444" : "var(--text)" }} />
+                                              style={{ background: "var(--bg2)", border: `1px solid ${isOver ? "#ef444440" : "var(--border-ds)"}`, color: isOver ? "#ef4444" : "var(--text)" }}  onFocus={selectIfZero}/>
                                           </div>
                                         );
                                       })}
@@ -3958,7 +3970,7 @@ ${html}
                     disabled={r.disabled}
                     onChange={e => { if (!r.locked) { r.set(parseFloat(e.target.value) || 0); markDirty(); } else r.set(0); }}
                     className="w-20 text-sm font-bold text-right px-2 py-1 rounded"
-                    style={{ background: "var(--bg3)", border: "1px solid var(--border-ds)", color: r.color, opacity: r.locked ? 0.7 : 1, cursor: r.disabled ? "not-allowed" : "auto" }} />
+                    style={{ background: "var(--bg3)", border: "1px solid var(--border-ds)", color: r.color, opacity: r.locked ? 0.7 : 1, cursor: r.disabled ? "not-allowed" : "auto" }}  onFocus={selectIfZero}/>
                 </div>
               ))}
               <div className="mt-3 p-2 rounded text-xs" style={{ background: "#f9731610", color: "#f97316" }}>
@@ -4687,7 +4699,7 @@ ${html}
                             </td>
                             <td className="py-2 pr-3 text-right">
                               <input type="number" value={item.quantity} onChange={e => setExtractedItems(prev => prev.map((i, j) => j === idx ? { ...i, quantity: parseInt(e.target.value) || 0 } : i))}
-                                className="w-12 bg-transparent outline-none text-right" style={{ color: "var(--text)" }} />
+                                className="w-12 bg-transparent outline-none text-right" style={{ color: "var(--text)" }}  onFocus={selectIfZero}/>
                             </td>
                             <td className="py-2 pr-3 text-center">
                               <span className="px-1.5 py-0.5 rounded" style={{
@@ -5119,7 +5131,7 @@ ${html}
                           </td>
                           <td className="px-2 py-1">
                             <input type="number" value={row.qty || ""} onChange={e => updateReviewRow(row.id, "qty", e.target.value)}
-                              className="w-16 text-xs px-1.5 py-0.5 rounded text-right" style={{ background: "var(--bg3)", border: "1px solid var(--border-ds)", color: "var(--text)" }} />
+                              className="w-16 text-xs px-1.5 py-0.5 rounded text-right" style={{ background: "var(--bg3)", border: "1px solid var(--border-ds)", color: "var(--text)" }}  onFocus={selectIfZero}/>
                           </td>
                           <td className="px-2 py-1">
                             <input value={row.unit || ""} onChange={e => updateReviewRow(row.id, "unit", e.target.value)}
@@ -5127,11 +5139,11 @@ ${html}
                           </td>
                           <td className="px-2 py-1">
                             <input type="number" value={row.unitCost || ""} onChange={e => updateReviewRow(row.id, "unitCost", e.target.value)}
-                              className="w-24 text-xs px-1.5 py-0.5 rounded text-right" style={{ background: "var(--bg3)", border: "1px solid var(--border-ds)", color: "var(--text)" }} />
+                              className="w-24 text-xs px-1.5 py-0.5 rounded text-right" style={{ background: "var(--bg3)", border: "1px solid var(--border-ds)", color: "var(--text)" }}  onFocus={selectIfZero}/>
                           </td>
                           <td className="px-2 py-1">
                             <input type="number" value={row.extendedCost || ""} onChange={e => updateReviewRow(row.id, "extendedCost", e.target.value)}
-                              className="w-24 text-xs px-1.5 py-0.5 rounded text-right" style={{ background: "var(--bg3)", border: "1px solid var(--border-ds)", color: "var(--text)" }} />
+                              className="w-24 text-xs px-1.5 py-0.5 rounded text-right" style={{ background: "var(--bg3)", border: "1px solid var(--border-ds)", color: "var(--text)" }}  onFocus={selectIfZero}/>
                           </td>
                           <td className="px-2 py-1.5 text-center">
                             <span className="px-1.5 py-0.5 rounded font-mono" style={{ background: `${confColor}15`, color: confColor, border: `1px solid ${confColor}30`, fontSize: "10px" }}>
