@@ -368,6 +368,21 @@ function EstimatingModuleInner() {
   const [rfqPickerMfr, setRfqPickerMfr] = useState<string | null>(null);
   const [rfqSelectedContactIds, setRfqSelectedContactIds] = useState<Set<number>>(new Set());
 
+  // ── RFQ View Mode + Vendor-Group Picker ──
+  const [rfqGroupByVendor, setRfqGroupByVendor] = useState(false);
+  const [rfqVendorPicker, setRfqVendorPicker] = useState<number | null>(null);
+  const [rfqVendorPickerContactIds, setRfqVendorPickerContactIds] = useState<Set<number>>(new Set());
+
+  // ── Open RFQ (ad-hoc, pick line items + send to any vendor) ──
+  const [showOpenRfq, setShowOpenRfq] = useState(false);
+  const [openRfqVendorMode, setOpenRfqVendorMode] = useState<"existing" | "new">("existing");
+  const [openRfqExistingVendorId, setOpenRfqExistingVendorId] = useState<number | null>(null);
+  const [openRfqVendorSearch, setOpenRfqVendorSearch] = useState("");
+  const [openRfqNewVendorName, setOpenRfqNewVendorName] = useState("");
+  const [openRfqNewVendorEmail, setOpenRfqNewVendorEmail] = useState("");
+  const [openRfqSelectedItemIds, setOpenRfqSelectedItemIds] = useState<Set<string>>(new Set());
+  const [openRfqExtraNotes, setOpenRfqExtraNotes] = useState("");
+
   // ── Dirty tracking ──
   const [isDirty, setIsDirty] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
