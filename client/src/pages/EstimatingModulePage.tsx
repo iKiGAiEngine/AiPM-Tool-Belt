@@ -2449,34 +2449,8 @@ ${html}
                 </button>
               </div>
 
-              {/* Category tabs — sticky below the estimate header so scopes
-                  stay visible while scrolling. Header sticks at top-14 and is
-                  ~170px tall, so we offset to top-[180px] with a lower z-index
-                  than the header (z-30 vs header z-40). */}
-              <div
-                className="sticky top-[180px] z-30 flex gap-1.5 mb-4 overflow-x-auto pb-2 pt-2 -mx-6 px-6"
-                style={{ background: "var(--bg-page)", borderBottom: "1px solid var(--border-ds)", backdropFilter: "blur(8px)" }}
-                data-testid="scope-tabs-sticky"
-              >
-                {CATEGORIES.map(c => {
-                  const d = calcData[c.id];
-                  return (
-                    <button key={c.id} onClick={() => setActiveCat(c.id)}
-                      className="flex flex-col items-start px-3 py-2 rounded-lg text-xs whitespace-nowrap transition-all"
-                      style={{
-                        background: activeCat === c.id ? "#22c55e15" : "var(--bg-card)",
-                        border: `1px solid ${activeCat === c.id ? "#22c55e60" : "var(--border-ds)"}`,
-                        color: activeCat === c.id ? "#22c55e" : "var(--text-secondary)",
-                        fontWeight: activeCat === c.id ? 600 : 400,
-                      }}>
-                      <span>{c.icon} {c.label} {d.items > 0 && <span style={{ opacity: 0.7 }}>({d.items})</span>}</span>
-                      <span className="text-xs" style={{ color: "var(--text-muted)" }}>{c.csi}</span>
-                      {d.isComplete && <span style={{ color: "#22c55e" }}>✓</span>}
-                      {d.missingBackup > 0 && !d.isComplete && <span style={{ color: "#ef4444" }}>⚠</span>}
-                    </button>
-                  );
-                })}
-              </div>
+              {/* Legacy per-category tabs removed — replaced by the sticky
+                  scope chips bar in the header (rendered only when stage === "lineItems"). */}
 
               {/* Breakout panel toggle */}
               <div className="flex items-center gap-3 mb-3">
