@@ -2188,13 +2188,32 @@ ${html}
         return (
           <>
             <div className="sticky top-14 z-40" style={{ background: "var(--bg-page)" }} data-testid="container-sticky-estimate-header">
-            <div className={isHeaderScrolled ? "px-4 pt-2 pb-1 transition-all" : "px-4 pt-4 pb-2 transition-all"} style={{ background: "var(--bg-page)", boxShadow: isHeaderScrolled ? "0 4px 12px rgba(0,0,0,0.25)" : "none" }}>
+            <div
+              className="px-4"
+              style={{
+                background: "var(--bg-page)",
+                boxShadow: isHeaderScrolled ? "0 4px 12px rgba(0,0,0,0.25)" : "0 0 0 rgba(0,0,0,0)",
+                paddingTop: isHeaderScrolled ? 8 : 16,
+                paddingBottom: isHeaderScrolled ? 4 : 8,
+                transition: "padding 280ms cubic-bezier(0.4,0,0.2,1), box-shadow 280ms ease-out",
+              }}
+            >
               <div className="max-w-7xl mx-auto">
                 {/* Single header card */}
                 <div className="rounded-xl"
                   style={{ background: "var(--bg-card)", border: "1px solid var(--border-ds)", fontFamily: "'Source Sans Pro', system-ui, sans-serif" }}>
-                  {/* Row 1: Project name + Save / Back / Collapse — hidden when scrolled */}
-                  {!isHeaderScrolled && (
+                  {/* Row 1: Project name + Save / Back / Collapse — animates closed when scrolled */}
+                  <div
+                    className="overflow-hidden"
+                    style={{
+                      maxHeight: isHeaderScrolled ? 0 : 80,
+                      opacity: isHeaderScrolled ? 0 : 1,
+                      transform: isHeaderScrolled ? "translateY(-4px)" : "translateY(0)",
+                      transition: "max-height 280ms cubic-bezier(0.4,0,0.2,1), opacity 200ms ease-out, transform 280ms cubic-bezier(0.4,0,0.2,1)",
+                      pointerEvents: isHeaderScrolled ? "none" : "auto",
+                    }}
+                    aria-hidden={isHeaderScrolled}
+                  >
                   <div className="flex items-center justify-between gap-3 px-4 pt-3 pb-2 flex-wrap">
                     <h1 className="min-w-0 flex-1 truncate"
                       style={{ fontFamily: "'Playfair Display', serif", fontSize: 20, fontWeight: 700, lineHeight: 1.2, color: "var(--text)" }}
@@ -2246,7 +2265,7 @@ ${html}
                       </button>
                     </div>
                   </div>
-                  )}
+                  </div>
 
                   {/* Row 2: PV# · estimator · Due pill · grand total · status pill */}
                   <div className="flex items-center gap-2 px-4 pb-2 flex-wrap">
