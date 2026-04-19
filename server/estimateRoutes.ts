@@ -6,6 +6,7 @@ import {
   estimateBreakoutAllocations, estimateVersions, estimateReviewComments, ohApprovalLog,
   proposalLogEntries, estimateSpecSections, users,
   vendorQuoteLineItems, vendorQuoteToEstimateLineItemMap,
+  mfrManufacturers,
 } from "@shared/schema";
 import OpenAI from "openai";
 import multer from "multer";
@@ -432,10 +433,11 @@ export function registerEstimateRoutes(app: Express) {
     try {
       const estimateId = parseInt(req.params.id);
       if (isNaN(estimateId)) return res.status(400).json({ message: "Invalid estimate id" });
-      const { category, planCallout, name, model, mfr, qty, uom, unitCost, escOverride, quoteId, source, note, hasBackup, sortOrder, extractionConfidence } = req.body;
+      const { category, planCallout, name, model, mfr, manufacturerId, qty, uom, unitCost, escOverride, quoteId, source, note, hasBackup, sortOrder, extractionConfidence } = req.body;
       if (!category || !name) return res.status(400).json({ message: "category and name required" });
       const [item] = await db.insert(estimateLineItems).values({
         estimateId, category, planCallout: planCallout || null, name, model: model || null, mfr: mfr || null,
+        manufacturerId: manufacturerId ?? null,
         qty: qty || 1, uom: uom || "EA", unitCost: String(unitCost || 0),
         escOverride: escOverride != null ? String(escOverride) : null,
         quoteId: quoteId || null, source: source || "manual",
@@ -453,7 +455,7 @@ export function registerEstimateRoutes(app: Express) {
     try {
       const itemId = parseInt(req.params.itemId);
       if (isNaN(itemId)) return res.status(400).json({ message: "Invalid item id" });
-      const allowed = ["name", "planCallout", "model", "mfr", "qty", "uom", "unitCost", "escOverride", "quoteId", "source", "note", "hasBackup", "sortOrder", "category", "extractionConfidence"];
+      const allowed = ["name", "planCallout", "model", "mfr", "manufacturerId", "qty", "uom", "unitCost", "escOverride", "quoteId", "source", "note", "hasBackup", "sortOrder", "category", "extractionConfidence"];
       const updates: Record<string, any> = {};
       for (const f of allowed) {
         if (req.body[f] !== undefined) {
@@ -496,6 +498,7 @@ export function registerEstimateRoutes(app: Express) {
       const rows = items.map((item: any, idx: number) => ({
         estimateId, category: item.category, name: item.name,
         model: item.model || null, mfr: item.mfr || null,
+        manufacturerId: item.manufacturerId ?? null,
         qty: item.qty || 1, unitCost: String(item.unitCost || 0),
         escOverride: item.escOverride != null ? String(item.escOverride) : null,
         quoteId: item.quoteId || null, source: item.source || "vendor_quote",
@@ -1383,15 +1386,21 @@ Category context: ${catLabel || category || "Division 10 Specialties"}`;
       const { items } = req.body;
       if (!Array.isArray(items) || items.length === 0) return res.status(400).json({ message: "items array required" });
 
+      const allMfrs = await db.select({ id: mfrManufacturers.id, name: mfrManufacturers.name }).from(mfrManufacturers);
+      const mfrByLowerName = new Map(allMfrs.map(m => [m.name.trim().toLowerCase(), m.id]));
+
       const created: any[] = [];
       for (const item of items) {
         if (!item.category || !item.name) continue;
+        const mfrName: string | null = (item.manufacturer || item.mfr || "").toString().trim() || null;
+        const matchedMfrId = mfrName ? (mfrByLowerName.get(mfrName.toLowerCase()) ?? null) : null;
         const [row] = await db.insert(estimateLineItems).values({
           estimateId,
           category: item.category,
           name: item.description || item.name,
           model: item.modelNumber || item.model || null,
-          mfr: item.manufacturer || item.mfr || null,
+          mfr: mfrName,
+          manufacturerId: matchedMfrId,
           qty: item.quantity || item.qty || 1,
           uom: item.uom || "EA",
           unitCost: "0",

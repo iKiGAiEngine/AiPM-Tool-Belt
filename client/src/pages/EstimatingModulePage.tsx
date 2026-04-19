@@ -70,6 +70,7 @@ interface LineItem {
   name: string;
   model: string | null;
   mfr: string | null;
+  manufacturerId: number | null;
   qty: number;
   unitCost: string;
   escOverride: string | null;
@@ -263,6 +264,84 @@ const fmt = (n: number) =>
 const n = (s: string | null | undefined) => parseFloat(s || "0") || 0;
 
 // ══════════════════════════════════════════════════
+// MANUFACTURER COMBO (datalist + auto-create on miss)
+// ══════════════════════════════════════════════════
+
+interface MfrComboProps {
+  value: string;
+  manufacturerId: number | null;
+  allMfrs: Array<{ id: number; name: string }>;
+  approvedIds: Set<number>;
+  onChange: (name: string, manufacturerId: number | null) => void;
+  className?: string;
+  style?: React.CSSProperties;
+  placeholder?: string;
+}
+
+function ManufacturerCombo({ value, manufacturerId, allMfrs, approvedIds, onChange, className, style, placeholder }: MfrComboProps) {
+  const qc = useQueryClient();
+  const { toast } = useToast();
+  const [text, setText] = useState(value || "");
+  const [busy, setBusy] = useState(false);
+  const listId = useMemo(() => `mfr-list-${Math.random().toString(36).slice(2, 9)}`, []);
+
+  useEffect(() => { setText(value || ""); }, [value]);
+
+  const sortedOptions = useMemo(() => {
+    const approved = allMfrs.filter(m => approvedIds.has(m.id)).sort((a, b) => a.name.localeCompare(b.name));
+    const others = allMfrs.filter(m => !approvedIds.has(m.id)).sort((a, b) => a.name.localeCompare(b.name));
+    return [...approved, ...others];
+  }, [allMfrs, approvedIds]);
+
+  const commit = async (raw: string) => {
+    const trimmed = raw.trim();
+    if (!trimmed) {
+      if (manufacturerId !== null || value) onChange("", null);
+      return;
+    }
+    const exact = allMfrs.find(m => m.name.toLowerCase() === trimmed.toLowerCase());
+    if (exact) {
+      if (exact.id !== manufacturerId || exact.name !== value) onChange(exact.name, exact.id);
+      setText(exact.name);
+      return;
+    }
+    setBusy(true);
+    try {
+      const created = await apiRequest("POST", "/api/mfr/manufacturers", { name: trimmed }) as any as { id: number; name: string };
+      qc.invalidateQueries({ queryKey: ["/api/mfr/manufacturers"] });
+      onChange(created.name, created.id);
+      setText(created.name);
+      toast({ title: "Manufacturer added", description: `"${created.name}" was added to your manufacturer list.` });
+    } catch {
+      toast({ title: "Could not save manufacturer", variant: "destructive" });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <>
+      <input
+        list={listId}
+        value={text}
+        onChange={e => setText(e.target.value)}
+        onBlur={e => commit(e.target.value)}
+        onKeyDown={e => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
+        placeholder={busy ? "Saving…" : placeholder}
+        className={className}
+        style={style}
+        disabled={busy}
+      />
+      <datalist id={listId}>
+        {sortedOptions.map(m => (
+          <option key={m.id} value={m.name}>{approvedIds.has(m.id) ? "★ approved for this scope" : ""}</option>
+        ))}
+      </datalist>
+    </>
+  );
+}
+
+// ══════════════════════════════════════════════════
 // MAIN COMPONENT
 // ══════════════════════════════════════════════════
 
@@ -340,7 +419,7 @@ function EstimatingModuleInner() {
   const [newRisk, setNewRisk] = useState("");
   const [showRfq, setShowRfq] = useState(false);
   const [addingItem, setAddingItem] = useState(false);
-  const [newItemForm, setNewItemForm] = useState({ planCallout: "", name: "", model: "", mfr: "", qty: 1, uom: "EA", unitCost: 0, source: "manual" });
+  const [newItemForm, setNewItemForm] = useState<{ planCallout: string; name: string; model: string; mfr: string; manufacturerId: number | null; qty: number; uom: string; unitCost: number; source: string }>({ planCallout: "", name: "", model: "", mfr: "", manufacturerId: null, qty: 1, uom: "EA", unitCost: 0, source: "manual" });
   const pdfParseInputRef = useRef<HTMLInputElement>(null);
   const [aiParseTab, setAiParseTab] = useState<"text" | "pdf">("text");
   const [pdfDragActive, setPdfDragActive] = useState(false);
@@ -770,12 +849,13 @@ function EstimatingModuleInner() {
       const r = await apiRequest("POST", `/api/estimates/${estimateId}/line-items`, {
         category: activeCat, planCallout: newItemForm.planCallout || null, name: newItemForm.name.trim(),
         model: newItemForm.model || null, mfr: newItemForm.mfr || null,
+        manufacturerId: newItemForm.manufacturerId,
         qty: newItemForm.qty, uom: newItemForm.uom || "EA", unitCost: String(newItemForm.unitCost),
         source: newItemForm.source, hasBackup: false,
       });
       const item = await r.json();
       setLineItems(prev => [...prev, item]);
-      setNewItemForm({ planCallout: "", name: "", model: "", mfr: "", qty: 1, uom: "EA", unitCost: 0, source: "manual" });
+      setNewItemForm({ planCallout: "", name: "", model: "", mfr: "", manufacturerId: null, qty: 1, uom: "EA", unitCost: 0, source: "manual" });
       setAddingItem(false);
       markDirty();
     } catch { toast({ title: "Error", description: "Could not add item.", variant: "destructive" }); }
@@ -1559,11 +1639,10 @@ ${html}
 
   const rfqLookupEnabled = hasFeature("rfq-vendor-lookup");
 
-  // All manufacturers (for the picker dropdown)
+  // All manufacturers (for the picker dropdown AND the line-item manufacturer combo)
   type MfrRow = { id: number; name: string; website?: string | null };
   const { data: allManufacturers = [] } = useQuery<MfrRow[]>({
     queryKey: ["/api/mfr/manufacturers"],
-    enabled: rfqLookupEnabled,
   });
 
   // Approved manufacturers for the active scope
@@ -2912,7 +2991,13 @@ ${html}
                         onKeyDown={e => e.key === "Enter" && addLineItem()}
                         className="text-xs px-2 py-1.5 rounded"
                         style={{ background: "var(--bg2)", border: "1px solid var(--border-ds)", color: "var(--text)" }} />
-                      <input value={newItemForm.mfr} onChange={e => setNewItemForm(p => ({ ...p, mfr: e.target.value }))}
+                      <ManufacturerCombo
+                        value={newItemForm.mfr}
+                        manufacturerId={newItemForm.manufacturerId}
+                        allMfrs={allManufacturers}
+                        approvedIds={new Set(approvedMfrs.map(a => a.manufacturerId))}
+                        onChange={(name, id) => setNewItemForm(p => ({ ...p, mfr: name, manufacturerId: id }))}
+                        placeholder="Pick or type…"
                         className="text-xs px-2 py-1.5 rounded"
                         style={{ background: "var(--bg2)", border: "1px solid var(--border-ds)", color: "var(--text)" }} />
                       <input value={newItemForm.model} onChange={e => setNewItemForm(p => ({ ...p, model: e.target.value }))}
@@ -3023,8 +3108,17 @@ ${html}
                                   {item.note && <div className="text-xs italic" style={{ color: "#f97316" }}>▸ {item.note}</div>}
                                 </td>
                                 <td className="px-2 py-1.5">
-                                  <input value={item.mfr || ""} onChange={e => updateLineItem(item.id, "mfr", e.target.value)}
-                                    placeholder="—" className="w-full text-xs bg-transparent border-none outline-none"
+                                  <ManufacturerCombo
+                                    value={item.mfr || ""}
+                                    manufacturerId={item.manufacturerId}
+                                    allMfrs={allManufacturers}
+                                    approvedIds={new Set(approvedMfrs.map(a => a.manufacturerId))}
+                                    onChange={(name, id) => {
+                                      setLineItems(prev => prev.map(i => i.id === item.id ? { ...i, mfr: name || null, manufacturerId: id } : i));
+                                      apiRequest("PATCH", `/api/estimates/line-items/${item.id}`, { mfr: name || null, manufacturerId: id }).catch(() => toast({ title: "Error", description: "Could not update item.", variant: "destructive" }));
+                                    }}
+                                    placeholder="—"
+                                    className="w-full text-xs bg-transparent border-none outline-none"
                                     style={{ color: "var(--text-muted)" }} />
                                 </td>
                                 <td className="px-2 py-1.5">

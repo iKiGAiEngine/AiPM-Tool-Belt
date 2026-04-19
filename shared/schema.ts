@@ -1311,6 +1311,7 @@ export const estimateLineItems = pgTable("estimate_line_items", {
   name: varchar("name", { length: 255 }).notNull(),
   model: varchar("model", { length: 100 }),
   mfr: varchar("mfr", { length: 100 }),
+  manufacturerId: integer("manufacturer_id").references(() => mfrManufacturers.id, { onDelete: "set null" }),
   qty: integer("qty").default(1).notNull(),
   uom: varchar("uom", { length: 10 }).default("EA"),
   unitCost: numeric("unit_cost", { precision: 10, scale: 2 }).default("0").notNull(),
