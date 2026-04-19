@@ -1670,6 +1670,8 @@ ${html}
     vendors: Array<{
       vendorId: number;
       vendorName: string;
+      scopes?: string[];
+      manufacturerIds?: number[];
       contacts: Array<{
         id: number;
         name: string;
@@ -1677,8 +1679,6 @@ ${html}
         email: string | null;
         phone?: string | null;
         isPrimary: boolean;
-        scopes?: string[];
-        manufacturerIds?: number[];
       }>;
     }>;
   };
@@ -1720,6 +1720,30 @@ ${html}
       return res.json();
     },
     enabled: !!estimateId && !!activeCat && discoveredMfrIds.length > 0,
+  });
+
+  // Vendors list (for Open RFQ ad-hoc picker). Loaded on demand when modal opens.
+  type VendorListItem = { id: number; name: string; category?: string | null };
+  const { data: allVendorsForRfq = [] } = useQuery<VendorListItem[]>({
+    queryKey: ["/api/mfr/vendors", "open-rfq-list"],
+    queryFn: async () => {
+      const res = await fetch(`/api/mfr/vendors`, { credentials: "include" });
+      if (!res.ok) return [];
+      return res.json();
+    },
+    enabled: showOpenRfq,
+  });
+
+  // Selected vendor's full record (with contacts), loaded when picked in Open RFQ.
+  const { data: openRfqSelectedVendor } = useQuery<any>({
+    queryKey: ["/api/mfr/vendors", openRfqExistingVendorId],
+    queryFn: async () => {
+      if (!openRfqExistingVendorId) return null;
+      const res = await fetch(`/api/mfr/vendors/${openRfqExistingVendorId}`, { credentials: "include" });
+      if (!res.ok) return null;
+      return res.json();
+    },
+    enabled: !!openRfqExistingVendorId && showOpenRfq,
   });
 
   const addApprovedMfrMutation = useMutation({
@@ -3374,27 +3398,140 @@ ${html}
                   const approvedNames = approvedMfrs.map(a => a.manufacturerName);
                   type Combined = { name: string; approved?: ApprovedMfr; discoveredMfrId?: number };
                   const combined: Combined[] = [];
-                  // Approved first
                   for (const am of approvedMfrs) combined.push({ name: am.manufacturerName, approved: am });
-                  // Then line-item-only mfrs that don't match an approved one (3-char min substring).
-                  // Resolve to a manufacturer id via allManufacturers (case-insensitive exact match) so the
-                  // discovered-manufacturers query can fetch eligible vendor contacts.
                   for (const li of lineItemMfrs) {
                     if (approvedNames.some(an => namesMatch(an, li))) continue;
-                    // Prefer an explicit FK on the line item if any item with this mfr name has manufacturerId set
                     const itemWithId = catLineItems.find(i => i.mfr === li && (i as any).manufacturerId);
                     const fkId: number | undefined = (itemWithId as any)?.manufacturerId;
                     const byName = allManufacturers.find(m => m.name.trim().toLowerCase() === li.trim().toLowerCase());
                     const discoveredMfrId = fkId ?? byName?.id;
                     combined.push({ name: li, discoveredMfrId });
                   }
+
+                  // Resolve eligible vendor source for an entry
+                  const sourceFor = (entry: Combined): { mfrId: number; vendors: ApprovedMfr["vendors"] } | null => {
+                    if (entry.approved) return { mfrId: entry.approved.manufacturerId, vendors: entry.approved.vendors };
+                    if (entry.discoveredMfrId) {
+                      const d = discoveredMfrs.find(x => x.manufacturerId === entry.discoveredMfrId);
+                      return d ? { mfrId: d.manufacturerId, vendors: d.vendors } : null;
+                    }
+                    return null;
+                  };
+                  const itemsForMfr = (mfrName: string) => catLineItems.filter(i => i.mfr && namesMatch(i.mfr, mfrName));
+
+                  // Build per-vendor groupings (vendor → set of manufacturers it can quote for this scope)
+                  type VendorGroup = {
+                    vendorId: number;
+                    vendorName: string;
+                    contacts: Array<{ id: number; name: string; role?: string | null; email: string | null; isPrimary: boolean }>;
+                    manufacturers: Array<{ name: string; mfrId: number; items: typeof catLineItems }>;
+                  };
+                  const byVendor = new Map<number, VendorGroup>();
+                  for (const entry of combined) {
+                    const src = sourceFor(entry);
+                    if (!src) continue;
+                    for (const v of src.vendors) {
+                      const scopesOk = !v.scopes || v.scopes.length === 0 || v.scopes.includes(activeCat);
+                      const mfrOk = !v.manufacturerIds || v.manufacturerIds.length === 0 || v.manufacturerIds.includes(src.mfrId);
+                      if (!scopesOk || !mfrOk) continue;
+                      let g = byVendor.get(v.vendorId);
+                      if (!g) {
+                        g = { vendorId: v.vendorId, vendorName: v.vendorName, contacts: [], manufacturers: [] };
+                        byVendor.set(v.vendorId, g);
+                      }
+                      for (const c of v.contacts) {
+                        if (!g.contacts.find(x => x.id === c.id)) g.contacts.push(c);
+                      }
+                      if (!g.manufacturers.find(m => m.mfrId === src.mfrId)) {
+                        g.manufacturers.push({ name: entry.name, mfrId: src.mfrId, items: itemsForMfr(entry.name) });
+                      }
+                    }
+                  }
+                  const vendorGroups = Array.from(byVendor.values()).sort((a, b) => a.vendorName.localeCompare(b.vendorName));
+
                   return (
                     <div className="mt-2 p-4 rounded-lg" style={{ background: "var(--bg-card)", border: "1px solid var(--border-ds)" }}>
-                      <p className="text-xs mb-3" style={{ color: "var(--text-muted)" }}>Generate RFQ emails for approved manufacturers and any others found on line items. Vendor contact emails are auto-filled when available.</p>
+                      {/* Toolbar: view toggle + Open RFQ */}
+                      <div className="flex items-center justify-between mb-3 gap-2 flex-wrap">
+                        <div className="flex items-center gap-3">
+                          <label className="flex items-center gap-1.5 text-xs cursor-pointer" style={{ color: "var(--text-secondary)" }}>
+                            <input type="checkbox" checked={rfqGroupByVendor} onChange={() => setRfqGroupByVendor(v => !v)} style={{ accentColor: "var(--gold)" }} data-testid="toggle-rfq-group-by-vendor" />
+                            Group by Vendor
+                          </label>
+                          <span className="text-[10px]" style={{ color: "var(--text-muted)" }}>
+                            {rfqGroupByVendor ? `${vendorGroups.length} vendor${vendorGroups.length === 1 ? "" : "s"}` : `${combined.length} mfr${combined.length === 1 ? "" : "s"}`}
+                          </span>
+                        </div>
+                        <button
+                          onClick={() => {
+                            setOpenRfqSelectedItemIds(new Set(catLineItems.map(i => String(i.id))));
+                            setOpenRfqExistingVendorId(null);
+                            setOpenRfqVendorMode("existing");
+                            setOpenRfqVendorSearch("");
+                            setOpenRfqNewVendorName("");
+                            setOpenRfqNewVendorEmail("");
+                            setOpenRfqExtraNotes("");
+                            setShowOpenRfq(true);
+                          }}
+                          className="text-xs px-2 py-1 rounded flex items-center gap-1"
+                          style={{ background: "var(--gold)15", border: "1px solid var(--gold)40", color: "var(--gold)" }}
+                          data-testid="button-open-rfq">
+                          <Send className="w-3 h-3" /> Open RFQ
+                        </button>
+                      </div>
+
+                      <p className="text-xs mb-3" style={{ color: "var(--text-muted)" }}>
+                        {rfqGroupByVendor
+                          ? "One card per eligible vendor — manufacturers and line items they can quote are grouped into a single email."
+                          : "Generate RFQ emails for approved manufacturers and any others found on line items. Vendor contact emails are auto-filled when available."}
+                      </p>
                       {combined.length === 0 && (
-                        <p className="text-xs" style={{ color: "var(--text-muted)" }}>No manufacturers yet. Add an approved manufacturer above or assign manufacturers to line items.</p>
+                        <p className="text-xs" style={{ color: "var(--text-muted)" }}>No manufacturers yet. Add an approved manufacturer above or assign manufacturers to line items, or use Open RFQ for ad-hoc requests.</p>
                       )}
-                      {combined.map(({ name, approved, discoveredMfrId }) => {
+
+                      {/* ── Vendor-grouped view ── */}
+                      {rfqGroupByVendor && combined.length > 0 && vendorGroups.length === 0 && (
+                        <p className="text-xs" style={{ color: "var(--text-muted)" }}>No eligible vendors found for this scope. Tag vendors in the Vendor Database with the active scope and/or these manufacturers.</p>
+                      )}
+                      {rfqGroupByVendor && vendorGroups.map(g => {
+                        const eligibleCount = g.contacts.length;
+                        return (
+                          <div key={g.vendorId} className="mb-3 p-3 rounded-lg" style={{ background: "var(--bg3)", border: "1px solid var(--border-ds)" }} data-testid={`rfq-vendor-card-${g.vendorId}`}>
+                            <div className="flex items-center justify-between mb-2">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <Users className="w-3 h-3" style={{ color: "var(--gold)" }} />
+                                <span className="text-xs font-semibold" style={{ color: "var(--gold)" }}>{g.vendorName}</span>
+                                <span className="text-[10px]" style={{ color: "var(--text-muted)" }}>
+                                  {g.manufacturers.length} mfr{g.manufacturers.length === 1 ? "" : "s"} · {eligibleCount} contact{eligibleCount === 1 ? "" : "s"}
+                                </span>
+                              </div>
+                              <button
+                                onClick={() => {
+                                  setRfqVendorPicker(g.vendorId);
+                                  setRfqVendorPickerContactIds(new Set(g.contacts.map(c => c.id)));
+                                }}
+                                disabled={eligibleCount === 0}
+                                className="text-xs px-2 py-1 rounded flex items-center gap-1"
+                                style={{ background: "var(--gold)15", border: "1px solid var(--gold)40", color: "var(--gold)", opacity: eligibleCount === 0 ? 0.5 : 1, cursor: eligibleCount === 0 ? "not-allowed" : "pointer" }}
+                                title={eligibleCount === 0 ? "No contacts on this vendor" : "Pick recipients & send consolidated RFQ"}
+                                data-testid={`button-vendor-pick-${g.vendorId}`}>
+                                <Send className="w-3 h-3" /> Pick Recipients & Send
+                              </button>
+                            </div>
+                            <div className="text-[11px] space-y-0.5" style={{ color: "var(--text-muted)" }}>
+                              {g.manufacturers.map(m => (
+                                <div key={m.mfrId}>
+                                  <span style={{ color: "var(--text-secondary)", fontWeight: 600 }}>★ {m.name}</span>
+                                  {m.items.length > 0 ? <> — {m.items.length} item{m.items.length === 1 ? "" : "s"}</> : <> — TBD</>}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        );
+                      })}
+
+                      {/* ── Per-manufacturer view (default) ── */}
+                      {!rfqGroupByVendor && combined.map(({ name, approved, discoveredMfrId }) => {
                         const rfq = generateRfqEmail(name);
                         // Build full contact list eligible for this scope's RFQ.
                         // Eligible if: vendor passes both scope and manufacturer-tag tests
@@ -5019,6 +5156,318 @@ ${html}
                     className="text-xs px-4 py-2 rounded flex items-center gap-1 font-semibold"
                     style={{ background: "var(--gold)", color: "#000", opacity: selectedEmails.length === 0 ? 0.5 : 1 }}
                     data-testid="button-send-rfq">
+                    <Send className="w-3 h-3" /> Open in Email
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* ── RFQ Vendor-Group Recipient Picker Modal ── */}
+      {rfqVendorPicker !== null && rfqLookupEnabled && (() => {
+        // Rebuild the same vendor groupings the RFQ panel uses, then locate the active vendor.
+        const lineItemMfrs = Array.from(new Set(catLineItems.map(i => i.mfr).filter(Boolean))) as string[];
+        const approvedNamesLocal = approvedMfrs.map(a => a.manufacturerName);
+        type CombinedLocal = { name: string; approved?: ApprovedMfr; discoveredMfrId?: number };
+        const combinedLocal: CombinedLocal[] = [];
+        for (const am of approvedMfrs) combinedLocal.push({ name: am.manufacturerName, approved: am });
+        for (const li of lineItemMfrs) {
+          if (approvedNamesLocal.some(an => namesMatch(an, li))) continue;
+          const itemWithId = catLineItems.find(i => i.mfr === li && (i as any).manufacturerId);
+          const fkId: number | undefined = (itemWithId as any)?.manufacturerId;
+          const byName = allManufacturers.find(m => m.name.trim().toLowerCase() === li.trim().toLowerCase());
+          combinedLocal.push({ name: li, discoveredMfrId: fkId ?? byName?.id });
+        }
+        type VG = {
+          vendorId: number;
+          vendorName: string;
+          contacts: Array<{ id: number; name: string; role?: string | null; email: string | null; isPrimary: boolean }>;
+          manufacturers: Array<{ name: string; mfrId: number; items: typeof catLineItems }>;
+        };
+        const map = new Map<number, VG>();
+        for (const entry of combinedLocal) {
+          const src: { mfrId: number; vendors: ApprovedMfr["vendors"] } | null = entry.approved
+            ? { mfrId: entry.approved.manufacturerId, vendors: entry.approved.vendors }
+            : (entry.discoveredMfrId ? (() => { const d = discoveredMfrs.find(x => x.manufacturerId === entry.discoveredMfrId); return d ? { mfrId: d.manufacturerId, vendors: d.vendors } : null; })() : null);
+          if (!src) continue;
+          for (const v of src.vendors) {
+            const scopesOk = !v.scopes || v.scopes.length === 0 || v.scopes.includes(activeCat);
+            const mfrOk = !v.manufacturerIds || v.manufacturerIds.length === 0 || v.manufacturerIds.includes(src.mfrId);
+            if (!scopesOk || !mfrOk) continue;
+            let g = map.get(v.vendorId);
+            if (!g) { g = { vendorId: v.vendorId, vendorName: v.vendorName, contacts: [], manufacturers: [] }; map.set(v.vendorId, g); }
+            for (const c of v.contacts) { if (!g.contacts.find(x => x.id === c.id)) g.contacts.push(c); }
+            if (!g.manufacturers.find(m => m.mfrId === src.mfrId)) g.manufacturers.push({ name: entry.name, mfrId: src.mfrId, items: catLineItems.filter(i => i.mfr && namesMatch(i.mfr, entry.name)) });
+          }
+        }
+        const group = map.get(rfqVendorPicker);
+        if (!group) return null;
+
+        const allIds = group.contacts.map(c => c.id);
+        const allChecked = allIds.length > 0 && allIds.every(id => rfqVendorPickerContactIds.has(id));
+        const someChecked = allIds.some(id => rfqVendorPickerContactIds.has(id));
+        const toggleAll = () => setRfqVendorPickerContactIds(allChecked ? new Set() : new Set(allIds));
+        const toggleOne = (id: number) => setRfqVendorPickerContactIds(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
+
+        const selectedEmails = group.contacts.filter(c => rfqVendorPickerContactIds.has(c.id) && c.email).map(c => c.email!) as string[];
+        const catLabel = ALL_SCOPES.find(s => s.id === activeCat)?.label || activeCat;
+        const estimatorName = user?.displayName || user?.username || user?.email || "NBS Estimating";
+
+        // Build consolidated email body grouped by manufacturer
+        const subject = `RFQ — ${proposalEntry?.projectName || ""} — ${catLabel} — ${group.manufacturers.map(m => m.name).join(", ")}`;
+        const mfrBlocks = group.manufacturers.map(m => {
+          const lines = m.items.length > 0
+            ? m.items.map(i => `  - ${i.name}${i.model ? ` (${i.model})` : ""} — Qty: ${i.qty}`).join("\n")
+            : "  - TBD — see attached plans and specs";
+          return `${m.name.toUpperCase()}:\n${lines}`;
+        }).join("\n\n");
+        const specRef = specSectionForScope(activeCat);
+        let specBlock = "";
+        if (specRef) {
+          const sl: string[] = [];
+          if (specRef.csiCode || specRef.specSectionTitle) sl.push(`SPECIFICATION REFERENCE: ${[specRef.csiCode, specRef.specSectionTitle].filter(Boolean).join(" — ")}`);
+          if (specRef.substitutionPolicy) sl.push(`SUBSTITUTION POLICY: "${specRef.substitutionPolicy}"`);
+          if (sl.length > 0) specBlock = `\n\nSPECIFICATION REQUIREMENTS:\n${sl.join("\n")}`;
+        }
+        const body = `Dear ${group.vendorName} Team,\n\nNational Building Specialties is requesting pricing for the following Division 10 items on the project below. We understand you can quote multiple manufacturer lines we need on this job, so we've consolidated them into a single request.\n\nPROJECT: ${proposalEntry?.projectName || ""}\nGC: ${proposalEntry?.gcEstimateLead || ""}\nBID DUE: ${proposalEntry?.dueDate || ""}\nNBS ESTIMATE #: ${estimateData?.estimateNumber || ""}${specBlock}\n\nITEMS REQUESTED (grouped by manufacturer):\n\n${mfrBlocks}\n\nPlease provide:\n  1. MATERIAL ONLY unit pricing (NO labor or installation)\n  2. Freight cost to jobsite\n  3. Lead time / availability\n  4. Indicate if pricing includes or excludes sales tax\n\nIMPORTANT: NBS is a FURNISH ONLY subcontractor.\n\nPlease respond by: ${proposalEntry?.dueDate || "bid due date"}\n\nThank you,\n${estimatorName}\nNational Building Specialties`;
+
+        const sendNow = () => {
+          if (selectedEmails.length === 0) { toast({ title: "No recipients selected", description: "Tick at least one contact.", variant: "destructive" }); return; }
+          const mailto = `mailto:${encodeURIComponent(selectedEmails.join(","))}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+          window.location.href = mailto;
+          setRfqVendorPicker(null);
+        };
+
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: "rgba(0,0,0,0.6)" }} onClick={e => { if (e.target === e.currentTarget) setRfqVendorPicker(null); }}>
+            <div className="rounded-xl p-6 w-full max-w-2xl shadow-2xl" style={{ background: "var(--bg-card)", border: "1px solid var(--border-ds)", maxHeight: "85vh", display: "flex", flexDirection: "column" }} data-testid="modal-rfq-vendor-recipients">
+              <div className="flex items-center justify-between mb-1">
+                <div>
+                  <h3 className="text-base font-semibold" style={{ color: "var(--text)" }}>Send Consolidated RFQ — {group.vendorName}</h3>
+                  <p className="text-xs" style={{ color: "var(--text-muted)" }}>{catLabel} · {group.manufacturers.map(m => m.name).join(", ")}</p>
+                </div>
+                <button onClick={() => setRfqVendorPicker(null)} className="p-1 rounded hover:bg-[var(--bg3)]" data-testid="button-close-rfq-vendor-picker">
+                  <X className="w-4 h-4" style={{ color: "var(--text-muted)" }} />
+                </button>
+              </div>
+              <div className="flex items-center justify-between mt-3 mb-2">
+                <label className="flex items-center gap-2 text-xs cursor-pointer" style={{ color: "var(--text-secondary)" }}>
+                  <input type="checkbox" checked={allChecked} ref={el => { if (el) el.indeterminate = someChecked && !allChecked; }} onChange={toggleAll} style={{ accentColor: "var(--gold)" }} />
+                  Select all ({allIds.length})
+                </label>
+                <span className="text-xs" style={{ color: "var(--text-muted)" }}>{rfqVendorPickerContactIds.size} selected</span>
+              </div>
+              <div className="overflow-y-auto rounded mb-3" style={{ background: "var(--bg3)", border: "1px solid var(--border-ds)" }}>
+                {group.contacts.map(c => (
+                  <label key={c.id} className="flex items-center gap-3 px-3 py-2 cursor-pointer hover:bg-[var(--bg-card)]" style={{ borderBottom: "1px solid var(--border-ds)40" }} data-testid={`row-vendor-rfq-contact-${c.id}`}>
+                    <input type="checkbox" checked={rfqVendorPickerContactIds.has(c.id)} onChange={() => toggleOne(c.id)} style={{ accentColor: "var(--gold)" }} />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-xs font-semibold" style={{ color: "var(--text)" }}>{c.name || "(no name)"}</span>
+                        {c.isPrimary && <span style={{ fontSize: 9, fontWeight: 700, padding: "1px 6px", borderRadius: 3, background: "rgba(201,168,76,0.2)", color: "var(--gold)" }}>PRIMARY</span>}
+                        {c.role && <span className="text-[10px]" style={{ color: "var(--text-muted)" }}>{c.role}</span>}
+                      </div>
+                      <div className="text-[11px]" style={{ color: c.email ? "#5B8DEF" : "var(--text-muted)" }}>{c.email || "(no email — won't be included)"}</div>
+                    </div>
+                  </label>
+                ))}
+              </div>
+              <details className="mb-2 text-xs" style={{ color: "var(--text-muted)" }}>
+                <summary className="cursor-pointer">Preview email body</summary>
+                <pre className="text-xs whitespace-pre-wrap mt-2 p-2 rounded" style={{ background: "var(--bg3)", maxHeight: 240, overflow: "auto" }}>{body}</pre>
+              </details>
+              <div className="flex justify-between items-center gap-2 mt-1">
+                <span className="text-xs" style={{ color: "var(--text-muted)" }}>{selectedEmails.length} email{selectedEmails.length === 1 ? "" : "s"} will be added to To:</span>
+                <div className="flex gap-2">
+                  <button onClick={() => setRfqVendorPicker(null)} className="text-xs px-4 py-2 rounded" style={{ background: "var(--bg3)", color: "var(--text-secondary)" }} data-testid="button-cancel-rfq-vendor-picker">Cancel</button>
+                  <button onClick={sendNow} disabled={selectedEmails.length === 0} className="text-xs px-4 py-2 rounded flex items-center gap-1 font-semibold" style={{ background: "var(--gold)", color: "#000", opacity: selectedEmails.length === 0 ? 0.5 : 1 }} data-testid="button-send-rfq-vendor">
+                    <Send className="w-3 h-3" /> Open in Email
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* ── Open RFQ Modal (ad-hoc line items + any vendor) ── */}
+      {showOpenRfq && (() => {
+        const catLabel = ALL_SCOPES.find(s => s.id === activeCat)?.label || activeCat;
+        const estimatorName = user?.displayName || user?.username || user?.email || "NBS Estimating";
+
+        const allItemIds = catLineItems.map(i => String(i.id));
+        const allItemsChecked = allItemIds.length > 0 && allItemIds.every(id => openRfqSelectedItemIds.has(id));
+        const someItemsChecked = allItemIds.some(id => openRfqSelectedItemIds.has(id));
+        const toggleAllItems = () => setOpenRfqSelectedItemIds(allItemsChecked ? new Set() : new Set(allItemIds));
+        const toggleItem = (id: string) => setOpenRfqSelectedItemIds(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
+        const selectedItems = catLineItems.filter(i => openRfqSelectedItemIds.has(String(i.id)));
+
+        // Resolve vendor name + emails
+        let vendorName = "";
+        let recipientEmails: string[] = [];
+        if (openRfqVendorMode === "existing" && openRfqSelectedVendor) {
+          vendorName = openRfqSelectedVendor.name || "";
+          const contacts = (openRfqSelectedVendor.contacts || []) as Array<{ name?: string; email?: string | null; isPrimary?: boolean }>;
+          // Default: include primary contact email if present, else all contact emails
+          const primary = contacts.find(c => c.isPrimary && c.email);
+          recipientEmails = primary ? [primary.email!] : contacts.filter(c => c.email).map(c => c.email!);
+        } else if (openRfqVendorMode === "new") {
+          vendorName = openRfqNewVendorName.trim();
+          if (openRfqNewVendorEmail.trim()) recipientEmails = [openRfqNewVendorEmail.trim()];
+        }
+
+        // Filter the searchable existing-vendor list
+        const vendorSearchLower = openRfqVendorSearch.trim().toLowerCase();
+        const filteredVendors = vendorSearchLower
+          ? allVendorsForRfq.filter(v => v.name.toLowerCase().includes(vendorSearchLower)).slice(0, 50)
+          : allVendorsForRfq.slice(0, 50);
+
+        const subject = `RFQ — ${proposalEntry?.projectName || ""} — ${catLabel}${vendorName ? ` — ${vendorName}` : ""}`;
+        const itemLines = selectedItems.length > 0
+          ? selectedItems.map(i => `  - ${i.name}${i.model ? ` (${i.model})` : ""}${i.mfr ? ` [${i.mfr}]` : ""} — Qty: ${i.qty}`).join("\n")
+          : "  - TBD — see attached plans and specs";
+        const notesBlock = openRfqExtraNotes.trim() ? `\n\nADDITIONAL NOTES:\n${openRfqExtraNotes.trim()}` : "";
+        const greeting = vendorName ? `Dear ${vendorName} Team` : "Hello";
+        const body = `${greeting},\n\nNational Building Specialties is requesting pricing for the following Division 10 items on the project below.\n\nPROJECT: ${proposalEntry?.projectName || ""}\nGC: ${proposalEntry?.gcEstimateLead || ""}\nBID DUE: ${proposalEntry?.dueDate || ""}\nNBS ESTIMATE #: ${estimateData?.estimateNumber || ""}\nSCOPE: ${catLabel}\n\nITEMS REQUESTED:\n${itemLines}${notesBlock}\n\nPlease provide:\n  1. MATERIAL ONLY unit pricing (NO labor or installation)\n  2. Freight cost to jobsite\n  3. Lead time / availability\n  4. Indicate if pricing includes or excludes sales tax\n\nIMPORTANT: NBS is a FURNISH ONLY subcontractor.\n\nPlease respond by: ${proposalEntry?.dueDate || "bid due date"}\n\nThank you,\n${estimatorName}\nNational Building Specialties`;
+
+        const canSend = (openRfqVendorMode === "existing" ? !!openRfqSelectedVendor : !!vendorName) && recipientEmails.length > 0;
+        const sendNow = () => {
+          if (!canSend) {
+            toast({ title: "Missing recipient", description: "Pick a vendor with an email, or enter a new vendor + email.", variant: "destructive" });
+            return;
+          }
+          const mailto = `mailto:${encodeURIComponent(recipientEmails.join(","))}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+          window.location.href = mailto;
+          setShowOpenRfq(false);
+        };
+
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: "rgba(0,0,0,0.6)" }} onClick={e => { if (e.target === e.currentTarget) setShowOpenRfq(false); }}>
+            <div className="rounded-xl p-6 w-full max-w-3xl shadow-2xl" style={{ background: "var(--bg-card)", border: "1px solid var(--border-ds)", maxHeight: "90vh", display: "flex", flexDirection: "column" }} data-testid="modal-open-rfq">
+              <div className="flex items-center justify-between mb-3">
+                <div>
+                  <h3 className="text-base font-semibold" style={{ color: "var(--text)" }}>Open RFQ</h3>
+                  <p className="text-xs" style={{ color: "var(--text-muted)" }}>Pick line items and send to any vendor — useful for accessories or one-off requests.</p>
+                </div>
+                <button onClick={() => setShowOpenRfq(false)} className="p-1 rounded hover:bg-[var(--bg3)]" data-testid="button-close-open-rfq">
+                  <X className="w-4 h-4" style={{ color: "var(--text-muted)" }} />
+                </button>
+              </div>
+
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, flex: 1, minHeight: 0 }}>
+                {/* Left: line items */}
+                <div style={{ display: "flex", flexDirection: "column", minHeight: 0 }}>
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-xs font-semibold" style={{ color: "var(--text-secondary)" }}>Line items ({catLabel})</span>
+                    <label className="flex items-center gap-1.5 text-xs cursor-pointer" style={{ color: "var(--text-muted)" }}>
+                      <input type="checkbox" checked={allItemsChecked} ref={el => { if (el) el.indeterminate = someItemsChecked && !allItemsChecked; }} onChange={toggleAllItems} style={{ accentColor: "var(--gold)" }} data-testid="checkbox-open-rfq-all-items" />
+                      All ({allItemIds.length})
+                    </label>
+                  </div>
+                  <div className="overflow-y-auto rounded" style={{ background: "var(--bg3)", border: "1px solid var(--border-ds)", flex: 1 }}>
+                    {catLineItems.length === 0 && <div className="p-3 text-xs" style={{ color: "var(--text-muted)" }}>No line items in this scope yet.</div>}
+                    {catLineItems.map(i => (
+                      <label key={i.id} className="flex items-start gap-2 px-3 py-2 cursor-pointer hover:bg-[var(--bg-card)]" style={{ borderBottom: "1px solid var(--border-ds)40" }} data-testid={`row-open-rfq-item-${i.id}`}>
+                        <input type="checkbox" checked={openRfqSelectedItemIds.has(String(i.id))} onChange={() => toggleItem(String(i.id))} style={{ accentColor: "var(--gold)", marginTop: 2 }} />
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div className="text-xs" style={{ color: "var(--text)" }}>{i.name}{i.model ? <span style={{ color: "var(--text-muted)" }}> ({i.model})</span> : null}</div>
+                          <div className="text-[10px]" style={{ color: "var(--text-muted)" }}>Qty {i.qty}{i.mfr ? ` · ${i.mfr}` : ""}</div>
+                        </div>
+                      </label>
+                    ))}
+                  </div>
+                  <div className="mt-2">
+                    <textarea
+                      value={openRfqExtraNotes}
+                      onChange={e => setOpenRfqExtraNotes(e.target.value)}
+                      placeholder="Optional notes (accessory list, finish, special instructions…)"
+                      className="w-full text-xs p-2 rounded"
+                      style={{ background: "var(--bg3)", border: "1px solid var(--border-ds)", color: "var(--text)", minHeight: 60, resize: "vertical" }}
+                      data-testid="textarea-open-rfq-notes"
+                    />
+                  </div>
+                </div>
+
+                {/* Right: vendor picker */}
+                <div style={{ display: "flex", flexDirection: "column", minHeight: 0 }}>
+                  <span className="text-xs font-semibold mb-1" style={{ color: "var(--text-secondary)" }}>Send to</span>
+                  <div className="flex gap-2 mb-2">
+                    <button onClick={() => setOpenRfqVendorMode("existing")} className="text-xs px-3 py-1 rounded flex-1" style={{ background: openRfqVendorMode === "existing" ? "var(--gold)15" : "var(--bg3)", border: `1px solid ${openRfqVendorMode === "existing" ? "var(--gold)40" : "var(--border-ds)"}`, color: openRfqVendorMode === "existing" ? "var(--gold)" : "var(--text-secondary)" }} data-testid="button-open-rfq-mode-existing">Existing vendor</button>
+                    <button onClick={() => setOpenRfqVendorMode("new")} className="text-xs px-3 py-1 rounded flex-1" style={{ background: openRfqVendorMode === "new" ? "var(--gold)15" : "var(--bg3)", border: `1px solid ${openRfqVendorMode === "new" ? "var(--gold)40" : "var(--border-ds)"}`, color: openRfqVendorMode === "new" ? "var(--gold)" : "var(--text-secondary)" }} data-testid="button-open-rfq-mode-new">One-time vendor</button>
+                  </div>
+
+                  {openRfqVendorMode === "existing" ? (
+                    <>
+                      <input
+                        value={openRfqVendorSearch}
+                        onChange={e => setOpenRfqVendorSearch(e.target.value)}
+                        placeholder="Search vendor by name…"
+                        className="w-full text-xs p-2 rounded mb-2"
+                        style={{ background: "var(--bg3)", border: "1px solid var(--border-ds)", color: "var(--text)" }}
+                        data-testid="input-open-rfq-vendor-search"
+                      />
+                      <div className="overflow-y-auto rounded" style={{ background: "var(--bg3)", border: "1px solid var(--border-ds)", flex: 1, minHeight: 100 }}>
+                        {filteredVendors.length === 0 && <div className="p-3 text-xs" style={{ color: "var(--text-muted)" }}>No vendors match.</div>}
+                        {filteredVendors.map(v => (
+                          <button
+                            key={v.id}
+                            onClick={() => setOpenRfqExistingVendorId(v.id)}
+                            className="w-full text-left px-3 py-2 text-xs"
+                            style={{ background: openRfqExistingVendorId === v.id ? "var(--gold)15" : "transparent", borderBottom: "1px solid var(--border-ds)40", color: openRfqExistingVendorId === v.id ? "var(--gold)" : "var(--text)" }}
+                            data-testid={`button-open-rfq-vendor-${v.id}`}
+                          >
+                            {v.name}{v.category ? <span style={{ color: "var(--text-muted)", marginLeft: 6 }}>· {v.category}</span> : null}
+                          </button>
+                        ))}
+                      </div>
+                      {openRfqSelectedVendor && (
+                        <div className="mt-2 p-2 rounded text-[11px]" style={{ background: "var(--bg3)", border: "1px solid var(--border-ds)", color: "var(--text-muted)" }}>
+                          {recipientEmails.length > 0
+                            ? <>Will email: <span style={{ color: "#5B8DEF" }}>{recipientEmails.join(", ")}</span></>
+                            : <span style={{ color: "#E05252" }}>This vendor has no contact emails — pick another or use One-time vendor.</span>}
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <div className="space-y-2">
+                      <input
+                        value={openRfqNewVendorName}
+                        onChange={e => setOpenRfqNewVendorName(e.target.value)}
+                        placeholder="Vendor name (e.g. Rep Firm XYZ)"
+                        className="w-full text-xs p-2 rounded"
+                        style={{ background: "var(--bg3)", border: "1px solid var(--border-ds)", color: "var(--text)" }}
+                        data-testid="input-open-rfq-new-vendor-name"
+                      />
+                      <input
+                        type="email"
+                        value={openRfqNewVendorEmail}
+                        onChange={e => setOpenRfqNewVendorEmail(e.target.value)}
+                        placeholder="Email address"
+                        className="w-full text-xs p-2 rounded"
+                        style={{ background: "var(--bg3)", border: "1px solid var(--border-ds)", color: "var(--text)" }}
+                        data-testid="input-open-rfq-new-vendor-email"
+                      />
+                      <p className="text-[10px]" style={{ color: "var(--text-muted)" }}>One-time send — this vendor is not saved to your database.</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <details className="mt-3 text-xs" style={{ color: "var(--text-muted)" }}>
+                <summary className="cursor-pointer">Preview email</summary>
+                <div className="mt-2 p-2 rounded text-[11px]" style={{ background: "var(--bg3)" }}>
+                  <div className="mb-1"><span style={{ color: "var(--text-muted)" }}>Subject:</span> <span style={{ color: "var(--text)" }}>{subject}</span></div>
+                  <pre className="whitespace-pre-wrap" style={{ maxHeight: 200, overflow: "auto" }}>{body}</pre>
+                </div>
+              </details>
+
+              <div className="flex justify-between items-center gap-2 mt-3">
+                <span className="text-xs" style={{ color: "var(--text-muted)" }}>{selectedItems.length} item{selectedItems.length === 1 ? "" : "s"} · {recipientEmails.length} recipient{recipientEmails.length === 1 ? "" : "s"}</span>
+                <div className="flex gap-2">
+                  <button onClick={() => setShowOpenRfq(false)} className="text-xs px-4 py-2 rounded" style={{ background: "var(--bg3)", color: "var(--text-secondary)" }} data-testid="button-cancel-open-rfq">Cancel</button>
+                  <button onClick={sendNow} disabled={!canSend} className="text-xs px-4 py-2 rounded flex items-center gap-1 font-semibold" style={{ background: "var(--gold)", color: "#000", opacity: canSend ? 1 : 0.5 }} data-testid="button-send-open-rfq">
                     <Send className="w-3 h-3" /> Open in Email
                   </button>
                 </div>
