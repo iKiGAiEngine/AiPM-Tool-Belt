@@ -1002,9 +1002,14 @@ function EstimatingModuleInner() {
       grandTotal: calcData.grandTotal,
     });
     const prevSnap = (versions[0]?.snapshotData as any) as EstimateSnapshotV2 | undefined;
-    const diff = diffSnapshots(prevSnap?.v === 2 ? prevSnap : null, snapshot);
+    const hasV2Prev = prevSnap?.v === 2;
+    const diff = diffSnapshots(hasV2Prev ? prevSnap : null, snapshot);
     const scopeLabel = (id: string) => ALL_SCOPES.find(s => s.id === id)?.label || id;
-    const autoSummary = summarizeDiff(diff, scopeLabel);
+    // For the very first save, or the first save after upgrading from a legacy
+    // (pre-snapshot) version, we have nothing meaningful to diff against — so
+    // record a friendly baseline note instead of declaring everything "added".
+    const baselineNote = `Snapshot baseline — ${snapshot.itemCount} item${snapshot.itemCount === 1 ? "" : "s"}, ${fmt(snapshot.grandTotal)}`;
+    const autoSummary = hasV2Prev ? summarizeDiff(diff, scopeLabel) : baselineNote;
     const versionNote = noteOverride || (versions.length === 0 ? "Initial save" : autoSummary);
     try {
       await apiRequest("POST", `/api/estimates/${estimateId}/save-version`, {
@@ -2638,7 +2643,9 @@ ${html}
                 const currSnap = (v.snapshotData as any) as EstimateSnapshotV2 | null;
                 const prevSnap = (versions[i + 1]?.snapshotData as any) as EstimateSnapshotV2 | null;
                 const canDiff = currSnap?.v === 2;
-                const diff = canDiff ? diffSnapshots(prevSnap?.v === 2 ? prevSnap : null, currSnap) : null;
+                const hasPrevV2 = prevSnap?.v === 2;
+                const diff = canDiff ? diffSnapshots(hasPrevV2 ? prevSnap : null, currSnap) : null;
+                const isBaseline = canDiff && !hasPrevV2;
                 return (
                   <div key={v.id}
                     style={{ borderBottom: i < versions.length - 1 ? "1px solid var(--border-ds)" : "none" }}>
@@ -2662,16 +2669,22 @@ ${html}
                       <div className="ml-5 mb-2 p-3 rounded text-xs space-y-2"
                         style={{ background: "var(--bg-page)", border: "1px solid var(--border-ds)" }}
                         data-testid={`detail-version-${v.version}`}>
-                        {diff.status && (
+                        {isBaseline && (
+                          <div style={{ color: "var(--text-muted)", fontStyle: "italic" }}>
+                            Baseline snapshot — {currSnap!.itemCount} item{currSnap!.itemCount === 1 ? "" : "s"} across {currSnap!.scopes.length} scope{currSnap!.scopes.length === 1 ? "" : "s"}, {fmt(currSnap!.grandTotal)}.
+                            Detailed change tracking starts from the next save.
+                          </div>
+                        )}
+                        {!isBaseline && diff.status && (
                           <div><span style={{ color: "var(--text-muted)" }}>Status:</span> {STATUS_LABELS[diff.status.before] || diff.status.before} → <span style={{ color: "var(--text)" }}>{STATUS_LABELS[diff.status.after] || diff.status.after}</span></div>
                         )}
-                        {diff.scopes.added.length > 0 && (
+                        {!isBaseline && diff.scopes.added.length > 0 && (
                           <div><span style={{ color: "#22c55e" }}>+ Scopes:</span> {diff.scopes.added.map(s => ALL_SCOPES.find(x => x.id === s)?.label || s).join(", ")}</div>
                         )}
-                        {diff.scopes.removed.length > 0 && (
+                        {!isBaseline && diff.scopes.removed.length > 0 && (
                           <div><span style={{ color: "#ef4444" }}>− Scopes:</span> {diff.scopes.removed.map(s => ALL_SCOPES.find(x => x.id === s)?.label || s).join(", ")}</div>
                         )}
-                        {diff.rates.length > 0 && (
+                        {!isBaseline && diff.rates.length > 0 && (
                           <div>
                             <span style={{ color: "var(--text-muted)" }}>Default rates:</span>
                             <ul className="ml-3">
@@ -2681,7 +2694,7 @@ ${html}
                             </ul>
                           </div>
                         )}
-                        {diff.markups.length > 0 && (
+                        {!isBaseline && diff.markups.length > 0 && (
                           <div>
                             <span style={{ color: "var(--text-muted)" }}>Per-scope markup overrides:</span>
                             <ul className="ml-3">
@@ -2693,10 +2706,10 @@ ${html}
                             </ul>
                           </div>
                         )}
-                        {diff.quotes.before !== diff.quotes.after && (
+                        {!isBaseline && diff.quotes.before !== diff.quotes.after && (
                           <div><span style={{ color: "var(--text-muted)" }}>Quotes:</span> {diff.quotes.before} → <span style={{ color: "var(--text)" }}>{diff.quotes.after}</span></div>
                         )}
-                        {(diff.items.added.length > 0 || diff.items.removed.length > 0 || diff.items.changed.length > 0) && (
+                        {!isBaseline && (diff.items.added.length > 0 || diff.items.removed.length > 0 || diff.items.changed.length > 0) && (
                           <div>
                             <span style={{ color: "var(--text-muted)" }}>Line items:</span>
                             <ul className="ml-3 space-y-0.5 mt-1">
