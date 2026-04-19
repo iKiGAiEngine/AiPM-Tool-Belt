@@ -591,6 +591,7 @@ function EstimatingModuleInner() {
   const [allocations, setAllocations] = useState<BreakoutAllocation[]>([]);
   const [versions, setVersions] = useState<EstimateVersion[]>([]);
   const [expandedVersionId, setExpandedVersionId] = useState<number | null>(null);
+  const [expandedSessionKey, setExpandedSessionKey] = useState<string | null>(null);
   const [reviewComments, setReviewComments] = useState<ReviewComment[]>([]);
   const [ohLog, setOhLog] = useState<OhApprovalEntry[]>([]);
 
@@ -966,7 +967,7 @@ function EstimatingModuleInner() {
   // bypassing the React state that may not have updated yet (e.g. Mark as Submitted).
   // noteOverride: when provided, used as the version-history note instead of the
   // auto-generated change summary (for stage/status checkpoints).
-  const saveEstimate = useCallback(async (statusOverride?: string, noteOverride?: string) => {
+  const saveEstimate = useCallback(async (statusOverride?: string, noteOverride?: string, silent?: boolean) => {
     if (!estimateId) {
       toast({ title: "Cannot save", description: "Estimate is not loaded yet.", variant: "destructive" });
       return;
@@ -1064,12 +1065,14 @@ function EstimatingModuleInner() {
     setVersions(v => [{ id: Date.now(), estimateId: estimateId!, version: (v[0]?.version || 0) + 1, savedBy: userName, notes: versionNote, grandTotal: String(calcData.grandTotal), snapshotData: snapshot as any, savedAt: new Date().toISOString() }, ...v]);
     setIsDirty(false);
     setLastSaved(new Date());
-    toast({
-      title: effectiveStatus === "submitted" ? "Marked as Submitted" : "Saved",
-      description: effectiveStatus === "submitted"
-        ? "Estimate submitted. Proposal Log Dashboard status updated to Submitted."
-        : "Estimate saved and synced to Proposal Log Dashboard.",
-    });
+    if (!silent) {
+      toast({
+        title: effectiveStatus === "submitted" ? "Marked as Submitted" : "Saved",
+        description: effectiveStatus === "submitted"
+          ? "Estimate submitted. Proposal Log Dashboard status updated to Submitted."
+          : "Estimate saved and synced to Proposal Log Dashboard.",
+      });
+    }
     setIsSaving(false);
   }, [estimateId, activeScopes, defaultOh, defaultFee, defaultEsc, taxRate, bondRate, catOverrides, catComplete, catQuals, assumptions, risks, effectiveChecklist, reviewStatus, calcData, lineItems, quotes, versions, user, proposalLogId, projInfo]);
 
@@ -1084,7 +1087,7 @@ function EstimatingModuleInner() {
   const goToStage = useCallback(async (next: string) => {
     if (!estimateId || stage === next) { setStage(next as any); return; }
     if (isDirty && !isSaving) {
-      await saveEstimate(undefined, `Moved to ${STAGE_LABELS[next] || next}`);
+      await saveEstimate(undefined, `Moved to ${STAGE_LABELS[next] || next}`, true);
     }
     setStage(next as any);
   }, [estimateId, stage, isDirty, isSaving, saveEstimate]);
@@ -2634,21 +2637,92 @@ ${html}
             ))}
           </div>
 
-          {/* Version history */}
-          {versions.length > 0 && (
+          {/* Version history — grouped into work sessions (same user + ≤30 min gaps) */}
+          {versions.length > 0 && (() => {
+            // versions are ordered newest-first; build sessions newest-first
+            const SESSION_GAP_MS = 30 * 60 * 1000;
+            const sessions: { key: string; items: typeof versions; startIdx: number; endIdx: number }[] = [];
+            for (let i = 0; i < versions.length; i++) {
+              const v = versions[i];
+              const last = sessions[sessions.length - 1];
+              const lastV = last ? last.items[last.items.length - 1] : null;
+              const sameUser = lastV && lastV.savedBy === v.savedBy;
+              const closeInTime = lastV && (new Date(lastV.savedAt).getTime() - new Date(v.savedAt).getTime()) <= SESSION_GAP_MS;
+              if (last && sameUser && closeInTime) {
+                last.items.push(v);
+                last.endIdx = i;
+              } else {
+                sessions.push({ key: `s-${v.id}`, items: [v], startIdx: i, endIdx: i });
+              }
+            }
+            return (
             <div className="rounded-lg p-5" style={{ background: "var(--bg-card)", border: "1px solid var(--border-ds)" }} data-testid="version-history">
               <h3 className="text-sm font-semibold mb-3">Version History</h3>
-              {versions.map((v, i) => {
-                const expanded = expandedVersionId === v.id;
-                const currSnap = (v.snapshotData as any) as EstimateSnapshotV2 | null;
-                const prevSnap = (versions[i + 1]?.snapshotData as any) as EstimateSnapshotV2 | null;
-                const canDiff = currSnap?.v === 2;
-                const hasPrevV2 = prevSnap?.v === 2;
-                const diff = canDiff ? diffSnapshots(hasPrevV2 ? prevSnap : null, currSnap) : null;
-                const isBaseline = canDiff && !hasPrevV2;
+              {sessions.map((session, si) => {
+                // Newest version is first in items[] (since versions newest-first); first edit of session is items[last]
+                const newest = session.items[0];
+                const oldest = session.items[session.items.length - 1];
+                // For net change in this session: diff oldest snapshot's PREVIOUS (i.e. baseline before session) vs newest snapshot
+                const newestSnap = (newest.snapshotData as any) as EstimateSnapshotV2 | null;
+                const baselineSnap = (versions[session.endIdx + 1]?.snapshotData as any) as EstimateSnapshotV2 | null;
+                const canNetDiff = newestSnap?.v === 2 && baselineSnap?.v === 2;
+                const netDiff = canNetDiff ? diffSnapshots(baselineSnap, newestSnap) : null;
+                const startGT = oldest.grandTotal && n(oldest.grandTotal) > 0 ? n(oldest.grandTotal) : null;
+                const endGT = newest.grandTotal && n(newest.grandTotal) > 0 ? n(newest.grandTotal) : null;
+                const netDelta = (startGT != null && endGT != null) ? endGT - startGT : null;
+                const sessionExpanded = expandedSessionKey === session.key;
+                const start = new Date(oldest.savedAt);
+                const end = new Date(newest.savedAt);
+                const sameDay = start.toDateString() === end.toDateString();
+                const timeRange = session.items.length === 1
+                  ? start.toLocaleString()
+                  : sameDay
+                    ? `${start.toLocaleDateString()} ${start.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })} – ${end.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}`
+                    : `${start.toLocaleString()} → ${end.toLocaleString()}`;
+                // Headline summary of session
+                const headline = session.items.length === 1
+                  ? (newest.notes || "Saved")
+                  : (netDiff ? summarizeDiff(netDiff, (id) => ALL_SCOPES.find(s => s.id === id)?.label || id) : `${session.items.length} saves`);
                 return (
-                  <div key={v.id}
-                    style={{ borderBottom: i < versions.length - 1 ? "1px solid var(--border-ds)" : "none" }}>
+                  <div key={session.key}
+                    style={{ borderBottom: si < sessions.length - 1 ? "1px solid var(--border-ds)" : "none" }}>
+                    <div className="flex items-center justify-between py-2 text-xs gap-2">
+                      <button
+                        onClick={() => setExpandedSessionKey(sessionExpanded ? null : session.key)}
+                        className="flex items-center gap-1.5 text-left flex-1 min-w-0 hover:opacity-80"
+                        data-testid={`button-session-toggle-${si}`}>
+                        <ChevronRight
+                          className="w-3.5 h-3.5 shrink-0 transition-transform"
+                          style={{ transform: sessionExpanded ? "rotate(90deg)" : "none" }} />
+                        <span className="truncate" style={{ color: "var(--text-muted)" }}>
+                          <span style={{ color: "var(--text)", fontWeight: 600 }}>{newest.savedBy}</span>
+                          {" · "}
+                          <span style={{ color: "var(--text-secondary)" }}>{session.items.length} save{session.items.length === 1 ? "" : "s"}</span>
+                          {" · "}
+                          <span style={{ color: "var(--text)" }}>{headline}</span>
+                        </span>
+                      </button>
+                      <span className="shrink-0 whitespace-nowrap text-right" style={{ color: "var(--text-muted)" }}>
+                        {netDelta != null && netDelta !== 0 && (
+                          <span style={{ color: netDelta > 0 ? "#22c55e" : "#ef4444", fontWeight: 600, marginRight: 8 }}>
+                            {netDelta > 0 ? "+" : ""}{fmt(netDelta)}
+                          </span>
+                        )}
+                        {timeRange}
+                      </span>
+                    </div>
+                    {sessionExpanded && session.items.map((v, ii) => {
+                      const i = session.startIdx + ii;
+                      const expanded = expandedVersionId === v.id;
+                      const currSnap = (v.snapshotData as any) as EstimateSnapshotV2 | null;
+                      const prevSnap = (versions[i + 1]?.snapshotData as any) as EstimateSnapshotV2 | null;
+                      const canDiff = currSnap?.v === 2;
+                      const hasPrevV2 = prevSnap?.v === 2;
+                      const diff = canDiff ? diffSnapshots(hasPrevV2 ? prevSnap : null, currSnap) : null;
+                      const isBaseline = canDiff && !hasPrevV2;
+                      return (
+                  <div key={v.id} className="ml-5"
+                    style={{ borderTop: ii > 0 ? "1px dashed var(--border-ds)" : "none" }}>
                     <div className="flex items-center justify-between py-1.5 text-xs gap-2" style={{ color: "var(--text-muted)" }}>
                       <button
                         onClick={() => setExpandedVersionId(expanded ? null : v.id)}
@@ -2742,10 +2816,14 @@ ${html}
                       </div>
                     )}
                   </div>
+                      );
+                    })}
+                  </div>
                 );
               })}
             </div>
-          )}
+            );
+          })()}
 
           <button onClick={() => { if (CATEGORIES.length > 0) setActiveCat(CATEGORIES[0].id); goToStage("lineItems"); }}
             className="px-6 py-3 rounded-lg text-sm font-semibold flex items-center gap-2"
