@@ -428,6 +428,26 @@ function VendorDetail({ vendorId, onBack, qc }: { vendorId: number; onBack: () =
     try { await apiRequest("PUT", `/api/mfr/vendors/${vendorId}/tax`, taxForm); invalidate(); toast({ title: "Tax info saved" }); } catch { toast({ title: "Save failed", variant: "destructive" }); }
   };
 
+  const [savingAll, setSavingAll] = useState(false);
+  const saveAll = async () => {
+    setSavingAll(true);
+    try {
+      const logisticsPayload = { ...logisticsForm, avgLeadTimeDays: logisticsForm.avgLeadTimeDays ? Number(logisticsForm.avgLeadTimeDays) : null };
+      await Promise.all([
+        apiRequest("PUT", `/api/mfr/vendors/${vendorId}`, form),
+        apiRequest("PUT", `/api/mfr/vendors/${vendorId}/pricing`, pricingForm),
+        apiRequest("PUT", `/api/mfr/vendors/${vendorId}/logistics`, logisticsPayload),
+        apiRequest("PUT", `/api/mfr/vendors/${vendorId}/tax`, taxForm),
+      ]);
+      invalidate();
+      toast({ title: "All changes saved", description: "General info, pricing, logistics, and tax info updated" });
+    } catch {
+      toast({ title: "Save failed", description: "Some sections may not have saved — please try again", variant: "destructive" });
+    } finally {
+      setSavingAll(false);
+    }
+  };
+
   const addContact = async () => {
     try { await apiRequest("POST", `/api/mfr/vendors/${vendorId}/contacts`, newContact); invalidate(); setShowAddContact(false); setNewContact({ name: "", role: "", email: "", phone: "", territory: "", isPrimary: false, notes: "" }); toast({ title: "Contact added" }); } catch { toast({ title: "Failed", variant: "destructive" }); }
   };
@@ -504,6 +524,7 @@ function VendorDetail({ vendorId, onBack, qc }: { vendorId: number; onBack: () =
           <ChevronLeft size={14} /> Back
         </button>
         <div style={{ flex: 1, fontSize: 18, fontWeight: 700, color: "var(--text-primary)", fontFamily: "var(--font-heading)" }}>{vendor.name}</div>
+        <Btn label={savingAll ? "Saving…" : "Save All Changes"} variant="gold" onClick={saveAll} />
         <Btn label="Delete Vendor" variant="danger" icon={Trash2} onClick={deleteVendor} />
       </div>
 
@@ -527,9 +548,6 @@ function VendorDetail({ vendorId, onBack, qc }: { vendorId: number; onBack: () =
         </div>
         <div style={{ marginTop: 12 }}>
           <Field label="Notes"><InpTextArea value={form.notes} onChange={(v) => setForm({ ...form, notes: v })} /></Field>
-        </div>
-        <div style={{ marginTop: 12, display: "flex", justifyContent: "flex-end" }}>
-          <Btn label="Save General Info" variant="gold" onClick={saveGeneral} />
         </div>
       </Section>
 
@@ -660,7 +678,6 @@ function VendorDetail({ vendorId, onBack, qc }: { vendorId: number; onBack: () =
           <Field label="Payment Terms"><InpText value={pricingForm.paymentTerms} onChange={(v) => setPricingForm({ ...pricingForm, paymentTerms: v })} placeholder="Net 30, COD…" /></Field>
         </div>
         <div style={{ marginTop: 12 }}><Field label="Pricing Notes"><InpTextArea value={pricingForm.notes} onChange={(v) => setPricingForm({ ...pricingForm, notes: v })} /></Field></div>
-        <div style={{ marginTop: 12, display: "flex", justifyContent: "flex-end" }}><Btn label="Save Pricing" variant="gold" onClick={savePricing} /></div>
       </Section>
 
       {/* Logistics */}
@@ -670,7 +687,6 @@ function VendorDetail({ vendorId, onBack, qc }: { vendorId: number; onBack: () =
           <Field label="Ships From"><InpText value={logisticsForm.shipsFrom} onChange={(v) => setLogisticsForm({ ...logisticsForm, shipsFrom: v })} placeholder="City, ST" /></Field>
         </div>
         <div style={{ marginTop: 12 }}><Field label="Freight / Shipping Notes"><InpTextArea value={logisticsForm.freightNotes} onChange={(v) => setLogisticsForm({ ...logisticsForm, freightNotes: v })} /></Field></div>
-        <div style={{ marginTop: 12, display: "flex", justifyContent: "flex-end" }}><Btn label="Save Logistics" variant="gold" onClick={saveLogistics} /></div>
       </Section>
 
       {/* Tax */}
@@ -692,7 +708,6 @@ function VendorDetail({ vendorId, onBack, qc }: { vendorId: number; onBack: () =
         <div style={{ marginTop: 8, fontSize: 12, color: "var(--text-dim)" }}>
           {(vendor.certs ?? []).length} resale cert{(vendor.certs ?? []).length !== 1 ? "s" : ""} on file. Use the <span style={{ color: "var(--gold)", cursor: "pointer" }}>Certificate Tracker</span> tab for full cert management.
         </div>
-        <div style={{ marginTop: 12, display: "flex", justifyContent: "flex-end" }}><Btn label="Save Tax Info" variant="gold" onClick={saveTax} /></div>
       </Section>
 
       {/* Files */}
