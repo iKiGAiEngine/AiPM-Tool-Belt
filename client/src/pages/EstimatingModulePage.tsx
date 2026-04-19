@@ -390,6 +390,7 @@ function EstimatingModuleInner() {
   const [isDirty, setIsDirty] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
+  const [headerExpanded, setHeaderExpanded] = useState(false);
   const markDirty = useCallback(() => setIsDirty(true), []);
 
   // ── Local mutable state (mirrors DB) ──
@@ -1899,115 +1900,205 @@ ${html}
     <div className="min-h-screen pb-12" style={{ background: "var(--bg-page)", color: "var(--text)" }}>
       <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&display=swap" rel="stylesheet" />
 
-      {/* ── HEADER ── */}
-      <div className="sticky top-14 z-40 px-6 pt-4 pb-3"
-        style={{ background: "var(--bg-page)", borderBottom: "2px solid var(--gold)", backdropFilter: "blur(12px)" }}>
-        <div className="max-w-7xl mx-auto">
-          <div className="flex items-end justify-between gap-4 flex-wrap">
-            <div>
-              <div className="flex items-center gap-2 mb-1">
-                <Calculator className="w-4 h-4" style={{ color: "var(--gold)" }} />
-                <span className="text-xs font-semibold tracking-widest uppercase" style={{ color: "var(--gold)", fontFamily: "'Playfair Display', serif" }}>
-                  AiPM Estimating Module
-                </span>
-                <span className="text-xs px-2 py-0.5 rounded" style={{ background: "var(--gold)20", color: "var(--gold)", border: "1px solid var(--gold)40" }}>
-                  {reviewStatus === "drafting" ? "Draft" : reviewStatus === "ready_for_review" ? "Ready for Review" : reviewStatus === "reviewed" ? "Approved" : "Submitted"}
-                </span>
-              </div>
-              <h1 style={{ fontFamily: "'Playfair Display', serif", fontSize: 22, fontWeight: 700, lineHeight: 1.2, color: "var(--text)" }}>
-                {estimateData?.projectName || proposalEntry?.projectName || "Loading..."}
-              </h1>
-            </div>
-            <div className="flex items-center gap-3 flex-wrap">
-              <div className="text-right">
-                <div className="text-sm font-semibold" style={{ color: "var(--gold)" }}>{estimateData?.estimateNumber}</div>
-                <div className="text-xs" style={{ color: "var(--text-muted)" }}>{proposalEntry?.gcEstimateLead}</div>
-                <div className="text-xs" style={{ color: "var(--text-muted)" }}>
-                  {proposalEntry?.nbsEstimator} • Due {proposalEntry?.dueDate}
+      {/* ── REDESIGNED HEADER (3-row card + collapsible progress) ── */}
+      {(() => {
+        const STATUS_META: Record<string, { label: string; color: string }> = {
+          drafting:         { label: "Draft",            color: "#C8A44E" },
+          ready_for_review: { label: "Ready for Review", color: "#f59e0b" },
+          reviewed:         { label: "Approved",         color: "#4ade80" },
+          submitted:        { label: "Submitted",        color: "#06b6d4" },
+        };
+        const sm = STATUS_META[reviewStatus] || STATUS_META.drafting;
+        const STAGES = [
+          { id: "intake",       label: "Intake",  color: "#C8A44E" },
+          { id: "lineItems",    label: "Items",   color: "#4ade80" },
+          { id: "calculations", label: "Markups", color: "#f97316" },
+          { id: "output",       label: "Summary", color: "#ef4444" },
+        ] as const;
+        const scopeAbbr = (label: string) => {
+          if (label.length <= 4) return label.toUpperCase();
+          const words = label.split(/\s+/);
+          if (words.length >= 2) return words.map(w => w[0]).join("").toUpperCase().slice(0, 4);
+          return label.slice(0, 3).toUpperCase();
+        };
+        return (
+          <>
+            <div className="px-4 pt-4 pb-2" style={{ background: "var(--bg-page)" }}>
+              <div className="max-w-7xl mx-auto">
+                {/* Single header card */}
+                <div className="rounded-xl"
+                  style={{ background: "var(--bg-card)", border: "1px solid var(--border-ds)", fontFamily: "'Source Sans Pro', system-ui, sans-serif" }}>
+                  {/* Row 1: Project name + Save / Back / Collapse */}
+                  <div className="flex items-center justify-between gap-3 px-4 pt-3 pb-2 flex-wrap">
+                    <h1 className="min-w-0 flex-1 truncate"
+                      style={{ fontFamily: "'Playfair Display', serif", fontSize: 20, fontWeight: 700, lineHeight: 1.2, color: "var(--text)" }}
+                      data-testid="text-project-name">
+                      {estimateData?.projectName || proposalEntry?.projectName || "Loading..."}
+                    </h1>
+                    <div className="flex items-center gap-2 shrink-0">
+                      {/* Save state button */}
+                      <button
+                        onClick={() => isDirty && !isSaving && saveEstimate()}
+                        disabled={isSaving || !isDirty || !estimateId}
+                        className="px-3 py-1.5 rounded text-xs font-semibold transition-all flex items-center gap-1"
+                        style={{
+                          background: isSaving ? "transparent" : isDirty ? "#C8A44E" : "transparent",
+                          color: isSaving ? "var(--text-muted)" : isDirty ? "#0A0C10" : "#4ade80",
+                          border: `1px solid ${isSaving ? "var(--border-ds)" : isDirty ? "#C8A44E" : "#4ade8050"}`,
+                          cursor: isDirty && !isSaving ? "pointer" : "default",
+                          opacity: !estimateId ? 0.5 : 1,
+                        }}
+                        data-testid="button-save-estimate">
+                        {isSaving ? (
+                          <>
+                            <span className="inline-block w-3 h-3 rounded-full border-2 border-current border-t-transparent animate-spin" />
+                            Saving…
+                          </>
+                        ) : isDirty ? "💾 Save" : (
+                          <>✓ Saved {lastSaved ? `· ${lastSaved.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}` : ""}</>
+                        )}
+                      </button>
+                      {/* Back */}
+                      <button
+                        onClick={() => {
+                          if (isDirty && !window.confirm("You have unsaved changes. Leave without saving?")) return;
+                          window.location.href = "/tools/proposal-log";
+                        }}
+                        className="text-xs px-2 py-1.5 rounded"
+                        style={{ background: "transparent", border: "1px solid var(--border-ds)", color: "var(--text-secondary)" }}
+                        data-testid="button-back-to-proposal-log">
+                        ← Back
+                      </button>
+                      {/* Collapse chevron */}
+                      <button
+                        onClick={() => setHeaderExpanded(v => !v)}
+                        className="p-1.5 rounded"
+                        style={{ background: "transparent", border: "1px solid var(--border-ds)", color: "var(--text-secondary)" }}
+                        aria-label={headerExpanded ? "Collapse details" : "Expand details"}
+                        data-testid="button-toggle-header">
+                        {headerExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Row 2: PV# · estimator · Due pill · grand total · status pill */}
+                  <div className="flex items-center gap-2 px-4 pb-2 flex-wrap">
+                    {estimateData?.estimateNumber && (
+                      <span className="text-sm font-semibold" style={{ color: "#C8A44E" }} data-testid="text-estimate-number">
+                        {estimateData.estimateNumber}
+                      </span>
+                    )}
+                    {proposalEntry?.nbsEstimator && (
+                      <>
+                        <span className="text-xs" style={{ color: "var(--text-muted)" }}>·</span>
+                        <span className="text-xs" style={{ color: "var(--text-secondary)" }} data-testid="text-estimator">
+                          {proposalEntry.nbsEstimator}
+                        </span>
+                      </>
+                    )}
+                    {proposalEntry?.dueDate && (
+                      <>
+                        <span className="text-xs" style={{ color: "var(--text-muted)" }}>·</span>
+                        <span className="text-[11px] px-2 py-0.5 rounded font-semibold"
+                          style={{ background: "#C8A44E20", color: "#C8A44E", border: "1px solid #C8A44E40" }}
+                          data-testid="badge-due-date">
+                          Due {proposalEntry.dueDate}
+                        </span>
+                      </>
+                    )}
+                    <span className="text-xs" style={{ color: "var(--text-muted)" }}>·</span>
+                    <span className="text-sm font-bold" style={{ color: "#4ade80" }} data-testid="text-grand-total">
+                      {fmt(calcData.grandTotal)}
+                    </span>
+                    {/* Status pill — pushed to the far right */}
+                    <span className="ml-auto text-[11px] px-2.5 py-0.5 rounded-full font-semibold"
+                      style={{ background: sm.color + "20", color: sm.color, border: `1px solid ${sm.color}50` }}
+                      data-testid="badge-review-status">
+                      {sm.label}
+                    </span>
+                  </div>
+
+                  {/* Row 3: Stage tabs as compact pills (always visible) */}
+                  <div className="flex gap-1.5 px-4 pb-3 overflow-x-auto">
+                    {STAGES.map(s => {
+                      const active = stage === s.id;
+                      return (
+                        <button key={s.id} onClick={() => setStage(s.id as any)}
+                          className="px-3 py-1 rounded-full text-xs font-semibold whitespace-nowrap transition-all"
+                          style={{
+                            background: active ? s.color + "20" : "transparent",
+                            color: active ? s.color : "var(--text-muted)",
+                            border: `1px solid ${active ? s.color + "60" : "var(--border-ds)"}`,
+                          }}
+                          data-testid={`tab-stage-${s.id}`}>
+                          {s.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {/* Collapsible details: progress bars + saved timestamp */}
+                  {headerExpanded && (
+                    <div className="px-4 pb-3 pt-1 border-t" style={{ borderColor: "var(--border-ds)" }} data-testid="section-header-details">
+                      <div className="flex items-center gap-3 flex-wrap mt-2">
+                        <span className="text-xs font-bold" style={{ color: progress.overall >= 100 ? "#4ade80" : "#C8A44E", minWidth: 36 }}>
+                          {Math.round(progress.overall)}%
+                        </span>
+                        {[
+                          { label: "Intake",     pct: progress.intakePct,    color: "#C8A44E" },
+                          { label: "Line Items", pct: progress.lineItemsPct, color: "#4ade80" },
+                          { label: "Markups",    pct: progress.calcsPct,     color: "#f97316" },
+                          { label: "Output",     pct: progress.outputPct,    color: "#ef4444" },
+                        ].map(({ label, pct, color }) => (
+                          <div key={label} className="flex items-center gap-1 flex-1 min-w-[120px]">
+                            <span className="text-[11px]" style={{ color: "var(--text-muted)", whiteSpace: "nowrap", minWidth: 60 }}>{label}</span>
+                            <div className="flex-1 h-1.5 rounded-full" style={{ background: "var(--border-ds)" }}>
+                              <div className="h-full rounded-full transition-all"
+                                style={{ width: `${Math.min(pct, 100)}%`, background: pct >= 100 ? "#4ade80" : color }} />
+                            </div>
+                            <span className="text-[11px]" style={{ color: "var(--text-muted)", minWidth: 28, textAlign: "right" }}>{Math.round(pct)}%</span>
+                          </div>
+                        ))}
+                      </div>
+                      {lastSaved && (
+                        <div className="text-[11px] mt-2" style={{ color: "#4ade80" }} data-testid="text-last-saved-detail">
+                          ✓ Saved {lastSaved.toLocaleString()}
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
-              <div className="flex items-center gap-2">
-                {isDirty && <div className="w-2 h-2 rounded-full" style={{ background: "var(--gold)" }} />}
-                <button
-                  onClick={() => saveEstimate()}
-                  disabled={isSaving || !isDirty || !estimateId}
-                  className="px-3 py-1.5 rounded text-xs font-semibold transition-all"
-                  style={{
-                    background: isDirty ? "var(--gold)" : "transparent",
-                    color: isDirty ? "#000" : "var(--text-muted)",
-                    border: `1px solid ${isDirty ? "var(--gold)" : "var(--border-ds)"}`,
-                    cursor: isDirty ? "pointer" : "default",
-                    opacity: !estimateId ? 0.5 : 1,
-                  }}
-                >
-                  {isSaving ? "Saving..." : isDirty ? "💾 Save" : "✓ Saved"}
-                </button>
-                {lastSaved && <span className="text-xs" style={{ color: "var(--text-muted)" }}>{lastSaved.toLocaleTimeString()}</span>}
-              </div>
-              <button
-                onClick={() => {
-                  if (isDirty && !window.confirm("You have unsaved changes. Leave without saving?")) return;
-                  window.location.href = "/tools/proposal-log";
-                }}
-                className="text-xs px-2 py-1 rounded"
-                style={{ background: "var(--bg-card)", border: "1px solid var(--border-ds)", color: "var(--text-secondary)" }}>
-                ← Back
-              </button>
             </div>
-          </div>
 
-          {/* Progress bar */}
-          <div className="flex items-center gap-3 mt-3 flex-wrap">
-            <span className="text-xs font-bold" style={{ color: progress.overall >= 100 ? "#22c55e" : "var(--gold)", minWidth: 40 }}>
-              {Math.round(progress.overall)}%
-            </span>
-              {[
-              { label: "Intake", pct: progress.intakePct, color: "var(--gold)" },
-              { label: "Line Items", pct: progress.lineItemsPct, color: "#22c55e" },
-              { label: "Markups", pct: progress.calcsPct, color: "#f97316" },
-              { label: "Output", pct: progress.outputPct, color: "#ef4444" },
-            ].map(({ label, pct, color }) => (
-              <div key={label} className="flex items-center gap-1 flex-1 min-w-16">
-                <span className="text-xs" style={{ color: "var(--text-muted)", whiteSpace: "nowrap" }}>{label}</span>
-                <div className="flex-1 h-1.5 rounded-full" style={{ background: "var(--border-ds)" }}>
-                  <div className="h-full rounded-full transition-all" style={{ width: `${Math.min(pct, 100)}%`, background: pct >= 100 ? "#22c55e" : color }} />
+            {/* SCOPE CHIPS BAR — sticky below the top app nav */}
+            {activeScopes.length > 0 && (
+              <div className="sticky top-14 z-50 px-4 py-2"
+                style={{ background: "var(--bg-page)", borderBottom: "1px solid var(--border-ds)", backdropFilter: "blur(12px)" }}>
+                <div className="max-w-7xl mx-auto flex gap-1.5 overflow-x-auto" data-testid="bar-scope-chips">
+                  {ALL_SCOPES.filter(s => activeScopes.includes(s.id)).map(s => {
+                    const active = activeCat === s.id;
+                    return (
+                      <button key={s.id}
+                        onClick={() => { setStage("lineItems"); setActiveCat(s.id); }}
+                        className="px-2.5 py-1 rounded-full text-xs font-semibold whitespace-nowrap transition-all shrink-0"
+                        style={{
+                          background: active ? "#C8A44E20" : "var(--bg-card)",
+                          color: active ? "#C8A44E" : "var(--text-secondary)",
+                          border: `1px solid ${active ? "#C8A44E60" : "var(--border-ds)"}`,
+                        }}
+                        title={s.label}
+                        data-testid={`chip-scope-${s.id}`}>
+                        {active ? s.label : scopeAbbr(s.label)}
+                      </button>
+                    );
+                  })}
                 </div>
-                <span className="text-xs" style={{ color: "var(--text-muted)" }}>{Math.round(pct)}%</span>
               </div>
-            ))}
-            <div className="text-sm font-bold" style={{ color: "#22c55e" }}>
-              {fmt(calcData.grandTotal)}
-            </div>
-          </div>
-
-          {/* Stage nav */}
-          <div className="flex gap-2 mt-3 overflow-x-auto pb-1">
-              {[
-              { id: "intake", num: "1", label: "Project Intake", color: "var(--gold)" },
-              { id: "lineItems", num: "2", label: "Line Items", color: "#22c55e" },
-              { id: "calculations", num: "3", label: "Markups & Totals", color: "#f97316" },
-              { id: "output", num: "4", label: "Bid Summary", color: "#ef4444" },
-            ].map((s, idx, arr) => (
-              <button key={s.id} onClick={() => setStage(s.id as any)}
-                className="flex items-center gap-2 px-3 py-2 rounded text-xs font-semibold whitespace-nowrap transition-all relative"
-                style={{
-                  background: stage === s.id ? s.color + "20" : "var(--bg-card)",
-                  border: `1px solid ${stage === s.id ? s.color + "60" : "var(--border-ds)"}`,
-                  color: stage === s.id ? s.color : "var(--text-secondary)",
-                }}>
-                <span className="w-5 h-5 rounded flex items-center justify-center text-xs font-bold"
-                  style={{ background: stage === s.id ? s.color : "var(--border-ds)", color: stage === s.id ? "#fff" : "var(--text-muted)" }}>
-                  {s.num}
-                </span>
-                {s.label}
-                {idx < arr.length - 1 && (
-                  <ChevronRight className="w-3 h-3 absolute -right-2" style={{ color: "var(--text-muted)", zIndex: 1 }} />
-                )}
-              </button>
-            ))}
-          </div>
-        </div>
-      </div>
+            )}
+          </>
+        );
+      })()}
 
       {/* ══════════════════════════════════════════════════ */}
       {/* STAGE 1: INTAKE */}

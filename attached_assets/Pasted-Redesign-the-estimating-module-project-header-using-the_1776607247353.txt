@@ -1,0 +1,30 @@
+Redesign the estimating module project header using the following spec. Do not change anything else in the estimating module — only the header section.
+STRUCTURE — 3 rows inside a single card:
+Row 1: Project name (left, Playfair Display serif font) — Save button + ← Back button + collapse chevron (right, inline with name)
+Row 2: estimateData?.estimateNumber in gold · proposalEntry?.nbsEstimator · “Due” pill containing proposalEntry?.dueDate (styled as a small badge with background so it stands out) · fmt(calcData.grandTotal) in green — then reviewStatus as a pill badge pushed to the far right
+Row 3: Workflow stage tabs (Intake › Items › Markups › Summary) as compact pills, always visible
+COLLAPSIBLE SECTION (shown when user taps the card): progress bars for each of the 4 stages, plus ✓ Saved timestamp. Hidden by default to save space.
+SCOPE CHIPS BAR — directly below the header card, sticky to top of screen on scroll (position: sticky; top: 0; z-index: 50). Each scope category (Toilet Accessories, FEC, Wall Protection, etc.) renders as a rounded chip showing its abbreviation when inactive, full name when active. Tapping a chip navigates to that scope tab.
+SAVE BUTTON BEHAVIOR:
+	•	When isDirty === true: show gold 💾 Save button, onClick calls saveEstimate()
+	•	When isDirty === false: show green ✓ Saved + last save timestamp
+	•	When isSaving === true: show a spinner/loading state
+CRITICAL — use these exact expressions, do not use any other variable:
+	•	Project name → estimateData?.projectName || proposalEntry?.projectName
+	•	Proposal number → estimateData?.estimateNumber
+	•	Due date → proposalEntry?.dueDate
+	•	Grand total → fmt(calcData.grandTotal) ← must be calcData, NOT estimateData?.grandTotal
+	•	Status → reviewStatus (read) / setReviewStatus(...) + markDirty() (write)
+	•	Estimator initials → proposalEntry?.nbsEstimator
+	•	Save → saveEstimate()
+	•	Unsaved indicator → isDirty
+	•	Saving spinner → isSaving
+THEME:
+	•	Background: #0A0C10 (dark) / #f0f0ef (light)
+	•	Surface card: #111318 (dark) / #ffffff (light)
+	•	Gold accent: #C8A44E
+	•	Green (totals, saved, complete): #4ade80
+	•	Amber (Ready for Review status): #f59e0b
+	•	Project name font: Playfair Display serif
+	•	Body font: Source Sans Pro
+Remove the “AIPM ESTIMATING MODULE” label row entirely — status is now integrated into the header card as a pill badge.
