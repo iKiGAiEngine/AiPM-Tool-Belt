@@ -12,14 +12,14 @@ import {
 
 // ---- Types ----
 interface MfrContact { id: number; vendorId: number; name: string | null; role: string | null; email: string | null; phone: string | null; territory: string | null; isPrimary: boolean | null; notes: string | null; }
-interface MfrManufacturerRow { id: number; name: string }
+interface MfrManufacturerRow { id: number; name: string; website?: string | null; primaryContact?: string | null; contactEmail?: string | null; contactPhone?: string | null; address?: string | null; notes?: string | null; }
 interface MfrProduct { id: number; vendorId: number; model: string | null; description: string | null; csiCode: string | null; listPrice: string | null; unit: string | null; notes: string | null; }
 interface MfrPricing { discountTier: string | null; paymentTerms: string | null; notes: string | null; }
 interface MfrLogistics { avgLeadTimeDays: number | null; shipsFrom: string | null; freightNotes: string | null; }
 interface MfrTaxInfo { ein: string | null; w9OnFile: boolean | null; w9ReceivedDate: string | null; is1099Eligible: boolean | null; taxExempt: boolean | null; exemptionType: string | null; exemptionCertNumber: string | null; nexusStates: string[] | null; taxNotes: string | null; }
 interface MfrResaleCert { id: number; vendorId: number; vendorName?: string; state: string; certType: string | null; certNumber: string | null; issueDate: string | null; expirationDate: string | null; sent: boolean | null; dateSent: string | null; contactSentTo: string | null; vendorConfirmed: boolean | null; confirmationDate: string | null; blanket: boolean | null; projectName: string | null; notes: string | null; status: string; }
 interface MfrFile { id: number; fileType: string | null; originalName: string | null; mimeType: string | null; sizeBytes: number | null; uploadedBy: string | null; uploadedAt: string; notes: string | null; }
-interface MfrVendorSummary { id: number; name: string; category: string | null; website: string | null; tags: string[]; scopes: string[] | null; manufacturerIds: number[] | null; contactCount: number; productCount: number; certCount: number; w9OnFile: boolean; hasExpiredCert: boolean; hasExpiringCert: boolean; }
+interface MfrVendorSummary { id: number; name: string; category: string | null; website: string | null; tags: string[]; scopes: string[] | null; manufacturerIds: number[] | null; manufacturerDirect: boolean | null; contactCount: number; productCount: number; certCount: number; w9OnFile: boolean; hasExpiredCert: boolean; hasExpiringCert: boolean; }
 interface MfrVendorFull extends MfrVendorSummary { notes: string | null; contacts: MfrContact[]; products: MfrProduct[]; pricing: MfrPricing | null; logistics: MfrLogistics | null; taxInfo: MfrTaxInfo | null; certs: MfrResaleCert[]; files: MfrFile[]; }
 interface DashboardData { totalVendors: number; w9OnFile: number; w9Missing: number; certsTotal: number; certsSent: number; certsConfirmed: number; certsExpiring: number; certsExpired: number; certsNotSent: number; vendorsNoCerts: { id: number; name: string }[]; }
 
@@ -379,7 +379,7 @@ function VendorDetail({ vendorId, onBack, qc }: { vendorId: number; onBack: () =
     },
   });
 
-  const [form, setForm] = useState({ name: "", category: "", website: "", notes: "", tags: [] as string[], scopes: [] as string[], manufacturerIds: [] as number[] });
+  const [form, setForm] = useState({ name: "", category: "", website: "", notes: "", tags: [] as string[], scopes: [] as string[], manufacturerIds: [] as number[], manufacturerDirect: false });
   const [pricingForm, setPricingForm] = useState({ discountTier: "", paymentTerms: "", notes: "" });
   const [logisticsForm, setLogisticsForm] = useState({ avgLeadTimeDays: "", shipsFrom: "", freightNotes: "" });
   const [taxForm, setTaxForm] = useState({ ein: "", w9OnFile: false, w9ReceivedDate: "", is1099Eligible: false, taxExempt: false, exemptionType: "", exemptionCertNumber: "", nexusStates: [] as string[], taxNotes: "" });
@@ -399,7 +399,7 @@ function VendorDetail({ vendorId, onBack, qc }: { vendorId: number; onBack: () =
 
   useMemo(() => {
     if (vendor && !initialized) {
-      setForm({ name: vendor.name, category: vendor.category || "", website: vendor.website || "", notes: vendor.notes || "", tags: vendor.tags || [], scopes: vendor.scopes || [], manufacturerIds: vendor.manufacturerIds || [] });
+      setForm({ name: vendor.name, category: vendor.category || "", website: vendor.website || "", notes: vendor.notes || "", tags: vendor.tags || [], scopes: vendor.scopes || [], manufacturerIds: vendor.manufacturerIds || [], manufacturerDirect: !!vendor.manufacturerDirect });
       setPricingForm({ discountTier: vendor.pricing?.discountTier || "", paymentTerms: vendor.pricing?.paymentTerms || "", notes: vendor.pricing?.notes || "" });
       setLogisticsForm({ avgLeadTimeDays: String(vendor.logistics?.avgLeadTimeDays || ""), shipsFrom: vendor.logistics?.shipsFrom || "", freightNotes: vendor.logistics?.freightNotes || "" });
       setTaxForm({ ein: vendor.taxInfo?.ein || "", w9OnFile: !!vendor.taxInfo?.w9OnFile, w9ReceivedDate: vendor.taxInfo?.w9ReceivedDate || "", is1099Eligible: !!vendor.taxInfo?.is1099Eligible, taxExempt: !!vendor.taxInfo?.taxExempt, exemptionType: vendor.taxInfo?.exemptionType || "", exemptionCertNumber: vendor.taxInfo?.exemptionCertNumber || "", nexusStates: vendor.taxInfo?.nexusStates || [], taxNotes: vendor.taxInfo?.taxNotes || "" });
@@ -545,6 +545,9 @@ function VendorDetail({ vendorId, onBack, qc }: { vendorId: number; onBack: () =
           <Field label="Manufacturer Tags (which manufacturers this vendor reps — beyond their own brand)">
             <ManufacturerTagPicker manufacturers={allMfrs} selectedIds={form.manufacturerIds} onChange={(ids) => setForm({ ...form, manufacturerIds: ids })} />
           </Field>
+        </div>
+        <div style={{ marginTop: 12 }}>
+          <Field label=""><InpCheck label="Manufacturer Direct (vendor sells direct from manufacturer)" checked={form.manufacturerDirect} onChange={(v) => setForm({ ...form, manufacturerDirect: v })} /></Field>
         </div>
         <div style={{ marginTop: 12 }}>
           <Field label="Notes"><InpTextArea value={form.notes} onChange={(v) => setForm({ ...form, notes: v })} /></Field>
@@ -1136,6 +1139,7 @@ export default function VendorDatabasePage() {
                     {v.hasExpiredCert && <AlertTriangle size={14} style={{ color: "#E05252" }} title="Expired certificate" />}
                     {v.hasExpiringCert && !v.hasExpiredCert && <AlertTriangle size={14} style={{ color: "var(--gold)" }} title="Certificate expiring soon" />}
                     {v.w9OnFile && <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 7px", borderRadius: 4, background: "rgba(76,175,125,0.12)", color: "#4CAF7D" }}>W-9</span>}
+                    {v.manufacturerDirect && <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 7px", borderRadius: 4, background: "rgba(91,141,239,0.12)", color: "#5B8DEF" }} title="Manufacturer Direct">DIRECT</span>}
                   </div>
                   <ChevronRight size={15} style={{ color: "var(--text-dim)", flexShrink: 0 }} />
                 </div>
@@ -1159,17 +1163,21 @@ export default function VendorDatabasePage() {
 }
 
 // ---- Manufacturers Tab ----
-interface MfrStatRow { id: number; name: string; website: string | null; notes: string | null; vendorCount: number; lineItemCount: number; approvedCount: number; }
+interface MfrStatRow { id: number; name: string; website: string | null; primaryContact: string | null; contactEmail: string | null; contactPhone: string | null; address: string | null; notes: string | null; vendorCount: number; lineItemCount: number; approvedCount: number; }
+
+const EMPTY_MFR_FORM = { name: "", website: "", primaryContact: "", contactEmail: "", contactPhone: "", address: "", notes: "" };
 
 function ManufacturersTab() {
   const { toast } = useToast();
   const qc = useQueryClient();
   const [search, setSearch] = useState("");
-  const [editingId, setEditingId] = useState<number | null>(null);
-  const [editingName, setEditingName] = useState("");
   const [mergingId, setMergingId] = useState<number | null>(null);
   const [mergeTargetId, setMergeTargetId] = useState<number | null>(null);
   const [mergeSearch, setMergeSearch] = useState("");
+  const [modalOpen, setModalOpen] = useState(false);
+  const [modalMode, setModalMode] = useState<"add" | "edit">("add");
+  const [modalId, setModalId] = useState<number | null>(null);
+  const [mfrForm, setMfrForm] = useState(EMPTY_MFR_FORM);
 
   const { data: mfrs = [], isLoading } = useQuery<MfrStatRow[]>({
     queryKey: ["/api/mfr/manufacturers/with-stats"],
@@ -1181,22 +1189,51 @@ function ManufacturersTab() {
     return mfrs.filter(m => m.name.toLowerCase().includes(q));
   }, [mfrs, search]);
 
-  const renameMutation = useMutation({
-    mutationFn: async ({ id, name }: { id: number; name: string }) => apiRequest("PATCH", `/api/mfr/manufacturers/${id}`, { name }),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["/api/mfr/manufacturers/with-stats"] });
-      qc.invalidateQueries({ queryKey: ["/api/mfr/manufacturers"] });
-      setEditingId(null);
-      toast({ title: "Renamed" });
+  const invalidateMfrs = () => {
+    qc.invalidateQueries({ queryKey: ["/api/mfr/manufacturers/with-stats"] });
+    qc.invalidateQueries({ queryKey: ["/api/mfr/manufacturers"] });
+  };
+
+  const createMutation = useMutation({
+    mutationFn: async (data: typeof EMPTY_MFR_FORM): Promise<{ row: MfrStatRow; isDuplicate: boolean }> => {
+      const res = await fetch("/api/mfr/manufacturers", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+        credentials: "include",
+      });
+      const body = await res.json();
+      if (res.status === 401) {
+        throw new Error(`401: ${body?.message || "Unauthorized"}`);
+      }
+      if (!res.ok) {
+        throw new Error(body?.message || "Failed to create manufacturer");
+      }
+      return { row: body as MfrStatRow, isDuplicate: res.status === 200 };
     },
-    onError: (e: any) => { if (!handleAuthError(e)) toast({ title: "Rename failed", description: e?.message, variant: "destructive" }); },
+    onSuccess: ({ row, isDuplicate }) => {
+      invalidateMfrs();
+      setModalOpen(false);
+      setMfrForm(EMPTY_MFR_FORM);
+      if (isDuplicate) {
+        toast({ title: "Already exists", description: `"${row.name}" is already in your manufacturer list.` });
+      } else {
+        toast({ title: "Manufacturer added" });
+      }
+    },
+    onError: (e: any) => { if (!handleAuthError(e)) toast({ title: "Failed to add", description: e?.message, variant: "destructive" }); },
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: number; data: typeof EMPTY_MFR_FORM }) => apiRequest("PATCH", `/api/mfr/manufacturers/${id}`, data),
+    onSuccess: () => { invalidateMfrs(); setModalOpen(false); setMfrForm(EMPTY_MFR_FORM); toast({ title: "Manufacturer updated" }); },
+    onError: (e: any) => { if (!handleAuthError(e)) toast({ title: "Update failed", description: e?.message, variant: "destructive" }); },
   });
 
   const mergeMutation = useMutation({
     mutationFn: async ({ sourceId, targetId }: { sourceId: number; targetId: number }) => apiRequest("POST", `/api/mfr/manufacturers/${sourceId}/merge`, { targetId }),
     onSuccess: (_d, vars) => {
-      qc.invalidateQueries({ queryKey: ["/api/mfr/manufacturers/with-stats"] });
-      qc.invalidateQueries({ queryKey: ["/api/mfr/manufacturers"] });
+      invalidateMfrs();
       setMergingId(null);
       setMergeTargetId(null);
       setMergeSearch("");
@@ -1208,13 +1245,23 @@ function ManufacturersTab() {
 
   const deleteMutation = useMutation({
     mutationFn: async (id: number) => apiRequest("DELETE", `/api/mfr/manufacturers/${id}`),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["/api/mfr/manufacturers/with-stats"] });
-      qc.invalidateQueries({ queryKey: ["/api/mfr/manufacturers"] });
-      toast({ title: "Manufacturer deleted" });
-    },
+    onSuccess: () => { invalidateMfrs(); toast({ title: "Manufacturer deleted" }); },
     onError: (e: any) => { if (!handleAuthError(e)) toast({ title: "Delete failed", description: e?.message, variant: "destructive" }); },
   });
+
+  const openAdd = () => { setModalMode("add"); setModalId(null); setMfrForm(EMPTY_MFR_FORM); setModalOpen(true); };
+  const openEdit = (m: MfrStatRow) => {
+    setModalMode("edit");
+    setModalId(m.id);
+    setMfrForm({ name: m.name, website: m.website || "", primaryContact: m.primaryContact || "", contactEmail: m.contactEmail || "", contactPhone: m.contactPhone || "", address: m.address || "", notes: m.notes || "" });
+    setModalOpen(true);
+  };
+
+  const submitModal = () => {
+    if (!mfrForm.name.trim()) return;
+    if (modalMode === "add") createMutation.mutate(mfrForm);
+    else if (modalId) updateMutation.mutate({ id: modalId, data: mfrForm });
+  };
 
   const inputStyleLocal: React.CSSProperties = { padding: "8px 12px", fontSize: 13, background: "var(--bg-card)", border: "1px solid var(--border-ds)", borderRadius: 6, color: "var(--text-primary)", outline: "none", width: "100%" };
 
@@ -1224,6 +1271,8 @@ function ManufacturersTab() {
     const q = mergeSearch.trim().toLowerCase();
     return mfrs.filter(m => m.id !== mergingMfr.id && (q === "" || m.name.toLowerCase().includes(q)));
   }, [mfrs, mergingMfr, mergeSearch]);
+
+  const isPending = createMutation.isPending || updateMutation.isPending;
 
   return (
     <>
@@ -1239,6 +1288,9 @@ function ManufacturersTab() {
           />
         </div>
         <span style={{ fontSize: 12, color: "var(--text-dim)" }}>{filtered.length} of {mfrs.length}</span>
+        <button onClick={openAdd} style={{ display: "flex", alignItems: "center", gap: 6, padding: "7px 14px", fontSize: 12, fontWeight: 700, background: "var(--gold)", color: "#000", border: "none", borderRadius: 6, cursor: "pointer" }} data-testid="button-add-manufacturer">
+          <Plus size={13} /> Add Manufacturer
+        </button>
       </div>
 
       {isLoading ? (
@@ -1250,7 +1302,7 @@ function ManufacturersTab() {
         </div>
       ) : (
         <div style={{ border: "1px solid var(--border-ds)", borderRadius: 8, overflow: "hidden", background: "var(--bg-card)" }}>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 100px 100px 100px 200px", padding: "10px 14px", background: "var(--bg2)", fontSize: 11, fontWeight: 700, color: "var(--text-dim)", textTransform: "uppercase", letterSpacing: 0.4, borderBottom: "1px solid var(--border-ds)" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 100px 100px 100px 180px", padding: "10px 14px", background: "var(--bg2)", fontSize: 11, fontWeight: 700, color: "var(--text-dim)", textTransform: "uppercase", letterSpacing: 0.4, borderBottom: "1px solid var(--border-ds)" }}>
             <div>Name</div>
             <div style={{ textAlign: "right" }}>Vendors</div>
             <div style={{ textAlign: "right" }}>Line Items</div>
@@ -1258,56 +1310,78 @@ function ManufacturersTab() {
             <div style={{ textAlign: "right" }}>Actions</div>
           </div>
           {filtered.map((m) => {
-            const isEditing = editingId === m.id;
             const inUse = m.lineItemCount > 0 || m.approvedCount > 0 || m.vendorCount > 0;
             return (
-              <div key={m.id} style={{ display: "grid", gridTemplateColumns: "1fr 100px 100px 100px 200px", padding: "10px 14px", borderBottom: "1px solid var(--border-ds)", alignItems: "center", fontSize: 13 }} data-testid={`row-mfr-${m.id}`}>
-                {isEditing ? (
-                  <input
-                    autoFocus
-                    style={inputStyleLocal}
-                    value={editingName}
-                    onChange={(e) => setEditingName(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") renameMutation.mutate({ id: m.id, name: editingName });
-                      if (e.key === "Escape") setEditingId(null);
-                    }}
-                    data-testid={`input-rename-mfr-${m.id}`}
-                  />
-                ) : (
+              <div key={m.id} style={{ display: "grid", gridTemplateColumns: "1fr 100px 100px 100px 180px", padding: "10px 14px", borderBottom: "1px solid var(--border-ds)", alignItems: "center", fontSize: 13 }} data-testid={`row-mfr-${m.id}`}>
+                <div>
                   <div style={{ color: "var(--text-primary)", fontWeight: 500 }} data-testid={`text-mfr-name-${m.id}`}>{m.name}</div>
-                )}
+                  {m.website && <div style={{ fontSize: 11, color: "#5B8DEF", marginTop: 2 }}>{m.website}</div>}
+                </div>
                 <div style={{ textAlign: "right", color: m.vendorCount > 0 ? "var(--text-primary)" : "var(--text-dim)" }} data-testid={`text-mfr-vendor-count-${m.id}`}>{m.vendorCount}</div>
                 <div style={{ textAlign: "right", color: m.lineItemCount > 0 ? "var(--text-primary)" : "var(--text-dim)" }} data-testid={`text-mfr-line-item-count-${m.id}`}>{m.lineItemCount}</div>
                 <div style={{ textAlign: "right", color: m.approvedCount > 0 ? "var(--text-primary)" : "var(--text-dim)" }}>{m.approvedCount}</div>
                 <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
-                  {isEditing ? (
-                    <>
-                      <button onClick={() => renameMutation.mutate({ id: m.id, name: editingName })} disabled={renameMutation.isPending || !editingName.trim()} style={{ padding: "4px 10px", fontSize: 11, background: "var(--gold)", color: "#000", border: "none", borderRadius: 4, cursor: "pointer", fontWeight: 600 }} data-testid={`button-save-rename-${m.id}`}>Save</button>
-                      <button onClick={() => setEditingId(null)} style={{ padding: "4px 10px", fontSize: 11, background: "transparent", color: "var(--text-dim)", border: "1px solid var(--border-ds)", borderRadius: 4, cursor: "pointer" }} data-testid={`button-cancel-rename-${m.id}`}>Cancel</button>
-                    </>
-                  ) : (
-                    <>
-                      <button onClick={() => { setEditingId(m.id); setEditingName(m.name); }} style={{ padding: "4px 10px", fontSize: 11, background: "transparent", color: "var(--text-secondary)", border: "1px solid var(--border-ds)", borderRadius: 4, cursor: "pointer" }} data-testid={`button-rename-mfr-${m.id}`}>Rename</button>
-                      <button onClick={() => { setMergingId(m.id); setMergeTargetId(null); setMergeSearch(""); }} style={{ padding: "4px 10px", fontSize: 11, background: "transparent", color: "var(--text-secondary)", border: "1px solid var(--border-ds)", borderRadius: 4, cursor: "pointer" }} data-testid={`button-merge-mfr-${m.id}`}>Merge</button>
-                      <button
-                        onClick={() => {
-                          const msg = inUse
-                            ? `Delete "${m.name}"? It is referenced by ${m.lineItemCount} line item(s), ${m.approvedCount} approved scope entries, and ${m.vendorCount} vendor(s). Line items will lose their manufacturer link. This cannot be undone.`
-                            : `Delete "${m.name}"? This cannot be undone.`;
-                          if (window.confirm(msg)) deleteMutation.mutate(m.id);
-                        }}
-                        style={{ padding: "4px 10px", fontSize: 11, background: "transparent", color: "#E05252", border: "1px solid #E0525240", borderRadius: 4, cursor: "pointer" }}
-                        data-testid={`button-delete-mfr-${m.id}`}
-                      >
-                        Delete
-                      </button>
-                    </>
-                  )}
+                  <button onClick={() => openEdit(m)} style={{ padding: "4px 10px", fontSize: 11, background: "transparent", color: "var(--text-secondary)", border: "1px solid var(--border-ds)", borderRadius: 4, cursor: "pointer" }} data-testid={`button-edit-mfr-${m.id}`}>Edit</button>
+                  <button onClick={() => { setMergingId(m.id); setMergeTargetId(null); setMergeSearch(""); }} style={{ padding: "4px 10px", fontSize: 11, background: "transparent", color: "var(--text-secondary)", border: "1px solid var(--border-ds)", borderRadius: 4, cursor: "pointer" }} data-testid={`button-merge-mfr-${m.id}`}>Merge</button>
+                  <button
+                    onClick={() => {
+                      const msg = inUse
+                        ? `Delete "${m.name}"? It is referenced by ${m.lineItemCount} line item(s), ${m.approvedCount} approved scope entries, and ${m.vendorCount} vendor(s). Line items will lose their manufacturer link. This cannot be undone.`
+                        : `Delete "${m.name}"? This cannot be undone.`;
+                      if (window.confirm(msg)) deleteMutation.mutate(m.id);
+                    }}
+                    style={{ padding: "4px 10px", fontSize: 11, background: "transparent", color: "#E05252", border: "1px solid #E0525240", borderRadius: 4, cursor: "pointer" }}
+                    data-testid={`button-delete-mfr-${m.id}`}
+                  >
+                    Delete
+                  </button>
                 </div>
               </div>
             );
           })}
+        </div>
+      )}
+
+      {/* Add / Edit Manufacturer Modal */}
+      {modalOpen && (
+        <div onClick={() => setModalOpen(false)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+          <div onClick={(e) => e.stopPropagation()} style={{ background: "var(--bg-elev)", border: "1px solid var(--border-ds)", borderRadius: 10, padding: 24, width: "100%", maxWidth: 560 }} data-testid="modal-mfr-form">
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+              <div style={{ fontSize: 15, fontWeight: 700, color: "var(--text-primary)" }}>{modalMode === "add" ? "Add Manufacturer" : "Edit Manufacturer"}</div>
+              <button onClick={() => setModalOpen(false)} style={{ background: "none", border: "none", color: "var(--text-dim)", cursor: "pointer" }}><X size={16} /></button>
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+              <Field label="Name *">
+                <input style={inputStyleLocal} value={mfrForm.name} onChange={(e) => setMfrForm({ ...mfrForm, name: e.target.value })} placeholder="e.g. Bobrick Washroom Equipment" autoFocus data-testid="input-mfr-name" />
+              </Field>
+              <Field label="Website">
+                <input style={inputStyleLocal} value={mfrForm.website} onChange={(e) => setMfrForm({ ...mfrForm, website: e.target.value })} placeholder="https://" data-testid="input-mfr-website" />
+              </Field>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                <Field label="Primary Contact Name">
+                  <input style={inputStyleLocal} value={mfrForm.primaryContact} onChange={(e) => setMfrForm({ ...mfrForm, primaryContact: e.target.value })} placeholder="Jane Smith" data-testid="input-mfr-primary-contact" />
+                </Field>
+                <Field label="Contact Phone">
+                  <input style={inputStyleLocal} value={mfrForm.contactPhone} onChange={(e) => setMfrForm({ ...mfrForm, contactPhone: e.target.value })} placeholder="(555) 555-5555" data-testid="input-mfr-contact-phone" />
+                </Field>
+              </div>
+              <Field label="Contact Email">
+                <input style={inputStyleLocal} value={mfrForm.contactEmail} onChange={(e) => setMfrForm({ ...mfrForm, contactEmail: e.target.value })} placeholder="contact@manufacturer.com" data-testid="input-mfr-contact-email" />
+              </Field>
+              <Field label="Address">
+                <input style={inputStyleLocal} value={mfrForm.address} onChange={(e) => setMfrForm({ ...mfrForm, address: e.target.value })} placeholder="123 Main St, City, ST 12345" data-testid="input-mfr-address" />
+              </Field>
+              <Field label="Notes">
+                <textarea style={{ ...inputStyleLocal, minHeight: 72, resize: "vertical" }} value={mfrForm.notes} onChange={(e) => setMfrForm({ ...mfrForm, notes: e.target.value })} placeholder="Internal notes…" data-testid="input-mfr-notes" />
+              </Field>
+            </div>
+            <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 20 }}>
+              <button onClick={() => setModalOpen(false)} style={{ padding: "8px 16px", fontSize: 13, background: "transparent", border: "1px solid var(--border-ds)", color: "var(--text-secondary)", borderRadius: 6, cursor: "pointer" }} data-testid="button-cancel-mfr-modal">Cancel</button>
+              <button onClick={submitModal} disabled={isPending || !mfrForm.name.trim()} style={{ padding: "8px 16px", fontSize: 13, fontWeight: 700, background: mfrForm.name.trim() ? "var(--gold)" : "var(--bg2)", color: mfrForm.name.trim() ? "#000" : "var(--text-dim)", border: "none", borderRadius: 6, cursor: mfrForm.name.trim() ? "pointer" : "not-allowed" }} data-testid="button-submit-mfr-modal">
+                {isPending ? "Saving…" : modalMode === "add" ? "Add Manufacturer" : "Save Changes"}
+              </button>
+            </div>
+          </div>
         </div>
       )}
 

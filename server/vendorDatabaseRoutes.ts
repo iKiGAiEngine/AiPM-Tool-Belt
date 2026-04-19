@@ -71,6 +71,10 @@ export function registerVendorDatabaseRoutes(app: Express) {
       const [row] = await db.insert(mfrManufacturers).values({
         name,
         website: req.body?.website || null,
+        primaryContact: req.body?.primaryContact || null,
+        contactEmail: req.body?.contactEmail || null,
+        contactPhone: req.body?.contactPhone || null,
+        address: req.body?.address || null,
         notes: req.body?.notes || null,
       }).returning();
       res.status(201).json(row);
@@ -129,6 +133,10 @@ export function registerVendorDatabaseRoutes(app: Express) {
         updates.name = name;
       }
       if (req.body?.website !== undefined) updates.website = req.body.website || null;
+      if (req.body?.primaryContact !== undefined) updates.primaryContact = req.body.primaryContact || null;
+      if (req.body?.contactEmail !== undefined) updates.contactEmail = req.body.contactEmail || null;
+      if (req.body?.contactPhone !== undefined) updates.contactPhone = req.body.contactPhone || null;
+      if (req.body?.address !== undefined) updates.address = req.body.address || null;
       if (req.body?.notes !== undefined) updates.notes = req.body.notes || null;
       const [row] = await db.update(mfrManufacturers).set(updates).where(eq(mfrManufacturers.id, id)).returning();
       if (!row) return res.status(404).json({ message: "Not found" });
@@ -292,12 +300,13 @@ export function registerVendorDatabaseRoutes(app: Express) {
 
   app.post("/api/mfr/vendors", async (req: Request, res: Response) => {
     try {
-      const { name, category, website, notes, tags, scopes, manufacturerIds } = req.body;
+      const { name, category, website, notes, tags, scopes, manufacturerIds, manufacturerDirect } = req.body;
       const [vendor] = await db.insert(mfrVendors).values({
         name, category, website, notes,
         tags: tags || [],
         scopes: Array.isArray(scopes) ? scopes : null,
         manufacturerIds: Array.isArray(manufacturerIds) ? manufacturerIds.map((n: any) => Number(n)).filter((n: number) => Number.isFinite(n)) : null,
+        manufacturerDirect: !!manufacturerDirect,
       }).returning();
       res.json(vendor);
     } catch (err: any) {
@@ -307,13 +316,14 @@ export function registerVendorDatabaseRoutes(app: Express) {
 
   app.put("/api/mfr/vendors/:id", async (req: Request, res: Response) => {
     try {
-      const { name, category, website, notes, tags, scopes, manufacturerIds } = req.body;
+      const { name, category, website, notes, tags, scopes, manufacturerIds, manufacturerDirect } = req.body;
       const [updated] = await db.update(mfrVendors)
         .set({
           name, category, website, notes,
           tags: tags || [],
           scopes: Array.isArray(scopes) ? scopes : null,
           manufacturerIds: Array.isArray(manufacturerIds) ? manufacturerIds.map((n: any) => Number(n)).filter((n: number) => Number.isFinite(n)) : null,
+          manufacturerDirect: !!manufacturerDirect,
           updatedAt: new Date(),
         })
         .where(eq(mfrVendors.id, Number(req.params.id)))

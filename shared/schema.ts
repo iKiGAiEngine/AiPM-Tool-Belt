@@ -1049,6 +1049,7 @@ export const mfrVendors = pgTable("mfr_vendors", {
   tags: jsonb("tags").$type<string[]>().default([]),
   scopes: text("scopes").array(),
   manufacturerIds: integer("manufacturer_ids").array(),
+  manufacturerDirect: boolean("manufacturer_direct").default(false),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
@@ -1078,6 +1079,10 @@ export const mfrManufacturers = pgTable("mfr_manufacturers", {
   id: serial("id").primaryKey(),
   name: varchar("name", { length: 255 }).notNull().unique(),
   website: varchar("website", { length: 500 }),
+  primaryContact: varchar("primary_contact", { length: 255 }),
+  contactEmail: varchar("contact_email", { length: 255 }),
+  contactPhone: varchar("contact_phone", { length: 50 }),
+  address: text("address"),
   notes: text("notes"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
