@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { useFeatureAccess } from "@/hooks/use-feature-access";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -353,6 +354,7 @@ function EstimatingModuleInner() {
   const { toast } = useToast();
   const qc = useQueryClient();
   const { hasFeature } = useFeatureAccess();
+  const isMobile = useIsMobile();
 
   // ── Stage navigation ──
   const [stage, setStage] = useState<"intake" | "lineItems" | "calculations" | "output">("intake");
@@ -3048,52 +3050,124 @@ ${html}
                 {/* Add item form */}
                 {addingItem && (
                   <div className="px-4 py-3" style={{ background: "var(--bg3)", borderBottom: "1px solid var(--border-ds)" }}>
-                    <div className="grid gap-x-3 gap-y-2" style={{ gridTemplateColumns: "110px 1fr 140px 120px 60px 72px 110px 90px auto" }}>
-                      {/* Row 1: Labels */}
-                      {["Plan Callout", "Description *", "Manufacturer", "Model #", "Qty", "UOM", "Unit Cost ($)", "Line Total"].map(label => (
-                        <div key={label} className="text-xs font-semibold" style={{ color: "var(--text-muted)" }}>{label}</div>
-                      ))}
-                      <div />
-                      {/* Row 2: Inputs */}
-                      <input value={newItemForm.planCallout} onChange={e => setNewItemForm(p => ({ ...p, planCallout: e.target.value }))}
-                        className="text-xs px-2 py-1.5 rounded"
-                        style={{ background: "var(--bg2)", border: "1px solid var(--border-ds)", color: "var(--text)" }} />
-                      <input value={newItemForm.name} onChange={e => setNewItemForm(p => ({ ...p, name: e.target.value }))}
-                        onKeyDown={e => e.key === "Enter" && addLineItem()}
-                        className="text-xs px-2 py-1.5 rounded"
-                        style={{ background: "var(--bg2)", border: "1px solid var(--border-ds)", color: "var(--text)" }} />
-                      <ManufacturerCombo
-                        value={newItemForm.mfr}
-                        manufacturerId={newItemForm.manufacturerId}
-                        allMfrs={allManufacturers}
-                        approvedIds={new Set(approvedMfrs.map(a => a.manufacturerId))}
-                        onChange={(name, id) => setNewItemForm(p => ({ ...p, mfr: name, manufacturerId: id }))}
-                        placeholder="Pick or type…"
-                        className="text-xs px-2 py-1.5 rounded"
-                        style={{ background: "var(--bg2)", border: "1px solid var(--border-ds)", color: "var(--text)" }} />
-                      <input value={newItemForm.model} onChange={e => setNewItemForm(p => ({ ...p, model: e.target.value }))}
-                        className="text-xs px-2 py-1.5 rounded"
-                        style={{ background: "var(--bg2)", border: "1px solid var(--border-ds)", color: "var(--text)" }} />
-                      <input type="number" min={1} value={newItemForm.qty} onChange={e => setNewItemForm(p => ({ ...p, qty: parseInt(e.target.value) || 1 }))}
-                        className="text-xs px-2 py-1.5 rounded text-right"
-                        style={{ background: "var(--bg2)", border: "1px solid var(--border-ds)", color: "var(--text)" }} />
-                      <select value={newItemForm.uom} onChange={e => setNewItemForm(p => ({ ...p, uom: e.target.value }))}
-                        className="text-xs px-2 py-1.5 rounded"
-                        style={{ background: "var(--bg2)", border: "1px solid var(--border-ds)", color: "var(--text)" }}>
-                        {["EA", "LF", "SF", "SET"].map(v => <option key={v} value={v}>{v}</option>)}
-                      </select>
-                      <input type="number" step={0.01} value={newItemForm.unitCost} onChange={e => setNewItemForm(p => ({ ...p, unitCost: parseFloat(e.target.value) || 0 }))}
-                        className="text-xs px-2 py-1.5 rounded text-right"
-                        style={{ background: "var(--bg2)", border: "1px solid var(--border-ds)", color: "var(--text)" }} />
-                      <div className="text-xs px-2 py-1.5 rounded font-semibold flex items-center justify-end"
-                        style={{ background: "var(--bg2)", border: "1px solid var(--border-ds)", color: newItemForm.qty * newItemForm.unitCost === 0 ? "var(--text-muted)" : "#22c55e" }}>
-                        {fmt(newItemForm.qty * newItemForm.unitCost)}
+                    {isMobile ? (
+                      // Mobile: stacked vertical layout with labels above each field
+                      <div className="flex flex-col gap-2">
+                        <label className="block">
+                          <span className="text-[11px] font-semibold block mb-0.5" style={{ color: "var(--text-muted)" }}>Plan Callout</span>
+                          <input value={newItemForm.planCallout} onChange={e => setNewItemForm(p => ({ ...p, planCallout: e.target.value }))}
+                            className="w-full text-sm px-2 py-2 rounded"
+                            style={{ background: "var(--bg2)", border: "1px solid var(--border-ds)", color: "var(--text)" }} />
+                        </label>
+                        <label className="block">
+                          <span className="text-[11px] font-semibold block mb-0.5" style={{ color: "var(--text-muted)" }}>Description *</span>
+                          <input value={newItemForm.name} onChange={e => setNewItemForm(p => ({ ...p, name: e.target.value }))}
+                            className="w-full text-sm px-2 py-2 rounded"
+                            style={{ background: "var(--bg2)", border: "1px solid var(--border-ds)", color: "var(--text)" }} />
+                        </label>
+                        <label className="block">
+                          <span className="text-[11px] font-semibold block mb-0.5" style={{ color: "var(--text-muted)" }}>Manufacturer</span>
+                          <ManufacturerCombo
+                            value={newItemForm.mfr}
+                            manufacturerId={newItemForm.manufacturerId}
+                            allMfrs={allManufacturers}
+                            approvedIds={new Set(approvedMfrs.map(a => a.manufacturerId))}
+                            onChange={(name, id) => setNewItemForm(p => ({ ...p, mfr: name, manufacturerId: id }))}
+                            placeholder="Pick or type…"
+                            className="w-full text-sm px-2 py-2 rounded"
+                            style={{ background: "var(--bg2)", border: "1px solid var(--border-ds)", color: "var(--text)" }} />
+                        </label>
+                        <label className="block">
+                          <span className="text-[11px] font-semibold block mb-0.5" style={{ color: "var(--text-muted)" }}>Model #</span>
+                          <input value={newItemForm.model} onChange={e => setNewItemForm(p => ({ ...p, model: e.target.value }))}
+                            className="w-full text-sm px-2 py-2 rounded"
+                            style={{ background: "var(--bg2)", border: "1px solid var(--border-ds)", color: "var(--text)" }} />
+                        </label>
+                        <div className="grid gap-2" style={{ gridTemplateColumns: "1fr 1fr" }}>
+                          <label className="block">
+                            <span className="text-[11px] font-semibold block mb-0.5" style={{ color: "var(--text-muted)" }}>Qty</span>
+                            <input type="number" min={1} value={newItemForm.qty} onChange={e => setNewItemForm(p => ({ ...p, qty: parseInt(e.target.value) || 1 }))}
+                              className="w-full text-sm px-2 py-2 rounded text-right"
+                              style={{ background: "var(--bg2)", border: "1px solid var(--border-ds)", color: "var(--text)" }} />
+                          </label>
+                          <label className="block">
+                            <span className="text-[11px] font-semibold block mb-0.5" style={{ color: "var(--text-muted)" }}>UOM</span>
+                            <select value={newItemForm.uom} onChange={e => setNewItemForm(p => ({ ...p, uom: e.target.value }))}
+                              className="w-full text-sm px-2 py-2 rounded"
+                              style={{ background: "var(--bg2)", border: "1px solid var(--border-ds)", color: "var(--text)" }}>
+                              {["EA", "LF", "SF", "SET"].map(v => <option key={v} value={v}>{v}</option>)}
+                            </select>
+                          </label>
+                        </div>
+                        <div className="grid gap-2" style={{ gridTemplateColumns: "1fr 1fr" }}>
+                          <label className="block">
+                            <span className="text-[11px] font-semibold block mb-0.5" style={{ color: "var(--text-muted)" }}>Unit Cost ($)</span>
+                            <input type="number" step={0.01} value={newItemForm.unitCost} onChange={e => setNewItemForm(p => ({ ...p, unitCost: parseFloat(e.target.value) || 0 }))}
+                              className="w-full text-sm px-2 py-2 rounded text-right"
+                              style={{ background: "var(--bg2)", border: "1px solid var(--border-ds)", color: "var(--text)" }} />
+                          </label>
+                          <label className="block">
+                            <span className="text-[11px] font-semibold block mb-0.5" style={{ color: "var(--text-muted)" }}>Line Total</span>
+                            <div className="text-sm px-2 py-2 rounded font-semibold flex items-center justify-end"
+                              style={{ background: "var(--bg2)", border: "1px solid var(--border-ds)", color: newItemForm.qty * newItemForm.unitCost === 0 ? "var(--text-muted)" : "#22c55e" }}>
+                              {fmt(newItemForm.qty * newItemForm.unitCost)}
+                            </div>
+                          </label>
+                        </div>
+                        <div className="flex items-center gap-2 mt-1">
+                          <button onClick={addLineItem} className="flex-1 text-sm px-3 py-2 rounded font-semibold" style={{ background: "#22c55e", color: "#fff" }}>Add Item</button>
+                          <button onClick={() => setAddingItem(false)} className="text-sm px-3 py-2 rounded" style={{ background: "var(--bg2)", border: "1px solid var(--border-ds)", color: "var(--text-secondary)" }}>Cancel</button>
+                        </div>
                       </div>
-                      <div className="flex items-center gap-1.5">
-                        <button onClick={addLineItem} className="text-xs px-3 py-1.5 rounded font-semibold" style={{ background: "#22c55e", color: "#fff" }}>Add</button>
-                        <button onClick={() => setAddingItem(false)} className="text-xs px-2 py-1.5 rounded" style={{ background: "var(--bg2)", border: "1px solid var(--border-ds)", color: "var(--text-secondary)" }}>✕</button>
+                    ) : (
+                      // Desktop: original 9-column grid
+                      <div className="grid gap-x-3 gap-y-2" style={{ gridTemplateColumns: "110px 1fr 140px 120px 60px 72px 110px 90px auto" }}>
+                        {/* Row 1: Labels */}
+                        {["Plan Callout", "Description *", "Manufacturer", "Model #", "Qty", "UOM", "Unit Cost ($)", "Line Total"].map(label => (
+                          <div key={label} className="text-xs font-semibold" style={{ color: "var(--text-muted)" }}>{label}</div>
+                        ))}
+                        <div />
+                        {/* Row 2: Inputs */}
+                        <input value={newItemForm.planCallout} onChange={e => setNewItemForm(p => ({ ...p, planCallout: e.target.value }))}
+                          className="text-xs px-2 py-1.5 rounded"
+                          style={{ background: "var(--bg2)", border: "1px solid var(--border-ds)", color: "var(--text)" }} />
+                        <input value={newItemForm.name} onChange={e => setNewItemForm(p => ({ ...p, name: e.target.value }))}
+                          onKeyDown={e => e.key === "Enter" && addLineItem()}
+                          className="text-xs px-2 py-1.5 rounded"
+                          style={{ background: "var(--bg2)", border: "1px solid var(--border-ds)", color: "var(--text)" }} />
+                        <ManufacturerCombo
+                          value={newItemForm.mfr}
+                          manufacturerId={newItemForm.manufacturerId}
+                          allMfrs={allManufacturers}
+                          approvedIds={new Set(approvedMfrs.map(a => a.manufacturerId))}
+                          onChange={(name, id) => setNewItemForm(p => ({ ...p, mfr: name, manufacturerId: id }))}
+                          placeholder="Pick or type…"
+                          className="text-xs px-2 py-1.5 rounded"
+                          style={{ background: "var(--bg2)", border: "1px solid var(--border-ds)", color: "var(--text)" }} />
+                        <input value={newItemForm.model} onChange={e => setNewItemForm(p => ({ ...p, model: e.target.value }))}
+                          className="text-xs px-2 py-1.5 rounded"
+                          style={{ background: "var(--bg2)", border: "1px solid var(--border-ds)", color: "var(--text)" }} />
+                        <input type="number" min={1} value={newItemForm.qty} onChange={e => setNewItemForm(p => ({ ...p, qty: parseInt(e.target.value) || 1 }))}
+                          className="text-xs px-2 py-1.5 rounded text-right"
+                          style={{ background: "var(--bg2)", border: "1px solid var(--border-ds)", color: "var(--text)" }} />
+                        <select value={newItemForm.uom} onChange={e => setNewItemForm(p => ({ ...p, uom: e.target.value }))}
+                          className="text-xs px-2 py-1.5 rounded"
+                          style={{ background: "var(--bg2)", border: "1px solid var(--border-ds)", color: "var(--text)" }}>
+                          {["EA", "LF", "SF", "SET"].map(v => <option key={v} value={v}>{v}</option>)}
+                        </select>
+                        <input type="number" step={0.01} value={newItemForm.unitCost} onChange={e => setNewItemForm(p => ({ ...p, unitCost: parseFloat(e.target.value) || 0 }))}
+                          className="text-xs px-2 py-1.5 rounded text-right"
+                          style={{ background: "var(--bg2)", border: "1px solid var(--border-ds)", color: "var(--text)" }} />
+                        <div className="text-xs px-2 py-1.5 rounded font-semibold flex items-center justify-end"
+                          style={{ background: "var(--bg2)", border: "1px solid var(--border-ds)", color: newItemForm.qty * newItemForm.unitCost === 0 ? "var(--text-muted)" : "#22c55e" }}>
+                          {fmt(newItemForm.qty * newItemForm.unitCost)}
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <button onClick={addLineItem} className="text-xs px-3 py-1.5 rounded font-semibold" style={{ background: "#22c55e", color: "#fff" }}>Add</button>
+                          <button onClick={() => setAddingItem(false)} className="text-xs px-2 py-1.5 rounded" style={{ background: "var(--bg2)", border: "1px solid var(--border-ds)", color: "var(--text-secondary)" }}>✕</button>
+                        </div>
                       </div>
-                    </div>
+                    )}
                   </div>
                 )}
 
@@ -3128,7 +3202,170 @@ ${html}
                   </div>
                 )}
 
-                {catLineItems.length > 0 && (
+                {catLineItems.length > 0 && isMobile && (
+                  <div className="flex flex-col gap-3 p-3" style={{ background: "var(--bg-card)" }}>
+                    {catLineItems.map((item, idx) => {
+                      const extended = n(item.unitCost) * item.qty;
+                      const quoteOpts = [{ id: "", label: "— No Quote —" }, ...catQuotes.map(q => ({ id: String(q.id), label: q.vendor + (q.note ? ` (${q.note})` : "") }))];
+                      const isExpanded = expandedItems.has(item.id);
+                      const isSelected = selectedLineItemIds.has(item.id);
+                      return (
+                        <div key={item.id} className="rounded-lg p-3"
+                          style={{ background: isSelected ? "var(--gold)08" : idx % 2 === 0 ? "var(--bg-card)" : "var(--bg3)50", border: `1px solid ${isSelected ? "var(--gold)40" : "var(--border-ds)"}` }}
+                          data-testid={`card-line-item-${item.id}`}>
+                          {/* Card header: select + #, line total, delete */}
+                          <div className="flex items-center justify-between mb-2">
+                            <div className="flex items-center gap-2">
+                              <input type="checkbox" aria-label={`Select line item ${item.name || item.id}`}
+                                checked={isSelected}
+                                onChange={() => toggleLineItemSelection(item.id)}
+                                style={{ accentColor: "var(--gold)", cursor: "pointer", width: 16, height: 16 }} />
+                              <span className="text-[11px] font-semibold" style={{ color: "var(--text-muted)" }}>#{idx + 1}</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span className="text-sm font-semibold" style={{ color: extended === 0 ? "#ef4444" : "#22c55e" }}>{fmt(extended)}</span>
+                              <button onClick={() => updateLineItem(item.id, "hasBackup", !item.hasBackup)}
+                                title={item.hasBackup ? "Has backup" : "Missing backup"}
+                                className="p-1 rounded">
+                                {item.hasBackup
+                                  ? <CheckSquare className="w-4 h-4" style={{ color: "#22c55e" }} />
+                                  : <AlertTriangle className="w-4 h-4" style={{ color: "#ef4444" }} />}
+                              </button>
+                              <button onClick={() => deleteLineItem(item.id)} className="p-1 rounded">
+                                <Trash2 className="w-4 h-4" style={{ color: "#ef4444" }} />
+                              </button>
+                            </div>
+                          </div>
+
+                          {/* Description */}
+                          <label className="block mb-2">
+                            <span className="text-[10px] font-semibold block mb-0.5" style={{ color: "var(--text-muted)" }}>Description</span>
+                            <input value={item.name || ""} onChange={e => updateLineItem(item.id, "name", e.target.value)}
+                              className="w-full text-sm px-2 py-1.5 rounded"
+                              style={{ background: "var(--bg2)", border: "1px solid var(--border-ds)", color: "var(--text)" }} />
+                            {item.note && <div className="text-[11px] italic mt-0.5" style={{ color: "#f97316" }}>▸ {item.note}</div>}
+                          </label>
+
+                          {/* Plan callout + Model row */}
+                          <div className="grid gap-2 mb-2" style={{ gridTemplateColumns: "1fr 1fr" }}>
+                            <label className="block">
+                              <span className="text-[10px] font-semibold block mb-0.5" style={{ color: "var(--text-muted)" }}>Plan Callout</span>
+                              <input value={item.planCallout || ""} onChange={e => updateLineItem(item.id, "planCallout", e.target.value)}
+                                className="w-full text-sm px-2 py-1.5 rounded"
+                                style={{ background: "var(--bg2)", border: "1px solid var(--border-ds)", color: "var(--text-muted)" }} />
+                            </label>
+                            <label className="block">
+                              <span className="text-[10px] font-semibold block mb-0.5" style={{ color: "var(--text-muted)" }}>Model #</span>
+                              <input value={item.model || ""} onChange={e => updateLineItem(item.id, "model", e.target.value)}
+                                placeholder="—" className="w-full text-sm px-2 py-1.5 rounded"
+                                style={{ background: "var(--bg2)", border: "1px solid var(--border-ds)", color: "var(--text-muted)" }} />
+                            </label>
+                          </div>
+
+                          {/* Manufacturer */}
+                          <label className="block mb-2">
+                            <span className="text-[10px] font-semibold block mb-0.5" style={{ color: "var(--text-muted)" }}>Manufacturer</span>
+                            <ManufacturerCombo
+                              value={item.mfr || ""}
+                              manufacturerId={item.manufacturerId}
+                              allMfrs={allManufacturers}
+                              approvedIds={new Set(approvedMfrs.map(a => a.manufacturerId))}
+                              onChange={(name, id) => {
+                                setLineItems(prev => prev.map(i => i.id === item.id ? { ...i, mfr: name || null, manufacturerId: id } : i));
+                                apiRequest("PATCH", `/api/estimates/line-items/${item.id}`, { mfr: name || null, manufacturerId: id }).catch(() => toast({ title: "Error", description: "Could not update item.", variant: "destructive" }));
+                              }}
+                              placeholder="—"
+                              className="w-full text-sm px-2 py-1.5 rounded"
+                              style={{ background: "var(--bg2)", border: "1px solid var(--border-ds)", color: "var(--text)" }} />
+                          </label>
+
+                          {/* Qty / UOM / Unit Cost row */}
+                          <div className="grid gap-2 mb-2" style={{ gridTemplateColumns: "1fr 1fr 1.4fr" }}>
+                            <label className="block">
+                              <span className="text-[10px] font-semibold block mb-0.5" style={{ color: "var(--text-muted)" }}>Qty</span>
+                              <input type="number" min={1} value={item.qty} onChange={e => updateLineItem(item.id, "qty", parseInt(e.target.value) || 1)}
+                                className="w-full text-sm px-2 py-1.5 rounded text-right"
+                                style={{ background: "var(--bg2)", border: "1px solid var(--border-ds)", color: "var(--text)" }} />
+                            </label>
+                            <label className="block">
+                              <span className="text-[10px] font-semibold block mb-0.5" style={{ color: "var(--text-muted)" }}>UOM</span>
+                              <select value={item.uom || "EA"} onChange={e => updateLineItem(item.id, "uom", e.target.value)}
+                                className="w-full text-sm px-2 py-1.5 rounded"
+                                style={{ background: "var(--bg2)", border: "1px solid var(--border-ds)", color: "var(--text-secondary)" }}>
+                                {["EA", "LF", "SF", "SET"].map(v => <option key={v} value={v}>{v}</option>)}
+                              </select>
+                            </label>
+                            <label className="block">
+                              <span className="text-[10px] font-semibold block mb-0.5" style={{ color: "var(--text-muted)" }}>Unit Cost</span>
+                              <input type="number" step={0.01} value={n(item.unitCost)}
+                                onChange={e => updateLineItem(item.id, "unitCost", e.target.value)}
+                                className="w-full text-sm px-2 py-1.5 rounded text-right"
+                                style={{ background: "var(--bg2)", border: "1px solid var(--border-ds)", color: n(item.unitCost) === 0 ? "#ef4444" : "var(--text)" }} />
+                            </label>
+                          </div>
+
+                          {/* Quote */}
+                          <label className="block mb-2">
+                            <span className="text-[10px] font-semibold block mb-0.5" style={{ color: "var(--text-muted)" }}>Quote</span>
+                            <select value={item.quoteId ? String(item.quoteId) : ""}
+                              onChange={e => updateLineItem(item.id, "quoteId", e.target.value ? parseInt(e.target.value) : null)}
+                              className="w-full text-sm px-2 py-1.5 rounded"
+                              style={{ background: "var(--bg2)", border: "1px solid var(--border-ds)", color: "var(--text-secondary)" }}>
+                              {quoteOpts.map(q => <option key={q.id} value={q.id}>{q.label}</option>)}
+                            </select>
+                          </label>
+
+                          {/* Allocation expand button */}
+                          {breakoutGroups.length > 0 && (
+                            <button onClick={() => setExpandedItems(prev => { const s = new Set(prev); s.has(item.id) ? s.delete(item.id) : s.add(item.id); return s; })}
+                              className="w-full text-xs px-2 py-1.5 rounded flex items-center justify-center gap-1"
+                              style={{ background: "var(--bg3)", border: "1px solid var(--border-ds)", color: "#06b6d4" }}>
+                              {isExpanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                              Allocate Qty
+                            </button>
+                          )}
+                          {isExpanded && breakoutGroups.length > 0 && (
+                            <div className="mt-2 p-2 rounded" style={{ background: "#06b6d408", border: "1px solid #06b6d440" }}>
+                              <div className="text-[11px] font-semibold mb-1" style={{ color: "#06b6d4" }}>Allocate Qty {item.qty}:</div>
+                              <div className="flex flex-wrap gap-2">
+                                {breakoutGroups.map(g => {
+                                  const alloc = allocMap[item.id]?.[g.id] || 0;
+                                  const totalAlloc = Object.values(allocMap[item.id] || {}).reduce((s: number, q: any) => s + q, 0);
+                                  const isOver = totalAlloc > item.qty;
+                                  return (
+                                    <div key={g.id} className="flex items-center gap-1">
+                                      <span className="text-[11px]" style={{ color: "#06b6d4", fontWeight: 600 }}>{g.code}:</span>
+                                      <input type="number" min={0} value={alloc}
+                                        onChange={e => setAllocation(item.id, g.id, parseInt(e.target.value) || 0)}
+                                        className="w-14 text-xs text-center px-1 py-0.5 rounded"
+                                        style={{ background: "var(--bg2)", border: `1px solid ${isOver ? "#ef444440" : "var(--border-ds)"}`, color: isOver ? "#ef4444" : "var(--text)" }} />
+                                    </div>
+                                  );
+                                })}
+                                <span className="text-[11px]" style={{ color: (() => { const total = Object.values(allocMap[item.id] || {}).reduce((s: number, q: any) => s + q, 0); return total === item.qty ? "#22c55e" : total > item.qty ? "#ef4444" : "var(--text-muted)"; })() }}>
+                                  {(() => { const total = Object.values(allocMap[item.id] || {}).reduce((s: number, q: any) => s + q, 0); return `${total}/${item.qty}`; })()}
+                                </span>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                    {/* Mobile totals card */}
+                    <div className="rounded-lg p-3" style={{ background: "var(--bg3)", border: "2px solid var(--border-ds)" }}>
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-xs font-bold" style={{ color: "var(--text-secondary)" }}>{catLineItems.length} items</span>
+                        <span className="text-base font-bold" style={{ color: "#22c55e" }}>{fmt(calcData[activeCat]?.material || 0)}</span>
+                      </div>
+                      <div className="text-[11px]" style={{ color: "var(--text-muted)" }}>
+                        + Esc: {fmt(calcData[activeCat]?.escalation || 0)} + Frt: {fmt(calcData[activeCat]?.totalFreight || 0)}
+                        <span className="block mt-0.5">= Sub: <strong style={{ color: "var(--text)" }}>{fmt(calcData[activeCat]?.subtotal || 0)}</strong></span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {catLineItems.length > 0 && !isMobile && (
                   <div className="overflow-x-auto">
                     <table className="w-full text-xs">
                       <thead>
