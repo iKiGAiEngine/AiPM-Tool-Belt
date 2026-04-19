@@ -378,6 +378,7 @@ function EstimatingModuleInner() {
   const [openRfqVendorMode, setOpenRfqVendorMode] = useState<"existing" | "new">("existing");
   const [openRfqExistingVendorId, setOpenRfqExistingVendorId] = useState<number | null>(null);
   const [openRfqVendorSearch, setOpenRfqVendorSearch] = useState("");
+  const [openRfqOnlyDirect, setOpenRfqOnlyDirect] = useState(false);
   const [openRfqNewVendorName, setOpenRfqNewVendorName] = useState("");
   const [openRfqNewVendorEmail, setOpenRfqNewVendorEmail] = useState("");
   const [openRfqSelectedItemIds, setOpenRfqSelectedItemIds] = useState<Set<string>>(new Set());
@@ -1672,6 +1673,7 @@ ${html}
       vendorName: string;
       scopes?: string[];
       manufacturerIds?: number[];
+      manufacturerDirect?: boolean;
       contacts: Array<{
         id: number;
         name: string;
@@ -1723,7 +1725,7 @@ ${html}
   });
 
   // Vendors list (for Open RFQ ad-hoc picker). Loaded on demand when modal opens.
-  type VendorListItem = { id: number; name: string; category?: string | null };
+  type VendorListItem = { id: number; name: string; category?: string | null; manufacturerDirect?: boolean | null };
   const { data: allVendorsForRfq = [] } = useQuery<VendorListItem[]>({
     queryKey: ["/api/mfr/vendors", "open-rfq-list"],
     queryFn: async () => {
@@ -3372,6 +3374,7 @@ ${html}
                                   <div key={v.vendorId} className="flex items-center gap-1.5">
                                     <Users className="w-3 h-3" />
                                     <span style={{ color: "var(--text-secondary)" }}>{v.vendorName}</span>
+                                    {v.manufacturerDirect && <span style={{ fontSize: 9, fontWeight: 700, padding: "1px 5px", borderRadius: 3, background: "rgba(91,141,239,0.15)", color: "#5B8DEF" }} title="Manufacturer Direct" data-testid={`badge-direct-approved-${v.vendorId}`}>DIRECT</span>}
                                     {primary && <span>· {primary.name}{primary.email ? ` <${primary.email}>` : ""}</span>}
                                   </div>
                                 );
@@ -3423,6 +3426,7 @@ ${html}
                   type VendorGroup = {
                     vendorId: number;
                     vendorName: string;
+                    manufacturerDirect: boolean;
                     contacts: Array<{ id: number; name: string; role?: string | null; email: string | null; isPrimary: boolean }>;
                     manufacturers: Array<{ name: string; mfrId: number; items: typeof catLineItems }>;
                   };
@@ -3436,7 +3440,7 @@ ${html}
                       if (!scopesOk || !mfrOk) continue;
                       let g = byVendor.get(v.vendorId);
                       if (!g) {
-                        g = { vendorId: v.vendorId, vendorName: v.vendorName, contacts: [], manufacturers: [] };
+                        g = { vendorId: v.vendorId, vendorName: v.vendorName, manufacturerDirect: !!v.manufacturerDirect, contacts: [], manufacturers: [] };
                         byVendor.set(v.vendorId, g);
                       }
                       for (const c of v.contacts) {
@@ -3468,6 +3472,7 @@ ${html}
                             setOpenRfqExistingVendorId(null);
                             setOpenRfqVendorMode("existing");
                             setOpenRfqVendorSearch("");
+                            setOpenRfqOnlyDirect(false);
                             setOpenRfqNewVendorName("");
                             setOpenRfqNewVendorEmail("");
                             setOpenRfqExtraNotes("");
@@ -3501,6 +3506,7 @@ ${html}
                               <div className="flex items-center gap-2 flex-wrap">
                                 <Users className="w-3 h-3" style={{ color: "var(--gold)" }} />
                                 <span className="text-xs font-semibold" style={{ color: "var(--gold)" }}>{g.vendorName}</span>
+                                {g.manufacturerDirect && <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 6px", borderRadius: 3, background: "rgba(91,141,239,0.15)", color: "#5B8DEF" }} title="Manufacturer Direct" data-testid={`badge-direct-rfq-vendor-${g.vendorId}`}>DIRECT</span>}
                                 <span className="text-[10px]" style={{ color: "var(--text-muted)" }}>
                                   {g.manufacturers.length} mfr{g.manufacturers.length === 1 ? "" : "s"} · {eligibleCount} contact{eligibleCount === 1 ? "" : "s"}
                                 </span>
@@ -5035,6 +5041,7 @@ ${html}
         const groups: Array<{
           vendorId: number;
           vendorName: string;
+          manufacturerDirect: boolean;
           contacts: Array<{ id: number; name: string; role?: string | null; email: string | null; isPrimary: boolean }>;
         }> = [];
         if (approved) {
@@ -5044,7 +5051,7 @@ ${html}
             const scopesOk = !v.scopes || v.scopes.length === 0 || v.scopes.includes(activeCat);
             const mfrOk = !v.manufacturerIds || v.manufacturerIds.length === 0 || v.manufacturerIds.includes(mfrId);
             if (!scopesOk || !mfrOk) continue;
-            if (v.contacts.length > 0) groups.push({ vendorId: v.vendorId, vendorName: v.vendorName, contacts: v.contacts });
+            if (v.contacts.length > 0) groups.push({ vendorId: v.vendorId, vendorName: v.vendorName, manufacturerDirect: !!v.manufacturerDirect, contacts: v.contacts });
           }
         }
         const allEligibleIds = groups.flatMap(g => g.contacts.map(c => c.id));
@@ -5123,6 +5130,7 @@ ${html}
                             <label className="flex items-center gap-2 text-xs font-semibold cursor-pointer" style={{ color: "var(--gold)" }}>
                               <input type="checkbox" checked={groupAll} ref={el => { if (el) el.indeterminate = groupSome && !groupAll; }} onChange={() => toggleGroup(g)} style={{ accentColor: "var(--gold)" }} />
                               {g.vendorName}
+                              {g.manufacturerDirect && <span style={{ fontSize: 9, fontWeight: 700, padding: "1px 6px", borderRadius: 3, background: "rgba(91,141,239,0.15)", color: "#5B8DEF" }} title="Manufacturer Direct" data-testid={`badge-direct-picker-${g.vendorId}`}>DIRECT</span>}
                             </label>
                             <span className="text-[10px]" style={{ color: "var(--text-muted)" }}>{g.contacts.length} contact{g.contacts.length === 1 ? "" : "s"}</span>
                           </div>
@@ -5183,6 +5191,7 @@ ${html}
         type VG = {
           vendorId: number;
           vendorName: string;
+          manufacturerDirect: boolean;
           contacts: Array<{ id: number; name: string; role?: string | null; email: string | null; isPrimary: boolean }>;
           manufacturers: Array<{ name: string; mfrId: number; items: typeof catLineItems }>;
         };
@@ -5197,7 +5206,7 @@ ${html}
             const mfrOk = !v.manufacturerIds || v.manufacturerIds.length === 0 || v.manufacturerIds.includes(src.mfrId);
             if (!scopesOk || !mfrOk) continue;
             let g = map.get(v.vendorId);
-            if (!g) { g = { vendorId: v.vendorId, vendorName: v.vendorName, contacts: [], manufacturers: [] }; map.set(v.vendorId, g); }
+            if (!g) { g = { vendorId: v.vendorId, vendorName: v.vendorName, manufacturerDirect: !!v.manufacturerDirect, contacts: [], manufacturers: [] }; map.set(v.vendorId, g); }
             for (const c of v.contacts) { if (!g.contacts.find(x => x.id === c.id)) g.contacts.push(c); }
             if (!g.manufacturers.find(m => m.mfrId === src.mfrId)) g.manufacturers.push({ name: entry.name, mfrId: src.mfrId, items: catLineItems.filter(i => i.mfr && namesMatch(i.mfr, entry.name)) });
           }
@@ -5245,7 +5254,7 @@ ${html}
             <div className="rounded-xl p-6 w-full max-w-2xl shadow-2xl" style={{ background: "var(--bg-card)", border: "1px solid var(--border-ds)", maxHeight: "85vh", display: "flex", flexDirection: "column" }} data-testid="modal-rfq-vendor-recipients">
               <div className="flex items-center justify-between mb-1">
                 <div>
-                  <h3 className="text-base font-semibold" style={{ color: "var(--text)" }}>Send Consolidated RFQ — {group.vendorName}</h3>
+                  <h3 className="text-base font-semibold flex items-center gap-2" style={{ color: "var(--text)" }}>Send Consolidated RFQ — {group.vendorName}{group.manufacturerDirect && <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 6px", borderRadius: 3, background: "rgba(91,141,239,0.15)", color: "#5B8DEF" }} title="Manufacturer Direct" data-testid={`badge-direct-vendor-picker-${group.vendorId}`}>DIRECT</span>}</h3>
                   <p className="text-xs" style={{ color: "var(--text-muted)" }}>{catLabel} · {group.manufacturers.map(m => m.name).join(", ")}</p>
                 </div>
                 <button onClick={() => setRfqVendorPicker(null)} className="p-1 rounded hover:bg-[var(--bg3)]" data-testid="button-close-rfq-vendor-picker">
@@ -5320,9 +5329,12 @@ ${html}
 
         // Filter the searchable existing-vendor list
         const vendorSearchLower = openRfqVendorSearch.trim().toLowerCase();
+        const baseVendors = openRfqOnlyDirect
+          ? allVendorsForRfq.filter(v => !!v.manufacturerDirect)
+          : allVendorsForRfq;
         const filteredVendors = vendorSearchLower
-          ? allVendorsForRfq.filter(v => v.name.toLowerCase().includes(vendorSearchLower)).slice(0, 50)
-          : allVendorsForRfq.slice(0, 50);
+          ? baseVendors.filter(v => v.name.toLowerCase().includes(vendorSearchLower)).slice(0, 50)
+          : baseVendors.slice(0, 50);
 
         const subject = `RFQ — ${proposalEntry?.projectName || ""} — ${catLabel}${vendorName ? ` — ${vendorName}` : ""}`;
         const itemLines = selectedItems.length > 0
@@ -5408,6 +5420,19 @@ ${html}
                         style={{ background: "var(--bg3)", border: "1px solid var(--border-ds)", color: "var(--text)" }}
                         data-testid="input-open-rfq-vendor-search"
                       />
+                      <label className="flex items-center gap-1.5 text-xs cursor-pointer mb-2" style={{ color: "var(--text-secondary)" }}>
+                        <input
+                          type="checkbox"
+                          checked={openRfqOnlyDirect}
+                          onChange={() => setOpenRfqOnlyDirect(v => !v)}
+                          style={{ accentColor: "var(--gold)" }}
+                          data-testid="toggle-open-rfq-only-direct"
+                        />
+                        Manufacturer Direct only
+                        <span className="text-[10px]" style={{ color: "var(--text-muted)" }}>
+                          ({allVendorsForRfq.filter(v => !!v.manufacturerDirect).length})
+                        </span>
+                      </label>
                       <div className="overflow-y-auto rounded" style={{ background: "var(--bg3)", border: "1px solid var(--border-ds)", flex: 1, minHeight: 100 }}>
                         {filteredVendors.length === 0 && <div className="p-3 text-xs" style={{ color: "var(--text-muted)" }}>No vendors match.</div>}
                         {filteredVendors.map(v => (
@@ -5418,7 +5443,11 @@ ${html}
                             style={{ background: openRfqExistingVendorId === v.id ? "var(--gold)15" : "transparent", borderBottom: "1px solid var(--border-ds)40", color: openRfqExistingVendorId === v.id ? "var(--gold)" : "var(--text)" }}
                             data-testid={`button-open-rfq-vendor-${v.id}`}
                           >
-                            {v.name}{v.category ? <span style={{ color: "var(--text-muted)", marginLeft: 6 }}>· {v.category}</span> : null}
+                            <span className="inline-flex items-center gap-1.5">
+                              {v.name}
+                              {v.manufacturerDirect && <span style={{ fontSize: 9, fontWeight: 700, padding: "1px 5px", borderRadius: 3, background: "rgba(91,141,239,0.15)", color: "#5B8DEF" }} title="Manufacturer Direct" data-testid={`badge-direct-open-rfq-${v.id}`}>DIRECT</span>}
+                              {v.category ? <span style={{ color: "var(--text-muted)" }}>· {v.category}</span> : null}
+                            </span>
                           </button>
                         ))}
                       </div>

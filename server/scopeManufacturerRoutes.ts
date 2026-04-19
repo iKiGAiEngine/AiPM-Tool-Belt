@@ -16,6 +16,7 @@ type VendorLink = {
   vendorName: string;
   vendorScopes: string[] | null;
   vendorManufacturerIds: number[] | null;
+  vendorManufacturerDirect: boolean | null;
 };
 
 async function getVendorLinksForMfrs(mfrIds: number[]): Promise<VendorLink[]> {
@@ -28,6 +29,7 @@ async function getVendorLinksForMfrs(mfrIds: number[]): Promise<VendorLink[]> {
       vendorName: mfrVendors.name,
       vendorScopes: mfrVendors.scopes,
       vendorManufacturerIds: mfrVendors.manufacturerIds,
+      vendorManufacturerDirect: mfrVendors.manufacturerDirect,
     })
     .from(mfrVendorManufacturers)
     .innerJoin(mfrVendors, eq(mfrVendorManufacturers.vendorId, mfrVendors.id))
@@ -42,6 +44,7 @@ async function getVendorLinksForMfrs(mfrIds: number[]): Promise<VendorLink[]> {
       vendorName: mfrVendors.name,
       vendorScopes: mfrVendors.scopes,
       vendorManufacturerIds: mfrVendors.manufacturerIds,
+      vendorManufacturerDirect: mfrVendors.manufacturerDirect,
     })
     .from(mfrVendors)
     .where(sql`${mfrVendors.manufacturerIds} && ${sql.raw(`ARRAY[${mfrIds.join(",")}]::int[]`)}`)
@@ -111,7 +114,7 @@ export function registerScopeManufacturerRoutes(app: Express) {
         contactsByVendor.set(c.vendorId, list);
       }
 
-      const vendorsByMfr = new Map<number, Array<{ vendorId: number; vendorName: string; scopes: string[]; manufacturerIds: number[]; contacts: any[] }>>();
+      const vendorsByMfr = new Map<number, Array<{ vendorId: number; vendorName: string; scopes: string[]; manufacturerIds: number[]; manufacturerDirect: boolean; contacts: any[] }>>();
       for (const l of links) {
         const list = vendorsByMfr.get(l.manufacturerId) || [];
         list.push({
@@ -119,6 +122,7 @@ export function registerScopeManufacturerRoutes(app: Express) {
           vendorName: l.vendorName,
           scopes: l.vendorScopes || [],
           manufacturerIds: l.vendorManufacturerIds || [],
+          manufacturerDirect: !!l.vendorManufacturerDirect,
           contacts: (contactsByVendor.get(l.vendorId) || []).map(c => ({
             id: c.id,
             name: c.name,
@@ -182,6 +186,7 @@ export function registerScopeManufacturerRoutes(app: Express) {
           vendorName: l.vendorName,
           scopes: l.vendorScopes || [],
           manufacturerIds: l.vendorManufacturerIds || [],
+          manufacturerDirect: !!l.vendorManufacturerDirect,
           contacts: (contactsByVendor.get(l.vendorId) || []).map(c => ({
             id: c.id, name: c.name, role: c.role, email: c.email, phone: c.phone, isPrimary: !!c.isPrimary,
           })),
