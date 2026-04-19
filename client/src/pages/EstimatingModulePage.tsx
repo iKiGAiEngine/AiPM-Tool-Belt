@@ -146,6 +146,7 @@ interface EstimateVersion {
   savedBy: string | null;
   notes: string | null;
   grandTotal: string;
+  snapshotData: unknown | null;
   savedAt: string;
 }
 
@@ -275,6 +276,183 @@ const selectIfZero = (e: React.FocusEvent<HTMLInputElement>) => {
     e.target.select();
   }
 };
+
+// ══════════════════════════════════════════════════
+// VERSION SNAPSHOT + DIFF (auto-summary + detail)
+// ══════════════════════════════════════════════════
+// A snapshot captures the meaningful state of an estimate at save time so we
+// can compute a diff (added/removed/changed line items, markup overrides,
+// scope toggles, status, totals) against any other version on demand.
+type SnapItem = {
+  id: number; category: string; name: string; mfr: string | null;
+  model: string | null; qty: number; unitCost: number;
+};
+type SnapMarkups = { oh?: number; fee?: number; esc?: number };
+type EstimateSnapshotV2 = {
+  v: 2;
+  status: string;
+  scopes: string[];
+  defaults: { oh: number; fee: number; esc: number; tax: number; bond: number };
+  catOverrides: Record<string, SnapMarkups>;
+  items: SnapItem[];
+  itemCount: number;
+  quoteCount: number;
+  grandTotal: number;
+};
+function buildSnapshot(args: {
+  reviewStatus: string;
+  activeScopes: string[];
+  defaultOh: number; defaultFee: number; defaultEsc: number;
+  taxRate: number; bondRate: number;
+  catOverrides: Record<string, SnapMarkups>;
+  lineItems: LineItem[];
+  quoteCount: number;
+  grandTotal: number;
+}): EstimateSnapshotV2 {
+  return {
+    v: 2,
+    status: args.reviewStatus,
+    scopes: [...args.activeScopes].sort(),
+    defaults: {
+      oh: args.defaultOh, fee: args.defaultFee, esc: args.defaultEsc,
+      tax: args.taxRate, bond: args.bondRate,
+    },
+    catOverrides: args.catOverrides || {},
+    items: args.lineItems.map(li => ({
+      id: li.id, category: li.category, name: li.name,
+      mfr: li.mfr, model: li.model, qty: li.qty,
+      unitCost: parseFloat(li.unitCost || "0") || 0,
+    })),
+    itemCount: args.lineItems.length,
+    quoteCount: args.quoteCount,
+    grandTotal: args.grandTotal,
+  };
+}
+
+type ItemDiff = {
+  before: SnapItem; after: SnapItem; fields: Array<"qty" | "unitCost" | "mfr" | "model" | "name" | "category">;
+};
+type MarkupDiff = { scope: string; field: "oh" | "fee" | "esc"; before: number | null; after: number | null };
+type RateDiff = { field: "oh" | "fee" | "esc" | "tax" | "bond"; before: number; after: number };
+type EstimateDiff = {
+  scopes: { added: string[]; removed: string[] };
+  items: { added: SnapItem[]; removed: SnapItem[]; changed: ItemDiff[]; byCategory: Record<string, { added: number; removed: number; changed: number }> };
+  markups: MarkupDiff[];
+  rates: RateDiff[];
+  status: { before: string; after: string } | null;
+  totals: { before: number; after: number };
+  quotes: { before: number; after: number };
+};
+
+function diffSnapshots(prev: EstimateSnapshotV2 | null, curr: EstimateSnapshotV2): EstimateDiff {
+  const empty: EstimateSnapshotV2 = prev || {
+    v: 2, status: curr.status, scopes: [], defaults: curr.defaults,
+    catOverrides: {}, items: [], itemCount: 0, quoteCount: 0, grandTotal: 0,
+  };
+  const prevSet = new Set(empty.scopes);
+  const currSet = new Set(curr.scopes);
+  const scopesAdded = curr.scopes.filter(s => !prevSet.has(s));
+  const scopesRemoved = empty.scopes.filter(s => !currSet.has(s));
+
+  const prevItems = new Map(empty.items.map(i => [i.id, i]));
+  const currItems = new Map(curr.items.map(i => [i.id, i]));
+  const itemsAdded: SnapItem[] = [];
+  const itemsRemoved: SnapItem[] = [];
+  const itemsChanged: ItemDiff[] = [];
+  currItems.forEach((after, id) => {
+    const before = prevItems.get(id);
+    if (!before) { itemsAdded.push(after); return; }
+    const fields: ItemDiff["fields"] = [];
+    if ((before.qty || 0) !== (after.qty || 0)) fields.push("qty");
+    if ((before.unitCost || 0) !== (after.unitCost || 0)) fields.push("unitCost");
+    if ((before.mfr || "") !== (after.mfr || "")) fields.push("mfr");
+    if ((before.model || "") !== (after.model || "")) fields.push("model");
+    if ((before.name || "") !== (after.name || "")) fields.push("name");
+    if ((before.category || "") !== (after.category || "")) fields.push("category");
+    if (fields.length) itemsChanged.push({ before, after, fields });
+  });
+  prevItems.forEach((before, id) => { if (!currItems.has(id)) itemsRemoved.push(before); });
+  const byCategory: Record<string, { added: number; removed: number; changed: number }> = {};
+  const bump = (cat: string, k: "added" | "removed" | "changed") => {
+    byCategory[cat] = byCategory[cat] || { added: 0, removed: 0, changed: 0 };
+    byCategory[cat][k]++;
+  };
+  itemsAdded.forEach(i => bump(i.category, "added"));
+  itemsRemoved.forEach(i => bump(i.category, "removed"));
+  itemsChanged.forEach(d => bump(d.after.category, "changed"));
+
+  const markups: MarkupDiff[] = [];
+  const allCats = new Set([...Object.keys(empty.catOverrides || {}), ...Object.keys(curr.catOverrides || {})]);
+  allCats.forEach(scope => {
+    const a = empty.catOverrides[scope] || {};
+    const b = curr.catOverrides[scope] || {};
+    (["oh", "fee", "esc"] as const).forEach(f => {
+      const av = a[f] ?? null;
+      const bv = b[f] ?? null;
+      if (av !== bv) markups.push({ scope, field: f, before: av, after: bv });
+    });
+  });
+
+  const rates: RateDiff[] = [];
+  (["oh", "fee", "esc", "tax", "bond"] as const).forEach(f => {
+    const av = empty.defaults[f] || 0;
+    const bv = curr.defaults[f] || 0;
+    if (av !== bv) rates.push({ field: f, before: av, after: bv });
+  });
+
+  return {
+    scopes: { added: scopesAdded, removed: scopesRemoved },
+    items: { added: itemsAdded, removed: itemsRemoved, changed: itemsChanged, byCategory },
+    markups,
+    rates,
+    status: empty.status !== curr.status ? { before: empty.status, after: curr.status } : null,
+    totals: { before: empty.grandTotal || 0, after: curr.grandTotal || 0 },
+    quotes: { before: empty.quoteCount || 0, after: curr.quoteCount || 0 },
+  };
+}
+
+function summarizeDiff(diff: EstimateDiff, scopeLabel: (id: string) => string): string {
+  const parts: string[] = [];
+  // Items by category — pick the busiest 1-2 categories for the headline
+  const catEntries = Object.entries(diff.items.byCategory)
+    .map(([cat, c]) => ({ cat, total: c.added + c.removed + c.changed, ...c }))
+    .filter(c => c.total > 0)
+    .sort((a, b) => b.total - a.total);
+  catEntries.slice(0, 2).forEach(c => {
+    const segs: string[] = [];
+    if (c.added) segs.push(`+${c.added}`);
+    if (c.removed) segs.push(`−${c.removed}`);
+    if (c.changed) segs.push(`✎${c.changed}`);
+    parts.push(`${scopeLabel(c.cat)}: ${segs.join(", ")} item${c.total > 1 ? "s" : ""}`);
+  });
+  if (catEntries.length > 2) parts.push(`+${catEntries.length - 2} more scope${catEntries.length - 2 > 1 ? "s" : ""}`);
+
+  if (diff.scopes.added.length) parts.push(`+${diff.scopes.added.length} scope${diff.scopes.added.length > 1 ? "s" : ""}`);
+  if (diff.scopes.removed.length) parts.push(`−${diff.scopes.removed.length} scope${diff.scopes.removed.length > 1 ? "s" : ""}`);
+
+  if (diff.markups.length === 1) {
+    const m = diff.markups[0];
+    parts.push(`${m.field.toUpperCase()} ${m.before ?? "—"}→${m.after ?? "—"}%`);
+  } else if (diff.markups.length > 1) {
+    parts.push(`${diff.markups.length} markup overrides`);
+  }
+  if (diff.rates.length) {
+    diff.rates.slice(0, 1).forEach(r => parts.push(`${r.field.toUpperCase()} ${r.before}→${r.after}%`));
+    if (diff.rates.length > 1) parts.push(`+${diff.rates.length - 1} rate change${diff.rates.length - 1 > 1 ? "s" : ""}`);
+  }
+  if (diff.quotes.after !== diff.quotes.before) {
+    const delta = diff.quotes.after - diff.quotes.before;
+    parts.push(`${delta > 0 ? "+" : ""}${delta} quote${Math.abs(delta) > 1 ? "s" : ""}`);
+  }
+
+  if (!parts.length) {
+    if (diff.totals.before !== diff.totals.after) {
+      return `Totals only ($${Math.round(diff.totals.before).toLocaleString()} → $${Math.round(diff.totals.after).toLocaleString()})`;
+    }
+    return "No changes";
+  }
+  return parts.join(" · ");
+}
 
 // ══════════════════════════════════════════════════
 // MANUFACTURER COMBO (datalist + auto-create on miss)
@@ -412,6 +590,7 @@ function EstimatingModuleInner() {
   const [breakoutGroups, setBreakoutGroups] = useState<BreakoutGroup[]>([]);
   const [allocations, setAllocations] = useState<BreakoutAllocation[]>([]);
   const [versions, setVersions] = useState<EstimateVersion[]>([]);
+  const [expandedVersionId, setExpandedVersionId] = useState<number | null>(null);
   const [reviewComments, setReviewComments] = useState<ReviewComment[]>([]);
   const [ohLog, setOhLog] = useState<OhApprovalEntry[]>([]);
 
@@ -785,7 +964,9 @@ function EstimatingModuleInner() {
   // Save top-level estimate settings.
   // statusOverride: when provided, this value is sent to the API directly —
   // bypassing the React state that may not have updated yet (e.g. Mark as Submitted).
-  const saveEstimate = useCallback(async (statusOverride?: string) => {
+  // noteOverride: when provided, used as the version-history note instead of the
+  // auto-generated change summary (for stage/status checkpoints).
+  const saveEstimate = useCallback(async (statusOverride?: string, noteOverride?: string) => {
     if (!estimateId) {
       toast({ title: "Cannot save", description: "Estimate is not loaded yet.", variant: "destructive" });
       return;
@@ -811,10 +992,24 @@ function EstimatingModuleInner() {
 
     // Stage 2: save version snapshot (non-blocking on failure)
     const userName = user?.displayName || user?.username || user?.email || "Unknown";
+    const snapshot = buildSnapshot({
+      reviewStatus: effectiveStatus,
+      activeScopes,
+      defaultOh, defaultFee, defaultEsc, taxRate, bondRate,
+      catOverrides,
+      lineItems,
+      quoteCount: quotes.length,
+      grandTotal: calcData.grandTotal,
+    });
+    const prevSnap = (versions[0]?.snapshotData as any) as EstimateSnapshotV2 | undefined;
+    const diff = diffSnapshots(prevSnap?.v === 2 ? prevSnap : null, snapshot);
+    const scopeLabel = (id: string) => ALL_SCOPES.find(s => s.id === id)?.label || id;
+    const autoSummary = summarizeDiff(diff, scopeLabel);
+    const versionNote = noteOverride || (versions.length === 0 ? "Initial save" : autoSummary);
     try {
       await apiRequest("POST", `/api/estimates/${estimateId}/save-version`, {
-        savedBy: userName, notes: "Manual save", grandTotal: calcData.grandTotal,
-        snapshotData: { lineItems: lineItems.length, grandTotal: calcData.grandTotal },
+        savedBy: userName, notes: versionNote, grandTotal: calcData.grandTotal,
+        snapshotData: snapshot,
       });
     } catch { /* version snapshot failure is non-critical */ }
 
@@ -861,7 +1056,7 @@ function EstimatingModuleInner() {
     } catch { /* project info patch failure is non-critical — log entry sync already succeeded */ }
 
     qc.invalidateQueries({ queryKey: ["/api/estimates/by-proposal", proposalLogId] });
-    setVersions(v => [{ id: Date.now(), estimateId: estimateId!, version: (v[0]?.version || 0) + 1, savedBy: userName, notes: "Manual save", grandTotal: String(calcData.grandTotal), savedAt: new Date().toISOString() }, ...v]);
+    setVersions(v => [{ id: Date.now(), estimateId: estimateId!, version: (v[0]?.version || 0) + 1, savedBy: userName, notes: versionNote, grandTotal: String(calcData.grandTotal), snapshotData: snapshot as any, savedAt: new Date().toISOString() }, ...v]);
     setIsDirty(false);
     setLastSaved(new Date());
     toast({
@@ -871,7 +1066,36 @@ function EstimatingModuleInner() {
         : "Estimate saved and synced to Proposal Log Dashboard.",
     });
     setIsSaving(false);
-  }, [estimateId, activeScopes, defaultOh, defaultFee, defaultEsc, taxRate, bondRate, catOverrides, catComplete, catQuals, assumptions, risks, effectiveChecklist, reviewStatus, calcData, lineItems, user, proposalLogId, projInfo]);
+  }, [estimateId, activeScopes, defaultOh, defaultFee, defaultEsc, taxRate, bondRate, catOverrides, catComplete, catQuals, assumptions, risks, effectiveChecklist, reviewStatus, calcData, lineItems, quotes, versions, user, proposalLogId, projInfo]);
+
+  // Stage transition + status checkpoint helpers.
+  // When the user explicitly moves between stages or changes review status,
+  // auto-save a labeled checkpoint version so the timeline shows meaningful
+  // milestones ("Moved to Markups", "Status: drafting → ready_for_review")
+  // instead of relying on a manual save with a generic note.
+  const STAGE_LABELS: Record<string, string> = {
+    intake: "Intake", lineItems: "Items", calculations: "Markups", output: "Summary",
+  };
+  const goToStage = useCallback(async (next: string) => {
+    if (!estimateId || stage === next) { setStage(next as any); return; }
+    if (isDirty && !isSaving) {
+      await saveEstimate(undefined, `Moved to ${STAGE_LABELS[next] || next}`);
+    }
+    setStage(next as any);
+  }, [estimateId, stage, isDirty, isSaving, saveEstimate]);
+
+  const STATUS_LABELS: Record<string, string> = {
+    drafting: "Drafting", ready_for_review: "Ready for Review",
+    reviewed: "Approved", submitted: "Submitted",
+  };
+  const changeReviewStatus = useCallback(async (next: string) => {
+    if (!estimateId || reviewStatus === next) return;
+    const prev = reviewStatus;
+    setReviewStatus(next);
+    if (!isSaving) {
+      await saveEstimate(next, `Status: ${STATUS_LABELS[prev] || prev} → ${STATUS_LABELS[next] || next}`);
+    }
+  }, [estimateId, reviewStatus, isSaving, saveEstimate]);
 
   // ── Line item mutations ──
   const addLineItem = useCallback(async () => {
@@ -2035,7 +2259,7 @@ ${html}
                     {STAGES.map(s => {
                       const active = stage === s.id;
                       return (
-                        <button key={s.id} onClick={() => setStage(s.id as any)}
+                        <button key={s.id} onClick={() => goToStage(s.id)}
                           className="px-3 py-1 rounded-full text-xs font-semibold whitespace-nowrap transition-all"
                           style={{
                             background: active ? s.color + "20" : "transparent",
@@ -2092,7 +2316,7 @@ ${html}
                     const active = activeCat === s.id;
                     return (
                       <button key={s.id}
-                        onClick={() => { setStage("lineItems"); setActiveCat(s.id); }}
+                        onClick={() => { setActiveCat(s.id); goToStage("lineItems"); }}
                         className="px-2.5 py-1 rounded-full text-xs font-semibold whitespace-nowrap transition-all shrink-0"
                         style={{
                           background: active ? "#C8A44E20" : "var(--bg-card)",
@@ -2137,7 +2361,7 @@ ${html}
                 const labels: Record<string, string> = { drafting: "Drafting", ready_for_review: "Ready for Review", reviewed: "Approved", submitted: "Submitted" };
                 return (
                   <div key={s} className="flex items-center gap-1">
-                    <button onClick={() => { setReviewStatus(s); markDirty(); }}
+                    <button onClick={() => changeReviewStatus(s)}
                       className="px-2 py-0.5 rounded text-xs font-semibold transition-all"
                       style={{
                         background: active ? colors[s] + "20" : "transparent",
@@ -2407,19 +2631,110 @@ ${html}
 
           {/* Version history */}
           {versions.length > 0 && (
-            <div className="rounded-lg p-5" style={{ background: "var(--bg-card)", border: "1px solid var(--border-ds)" }}>
+            <div className="rounded-lg p-5" style={{ background: "var(--bg-card)", border: "1px solid var(--border-ds)" }} data-testid="version-history">
               <h3 className="text-sm font-semibold mb-3">Version History</h3>
-              {versions.map((v, i) => (
-                <div key={v.id} className="flex justify-between py-1.5 text-xs"
-                  style={{ borderBottom: i < versions.length - 1 ? "1px solid var(--border-ds)" : "none", color: "var(--text-muted)" }}>
-                  <span>v{v.version} — {v.savedBy} — {v.notes}</span>
-                  <span>{v.grandTotal && n(v.grandTotal) > 0 ? fmt(n(v.grandTotal)) + " • " : ""}{new Date(v.savedAt).toLocaleString()}</span>
-                </div>
-              ))}
+              {versions.map((v, i) => {
+                const expanded = expandedVersionId === v.id;
+                const currSnap = (v.snapshotData as any) as EstimateSnapshotV2 | null;
+                const prevSnap = (versions[i + 1]?.snapshotData as any) as EstimateSnapshotV2 | null;
+                const canDiff = currSnap?.v === 2;
+                const diff = canDiff ? diffSnapshots(prevSnap?.v === 2 ? prevSnap : null, currSnap) : null;
+                return (
+                  <div key={v.id}
+                    style={{ borderBottom: i < versions.length - 1 ? "1px solid var(--border-ds)" : "none" }}>
+                    <div className="flex items-center justify-between py-1.5 text-xs gap-2" style={{ color: "var(--text-muted)" }}>
+                      <button
+                        onClick={() => setExpandedVersionId(expanded ? null : v.id)}
+                        disabled={!canDiff}
+                        className="flex items-center gap-1.5 text-left flex-1 min-w-0 hover:opacity-80 disabled:cursor-default disabled:hover:opacity-100"
+                        data-testid={`button-version-toggle-${v.version}`}>
+                        <ChevronRight
+                          className="w-3 h-3 shrink-0 transition-transform"
+                          style={{ transform: expanded ? "rotate(90deg)" : "none", opacity: canDiff ? 1 : 0.2 }} />
+                        <span className="truncate">
+                          <span style={{ color: "var(--text-secondary)", fontWeight: 600 }}>v{v.version}</span>
+                          {" — "}{v.savedBy}{" — "}<span style={{ color: "var(--text)" }}>{v.notes || "Saved"}</span>
+                        </span>
+                      </button>
+                      <span className="shrink-0 whitespace-nowrap">{v.grandTotal && n(v.grandTotal) > 0 ? fmt(n(v.grandTotal)) + " • " : ""}{new Date(v.savedAt).toLocaleString()}</span>
+                    </div>
+                    {expanded && diff && (
+                      <div className="ml-5 mb-2 p-3 rounded text-xs space-y-2"
+                        style={{ background: "var(--bg-page)", border: "1px solid var(--border-ds)" }}
+                        data-testid={`detail-version-${v.version}`}>
+                        {diff.status && (
+                          <div><span style={{ color: "var(--text-muted)" }}>Status:</span> {STATUS_LABELS[diff.status.before] || diff.status.before} → <span style={{ color: "var(--text)" }}>{STATUS_LABELS[diff.status.after] || diff.status.after}</span></div>
+                        )}
+                        {diff.scopes.added.length > 0 && (
+                          <div><span style={{ color: "#22c55e" }}>+ Scopes:</span> {diff.scopes.added.map(s => ALL_SCOPES.find(x => x.id === s)?.label || s).join(", ")}</div>
+                        )}
+                        {diff.scopes.removed.length > 0 && (
+                          <div><span style={{ color: "#ef4444" }}>− Scopes:</span> {diff.scopes.removed.map(s => ALL_SCOPES.find(x => x.id === s)?.label || s).join(", ")}</div>
+                        )}
+                        {diff.rates.length > 0 && (
+                          <div>
+                            <span style={{ color: "var(--text-muted)" }}>Default rates:</span>
+                            <ul className="ml-3">
+                              {diff.rates.map((r, ri) => (
+                                <li key={ri}>{r.field.toUpperCase()}: {r.before}% → <span style={{ color: "var(--text)" }}>{r.after}%</span></li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                        {diff.markups.length > 0 && (
+                          <div>
+                            <span style={{ color: "var(--text-muted)" }}>Per-scope markup overrides:</span>
+                            <ul className="ml-3">
+                              {diff.markups.map((m, mi) => (
+                                <li key={mi}>
+                                  {ALL_SCOPES.find(s => s.id === m.scope)?.label || m.scope} — {m.field.toUpperCase()}: {m.before == null ? "default" : `${m.before}%`} → <span style={{ color: "var(--text)" }}>{m.after == null ? "default" : `${m.after}%`}</span>
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                        {diff.quotes.before !== diff.quotes.after && (
+                          <div><span style={{ color: "var(--text-muted)" }}>Quotes:</span> {diff.quotes.before} → <span style={{ color: "var(--text)" }}>{diff.quotes.after}</span></div>
+                        )}
+                        {(diff.items.added.length > 0 || diff.items.removed.length > 0 || diff.items.changed.length > 0) && (
+                          <div>
+                            <span style={{ color: "var(--text-muted)" }}>Line items:</span>
+                            <ul className="ml-3 space-y-0.5 mt-1">
+                              {diff.items.added.map(it => (
+                                <li key={`a-${it.id}`}><span style={{ color: "#22c55e" }}>+</span> [{ALL_SCOPES.find(s => s.id === it.category)?.label || it.category}] {it.name}{it.mfr ? ` — ${it.mfr}` : ""}{it.model ? ` ${it.model}` : ""} (qty {it.qty} @ {fmt(it.unitCost)})</li>
+                              ))}
+                              {diff.items.removed.map(it => (
+                                <li key={`r-${it.id}`}><span style={{ color: "#ef4444" }}>−</span> [{ALL_SCOPES.find(s => s.id === it.category)?.label || it.category}] {it.name}{it.mfr ? ` — ${it.mfr}` : ""}{it.model ? ` ${it.model}` : ""}</li>
+                              ))}
+                              {diff.items.changed.map(d => (
+                                <li key={`c-${d.after.id}`}>
+                                  <span style={{ color: "#f59e0b" }}>✎</span> [{ALL_SCOPES.find(s => s.id === d.after.category)?.label || d.after.category}] {d.after.name}:
+                                  {" "}{d.fields.map((f, fi) => {
+                                    const before = (d.before as any)[f];
+                                    const after = (d.after as any)[f];
+                                    const fmtVal = (v: any) => f === "unitCost" ? fmt(v || 0) : (v ?? "—");
+                                    return <span key={fi}>{fi > 0 ? ", " : ""}{f} {fmtVal(before)} → <span style={{ color: "var(--text)" }}>{fmtVal(after)}</span></span>;
+                                  })}
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                        {diff.totals.before !== diff.totals.after && (
+                          <div><span style={{ color: "var(--text-muted)" }}>Grand total:</span> {fmt(diff.totals.before)} → <span style={{ color: "#22c55e", fontWeight: 600 }}>{fmt(diff.totals.after)}</span></div>
+                        )}
+                        {!diff.status && diff.scopes.added.length === 0 && diff.scopes.removed.length === 0 && diff.rates.length === 0 && diff.markups.length === 0 && diff.items.added.length === 0 && diff.items.removed.length === 0 && diff.items.changed.length === 0 && diff.quotes.before === diff.quotes.after && diff.totals.before === diff.totals.after && (
+                          <div style={{ color: "var(--text-muted)" }}>No tracked field changes between this version and the previous one.</div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           )}
 
-          <button onClick={() => { if (CATEGORIES.length > 0) setActiveCat(CATEGORIES[0].id); setStage("lineItems"); }}
+          <button onClick={() => { if (CATEGORIES.length > 0) setActiveCat(CATEGORIES[0].id); goToStage("lineItems"); }}
             className="px-6 py-3 rounded-lg text-sm font-semibold flex items-center gap-2"
             style={{ background: "var(--gold)", color: "#000" }}>
             Continue to Line Items <ChevronRight className="w-4 h-4" />
@@ -3938,7 +4253,7 @@ ${html}
                 ))}
               </div>
 
-              <button onClick={() => setStage("calculations")}
+              <button onClick={() => goToStage("calculations")}
                 className="px-6 py-3 rounded-lg text-sm font-semibold flex items-center gap-2"
                 style={{ background: "#22c55e", color: "#fff" }}>
                 Continue to Markups <ChevronRight className="w-4 h-4" />
@@ -4141,7 +4456,7 @@ ${html}
             ))}
           </div>
 
-          <button onClick={() => setStage("output")}
+          <button onClick={() => goToStage("output")}
             className="px-6 py-3 rounded-lg text-sm font-semibold flex items-center gap-2"
             style={{ background: "#f97316", color: "#fff" }}>
             Continue to Bid Summary <ChevronRight className="w-4 h-4" />
@@ -4352,7 +4667,7 @@ ${html}
                 const active = s === reviewStatus;
                 return (
                   <div key={s} className="flex items-center gap-1">
-                    <button onClick={() => { setReviewStatus(s); markDirty(); }}
+                    <button onClick={() => changeReviewStatus(s)}
                       className="text-xs px-3 py-1.5 rounded font-semibold transition-all"
                       style={{ background: active ? colors[s] + "20" : "transparent", color: active ? colors[s] : "var(--text-muted)", border: `1px solid ${active ? colors[s] + "50" : "var(--border-ds)"}` }}>
                       {labels[s]}
