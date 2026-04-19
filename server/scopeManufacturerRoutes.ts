@@ -8,7 +8,60 @@ import {
   mfrContacts,
   insertEstimateScopeManufacturerSchema,
 } from "@shared/schema";
-import { eq, and, asc, desc, inArray } from "drizzle-orm";
+import { eq, and, asc, desc, inArray, sql } from "drizzle-orm";
+
+type VendorLink = {
+  manufacturerId: number;
+  vendorId: number;
+  vendorName: string;
+  vendorScopes: string[] | null;
+  vendorManufacturerIds: number[] | null;
+};
+
+async function getVendorLinksForMfrs(mfrIds: number[]): Promise<VendorLink[]> {
+  if (mfrIds.length === 0) return [];
+
+  const fromJoinTable = await db
+    .select({
+      manufacturerId: mfrVendorManufacturers.manufacturerId,
+      vendorId: mfrVendorManufacturers.vendorId,
+      vendorName: mfrVendors.name,
+      vendorScopes: mfrVendors.scopes,
+      vendorManufacturerIds: mfrVendors.manufacturerIds,
+    })
+    .from(mfrVendorManufacturers)
+    .innerJoin(mfrVendors, eq(mfrVendorManufacturers.vendorId, mfrVendors.id))
+    .where(inArray(mfrVendorManufacturers.manufacturerId, mfrIds))
+    .orderBy(asc(mfrVendors.name));
+
+  // Also include vendors whose manufacturer_ids array tag includes any of these manufacturers
+  // (vendor-level tagging is the documented source of truth; the join table is legacy/product-derived).
+  const fromArrayTag = await db
+    .select({
+      vendorId: mfrVendors.id,
+      vendorName: mfrVendors.name,
+      vendorScopes: mfrVendors.scopes,
+      vendorManufacturerIds: mfrVendors.manufacturerIds,
+    })
+    .from(mfrVendors)
+    .where(sql`${mfrVendors.manufacturerIds} && ${sql.raw(`ARRAY[${mfrIds.join(",")}]::int[]`)}`)
+    .orderBy(asc(mfrVendors.name));
+
+  const seen = new Set(fromJoinTable.map(l => `${l.manufacturerId}:${l.vendorId}`));
+  const merged: VendorLink[] = [...fromJoinTable];
+  for (const v of fromArrayTag) {
+    const tagged = v.vendorManufacturerIds || [];
+    for (const mfrId of mfrIds) {
+      if (!tagged.includes(mfrId)) continue;
+      const key = `${mfrId}:${v.vendorId}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      merged.push({ manufacturerId: mfrId, ...v });
+    }
+  }
+  merged.sort((a, b) => a.vendorName.localeCompare(b.vendorName));
+  return merged;
+}
 
 export function registerScopeManufacturerRoutes(app: Express) {
   // GET — list approved manufacturers for a scope, with vendors + contacts
@@ -39,19 +92,8 @@ export function registerScopeManufacturerRoutes(app: Express) {
 
       const mfrIds = rows.map(r => r.manufacturerId);
 
-      // All vendor links for these manufacturers
-      const links = await db
-        .select({
-          manufacturerId: mfrVendorManufacturers.manufacturerId,
-          vendorId: mfrVendorManufacturers.vendorId,
-          vendorName: mfrVendors.name,
-          vendorScopes: mfrVendors.scopes,
-          vendorManufacturerIds: mfrVendors.manufacturerIds,
-        })
-        .from(mfrVendorManufacturers)
-        .innerJoin(mfrVendors, eq(mfrVendorManufacturers.vendorId, mfrVendors.id))
-        .where(inArray(mfrVendorManufacturers.manufacturerId, mfrIds))
-        .orderBy(asc(mfrVendors.name));
+      // All vendor links for these manufacturers — union of legacy join table AND vendor.manufacturer_ids array tag
+      const links = await getVendorLinksForMfrs(mfrIds);
 
       const vendorIds = Array.from(new Set(links.map(l => l.vendorId)));
       const contacts = vendorIds.length > 0
@@ -102,6 +144,59 @@ export function registerScopeManufacturerRoutes(app: Express) {
     } catch (err: any) {
       console.error("[scopeManufacturers GET]", err);
       res.status(500).json({ message: err.message || "Failed to load approved manufacturers" });
+    }
+  });
+
+  // GET — fetch vendor+contact data for arbitrary manufacturer IDs (used for line-item-only mfrs in RFQ generator)
+  app.get("/api/estimates/:estimateId/scopes/:scopeId/discovered-manufacturers", async (req: Request, res: Response) => {
+    try {
+      const idsParam = (req.query.ids as string) || "";
+      const mfrIds = idsParam.split(",").map(s => parseInt(s.trim(), 10)).filter(n => Number.isFinite(n) && n > 0);
+      if (mfrIds.length === 0) return res.json([]);
+
+      const mfrs = await db.select({ id: mfrManufacturers.id, name: mfrManufacturers.name })
+        .from(mfrManufacturers)
+        .where(inArray(mfrManufacturers.id, mfrIds));
+
+      const links = await getVendorLinksForMfrs(mfrIds);
+
+      const vendorIds = Array.from(new Set(links.map(l => l.vendorId)));
+      const contacts = vendorIds.length > 0
+        ? await db.select().from(mfrContacts)
+            .where(inArray(mfrContacts.vendorId, vendorIds))
+            .orderBy(desc(mfrContacts.isPrimary), asc(mfrContacts.name))
+        : [];
+
+      const contactsByVendor = new Map<number, typeof contacts>();
+      for (const c of contacts) {
+        const list = contactsByVendor.get(c.vendorId) || [];
+        list.push(c);
+        contactsByVendor.set(c.vendorId, list);
+      }
+
+      const vendorsByMfr = new Map<number, any[]>();
+      for (const l of links) {
+        const list = vendorsByMfr.get(l.manufacturerId) || [];
+        list.push({
+          vendorId: l.vendorId,
+          vendorName: l.vendorName,
+          scopes: l.vendorScopes || [],
+          manufacturerIds: l.vendorManufacturerIds || [],
+          contacts: (contactsByVendor.get(l.vendorId) || []).map(c => ({
+            id: c.id, name: c.name, role: c.role, email: c.email, phone: c.phone, isPrimary: !!c.isPrimary,
+          })),
+        });
+        vendorsByMfr.set(l.manufacturerId, list);
+      }
+
+      res.json(mfrs.map(m => ({
+        manufacturerId: m.id,
+        manufacturerName: m.name,
+        vendors: vendorsByMfr.get(m.id) || [],
+      })));
+    } catch (err: any) {
+      console.error("[scopeManufacturers discovered GET]", err);
+      res.status(500).json({ message: err.message || "Failed to load discovered manufacturers" });
     }
   });
 

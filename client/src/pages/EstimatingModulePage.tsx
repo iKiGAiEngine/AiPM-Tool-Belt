@@ -1677,6 +1677,36 @@ ${html}
     qc.invalidateQueries({ queryKey: ["/api/estimates", estimateId, "scopes", activeCat, "approved-manufacturers"] });
   }, [qc, estimateId, activeCat]);
 
+  // Discovered manufacturers — line-item-only mfrs that resolve to a manufacturer record.
+  // Compute the id list from current line items + the global manufacturer list, fetch vendor+contact data so RFQ eligibility works for them.
+  type DiscoveredMfr = { manufacturerId: number; manufacturerName: string; vendors: ApprovedMfr["vendors"] };
+  const discoveredMfrIds = React.useMemo(() => {
+    if (!estimateId || !activeCat) return [] as number[];
+    const approvedSet = new Set(approvedMfrs.map(a => a.manufacturerId));
+    const ids = new Set<number>();
+    for (const li of lineItems) {
+      if (li.category !== activeCat) continue;
+      const fk = (li as any).manufacturerId as number | null | undefined;
+      if (fk && !approvedSet.has(fk)) { ids.add(fk); continue; }
+      if (li.mfr) {
+        const match = allManufacturers.find(m => m.name.trim().toLowerCase() === li.mfr!.trim().toLowerCase());
+        if (match && !approvedSet.has(match.id)) ids.add(match.id);
+      }
+    }
+    return Array.from(ids).sort((a, b) => a - b);
+  }, [lineItems, activeCat, allManufacturers, approvedMfrs, estimateId]);
+  const discoveredKey = discoveredMfrIds.join(",");
+  const { data: discoveredMfrs = [] } = useQuery<DiscoveredMfr[]>({
+    queryKey: ["/api/estimates", estimateId, "scopes", activeCat, "discovered-manufacturers", discoveredKey],
+    queryFn: async () => {
+      if (!discoveredKey) return [];
+      const res = await fetch(`/api/estimates/${estimateId}/scopes/${activeCat}/discovered-manufacturers?ids=${discoveredKey}`, { credentials: "include" });
+      if (!res.ok) return [];
+      return res.json();
+    },
+    enabled: !!estimateId && !!activeCat && discoveredMfrIds.length > 0,
+  });
+
   const addApprovedMfrMutation = useMutation({
     mutationFn: async (manufacturerId: number) => {
       return await apiRequest("POST", `/api/estimates/${estimateId}/scopes/${activeCat}/approved-manufacturers`, { manufacturerId });
@@ -3327,12 +3357,21 @@ ${html}
                   // Combine approved manufacturers + manufacturers found on line items
                   const lineItemMfrs = Array.from(new Set(catLineItems.map(i => i.mfr).filter(Boolean))) as string[];
                   const approvedNames = approvedMfrs.map(a => a.manufacturerName);
-                  const combined: Array<{ name: string; approved?: ApprovedMfr }> = [];
+                  type Combined = { name: string; approved?: ApprovedMfr; discoveredMfrId?: number };
+                  const combined: Combined[] = [];
                   // Approved first
                   for (const am of approvedMfrs) combined.push({ name: am.manufacturerName, approved: am });
-                  // Then line-item-only mfrs that don't match an approved one (3-char min substring)
+                  // Then line-item-only mfrs that don't match an approved one (3-char min substring).
+                  // Resolve to a manufacturer id via allManufacturers (case-insensitive exact match) so the
+                  // discovered-manufacturers query can fetch eligible vendor contacts.
                   for (const li of lineItemMfrs) {
-                    if (!approvedNames.some(an => namesMatch(an, li))) combined.push({ name: li });
+                    if (approvedNames.some(an => namesMatch(an, li))) continue;
+                    // Prefer an explicit FK on the line item if any item with this mfr name has manufacturerId set
+                    const itemWithId = catLineItems.find(i => i.mfr === li && (i as any).manufacturerId);
+                    const fkId: number | undefined = (itemWithId as any)?.manufacturerId;
+                    const byName = allManufacturers.find(m => m.name.trim().toLowerCase() === li.trim().toLowerCase());
+                    const discoveredMfrId = fkId ?? byName?.id;
+                    combined.push({ name: li, discoveredMfrId });
                   }
                   return (
                     <div className="mt-2 p-4 rounded-lg" style={{ background: "var(--bg-card)", border: "1px solid var(--border-ds)" }}>
@@ -3340,18 +3379,22 @@ ${html}
                       {combined.length === 0 && (
                         <p className="text-xs" style={{ color: "var(--text-muted)" }}>No manufacturers yet. Add an approved manufacturer above or assign manufacturers to line items.</p>
                       )}
-                      {combined.map(({ name, approved }) => {
+                      {combined.map(({ name, approved, discoveredMfrId }) => {
                         const rfq = generateRfqEmail(name);
                         // Build full contact list eligible for this scope's RFQ.
-                        // Eligible if: vendor primary belongs to one of approved/line-item mfrs OR contact tagged with that manufacturer
-                        // AND (contact has no scope tags OR includes activeCat).
+                        // Eligible if: vendor passes both scope and manufacturer-tag tests
+                        // (untagged scopes/mfrs = "covers everything").
                         const eligibleContacts: Array<{ id: number; name: string; role?: string | null; email: string | null; isPrimary: boolean; vendorName: string }> = [];
-                        if (approved) {
-                          const mfrId = approved.manufacturerId;
-                          for (const v of approved.vendors) {
-                            // Vendor-level eligibility: untagged scopes/mfrs = "covers everything"
+                        const source: { mfrId: number; vendors: ApprovedMfr["vendors"] } | null = approved
+                          ? { mfrId: approved.manufacturerId, vendors: approved.vendors }
+                          : (discoveredMfrId ? (() => {
+                              const d = discoveredMfrs.find(x => x.manufacturerId === discoveredMfrId);
+                              return d ? { mfrId: d.manufacturerId, vendors: d.vendors } : null;
+                            })() : null);
+                        if (source) {
+                          for (const v of source.vendors) {
                             const scopesOk = !v.scopes || v.scopes.length === 0 || v.scopes.includes(activeCat);
-                            const mfrOk = !v.manufacturerIds || v.manufacturerIds.length === 0 || v.manufacturerIds.includes(mfrId);
+                            const mfrOk = !v.manufacturerIds || v.manufacturerIds.length === 0 || v.manufacturerIds.includes(source.mfrId);
                             if (!scopesOk || !mfrOk) continue;
                             for (const c of v.contacts) {
                               eligibleContacts.push({ id: c.id, name: c.name, role: c.role, email: c.email, isPrimary: c.isPrimary, vendorName: v.vendorName });
