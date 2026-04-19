@@ -80,6 +80,134 @@ export function registerVendorDatabaseRoutes(app: Express) {
     }
   });
 
+  // List manufacturers with usage counts (linked vendors via tag, line items, approved scope entries)
+  app.get("/api/mfr/manufacturers/with-stats", async (_req: Request, res: Response) => {
+    try {
+      const mfrs = await db.select().from(mfrManufacturers).orderBy(mfrManufacturers.name);
+      const stats = await db.execute(sql`
+        SELECT
+          m.id,
+          (SELECT count(*)::int FROM mfr_vendors v WHERE m.id = ANY(v.manufacturer_ids)) AS vendor_tag_count,
+          (SELECT count(DISTINCT vendor_id)::int FROM mfr_vendor_manufacturers WHERE manufacturer_id = m.id) AS vendor_link_count,
+          (SELECT count(*)::int FROM estimate_line_items WHERE manufacturer_id = m.id) AS line_item_count,
+          (SELECT count(*)::int FROM estimate_scope_manufacturers WHERE manufacturer_id = m.id) AS approved_count
+        FROM mfr_manufacturers m
+      `);
+      const statsMap = new Map<number, any>();
+      for (const r of (stats as any).rows || stats as any) {
+        statsMap.set(Number(r.id), r);
+      }
+      const result = mfrs.map(m => {
+        const s = statsMap.get(m.id) || {};
+        const vendorCount = Math.max(Number(s.vendor_tag_count || 0), Number(s.vendor_link_count || 0));
+        return {
+          ...m,
+          vendorCount,
+          lineItemCount: Number(s.line_item_count || 0),
+          approvedCount: Number(s.approved_count || 0),
+        };
+      });
+      res.json(result);
+    } catch (err: any) {
+      console.error("[mfr/manufacturers stats GET]", err);
+      res.status(500).json({ message: err.message || "Failed to load manufacturer stats" });
+    }
+  });
+
+  app.patch("/api/mfr/manufacturers/:id", async (req: Request, res: Response) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (!id) return res.status(400).json({ message: "Invalid id" });
+      const updates: Record<string, any> = { updatedAt: new Date() };
+      if (typeof req.body?.name === "string") {
+        const name = req.body.name.trim();
+        if (!name) return res.status(400).json({ message: "Name cannot be empty" });
+        const others = await db.select().from(mfrManufacturers);
+        if (others.some(m => m.id !== id && m.name.toLowerCase() === name.toLowerCase())) {
+          return res.status(409).json({ message: "Another manufacturer already uses that name. Use Merge instead." });
+        }
+        updates.name = name;
+      }
+      if (req.body?.website !== undefined) updates.website = req.body.website || null;
+      if (req.body?.notes !== undefined) updates.notes = req.body.notes || null;
+      const [row] = await db.update(mfrManufacturers).set(updates).where(eq(mfrManufacturers.id, id)).returning();
+      if (!row) return res.status(404).json({ message: "Not found" });
+      // Sync the cached `mfr` text on line items so display stays in sync after rename
+      if (updates.name) {
+        await db.execute(sql`UPDATE estimate_line_items SET mfr = ${updates.name} WHERE manufacturer_id = ${id}`);
+      }
+      res.json(row);
+    } catch (err: any) {
+      console.error("[mfr/manufacturers PATCH]", err);
+      res.status(500).json({ message: err.message || "Failed to update manufacturer" });
+    }
+  });
+
+  // Merge `:id` (source) into `targetId`. Reassigns line items, vendor tags, vendor links, approved scope rows, then deletes source.
+  app.post("/api/mfr/manufacturers/:id/merge", async (req: Request, res: Response) => {
+    try {
+      const sourceId = parseInt(req.params.id);
+      const targetId = parseInt(req.body?.targetId);
+      if (!sourceId || !targetId || sourceId === targetId) return res.status(400).json({ message: "Invalid source or target id" });
+      const [target] = await db.select().from(mfrManufacturers).where(eq(mfrManufacturers.id, targetId));
+      const [source] = await db.select().from(mfrManufacturers).where(eq(mfrManufacturers.id, sourceId));
+      if (!target || !source) return res.status(404).json({ message: "Manufacturer not found" });
+
+      // 1. Line items: re-point FK + refresh cached `mfr` text
+      await db.execute(sql`UPDATE estimate_line_items SET manufacturer_id = ${targetId}, mfr = ${target.name} WHERE manufacturer_id = ${sourceId}`);
+
+      // 2. Vendor links (legacy join table): move source rows to target, dropping dups
+      await db.execute(sql`
+        INSERT INTO mfr_vendor_manufacturers (vendor_id, manufacturer_id)
+        SELECT vendor_id, ${targetId} FROM mfr_vendor_manufacturers
+        WHERE manufacturer_id = ${sourceId}
+          AND NOT EXISTS (SELECT 1 FROM mfr_vendor_manufacturers t WHERE t.vendor_id = mfr_vendor_manufacturers.vendor_id AND t.manufacturer_id = ${targetId})
+      `);
+      await db.execute(sql`DELETE FROM mfr_vendor_manufacturers WHERE manufacturer_id = ${sourceId}`);
+
+      // 3. Vendor tag arrays: replace source id with target id (de-duped)
+      await db.execute(sql`
+        UPDATE mfr_vendors
+        SET manufacturer_ids = (
+          SELECT ARRAY(SELECT DISTINCT unnest(array_replace(manufacturer_ids, ${sourceId}, ${targetId})))
+        )
+        WHERE ${sourceId} = ANY(manufacturer_ids)
+      `);
+
+      // 4. Approved-manufacturers per estimate scope: re-point, dropping dups (unique on estimate+scope+mfr)
+      await db.execute(sql`
+        UPDATE estimate_scope_manufacturers SET manufacturer_id = ${targetId}
+        WHERE manufacturer_id = ${sourceId}
+          AND NOT EXISTS (SELECT 1 FROM estimate_scope_manufacturers t WHERE t.estimate_id = estimate_scope_manufacturers.estimate_id AND t.scope_id = estimate_scope_manufacturers.scope_id AND t.manufacturer_id = ${targetId})
+      `);
+      await db.execute(sql`DELETE FROM estimate_scope_manufacturers WHERE manufacturer_id = ${sourceId}`);
+
+      // 5. Delete source
+      await db.delete(mfrManufacturers).where(eq(mfrManufacturers.id, sourceId));
+
+      res.json({ ok: true, mergedInto: target });
+    } catch (err: any) {
+      console.error("[mfr/manufacturers merge POST]", err);
+      res.status(500).json({ message: err.message || "Failed to merge manufacturers" });
+    }
+  });
+
+  app.delete("/api/mfr/manufacturers/:id", async (req: Request, res: Response) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (!id) return res.status(400).json({ message: "Invalid id" });
+      // Pre-clean references that don't have ON DELETE CASCADE
+      await db.execute(sql`DELETE FROM mfr_vendor_manufacturers WHERE manufacturer_id = ${id}`);
+      await db.execute(sql`UPDATE mfr_vendors SET manufacturer_ids = array_remove(manufacturer_ids, ${id}) WHERE ${id} = ANY(manufacturer_ids)`);
+      // estimate_line_items has ON DELETE SET NULL; estimate_scope_manufacturers has ON DELETE CASCADE per replit.md
+      await db.delete(mfrManufacturers).where(eq(mfrManufacturers.id, id));
+      res.json({ ok: true });
+    } catch (err: any) {
+      console.error("[mfr/manufacturers DELETE]", err);
+      res.status(500).json({ message: err.message || "Failed to delete manufacturer" });
+    }
+  });
+
   // ---- VENDORS ----
 
   app.get("/api/mfr/vendors", async (req: Request, res: Response) => {

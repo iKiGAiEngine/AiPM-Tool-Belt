@@ -936,7 +936,7 @@ function CertificateTracker({ onVendorClick }: { onVendorClick: (id: number) => 
 export default function VendorDatabasePage() {
   const { toast } = useToast();
   const qc = useQueryClient();
-  const [tab, setTab] = useState<"vendors" | "certs">("vendors");
+  const [tab, setTab] = useState<"vendors" | "certs" | "manufacturers">("vendors");
   const [selectedVendorId, setSelectedVendorId] = useState<number | null>(null);
   const [search, setSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("");
@@ -1048,6 +1048,7 @@ export default function VendorDatabasePage() {
         <div style={{ display: "flex", gap: 0, marginTop: 20, borderBottom: "1px solid var(--border-ds)" }}>
           {[
             { id: "vendors" as const, label: "Vendors", icon: Building2 },
+            { id: "manufacturers" as const, label: "Manufacturers", icon: Tag },
             { id: "certs" as const, label: `Certificate Tracker${alertCount > 0 ? ` (${alertCount})` : ""}`, icon: Shield, alert: alertCount > 0 },
           ].map((t) => {
             const active = tab === t.id;
@@ -1144,10 +1145,219 @@ export default function VendorDatabasePage() {
         </>
       )}
 
+      {/* Manufacturers Tab */}
+      {tab === "manufacturers" && (
+        <ManufacturersTab />
+      )}
+
       {/* Certificate Tracker Tab */}
       {tab === "certs" && (
         <CertificateTracker onVendorClick={(id) => { setTab("vendors"); setSelectedVendorId(id); }} />
       )}
     </div>
+  );
+}
+
+// ---- Manufacturers Tab ----
+interface MfrStatRow { id: number; name: string; website: string | null; notes: string | null; vendorCount: number; lineItemCount: number; approvedCount: number; }
+
+function ManufacturersTab() {
+  const { toast } = useToast();
+  const qc = useQueryClient();
+  const [search, setSearch] = useState("");
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [editingName, setEditingName] = useState("");
+  const [mergingId, setMergingId] = useState<number | null>(null);
+  const [mergeTargetId, setMergeTargetId] = useState<number | null>(null);
+  const [mergeSearch, setMergeSearch] = useState("");
+
+  const { data: mfrs = [], isLoading } = useQuery<MfrStatRow[]>({
+    queryKey: ["/api/mfr/manufacturers/with-stats"],
+  });
+
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return mfrs;
+    return mfrs.filter(m => m.name.toLowerCase().includes(q));
+  }, [mfrs, search]);
+
+  const renameMutation = useMutation({
+    mutationFn: async ({ id, name }: { id: number; name: string }) => apiRequest("PATCH", `/api/mfr/manufacturers/${id}`, { name }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["/api/mfr/manufacturers/with-stats"] });
+      qc.invalidateQueries({ queryKey: ["/api/mfr/manufacturers"] });
+      setEditingId(null);
+      toast({ title: "Renamed" });
+    },
+    onError: (e: any) => { if (!handleAuthError(e)) toast({ title: "Rename failed", description: e?.message, variant: "destructive" }); },
+  });
+
+  const mergeMutation = useMutation({
+    mutationFn: async ({ sourceId, targetId }: { sourceId: number; targetId: number }) => apiRequest("POST", `/api/mfr/manufacturers/${sourceId}/merge`, { targetId }),
+    onSuccess: (_d, vars) => {
+      qc.invalidateQueries({ queryKey: ["/api/mfr/manufacturers/with-stats"] });
+      qc.invalidateQueries({ queryKey: ["/api/mfr/manufacturers"] });
+      setMergingId(null);
+      setMergeTargetId(null);
+      setMergeSearch("");
+      const target = mfrs.find(m => m.id === vars.targetId);
+      toast({ title: "Merged", description: target ? `Merged into ${target.name}` : undefined });
+    },
+    onError: (e: any) => { if (!handleAuthError(e)) toast({ title: "Merge failed", description: e?.message, variant: "destructive" }); },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: number) => apiRequest("DELETE", `/api/mfr/manufacturers/${id}`),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["/api/mfr/manufacturers/with-stats"] });
+      qc.invalidateQueries({ queryKey: ["/api/mfr/manufacturers"] });
+      toast({ title: "Manufacturer deleted" });
+    },
+    onError: (e: any) => { if (!handleAuthError(e)) toast({ title: "Delete failed", description: e?.message, variant: "destructive" }); },
+  });
+
+  const inputStyleLocal: React.CSSProperties = { padding: "8px 12px", fontSize: 13, background: "var(--bg-card)", border: "1px solid var(--border-ds)", borderRadius: 6, color: "var(--text-primary)", outline: "none", width: "100%" };
+
+  const mergingMfr = mergingId ? mfrs.find(m => m.id === mergingId) : null;
+  const mergeCandidates = useMemo(() => {
+    if (!mergingMfr) return [];
+    const q = mergeSearch.trim().toLowerCase();
+    return mfrs.filter(m => m.id !== mergingMfr.id && (q === "" || m.name.toLowerCase().includes(q)));
+  }, [mfrs, mergingMfr, mergeSearch]);
+
+  return (
+    <>
+      <div style={{ display: "flex", gap: 10, marginBottom: 16, alignItems: "center" }}>
+        <div style={{ position: "relative", flex: 1 }}>
+          <Search size={13} style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: "var(--text-dim)" }} />
+          <input
+            style={{ ...inputStyleLocal, paddingLeft: 30 }}
+            placeholder="Search manufacturers…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            data-testid="input-manufacturer-search"
+          />
+        </div>
+        <span style={{ fontSize: 12, color: "var(--text-dim)" }}>{filtered.length} of {mfrs.length}</span>
+      </div>
+
+      {isLoading ? (
+        <div style={{ textAlign: "center", padding: 40, color: "var(--text-dim)" }}>Loading manufacturers…</div>
+      ) : filtered.length === 0 ? (
+        <div style={{ textAlign: "center", padding: 60, color: "var(--text-dim)" }}>
+          <Tag size={40} style={{ marginBottom: 12, opacity: 0.3 }} />
+          <p style={{ fontSize: 14 }}>No manufacturers found.</p>
+        </div>
+      ) : (
+        <div style={{ border: "1px solid var(--border-ds)", borderRadius: 8, overflow: "hidden", background: "var(--bg-card)" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 100px 100px 100px 200px", padding: "10px 14px", background: "var(--bg2)", fontSize: 11, fontWeight: 700, color: "var(--text-dim)", textTransform: "uppercase", letterSpacing: 0.4, borderBottom: "1px solid var(--border-ds)" }}>
+            <div>Name</div>
+            <div style={{ textAlign: "right" }}>Vendors</div>
+            <div style={{ textAlign: "right" }}>Line Items</div>
+            <div style={{ textAlign: "right" }}>Approved</div>
+            <div style={{ textAlign: "right" }}>Actions</div>
+          </div>
+          {filtered.map((m) => {
+            const isEditing = editingId === m.id;
+            const inUse = m.lineItemCount > 0 || m.approvedCount > 0 || m.vendorCount > 0;
+            return (
+              <div key={m.id} style={{ display: "grid", gridTemplateColumns: "1fr 100px 100px 100px 200px", padding: "10px 14px", borderBottom: "1px solid var(--border-ds)", alignItems: "center", fontSize: 13 }} data-testid={`row-mfr-${m.id}`}>
+                {isEditing ? (
+                  <input
+                    autoFocus
+                    style={inputStyleLocal}
+                    value={editingName}
+                    onChange={(e) => setEditingName(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") renameMutation.mutate({ id: m.id, name: editingName });
+                      if (e.key === "Escape") setEditingId(null);
+                    }}
+                    data-testid={`input-rename-mfr-${m.id}`}
+                  />
+                ) : (
+                  <div style={{ color: "var(--text-primary)", fontWeight: 500 }} data-testid={`text-mfr-name-${m.id}`}>{m.name}</div>
+                )}
+                <div style={{ textAlign: "right", color: m.vendorCount > 0 ? "var(--text-primary)" : "var(--text-dim)" }} data-testid={`text-mfr-vendor-count-${m.id}`}>{m.vendorCount}</div>
+                <div style={{ textAlign: "right", color: m.lineItemCount > 0 ? "var(--text-primary)" : "var(--text-dim)" }} data-testid={`text-mfr-line-item-count-${m.id}`}>{m.lineItemCount}</div>
+                <div style={{ textAlign: "right", color: m.approvedCount > 0 ? "var(--text-primary)" : "var(--text-dim)" }}>{m.approvedCount}</div>
+                <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
+                  {isEditing ? (
+                    <>
+                      <button onClick={() => renameMutation.mutate({ id: m.id, name: editingName })} disabled={renameMutation.isPending || !editingName.trim()} style={{ padding: "4px 10px", fontSize: 11, background: "var(--gold)", color: "#000", border: "none", borderRadius: 4, cursor: "pointer", fontWeight: 600 }} data-testid={`button-save-rename-${m.id}`}>Save</button>
+                      <button onClick={() => setEditingId(null)} style={{ padding: "4px 10px", fontSize: 11, background: "transparent", color: "var(--text-dim)", border: "1px solid var(--border-ds)", borderRadius: 4, cursor: "pointer" }} data-testid={`button-cancel-rename-${m.id}`}>Cancel</button>
+                    </>
+                  ) : (
+                    <>
+                      <button onClick={() => { setEditingId(m.id); setEditingName(m.name); }} style={{ padding: "4px 10px", fontSize: 11, background: "transparent", color: "var(--text-secondary)", border: "1px solid var(--border-ds)", borderRadius: 4, cursor: "pointer" }} data-testid={`button-rename-mfr-${m.id}`}>Rename</button>
+                      <button onClick={() => { setMergingId(m.id); setMergeTargetId(null); setMergeSearch(""); }} style={{ padding: "4px 10px", fontSize: 11, background: "transparent", color: "var(--text-secondary)", border: "1px solid var(--border-ds)", borderRadius: 4, cursor: "pointer" }} data-testid={`button-merge-mfr-${m.id}`}>Merge</button>
+                      <button
+                        onClick={() => {
+                          const msg = inUse
+                            ? `Delete "${m.name}"? It is referenced by ${m.lineItemCount} line item(s), ${m.approvedCount} approved scope entries, and ${m.vendorCount} vendor(s). Line items will lose their manufacturer link. This cannot be undone.`
+                            : `Delete "${m.name}"? This cannot be undone.`;
+                          if (window.confirm(msg)) deleteMutation.mutate(m.id);
+                        }}
+                        style={{ padding: "4px 10px", fontSize: 11, background: "transparent", color: "#E05252", border: "1px solid #E0525240", borderRadius: 4, cursor: "pointer" }}
+                        data-testid={`button-delete-mfr-${m.id}`}
+                      >
+                        Delete
+                      </button>
+                    </>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Merge modal */}
+      {mergingMfr && (
+        <div onClick={() => setMergingId(null)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+          <div onClick={(e) => e.stopPropagation()} style={{ background: "var(--bg-elev)", border: "1px solid var(--border-ds)", borderRadius: 10, padding: 20, width: "100%", maxWidth: 520, maxHeight: "80vh", display: "flex", flexDirection: "column" }} data-testid="modal-merge-mfr">
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+              <div>
+                <div style={{ fontSize: 14, fontWeight: 700, color: "var(--text-primary)" }}>Merge "{mergingMfr.name}" into…</div>
+                <div style={{ fontSize: 11, color: "var(--text-dim)", marginTop: 4 }}>All line items, vendor tags, and approved scope entries will be re-pointed to the target. This cannot be undone.</div>
+              </div>
+              <button onClick={() => setMergingId(null)} style={{ background: "none", border: "none", color: "var(--text-dim)", cursor: "pointer" }}><X size={16} /></button>
+            </div>
+            <input
+              style={inputStyleLocal}
+              placeholder="Search target manufacturer…"
+              value={mergeSearch}
+              onChange={(e) => setMergeSearch(e.target.value)}
+              data-testid="input-merge-search"
+            />
+            <div style={{ marginTop: 10, overflowY: "auto", flex: 1, border: "1px solid var(--border-ds)", borderRadius: 6 }}>
+              {mergeCandidates.length === 0 ? (
+                <div style={{ padding: 16, textAlign: "center", color: "var(--text-dim)", fontSize: 12 }}>No matches.</div>
+              ) : mergeCandidates.map(c => (
+                <div
+                  key={c.id}
+                  onClick={() => setMergeTargetId(c.id)}
+                  style={{ padding: "10px 12px", fontSize: 13, cursor: "pointer", background: mergeTargetId === c.id ? "rgba(201,168,76,0.12)" : "transparent", borderBottom: "1px solid var(--border-ds)", color: "var(--text-primary)", display: "flex", justifyContent: "space-between", alignItems: "center" }}
+                  data-testid={`row-merge-target-${c.id}`}
+                >
+                  <span>{c.name}</span>
+                  <span style={{ fontSize: 11, color: "var(--text-dim)" }}>{c.vendorCount}v · {c.lineItemCount}li</span>
+                </div>
+              ))}
+            </div>
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 14 }}>
+              <button onClick={() => setMergingId(null)} style={{ padding: "8px 14px", fontSize: 12, background: "transparent", border: "1px solid var(--border-ds)", color: "var(--text-secondary)", borderRadius: 6, cursor: "pointer" }}>Cancel</button>
+              <button
+                onClick={() => mergeTargetId && mergeMutation.mutate({ sourceId: mergingMfr.id, targetId: mergeTargetId })}
+                disabled={!mergeTargetId || mergeMutation.isPending}
+                style={{ padding: "8px 14px", fontSize: 12, background: mergeTargetId ? "var(--gold)" : "var(--bg2)", color: mergeTargetId ? "#000" : "var(--text-dim)", border: "none", borderRadius: 6, cursor: mergeTargetId ? "pointer" : "not-allowed", fontWeight: 600 }}
+                data-testid="button-confirm-merge"
+              >
+                {mergeMutation.isPending ? "Merging…" : "Merge"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   );
 }
