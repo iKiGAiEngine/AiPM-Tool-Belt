@@ -418,6 +418,15 @@ export default function AdminPage() {
                 </div>
               </div>
             </Link>
+            <Link href="/admin/estimator-analytics" data-testid="link-estimator-analytics">
+              <div className="flex items-start gap-3 p-3 rounded-md border border-border hover:border-primary/50 hover:bg-muted/40 transition-all cursor-pointer group">
+                <ScrollText className="w-4 h-4 mt-0.5 shrink-0" style={{ color: "var(--gold)" }} />
+                <div>
+                  <div className="font-medium text-sm font-heading group-hover:text-foreground">Estimator Analytics</div>
+                  <div className="text-xs text-muted-foreground">Cycle times, active engagement, per-stage and per-scope time</div>
+                </div>
+              </div>
+            </Link>
             <Link href="/admin/audit" data-testid="link-system-audit-log">
               <div className="flex items-start gap-3 p-3 rounded-md border border-border hover:border-primary/50 hover:bg-muted/40 transition-all cursor-pointer group">
                 <ScrollText className="w-4 h-4 mt-0.5 shrink-0" style={{ color: "var(--gold)" }} />

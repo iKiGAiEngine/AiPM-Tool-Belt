@@ -27,6 +27,7 @@ import { registerNotificationRoutes } from "./notificationRoutes";
 import { registerBackupRoutes } from "./backupRestore";
 import { registerVendorDatabaseRoutes } from "./vendorDatabaseRoutes";
 import { registerEstimateRoutes } from "./estimateRoutes";
+import { registerEstimateAnalyticsRoutes } from "./estimateAnalyticsRoutes";
 import { registerScopeManufacturerRoutes } from "./scopeManufacturerRoutes";
 import { auditLog } from "./auditService";
 import { db } from "./db";
@@ -297,6 +298,7 @@ export async function registerRoutes(
   registerBcSyncRoutes(app);
   registerBackupRoutes(app);
   registerEstimateRoutes(app);
+  registerEstimateAnalyticsRoutes(app);
   
   app.post("/api/upload", upload.single("file"), async (req: Request, res: Response) => {
     try {

@@ -1507,3 +1507,22 @@ export const ohApprovalLog = pgTable("oh_approval_log", {
 export const insertOhApprovalLogSchema = createInsertSchema(ohApprovalLog).omit({ id: true, requestedAt: true });
 export type InsertOhApprovalLog = z.infer<typeof insertOhApprovalLogSchema>;
 export type OhApprovalLog = typeof ohApprovalLog.$inferSelect;
+
+// Estimator engagement analytics. Each row is a contiguous interval the user
+// was actively interacting with the Estimating Module on a given estimate at
+// a given stage (and optional scope). Idle time and background-tab time are
+// excluded by the client-side tracker before flushing.
+export const estimateActivityEvents = pgTable("estimate_activity_events", {
+  id: serial("id").primaryKey(),
+  estimateId: integer("estimate_id").notNull(),
+  userId: integer("user_id").notNull(),
+  stage: varchar("stage", { length: 30 }).notNull(),
+  scope: varchar("scope", { length: 50 }),
+  startedAt: timestamp("started_at").notNull(),
+  endedAt: timestamp("ended_at").notNull(),
+  durationMs: integer("duration_ms").notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+export const insertEstimateActivityEventSchema = createInsertSchema(estimateActivityEvents).omit({ id: true, createdAt: true });
+export type InsertEstimateActivityEvent = z.infer<typeof insertEstimateActivityEventSchema>;
+export type EstimateActivityEvent = typeof estimateActivityEvents.$inferSelect;

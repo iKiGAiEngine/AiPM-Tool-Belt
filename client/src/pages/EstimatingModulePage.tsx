@@ -6,6 +6,7 @@ import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useFeatureAccess } from "@/hooks/use-feature-access";
+import { useActivityTracker } from "@/hooks/use-activity-tracker";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -548,6 +549,7 @@ function EstimatingModuleInner() {
 
   // ── Stage navigation ──
   const [stage, setStage] = useState<"intake" | "lineItems" | "calculations" | "output">("intake");
+  // Activity tracker is wired further down once estimateId is known.
   const [activeCat, setActiveCat] = useState<string>("");
 
   // ── Approved Manufacturers (RFQ Vendor Lookup) ──
@@ -961,6 +963,14 @@ function EstimatingModuleInner() {
   // ══════════════════════════════════════════════════
 
   const estimateId = estimateData?.id;
+
+  // Track active engagement time for admin analytics. Per-scope tracking
+  // is only meaningful in the Line Items stage; other stages report a null scope.
+  useActivityTracker({
+    estimateId,
+    stage,
+    scope: stage === "lineItems" ? (activeCat || null) : null,
+  });
 
   // Save top-level estimate settings.
   // statusOverride: when provided, this value is sent to the API directly —

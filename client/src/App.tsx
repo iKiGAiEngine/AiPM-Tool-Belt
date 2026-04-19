@@ -29,6 +29,7 @@ import { AdminUserPermissionsPage } from "@/pages/AdminUserPermissionsPage";
 import ChangelogPage from "@/pages/ChangelogPage";
 import ProposalChangeLogPage from "@/pages/ProposalChangeLogPage";
 import EstimatingModulePage from "@/pages/EstimatingModulePage";
+import AdminEstimatorAnalyticsPage from "@/pages/AdminEstimatorAnalyticsPage";
 import NotFound from "@/pages/not-found";
 
 const PUBLIC_PATHS = ["/forgot-password", "/reset-password"];
@@ -57,6 +58,7 @@ function Router() {
       <Route path="/admin/audit">{() => <AdminRoute component={AuditLogPage} />}</Route>
       <Route path="/admin/permissions">{() => <AdminRoute component={AdminUserPermissionsPage} />}</Route>
       <Route path="/admin/proposal-change-log">{() => <AdminRoute component={ProposalChangeLogPage} />}</Route>
+      <Route path="/admin/estimator-analytics">{() => <AdminRoute component={AdminEstimatorAnalyticsPage} />}</Route>
       <Route path="/changelog">{() => <AdminRoute component={ChangelogPage} />}</Route>
       <Route path="/submittal-builder" component={SubmittalBuilderPage} />
       <Route path="/vendor-database" component={VendorDatabasePage} />
