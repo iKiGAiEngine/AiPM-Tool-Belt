@@ -1630,7 +1630,7 @@ function EstimatingModuleInner() {
   <meta charset="utf-8" />
   <title>Proposal — ${projectName}</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=Rajdhani:wght@400;500;600;700&family=Source+Serif+4:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet" />
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
@@ -4836,6 +4836,140 @@ ${html}
                 <div style={{ borderTop: "2px solid #1a365d", marginTop: 10, paddingTop: 8, display: "flex", justifyContent: "space-between", fontWeight: 700, fontSize: 13 }}>
                   <span>TOTAL BID (Furnish Only — Material Only)</span><span>{fmt(calcData.grandTotal)}</span>
                 </div>
+
+                {/* ───────── PRICING BREAKOUTS (Option B — itemized cards) ───────── */}
+                {breakoutGroups.length > 0 && (() => {
+                  const GOLD = "#C8A44E";
+                  const INK = "#1a1a1a";
+                  const INK_FAINT = "#8a8a8a";
+                  const RULE = "#d4d4d4";
+                  const RULE_FAINT = "#ececec";
+                  const sumOfBreakouts = breakoutGroups.reduce((s, g) => s + (breakoutCalcData[g.id]?.total || 0), 0);
+
+                  return (
+                    <div style={{ marginTop: 24, pageBreakInside: "avoid" }}>
+                      {/* Section header */}
+                      <div style={{ display: "flex", alignItems: "baseline", gap: 12, marginBottom: 6 }}>
+                        <span style={{ fontFamily: "'Playfair Display', serif", fontStyle: "italic", fontSize: 20, color: GOLD, fontWeight: 400 }}>02</span>
+                        <span style={{ fontFamily: "'Rajdhani', sans-serif", fontSize: 12, fontWeight: 700, letterSpacing: 2, textTransform: "uppercase", color: INK }}>Pricing Breakouts</span>
+                        <span style={{ flex: 1, height: 1, background: RULE }} />
+                      </div>
+                      <p style={{ fontSize: 8, fontStyle: "italic", color: INK_FAINT, margin: "0 0 14px", lineHeight: 1.55 }}>
+                        Itemized pricing for each cost bucket below. The Total Bid above remains the binding price; breakouts shown for reference only.
+                      </p>
+
+                      {breakoutGroups.map(group => {
+                        const gd = breakoutCalcData[group.id];
+                        if (!gd || gd.itemCount === 0) return null;
+
+                        // Build per-scope rows for this breakout from allocations
+                        const itemsInThisBreakout = lineItems
+                          .map(li => {
+                            const allocQty = allocMap[li.id]?.[group.id] || 0;
+                            if (allocQty <= 0) return null;
+                            const unitCost = n(li.unitCost);
+                            return { ...li, allocQty, unitCost, ext: allocQty * unitCost };
+                          })
+                          .filter(Boolean) as Array<LineItem & { allocQty: number; unitCost: number; ext: number }>;
+
+                        // Group by category
+                        const byCat: Record<string, typeof itemsInThisBreakout> = {};
+                        itemsInThisBreakout.forEach(it => {
+                          if (!byCat[it.category]) byCat[it.category] = [];
+                          byCat[it.category].push(it);
+                        });
+                        const cats = ALL_SCOPES.filter(c => byCat[c.id]?.length);
+
+                        return (
+                          <div key={group.id} style={{ border: `1px solid ${RULE}`, borderRadius: 2, marginBottom: 14, pageBreakInside: "avoid", background: "#fff" }}>
+                            {/* Card header */}
+                            <div style={{ display: "grid", gridTemplateColumns: "auto 1fr auto", alignItems: "baseline", gap: 12, padding: "8px 12px", background: "linear-gradient(to right, rgba(200,164,78,0.08), rgba(200,164,78,0.02))", borderBottom: `1px solid ${GOLD}` }}>
+                              <span style={{ fontFamily: "'JetBrains Mono', monospace", fontWeight: 700, fontSize: 9, color: GOLD, letterSpacing: 1 }}>{group.code}</span>
+                              <span style={{ fontFamily: "'Rajdhani', sans-serif", fontWeight: 700, fontSize: 11, textTransform: "uppercase", letterSpacing: 1.4, color: INK }}>{group.label}</span>
+                              <span style={{ fontFamily: "'Playfair Display', serif", fontWeight: 700, fontSize: 13, color: INK, fontVariantNumeric: "tabular-nums" }}>{fmt(gd.total)}</span>
+                            </div>
+
+                            {/* Per-scope sub-blocks */}
+                            <div style={{ padding: "4px 0 6px" }}>
+                              {cats.map(cat => {
+                                const rows = byCat[cat.id];
+                                const scopeTotal = rows.reduce((s, r) => s + r.ext, 0);
+                                const showPx = showUnitPricing;
+                                return (
+                                  <div key={cat.id} style={{ padding: "6px 12px 0" }}>
+                                    <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", padding: "3px 0 2px", borderBottom: `0.5px solid ${RULE_FAINT}`, marginBottom: 3 }}>
+                                      <span style={{ fontFamily: "'Rajdhani', sans-serif", fontWeight: 600, fontSize: 9, textTransform: "uppercase", letterSpacing: 0.7, color: INK }}>{cat.label}</span>
+                                      <span style={{ fontFamily: "'Rajdhani', sans-serif", fontWeight: 600, fontSize: 7.5, color: GOLD, letterSpacing: 0.4 }}>{cat.csi}</span>
+                                    </div>
+                                    <table style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed" }}>
+                                      <colgroup>
+                                        {showPx ? (
+                                          <>
+                                            <col style={{ width: "11%" }} /><col style={{ width: "16%" }} /><col style={{ width: "36%" }} /><col style={{ width: "6%" }} /><col style={{ width: "6%" }} /><col style={{ width: "12%" }} /><col style={{ width: "13%" }} />
+                                          </>
+                                        ) : (
+                                          <>
+                                            <col style={{ width: "13%" }} /><col style={{ width: "22%" }} /><col style={{ width: "55%" }} /><col style={{ width: "5%" }} /><col style={{ width: "5%" }} />
+                                          </>
+                                        )}
+                                      </colgroup>
+                                      <thead>
+                                        <tr>
+                                          <th style={{ fontFamily: "'Rajdhani', sans-serif", fontWeight: 700, fontSize: 6.5, textTransform: "uppercase", letterSpacing: 0.6, color: INK_FAINT, padding: "3px 4px", borderBottom: `0.5px solid ${RULE_FAINT}`, textAlign: "left" }}>Callout</th>
+                                          <th style={{ fontFamily: "'Rajdhani', sans-serif", fontWeight: 700, fontSize: 6.5, textTransform: "uppercase", letterSpacing: 0.6, color: INK_FAINT, padding: "3px 4px", borderBottom: `0.5px solid ${RULE_FAINT}`, textAlign: "left" }}>Model</th>
+                                          <th style={{ fontFamily: "'Rajdhani', sans-serif", fontWeight: 700, fontSize: 6.5, textTransform: "uppercase", letterSpacing: 0.6, color: INK_FAINT, padding: "3px 4px", borderBottom: `0.5px solid ${RULE_FAINT}`, textAlign: "left" }}>Description</th>
+                                          <th style={{ fontFamily: "'Rajdhani', sans-serif", fontWeight: 700, fontSize: 6.5, textTransform: "uppercase", letterSpacing: 0.6, color: INK_FAINT, padding: "3px 4px", borderBottom: `0.5px solid ${RULE_FAINT}`, textAlign: "right" }}>Qty</th>
+                                          <th style={{ fontFamily: "'Rajdhani', sans-serif", fontWeight: 700, fontSize: 6.5, textTransform: "uppercase", letterSpacing: 0.6, color: INK_FAINT, padding: "3px 4px", borderBottom: `0.5px solid ${RULE_FAINT}`, textAlign: "center" }}>UOM</th>
+                                          {showPx && <th style={{ fontFamily: "'Rajdhani', sans-serif", fontWeight: 700, fontSize: 6.5, textTransform: "uppercase", letterSpacing: 0.6, color: INK_FAINT, padding: "3px 4px", borderBottom: `0.5px solid ${RULE_FAINT}`, textAlign: "right" }}>Unit $</th>}
+                                          {showPx && <th style={{ fontFamily: "'Rajdhani', sans-serif", fontWeight: 700, fontSize: 6.5, textTransform: "uppercase", letterSpacing: 0.6, color: INK_FAINT, padding: "3px 4px", borderBottom: `0.5px solid ${RULE_FAINT}`, textAlign: "right" }}>Extended</th>}
+                                        </tr>
+                                      </thead>
+                                      <tbody>
+                                        {rows.map(r => (
+                                          <tr key={r.id}>
+                                            <td style={{ fontFamily: "'JetBrains Mono', monospace", fontWeight: 700, fontSize: 7.5, textAlign: "center", color: INK, padding: "3px 4px", borderBottom: `0.5px dashed ${RULE_FAINT}` }}>{r.planCallout || "—"}</td>
+                                            <td style={{ fontFamily: "'Rajdhani', sans-serif", fontWeight: 600, fontSize: 8, color: INK, padding: "3px 4px", borderBottom: `0.5px dashed ${RULE_FAINT}` }}>{r.model || "—"}</td>
+                                            <td style={{ fontFamily: "'Source Serif 4', serif", fontSize: 8, color: INK, padding: "3px 4px", borderBottom: `0.5px dashed ${RULE_FAINT}` }}>{r.name}</td>
+                                            <td style={{ fontFamily: "'Source Serif 4', serif", fontVariantNumeric: "tabular-nums", textAlign: "right", color: INK, padding: "3px 4px", borderBottom: `0.5px dashed ${RULE_FAINT}` }}>{r.allocQty}</td>
+                                            <td style={{ fontFamily: "'Rajdhani', sans-serif", fontSize: 7.5, textTransform: "uppercase", textAlign: "center", color: INK_FAINT, padding: "3px 4px", borderBottom: `0.5px dashed ${RULE_FAINT}` }}>EA</td>
+                                            {showPx && <td style={{ fontFamily: "'Source Serif 4', serif", fontSize: 8, fontVariantNumeric: "tabular-nums", textAlign: "right", color: INK, padding: "3px 4px", borderBottom: `0.5px dashed ${RULE_FAINT}`, whiteSpace: "nowrap" }}>{fmt(r.unitCost)}</td>}
+                                            {showPx && <td style={{ fontFamily: "'Source Serif 4', serif", fontSize: 8, fontWeight: 600, fontVariantNumeric: "tabular-nums", textAlign: "right", color: INK, padding: "3px 4px", borderBottom: `0.5px dashed ${RULE_FAINT}`, whiteSpace: "nowrap" }}>{fmt(r.ext)}</td>}
+                                          </tr>
+                                        ))}
+                                        <tr>
+                                          <td colSpan={showPx ? 6 : 4} style={{ fontFamily: "'Rajdhani', sans-serif", fontWeight: 700, textTransform: "uppercase", fontSize: 7.5, letterSpacing: 0.7, color: INK, paddingTop: 4, paddingBottom: 6, borderTop: `0.5px solid ${INK}` }}>{cat.label} Subtotal</td>
+                                          <td style={{ fontFamily: "'Source Serif 4', serif", fontWeight: 600, fontSize: 8.5, textAlign: "right", paddingTop: 4, paddingBottom: 6, borderTop: `0.5px solid ${INK}`, color: INK }}>{fmt(scopeTotal)}</td>
+                                        </tr>
+                                      </tbody>
+                                    </table>
+                                  </div>
+                                );
+                              })}
+                            </div>
+
+                            {/* Card footer */}
+                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", padding: "8px 12px", background: "rgba(26,26,26,0.03)", borderTop: `0.5px solid ${INK}` }}>
+                              <span style={{ fontFamily: "'Rajdhani', sans-serif", fontWeight: 700, fontSize: 9, textTransform: "uppercase", letterSpacing: 1.2, color: INK }}>{group.code} — {group.label} Subtotal</span>
+                              <span style={{ fontFamily: "'Source Serif 4', serif", fontWeight: 600, fontSize: 11, color: INK, fontVariantNumeric: "tabular-nums" }}>{fmt(gd.total)}</span>
+                            </div>
+                          </div>
+                        );
+                      })}
+
+                      {/* Reconciliation row */}
+                      <div style={{ marginTop: 8, padding: "10px 12px", borderTop: `1.5px solid ${INK}`, borderBottom: `0.5px solid ${GOLD}`, display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+                        <span style={{ fontFamily: "'Rajdhani', sans-serif", fontWeight: 700, fontSize: 9.5, textTransform: "uppercase", letterSpacing: 1.4, color: INK }}>Sum of Breakouts</span>
+                        <span style={{ fontFamily: "'Playfair Display', serif", fontWeight: 700, fontSize: 13, color: INK, fontVariantNumeric: "tabular-nums" }}>{fmt(sumOfBreakouts)}</span>
+                      </div>
+                      <p style={{ marginTop: 4, fontSize: 7, fontStyle: "italic", color: INK_FAINT, textAlign: "right" }}>
+                        {Math.abs(sumOfBreakouts - calcData.grandTotal) < 1
+                          ? `Reconciles to Total Bid · ${fmt(calcData.grandTotal)}`
+                          : `Note: Sum of breakouts (${fmt(sumOfBreakouts)}) does not reconcile to Total Bid (${fmt(calcData.grandTotal)}) — review allocations.`}
+                      </p>
+                    </div>
+                  );
+                })()}
+
                 {assumptions.length > 0 && (
                   <div style={{ marginTop: 12 }}>
                     <p style={{ fontWeight: 600 }}>Assumptions:</p>
