@@ -378,8 +378,10 @@ tbody tr:last-child{border-bottom:none;}
 tbody tr:hover{background:var(--bg3);}
 td{padding:10px 10px;font-size:14px;vertical-align:middle;border-right:1px solid var(--td-border);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 td:last-child{border-right:none;}
-.row-check-col{position:sticky;left:0;z-index:5;background:var(--bg2);}
+.row-check-col{position:sticky;left:0;z-index:5;background:var(--bg2);border-right:1px solid var(--border) !important;}
 thead .row-check-col{background:var(--bg3);z-index:11;}
+.col-filter-row .row-check-col{background:var(--bg4);z-index:11;}
+tbody tr:hover .row-check-col{background:var(--bg3);}
 .col-frozen{position:sticky;z-index:5;background:var(--bg2);border-right:2px solid var(--border) !important;}
 thead .col-frozen{background:var(--bg3);z-index:11;}
 .col-filter-row .col-frozen{background:var(--bg4);z-index:11;}
