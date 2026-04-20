@@ -3155,24 +3155,41 @@ ${html}
                 {catQuotes.map(q => (
                   <div key={q.id} className="py-2 text-xs"
                     style={{ borderBottom: "1px solid var(--border-ds)" }}>
+                    {(() => {
+                      // Uniform chip chassis — same height, padding, border, font weight.
+                      // Only status pills keep their semantic color; value chips
+                      // (Lump Sum / Per Item / Freight / Total / Material) use a
+                      // neutral outlined look so the row is calm and scannable.
+                      const chipBase = "h-6 inline-flex items-center px-2 rounded-md text-xs font-semibold whitespace-nowrap";
+                      const neutralChip: React.CSSProperties = {
+                        background: "transparent",
+                        border: "1px solid var(--border-ds)",
+                        color: "var(--text-secondary)",
+                      };
+                      const totalChip: React.CSSProperties = {
+                        background: "transparent",
+                        border: "1px solid var(--text)",
+                        color: "var(--text)",
+                      };
+                      return (
                     <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-semibold" style={{ color: "#a855f7" }}>{q.vendor}</span>
-                      {q.note && <span style={{ color: "var(--text-muted)" }}>({q.note})</span>}
-                      {q.status === "processing" && <span className="px-1.5 py-0.5 rounded text-xs flex items-center gap-1" style={{ background: "#06b6d415", color: "#06b6d4", border: "1px solid #06b6d440" }}><Loader2 className="w-2.5 h-2.5 animate-spin" />Processing…</span>}
-                      {q.status === "needs_review" && <span className="px-1.5 py-0.5 rounded text-xs" style={{ background: "#f5a62315", color: "#f5a623", border: "1px solid #f5a62340" }}>⚠ Needs Review</span>}
-                      {q.status === "ready_for_approval" && <span className="px-1.5 py-0.5 rounded text-xs" style={{ background: "#22c55e15", color: "#22c55e", border: "1px solid #22c55e40" }}>✓ Ready to Approve</span>}
-                      {q.status === "approved" && <span className="px-1.5 py-0.5 rounded text-xs" style={{ background: "#22c55e20", color: "#22c55e", border: "1px solid #22c55e50" }}>✓ Approved</span>}
-                      {q.status === "failed" && <span className="px-1.5 py-0.5 rounded text-xs" style={{ background: "#ef444415", color: "#ef4444", border: "1px solid #ef444440" }}>✗ Failed</span>}
-                      {q.status === "uploaded" && <span className="px-1.5 py-0.5 rounded text-xs" style={{ background: "#a855f715", color: "#a855f7", border: "1px solid #a855f740" }}>Uploaded</span>}
-                      <span className="px-1.5 py-0.5 rounded text-xs" style={{ background: q.pricingMode === "lump_sum" ? "#f9731615" : "#22c55e15", color: q.pricingMode === "lump_sum" ? "#f97316" : "#22c55e", border: `1px solid ${q.pricingMode === "lump_sum" ? "#f9731640" : "#22c55e40"}` }}>
-                        {q.pricingMode === "lump_sum" ? `LS: ${fmt(n(q.lumpSumTotal))}` : "Per Item"}
+                      <span className={chipBase} style={neutralChip} data-testid={`text-quote-vendor-${q.id}`}>{q.vendor}</span>
+                      {q.note && <span className="text-xs" style={{ color: "var(--text-muted)" }}>({q.note})</span>}
+                      {q.status === "processing" && <span className={chipBase + " gap-1"} style={{ background: "transparent", border: "1px solid #06b6d4", color: "#06b6d4" }}><Loader2 className="w-2.5 h-2.5 animate-spin" />Processing…</span>}
+                      {q.status === "needs_review" && <span className={chipBase} style={{ background: "transparent", border: "1px solid #f5a623", color: "#f5a623" }}>⚠ Needs Review</span>}
+                      {q.status === "ready_for_approval" && <span className={chipBase} style={{ background: "transparent", border: "1px solid #22c55e", color: "#22c55e" }}>✓ Ready to Approve</span>}
+                      {q.status === "approved" && <span className={chipBase} style={{ background: "transparent", border: "1px solid #22c55e", color: "#22c55e" }}>✓ Approved</span>}
+                      {q.status === "failed" && <span className={chipBase} style={{ background: "transparent", border: "1px solid #ef4444", color: "#ef4444" }}>✗ Failed</span>}
+                      {q.status === "uploaded" && <span className={chipBase} style={neutralChip}>Uploaded</span>}
+                      <span className={chipBase} style={neutralChip}>
+                        {q.pricingMode === "lump_sum" ? `Lump Sum: ${fmt(n(q.lumpSumTotal))}` : "Per Item"}
                       </span>
                       {q.materialTotalCost && n(q.materialTotalCost) > 0 && (
-                        <span className="px-1.5 py-0.5 rounded text-xs font-semibold" style={{ background: "var(--gold)15", color: "var(--gold)", border: "1px solid var(--gold)30" }}>
-                          Mat: {fmt(n(q.materialTotalCost))}
+                        <span className={chipBase} style={neutralChip}>
+                          Material: {fmt(n(q.materialTotalCost))}
                         </span>
                       )}
-                      <span style={{ color: "#f97316" }}>Freight: {fmt(n(q.freight))}</span>
+                      <span className={chipBase} style={neutralChip}>Freight: {fmt(n(q.freight))}</span>
                       {(() => {
                         const baseTotal = q.pricingMode === "lump_sum"
                           ? n(q.lumpSumTotal)
@@ -3183,14 +3200,14 @@ ${html}
                         return quoteTotal > 0 ? (
                           <span
                             data-testid={`text-quote-total-${q.id}`}
-                            className="px-1.5 py-0.5 rounded text-xs font-bold"
-                            style={{ background: "#a855f720", color: "#c084fc", border: "1px solid #a855f750" }}
+                            className={chipBase}
+                            style={totalChip}
                             title={`Quote total = ${q.pricingMode === "lump_sum" ? "Lump Sum" : (n(q.materialTotalCost) > 0 ? "Material Total" : "Linked line items")} + Freight`}>
                             Total: {fmt(quoteTotal)}
                           </span>
                         ) : null;
                       })()}
-                      {q.taxIncluded && <span className="px-1 py-0.5 rounded text-xs" style={{ background: "#f9731610", color: "#f97316" }}>Tax Incl</span>}
+                      {q.taxIncluded && <span className={chipBase} style={neutralChip}>Tax Incl</span>}
                       <div className="flex items-center gap-1 ml-auto">
                         {q.hasBackup && (q.status === null || q.status === "failed") && (
                           <button
@@ -3268,6 +3285,8 @@ ${html}
                         </button>
                       </div>
                     </div>
+                      );
+                    })()}
                     {(q.latestError?.includes("Scanned/image PDF") || q.latestError?.includes("extractable text")) && (
                       <div className="mt-2 text-xs px-2 py-1 rounded" style={{ background: "#ef44440f", color: "#ef4444", border: "1px solid #ef444430" }}>
                         Scanned/image PDF detected — this V1 flow only supports PDFs with extractable text.
