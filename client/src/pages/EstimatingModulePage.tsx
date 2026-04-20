@@ -633,6 +633,7 @@ function EstimatingModuleInner() {
   const [extractingTotal, setExtractingTotal] = useState(false);
   const [aiExtractNote, setAiExtractNote] = useState<string | null>(null);
   const [showBreakoutPanel, setShowBreakoutPanel] = useState(false);
+  const [showMarkupsBar, setShowMarkupsBar] = useState(false);
   const [newBreakoutGroup, setNewBreakoutGroup] = useState({ code: "", label: "", type: "building" });
   const [expandedItems, setExpandedItems] = useState<Set<number>>(new Set());
   const [showCatQuals, setShowCatQuals] = useState(false);
@@ -2882,8 +2883,8 @@ ${html}
 
           {CATEGORIES.length > 0 && (
             <>
-              {/* Extraction buttons — Stage 2 secondary position */}
-              <div className="flex gap-2 mb-3">
+              {/* Stage 2 action toolbar — extraction + breakouts on a single row */}
+              <div className="flex items-center gap-2 flex-wrap mb-3">
                 <button
                   onClick={() => { setShowScheduleExtractor(true); setExtractedItems([]); setExtractorTab("image"); setExtractPasteText(""); setSchedulePasteCount(0); }}
                   className="flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-semibold"
@@ -2900,15 +2901,9 @@ ${html}
                 >
                   <BookOpen className="w-3 h-3" /> Extract from Specs
                 </button>
-              </div>
-
-              {/* Legacy per-category tabs removed — replaced by the sticky
-                  scope chips bar in the header (rendered only when stage === "lineItems"). */}
-
-              {/* Breakout panel toggle */}
-              <div className="flex items-center gap-3 mb-3">
                 <button onClick={() => setShowBreakoutPanel(!showBreakoutPanel)}
-                  className="text-xs px-3 py-1.5 rounded flex items-center gap-1.5"
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-semibold"
+                  data-testid="btn-toggle-breakouts"
                   style={{
                     background: breakoutGroups.length > 0 ? "#06b6d410" : "var(--bg-card)",
                     border: `1px solid ${breakoutGroups.length > 0 ? "#06b6d440" : "var(--border-ds)"}`,
@@ -2924,6 +2919,9 @@ ${html}
                   <span className="text-xs" style={{ color: "#22c55e" }}>✓ {breakoutValidation.allocatedCount}/{breakoutValidation.totalItems} items allocated</span>
                 )}
               </div>
+
+              {/* Legacy per-category tabs removed — replaced by the sticky
+                  scope chips bar in the header (rendered only when stage === "lineItems"). */}
 
               {/* Breakout panel */}
               {showBreakoutPanel && (
@@ -3041,40 +3039,76 @@ ${html}
                 </div>
               )}
 
-              {/* OH/Fee/Esc bar */}
-              <div className="flex items-center gap-4 flex-wrap px-4 py-2.5 rounded-lg mb-3"
-                style={{ background: "#f9731610", border: "1px solid #f9731630" }}>
-                {[
-                  { label: "OH", color: "#f97316", isOvr: calcData[activeCat]?.isOhOvr, rate: calcData[activeCat]?.ohRate, def: defaultOh, onChange: (v: string) => v === "" ? setCatOverrides(p => { const n = { ...p }; if (n[activeCat]) { delete n[activeCat].oh; if (!Object.keys(n[activeCat]).length) delete n[activeCat]; } return n; }) : requestOhChange(activeCat, parseFloat(v) || 0), locked: true, disabled: false },
-                  { label: "Fee", color: "#22c55e", isOvr: calcData[activeCat]?.isFeeOvr, rate: calcData[activeCat]?.feeRate, def: defaultFee, onChange: (v: string) => v === "" ? setCatOverrides(p => { const n = { ...p }; if (n[activeCat]) { delete n[activeCat].fee; if (!Object.keys(n[activeCat]).length) delete n[activeCat]; } return n; }) : requestFeeChange(activeCat, parseFloat(v) || 0), locked: true, disabled: false },
-                  { label: "Esc", color: "var(--gold)", isOvr: calcData[activeCat]?.isEscOvr, rate: calcData[activeCat]?.escRate, def: defaultEsc, onChange: (v: string) => { v === "" ? setCatOverrides(p => { const n = { ...p }; if (n[activeCat]) { delete n[activeCat].esc; if (!Object.keys(n[activeCat]).length) delete n[activeCat]; } return n; }) : setCatOverrides(p => ({ ...p, [activeCat]: { ...p[activeCat], esc: parseFloat(v) || 0 } })); markDirty(); }, locked: false, disabled: false },
-                ].map(r => (
-                  <div key={r.label} className="flex items-center gap-1.5">
-                    <span className="text-xs font-bold" style={{ color: r.color }}>{r.label}:</span>
-                    <input type="number" step={0.5} value={r.isOvr ? r.rate : ""} placeholder={`${r.def}%`}
-                      disabled={r.disabled}
-                      onChange={e => r.onChange(e.target.value)}
-                      className="text-xs text-right px-2 py-1 rounded w-14"
-                      style={{ background: "var(--bg-card)", border: `1px solid ${r.isOvr ? r.color + "60" : "var(--border-ds)"}`, color: r.isOvr ? r.color : "var(--text-muted)", opacity: r.disabled ? 0.6 : 1, cursor: r.disabled ? "not-allowed" : "auto" }}  onFocus={selectIfZero}/>
-                    <span className="text-xs" style={{ color: "var(--text-muted)" }}>%</span>
-                    {r.locked && r.isOvr && <Lock className="w-3 h-3" style={{ color: "#ef4444" }} />}
+              {/* OH/Fee/Esc — collapsible markups bar */}
+              {(() => {
+                const markupRows = [
+                  { key: "oh", label: "OH", color: "#f97316", isOvr: calcData[activeCat]?.isOhOvr, rate: calcData[activeCat]?.ohRate, def: defaultOh, onChange: (v: string) => v === "" ? setCatOverrides(p => { const n = { ...p }; if (n[activeCat]) { delete n[activeCat].oh; if (!Object.keys(n[activeCat]).length) delete n[activeCat]; } return n; }) : requestOhChange(activeCat, parseFloat(v) || 0), locked: true, disabled: false },
+                  { key: "fee", label: "Fee", color: "#22c55e", isOvr: calcData[activeCat]?.isFeeOvr, rate: calcData[activeCat]?.feeRate, def: defaultFee, onChange: (v: string) => v === "" ? setCatOverrides(p => { const n = { ...p }; if (n[activeCat]) { delete n[activeCat].fee; if (!Object.keys(n[activeCat]).length) delete n[activeCat]; } return n; }) : requestFeeChange(activeCat, parseFloat(v) || 0), locked: true, disabled: false },
+                  { key: "esc", label: "Esc", color: "var(--gold)", isOvr: calcData[activeCat]?.isEscOvr, rate: calcData[activeCat]?.escRate, def: defaultEsc, onChange: (v: string) => { v === "" ? setCatOverrides(p => { const n = { ...p }; if (n[activeCat]) { delete n[activeCat].esc; if (!Object.keys(n[activeCat]).length) delete n[activeCat]; } return n; }) : setCatOverrides(p => ({ ...p, [activeCat]: { ...p[activeCat], esc: parseFloat(v) || 0 } })); markDirty(); }, locked: false, disabled: false },
+                ];
+                const anyOvr = markupRows.some(r => r.isOvr);
+                return (
+                  <div className="rounded-lg mb-3 overflow-hidden"
+                    style={{ background: "#f9731610", border: "1px solid #f9731630" }}>
+                    <div className="flex items-center gap-3 flex-wrap px-3 py-2">
+                      <button
+                        onClick={() => setShowMarkupsBar(v => !v)}
+                        data-testid="btn-toggle-markups"
+                        className="flex items-center gap-1.5 text-xs font-bold"
+                        style={{ color: "#f97316" }}
+                        title={showMarkupsBar ? "Collapse markups" : "Expand to edit markups"}>
+                        {showMarkupsBar ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                        Markups
+                      </button>
+                      {/* Inline summary chips so the rates are visible even when collapsed */}
+                      {markupRows.map(r => (
+                        <span key={r.key} className="text-xs flex items-center gap-1"
+                          style={{ color: r.isOvr ? r.color : "var(--text-muted)" }}>
+                          <span className="font-semibold" style={{ color: r.color }}>{r.label}</span>
+                          <span style={{ color: r.isOvr ? r.color : "var(--text-secondary)", fontWeight: r.isOvr ? 600 : 400 }}>
+                            {(r.isOvr ? r.rate : r.def)}%
+                          </span>
+                          {r.isOvr && <span className="text-[10px]" style={{ color: "var(--text-muted)" }}>(ovr)</span>}
+                        </span>
+                      ))}
+                      {!anyOvr && (
+                        <span className="text-[10px]" style={{ color: "var(--text-muted)" }}>defaults — click to override</span>
+                      )}
+                      <div className="ml-auto flex items-center gap-2">
+                        {pendingOh.length > 0 && (
+                          <span className="text-xs" style={{ color: "#f97316" }}>🔒 {pendingOh.length} OH change(s) pending approval</span>
+                        )}
+                        <button onClick={() => tryCompleteCat(activeCat)}
+                          className="text-xs px-3 py-1.5 rounded font-semibold transition-all"
+                          style={{
+                            background: calcData[activeCat]?.isComplete ? "#22c55e" : "var(--bg-card)",
+                            border: `1px solid ${calcData[activeCat]?.isComplete ? "#22c55e" : "var(--border-ds)"}`,
+                            color: calcData[activeCat]?.isComplete ? "#fff" : "var(--text-secondary)",
+                          }}>
+                          {calcData[activeCat]?.isComplete ? "✓ Complete" : "Mark Complete"}
+                        </button>
+                      </div>
+                    </div>
+                    {showMarkupsBar && (
+                      <div className="flex items-center gap-4 flex-wrap px-3 pb-2.5 pt-1"
+                        style={{ borderTop: "1px solid #f9731625" }}>
+                        {markupRows.map(r => (
+                          <div key={r.key} className="flex items-center gap-1.5">
+                            <span className="text-xs font-bold" style={{ color: r.color }}>{r.label}:</span>
+                            <input type="number" step={0.5} value={r.isOvr ? r.rate : ""} placeholder={`${r.def}%`}
+                              disabled={r.disabled}
+                              onChange={e => r.onChange(e.target.value)}
+                              className="text-xs text-right px-2 py-1 rounded w-14"
+                              style={{ background: "var(--bg-card)", border: `1px solid ${r.isOvr ? r.color + "60" : "var(--border-ds)"}`, color: r.isOvr ? r.color : "var(--text-muted)", opacity: r.disabled ? 0.6 : 1, cursor: r.disabled ? "not-allowed" : "auto" }}  onFocus={selectIfZero}/>
+                            <span className="text-xs" style={{ color: "var(--text-muted)" }}>%</span>
+                            {r.locked && r.isOvr && <Lock className="w-3 h-3" style={{ color: "#ef4444" }} />}
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
-                ))}
-                <div className="ml-auto flex items-center gap-2">
-                  {pendingOh.length > 0 && (
-                    <span className="text-xs" style={{ color: "#f97316" }}>🔒 {pendingOh.length} OH change(s) pending approval</span>
-                  )}
-                  <button onClick={() => tryCompleteCat(activeCat)}
-                    className="text-xs px-3 py-1.5 rounded font-semibold transition-all"
-                    style={{
-                      background: calcData[activeCat]?.isComplete ? "#22c55e" : "var(--bg-card)",
-                      border: `1px solid ${calcData[activeCat]?.isComplete ? "#22c55e" : "var(--border-ds)"}`,
-                      color: calcData[activeCat]?.isComplete ? "#fff" : "var(--text-secondary)",
-                    }}>
-                    {calcData[activeCat]?.isComplete ? "✓ Complete" : "Mark Complete"}
-                  </button>
-                </div>
-              </div>
+                );
+              })()}
 
               {/* Spec Reference Panel */}
               {(() => {
