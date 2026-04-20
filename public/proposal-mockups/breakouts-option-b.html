@@ -1,0 +1,645 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Proposal Mockup — Breakouts Option B (Itemized)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=Rajdhani:wght@400;500;600;700&family=Source+Serif+4:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --gold: #C8A44E;
+    --ink: #1a1a1a;
+    --ink-soft: #4a4a4a;
+    --ink-faint: #8a8a8a;
+    --rule: #d4d4d4;
+    --rule-faint: #ececec;
+    --paper: #ffffff;
+    --bg: #efe9df;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    font-family: 'Source Serif 4', Georgia, serif;
+    color: var(--ink);
+    padding: 40px 20px;
+  }
+  .toolbar {
+    max-width: 1740px;
+    margin: 0 auto 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    font-family: 'Rajdhani', sans-serif;
+    color: var(--ink-soft);
+  }
+  .toolbar h1 { font-family: 'Playfair Display', serif; font-size: 22px; color: var(--ink); font-weight: 700; }
+  .toolbar p { font-size: 13px; }
+
+  .pages {
+    max-width: 1740px;
+    margin: 0 auto;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 32px;
+  }
+  .page-label {
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    margin-bottom: 8px;
+    text-align: center;
+  }
+  .page {
+    background: var(--paper);
+    width: 8.5in;
+    min-height: 11in;
+    padding: 0.75in;
+    margin: 0 auto;
+    box-shadow: 0 4px 30px rgba(0,0,0,0.18);
+    font-size: 9.5pt;
+    line-height: 1.5;
+    color: var(--ink);
+  }
+
+  /* Section header (matches the rest of the proposal layout) */
+  .section-head {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+    margin: 0 0 14px;
+  }
+  .section-head .num {
+    font-family: 'Playfair Display', serif;
+    font-style: italic;
+    font-size: 20px;
+    color: var(--gold);
+    font-weight: 400;
+  }
+  .section-head .title {
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 11.5pt;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--ink);
+  }
+  .section-head .filler {
+    flex: 1;
+    height: 1px;
+    background: var(--rule);
+  }
+  .section-intro {
+    font-size: 7.75pt;
+    font-style: italic;
+    color: var(--ink-faint);
+    margin: -4px 0 16px;
+    line-height: 1.55;
+  }
+
+  /* Breakout card */
+  .breakout-card {
+    border: 1px solid var(--rule);
+    border-radius: 2px;
+    margin-bottom: 18px;
+    overflow: hidden;
+    page-break-inside: avoid;
+  }
+  .breakout-header {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    align-items: baseline;
+    gap: 14px;
+    padding: 9px 14px;
+    background: linear-gradient(to right, rgba(200,164,78,0.08), rgba(200,164,78,0.02));
+    border-bottom: 1px solid var(--gold);
+  }
+  .breakout-header .code {
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 700;
+    font-size: 9pt;
+    color: var(--gold);
+    letter-spacing: 1px;
+  }
+  .breakout-header .label {
+    font-family: 'Rajdhani', sans-serif;
+    font-weight: 700;
+    font-size: 11pt;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    color: var(--ink);
+  }
+  .breakout-header .total {
+    font-family: 'Playfair Display', serif;
+    font-weight: 700;
+    font-size: 14pt;
+    color: var(--ink);
+    font-variant-numeric: tabular-nums;
+  }
+  .breakout-body {
+    padding: 4px 0 0;
+  }
+
+  /* Per-scope sub-block inside a breakout card */
+  .scope-block { padding: 0 14px; margin-top: 8px; }
+  .scope-block + .scope-block { margin-top: 6px; }
+  .scope-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    padding: 4px 0 3px;
+    border-bottom: 0.5px solid var(--rule-faint);
+    margin-bottom: 4px;
+  }
+  .scope-head .name {
+    font-family: 'Rajdhani', sans-serif;
+    font-weight: 600;
+    font-size: 9pt;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    color: var(--ink);
+  }
+  .scope-head .csi {
+    font-family: 'Rajdhani', sans-serif;
+    font-weight: 600;
+    font-size: 7.5pt;
+    color: var(--gold);
+    letter-spacing: 0.5px;
+  }
+
+  /* Items table inside a scope block */
+  table.items {
+    width: 100%;
+    border-collapse: collapse;
+    table-layout: fixed;
+  }
+  table.items th {
+    font-family: 'Rajdhani', sans-serif;
+    font-weight: 700;
+    font-size: 6.75pt;
+    text-transform: uppercase;
+    letter-spacing: 0.7px;
+    color: var(--ink-faint);
+    padding: 3px 4px;
+    border-bottom: 0.5px solid var(--rule-faint);
+    text-align: left;
+  }
+  table.items td {
+    padding: 3px 4px;
+    vertical-align: top;
+    font-size: 8.25pt;
+    border-bottom: 0.5px dashed var(--rule-faint);
+  }
+  table.items tr:last-child td { border-bottom: none; }
+  td.callout {
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 700;
+    font-size: 7.5pt;
+    text-align: center;
+    color: var(--ink);
+  }
+  td.model {
+    font-family: 'Rajdhani', sans-serif;
+    font-weight: 600;
+    font-size: 8pt;
+    color: var(--ink);
+  }
+  td.desc {
+    font-family: 'Source Serif 4', serif;
+    font-size: 8.25pt;
+    color: var(--ink);
+  }
+  td.qty {
+    font-family: 'Source Serif 4', serif;
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+    color: var(--ink);
+  }
+  td.uom {
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 7.5pt;
+    text-transform: uppercase;
+    text-align: center;
+    color: var(--ink-faint);
+  }
+  td.unit, td.ext {
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+    color: var(--ink);
+    white-space: nowrap;
+    font-family: 'Source Serif 4', serif;
+    font-size: 8.25pt;
+  }
+  td.ext { font-weight: 600; }
+
+  /* Per-scope mini-subtotal row */
+  tr.scope-subtotal td {
+    border-top: 0.5px solid var(--ink);
+    border-bottom: none;
+    font-family: 'Rajdhani', sans-serif;
+    font-weight: 700;
+    text-transform: uppercase;
+    font-size: 7.5pt;
+    letter-spacing: 0.8px;
+    color: var(--ink);
+    padding-top: 4px;
+    padding-bottom: 6px;
+  }
+  tr.scope-subtotal td.subtotal-value {
+    font-family: 'Source Serif 4', serif;
+    font-weight: 600;
+    font-size: 9pt;
+    text-align: right;
+  }
+
+  /* Card footer = breakout subtotal */
+  .breakout-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    padding: 9px 14px;
+    background: rgba(26,26,26,0.03);
+    border-top: 0.5px solid var(--ink);
+  }
+  .breakout-footer .label {
+    font-family: 'Rajdhani', sans-serif;
+    font-weight: 700;
+    font-size: 9pt;
+    text-transform: uppercase;
+    letter-spacing: 1.2px;
+    color: var(--ink);
+  }
+  .breakout-footer .value {
+    font-family: 'Source Serif 4', serif;
+    font-weight: 600;
+    font-size: 11pt;
+    color: var(--ink);
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Reconciliation row at the bottom of all breakouts */
+  .reconcile {
+    margin-top: 10px;
+    padding: 10px 14px;
+    border-top: 1.5px solid var(--ink);
+    border-bottom: 0.5px solid var(--gold);
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+  }
+  .reconcile .label {
+    font-family: 'Rajdhani', sans-serif;
+    font-weight: 700;
+    font-size: 9.5pt;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    color: var(--ink);
+  }
+  .reconcile .value {
+    font-family: 'Playfair Display', serif;
+    font-weight: 700;
+    font-size: 13pt;
+    color: var(--ink);
+    font-variant-numeric: tabular-nums;
+  }
+  .reconcile-note {
+    margin-top: 4px;
+    font-size: 7pt;
+    font-style: italic;
+    color: var(--ink-faint);
+    text-align: right;
+  }
+</style>
+</head>
+<body>
+
+<div class="toolbar">
+  <h1>Breakouts — Option B (Itemized cards) — Side-by-side preview</h1>
+  <p>Left: pricing toggle <strong>OFF</strong> &nbsp;·&nbsp; Right: pricing toggle <strong>ON</strong></p>
+</div>
+
+<div class="pages">
+
+  <!-- ============================================================ -->
+  <!-- LEFT PAGE — PRICING HIDDEN                                   -->
+  <!-- ============================================================ -->
+  <div>
+    <div class="page-label">Pricing Hidden</div>
+    <div class="page">
+
+      <div class="section-head">
+        <span class="num">02</span>
+        <span class="title">Pricing Breakouts</span>
+        <span class="filler"></span>
+      </div>
+      <p class="section-intro">
+        Itemized pricing for each cost bucket below. The Total Bid on the prior page remains the binding price; breakouts shown for reference only.
+      </p>
+
+      <!-- ===== BREAKOUT B1 — BUILDING 1 ===== -->
+      <div class="breakout-card">
+        <div class="breakout-header">
+          <span class="code">B1</span>
+          <span class="label">Building 1 — Administration</span>
+          <span class="total">$182,400</span>
+        </div>
+        <div class="breakout-body">
+
+          <div class="scope-block">
+            <div class="scope-head">
+              <span class="name">Toilet Compartments</span>
+              <span class="csi">10 21 13</span>
+            </div>
+            <table class="items">
+              <colgroup>
+                <col style="width:13%"><col style="width:22%"><col style="width:55%"><col style="width:5%"><col style="width:5%">
+              </colgroup>
+              <thead>
+                <tr><th>Callout</th><th>Model</th><th>Description</th><th style="text-align:right">Qty</th><th style="text-align:center">UOM</th></tr>
+              </thead>
+              <tbody>
+                <tr><td class="callout">TC-1</td><td class="model">Bobrick 1080</td><td class="desc">Floor-anchored stainless steel partition, ADA</td><td class="qty">8</td><td class="uom">EA</td></tr>
+                <tr><td class="callout">TC-2</td><td class="model">Bobrick 1080</td><td class="desc">Standard floor-anchored stainless partition</td><td class="qty">14</td><td class="uom">EA</td></tr>
+                <tr><td class="callout">UR-1</td><td class="model">Bobrick 1086</td><td class="desc">Urinal screen, wall-hung phenolic</td><td class="qty">6</td><td class="uom">EA</td></tr>
+                <tr class="scope-subtotal"><td colspan="3">Toilet Compartments Subtotal</td><td colspan="2" class="subtotal-value">$ 41,800</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="scope-block">
+            <div class="scope-head">
+              <span class="name">Toilet Accessories</span>
+              <span class="csi">10 28 00</span>
+            </div>
+            <table class="items">
+              <colgroup>
+                <col style="width:13%"><col style="width:22%"><col style="width:55%"><col style="width:5%"><col style="width:5%">
+              </colgroup>
+              <thead>
+                <tr><th>Callout</th><th>Model</th><th>Description</th><th style="text-align:right">Qty</th><th style="text-align:center">UOM</th></tr>
+              </thead>
+              <tbody>
+                <tr><td class="callout">TA-1</td><td class="model">Bobrick B-3974</td><td class="desc">Surface-mount paper towel dispenser / waste</td><td class="qty">12</td><td class="uom">EA</td></tr>
+                <tr><td class="callout">TA-2</td><td class="model">Bobrick B-2888</td><td class="desc">Soap dispenser, surface-mount</td><td class="qty">22</td><td class="uom">EA</td></tr>
+                <tr><td class="callout">TA-3</td><td class="model">Bobrick B-6806</td><td class="desc">Grab bar, 36"</td><td class="qty">16</td><td class="uom">EA</td></tr>
+                <tr class="scope-subtotal"><td colspan="3">Toilet Accessories Subtotal</td><td colspan="2" class="subtotal-value">$ 22,400</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="scope-block">
+            <div class="scope-head">
+              <span class="name">Lockers</span>
+              <span class="csi">10 51 00</span>
+            </div>
+            <table class="items">
+              <colgroup>
+                <col style="width:13%"><col style="width:22%"><col style="width:55%"><col style="width:5%"><col style="width:5%">
+              </colgroup>
+              <thead>
+                <tr><th>Callout</th><th>Model</th><th>Description</th><th style="text-align:right">Qty</th><th style="text-align:center">UOM</th></tr>
+              </thead>
+              <tbody>
+                <tr><td class="callout">LK-1</td><td class="model">Penco Vanguard</td><td class="desc">3-tier metal locker, 12"×12"×72"</td><td class="qty">120</td><td class="uom">EA</td></tr>
+                <tr><td class="callout">LK-B</td><td class="model">Penco</td><td class="desc">Locker bench, 6' length, hardwood top</td><td class="qty">8</td><td class="uom">EA</td></tr>
+                <tr class="scope-subtotal"><td colspan="3">Lockers Subtotal</td><td colspan="2" class="subtotal-value">$ 90,000</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="scope-block">
+            <div class="scope-head">
+              <span class="name">Signage</span>
+              <span class="csi">10 14 00</span>
+            </div>
+            <table class="items">
+              <colgroup>
+                <col style="width:13%"><col style="width:22%"><col style="width:55%"><col style="width:5%"><col style="width:5%">
+              </colgroup>
+              <thead>
+                <tr><th>Callout</th><th>Model</th><th>Description</th><th style="text-align:right">Qty</th><th style="text-align:center">UOM</th></tr>
+              </thead>
+              <tbody>
+                <tr><td class="callout">SG-1</td><td class="model">ASI Series 100</td><td class="desc">ADA room ID sign, tactile w/ Braille</td><td class="qty">38</td><td class="uom">EA</td></tr>
+                <tr><td class="callout">SG-2</td><td class="model">ASI Series 200</td><td class="desc">Directional / wayfinding panel</td><td class="qty">6</td><td class="uom">EA</td></tr>
+                <tr class="scope-subtotal"><td colspan="3">Signage Subtotal</td><td colspan="2" class="subtotal-value">$ 28,200</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+        </div>
+        <div class="breakout-footer">
+          <span class="label">B1 — Building 1 Subtotal</span>
+          <span class="value">$182,400</span>
+        </div>
+      </div>
+
+      <!-- ===== BREAKOUT B2 — BUILDING 2 (compact) ===== -->
+      <div class="breakout-card">
+        <div class="breakout-header">
+          <span class="code">B2</span>
+          <span class="label">Building 2 — Warehouse</span>
+          <span class="total">$148,900</span>
+        </div>
+        <div class="breakout-body">
+          <div class="scope-block">
+            <div class="scope-head">
+              <span class="name">Lockers</span>
+              <span class="csi">10 51 00</span>
+            </div>
+            <table class="items">
+              <colgroup>
+                <col style="width:13%"><col style="width:22%"><col style="width:55%"><col style="width:5%"><col style="width:5%">
+              </colgroup>
+              <thead>
+                <tr><th>Callout</th><th>Model</th><th>Description</th><th style="text-align:right">Qty</th><th style="text-align:center">UOM</th></tr>
+              </thead>
+              <tbody>
+                <tr><td class="callout">LK-3</td><td class="model">Penco Vanguard</td><td class="desc">2-tier metal locker, 18"×18"×72"</td><td class="qty">142</td><td class="uom">EA</td></tr>
+                <tr class="scope-subtotal"><td colspan="3">Lockers Subtotal</td><td colspan="2" class="subtotal-value">$107,000</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="scope-block">
+            <div class="scope-head">
+              <span class="name">Fire Extinguishers</span>
+              <span class="csi">10 44 00</span>
+            </div>
+            <table class="items">
+              <colgroup>
+                <col style="width:13%"><col style="width:22%"><col style="width:55%"><col style="width:5%"><col style="width:5%">
+              </colgroup>
+              <thead>
+                <tr><th>Callout</th><th>Model</th><th>Description</th><th style="text-align:right">Qty</th><th style="text-align:center">UOM</th></tr>
+              </thead>
+              <tbody>
+                <tr><td class="callout">FE-1</td><td class="model">Larsen MP10</td><td class="desc">10 lb ABC ext. + semi-recessed cabinet</td><td class="qty">14</td><td class="uom">EA</td></tr>
+                <tr class="scope-subtotal"><td colspan="3">Fire Extinguishers Subtotal</td><td colspan="2" class="subtotal-value">$ 11,000</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="scope-block">
+            <div class="scope-head">
+              <span class="name">Signage &amp; Toilet Acc.</span>
+              <span class="csi">10 14 00 / 10 28 00</span>
+            </div>
+            <table class="items">
+              <colgroup>
+                <col style="width:13%"><col style="width:22%"><col style="width:55%"><col style="width:5%"><col style="width:5%">
+              </colgroup>
+              <thead>
+                <tr><th>Callout</th><th>Model</th><th>Description</th><th style="text-align:right">Qty</th><th style="text-align:center">UOM</th></tr>
+              </thead>
+              <tbody>
+                <tr><td class="callout">SG-1</td><td class="model">ASI Series 100</td><td class="desc">ADA room ID sign, tactile w/ Braille</td><td class="qty">22</td><td class="uom">EA</td></tr>
+                <tr><td class="callout">TA-1</td><td class="model">Bobrick B-2888</td><td class="desc">Soap dispenser, surface-mount</td><td class="qty">10</td><td class="uom">EA</td></tr>
+                <tr class="scope-subtotal"><td colspan="3">Combined Subtotal</td><td colspan="2" class="subtotal-value">$ 30,900</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <div class="breakout-footer">
+          <span class="label">B2 — Building 2 Subtotal</span>
+          <span class="value">$148,900</span>
+        </div>
+      </div>
+
+      <div class="reconcile">
+        <span class="label">Sum of Breakouts</span>
+        <span class="value">$487,250</span>
+      </div>
+      <p class="reconcile-note">Reconciles to Total Bid · $487,250</p>
+
+    </div>
+  </div>
+
+  <!-- ============================================================ -->
+  <!-- RIGHT PAGE — PRICING SHOWN                                   -->
+  <!-- ============================================================ -->
+  <div>
+    <div class="page-label">Pricing Shown</div>
+    <div class="page">
+
+      <div class="section-head">
+        <span class="num">02</span>
+        <span class="title">Pricing Breakouts</span>
+        <span class="filler"></span>
+      </div>
+      <p class="section-intro">
+        Itemized pricing for each cost bucket below. The Total Bid on the prior page remains the binding price; breakouts shown for reference only.
+      </p>
+
+      <!-- ===== B1 with prices ===== -->
+      <div class="breakout-card">
+        <div class="breakout-header">
+          <span class="code">B1</span>
+          <span class="label">Building 1 — Administration</span>
+          <span class="total">$182,400</span>
+        </div>
+        <div class="breakout-body">
+
+          <div class="scope-block">
+            <div class="scope-head">
+              <span class="name">Toilet Compartments</span>
+              <span class="csi">10 21 13</span>
+            </div>
+            <table class="items">
+              <colgroup>
+                <col style="width:11%"><col style="width:16%"><col style="width:36%"><col style="width:6%"><col style="width:6%"><col style="width:12%"><col style="width:13%">
+              </colgroup>
+              <thead>
+                <tr><th>Callout</th><th>Model</th><th>Description</th><th style="text-align:right">Qty</th><th style="text-align:center">UOM</th><th style="text-align:right">Unit $</th><th style="text-align:right">Extended</th></tr>
+              </thead>
+              <tbody>
+                <tr><td class="callout">TC-1</td><td class="model">Bobrick 1080</td><td class="desc">Floor-anchored stainless partition, ADA</td><td class="qty">8</td><td class="uom">EA</td><td class="unit">$1,950</td><td class="ext">$15,600</td></tr>
+                <tr><td class="callout">TC-2</td><td class="model">Bobrick 1080</td><td class="desc">Standard floor-anchored stainless</td><td class="qty">14</td><td class="uom">EA</td><td class="unit">$1,650</td><td class="ext">$23,100</td></tr>
+                <tr><td class="callout">UR-1</td><td class="model">Bobrick 1086</td><td class="desc">Urinal screen, wall-hung phenolic</td><td class="qty">6</td><td class="uom">EA</td><td class="unit">$  517</td><td class="ext">$ 3,100</td></tr>
+                <tr class="scope-subtotal"><td colspan="6">Toilet Compartments Subtotal</td><td class="subtotal-value">$ 41,800</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="scope-block">
+            <div class="scope-head">
+              <span class="name">Toilet Accessories</span>
+              <span class="csi">10 28 00</span>
+            </div>
+            <table class="items">
+              <colgroup>
+                <col style="width:11%"><col style="width:16%"><col style="width:36%"><col style="width:6%"><col style="width:6%"><col style="width:12%"><col style="width:13%">
+              </colgroup>
+              <thead>
+                <tr><th>Callout</th><th>Model</th><th>Description</th><th style="text-align:right">Qty</th><th style="text-align:center">UOM</th><th style="text-align:right">Unit $</th><th style="text-align:right">Extended</th></tr>
+              </thead>
+              <tbody>
+                <tr><td class="callout">TA-1</td><td class="model">Bobrick B-3974</td><td class="desc">Surface-mount paper towel / waste</td><td class="qty">12</td><td class="uom">EA</td><td class="unit">$  825</td><td class="ext">$ 9,900</td></tr>
+                <tr><td class="callout">TA-2</td><td class="model">Bobrick B-2888</td><td class="desc">Soap dispenser, surface-mount</td><td class="qty">22</td><td class="uom">EA</td><td class="unit">$  175</td><td class="ext">$ 3,850</td></tr>
+                <tr><td class="callout">TA-3</td><td class="model">Bobrick B-6806</td><td class="desc">Grab bar, 36"</td><td class="qty">16</td><td class="uom">EA</td><td class="unit">$  541</td><td class="ext">$ 8,650</td></tr>
+                <tr class="scope-subtotal"><td colspan="6">Toilet Accessories Subtotal</td><td class="subtotal-value">$ 22,400</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="scope-block">
+            <div class="scope-head">
+              <span class="name">Lockers</span>
+              <span class="csi">10 51 00</span>
+            </div>
+            <table class="items">
+              <colgroup>
+                <col style="width:11%"><col style="width:16%"><col style="width:36%"><col style="width:6%"><col style="width:6%"><col style="width:12%"><col style="width:13%">
+              </colgroup>
+              <thead>
+                <tr><th>Callout</th><th>Model</th><th>Description</th><th style="text-align:right">Qty</th><th style="text-align:center">UOM</th><th style="text-align:right">Unit $</th><th style="text-align:right">Extended</th></tr>
+              </thead>
+              <tbody>
+                <tr><td class="callout">LK-1</td><td class="model">Penco Vanguard</td><td class="desc">3-tier metal locker, 12×12×72</td><td class="qty">120</td><td class="uom">EA</td><td class="unit">$  712</td><td class="ext">$85,400</td></tr>
+                <tr><td class="callout">LK-B</td><td class="model">Penco</td><td class="desc">Locker bench, 6' hardwood top</td><td class="qty">8</td><td class="uom">EA</td><td class="unit">$  575</td><td class="ext">$ 4,600</td></tr>
+                <tr class="scope-subtotal"><td colspan="6">Lockers Subtotal</td><td class="subtotal-value">$ 90,000</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="scope-block">
+            <div class="scope-head">
+              <span class="name">Signage</span>
+              <span class="csi">10 14 00</span>
+            </div>
+            <table class="items">
+              <colgroup>
+                <col style="width:11%"><col style="width:16%"><col style="width:36%"><col style="width:6%"><col style="width:6%"><col style="width:12%"><col style="width:13%">
+              </colgroup>
+              <thead>
+                <tr><th>Callout</th><th>Model</th><th>Description</th><th style="text-align:right">Qty</th><th style="text-align:center">UOM</th><th style="text-align:right">Unit $</th><th style="text-align:right">Extended</th></tr>
+              </thead>
+              <tbody>
+                <tr><td class="callout">SG-1</td><td class="model">ASI Series 100</td><td class="desc">ADA room ID sign, tactile w/ Braille</td><td class="qty">38</td><td class="uom">EA</td><td class="unit">$  618</td><td class="ext">$23,500</td></tr>
+                <tr><td class="callout">SG-2</td><td class="model">ASI Series 200</td><td class="desc">Directional / wayfinding panel</td><td class="qty">6</td><td class="uom">EA</td><td class="unit">$  783</td><td class="ext">$ 4,700</td></tr>
+                <tr class="scope-subtotal"><td colspan="6">Signage Subtotal</td><td class="subtotal-value">$ 28,200</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+        </div>
+        <div class="breakout-footer">
+          <span class="label">B1 — Building 1 Subtotal</span>
+          <span class="value">$182,400</span>
+        </div>
+      </div>
+
+      <div class="reconcile">
+        <span class="label">Sum of Breakouts</span>
+        <span class="value">$487,250</span>
+      </div>
+      <p class="reconcile-note">Reconciles to Total Bid · $487,250 &nbsp;·&nbsp; (B2, B3, SHD continue on next page)</p>
+
+    </div>
+  </div>
+
+</div>
+
+</body>
+</html>
