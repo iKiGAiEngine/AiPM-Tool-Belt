@@ -26,6 +26,19 @@ function fmtMs(ms: number | string | null | undefined): string {
   return `${s}s`;
 }
 
+// Convert ms to "Nd Hh" using an 8-hour workday. Returns null if under 1 hour.
+const WORKDAY_HOURS = 8;
+function fmtWorkdays(ms: number | string | null | undefined): string | null {
+  const n = typeof ms === "string" ? parseInt(ms) : (ms || 0);
+  if (!n || n < 3600 * 1000) return null; // only show for >= 1 hour
+  const totalHours = n / (1000 * 3600);
+  const days = Math.floor(totalHours / WORKDAY_HOURS);
+  const remH = Math.round(totalHours - days * WORKDAY_HOURS);
+  if (days === 0) return `${remH}h`;
+  if (remH === 0) return `${days}d`;
+  return `${days}d ${remH}h`;
+}
+
 function fmtDate(d: string | null | undefined): string {
   if (!d) return "—";
   try { return new Date(d).toLocaleString(); } catch { return d; }
@@ -180,15 +193,24 @@ export default function AdminEstimatorAnalyticsPage() {
             <Card className="p-3" data-testid="card-rollup-total-time">
               <div className="text-[11px] uppercase tracking-wide text-muted-foreground">Total active time</div>
               <div className="font-heading text-2xl mt-1">{fmtMs(projectTimeTotals.totalMs)}</div>
+              {fmtWorkdays(projectTimeTotals.totalMs) && (
+                <div className="text-xs text-muted-foreground mt-0.5">≈ {fmtWorkdays(projectTimeTotals.totalMs)} <span className="opacity-70">(8h day)</span></div>
+              )}
             </Card>
             <Card className="p-3" data-testid="card-rollup-done-count">
               <div className="text-[11px] uppercase tracking-wide text-muted-foreground">Submitted projects</div>
               <div className="font-heading text-2xl mt-1">{projectTimeTotals.doneCount}</div>
-              <div className="text-xs text-muted-foreground mt-0.5">{fmtMs(projectTimeTotals.doneTotalMs)} total</div>
+              <div className="text-xs text-muted-foreground mt-0.5">
+                {fmtMs(projectTimeTotals.doneTotalMs)} total
+                {fmtWorkdays(projectTimeTotals.doneTotalMs) && ` · ≈ ${fmtWorkdays(projectTimeTotals.doneTotalMs)}`}
+              </div>
             </Card>
             <Card className="p-3" data-testid="card-rollup-done-avg">
               <div className="text-[11px] uppercase tracking-wide text-muted-foreground">Avg per submitted project</div>
               <div className="font-heading text-2xl mt-1">{fmtMs(projectTimeTotals.doneAvgMs)}</div>
+              {fmtWorkdays(projectTimeTotals.doneAvgMs) && (
+                <div className="text-xs text-muted-foreground mt-0.5">≈ {fmtWorkdays(projectTimeTotals.doneAvgMs)} <span className="opacity-70">(8h day)</span></div>
+              )}
             </Card>
           </div>
 
@@ -198,6 +220,7 @@ export default function AdminEstimatorAnalyticsPage() {
                 <h2 className="font-heading text-base">Time Spent per Project</h2>
                 <p className="text-xs text-muted-foreground mt-0.5">
                   Total active engagement time (idle/inactive periods excluded). Use the status filter to isolate completed projects.
+                  <span className="ml-1 italic">Workday conversions (e.g. "2d 3h") are based on an 8-hour workday.</span>
                 </p>
               </div>
               <div className="flex items-center gap-2 flex-wrap">
@@ -262,7 +285,12 @@ export default function AdminEstimatorAnalyticsPage() {
                               {isDone ? "Submitted" : (c.review_status || "In progress")}
                             </span>
                           </td>
-                          <td className="text-right font-medium" data-testid={`cell-active-time-${c.estimate_id}`}>{fmtMs(c.total_active_ms)}</td>
+                          <td className="text-right font-medium" data-testid={`cell-active-time-${c.estimate_id}`}>
+                            <div>{fmtMs(c.total_active_ms)}</div>
+                            {fmtWorkdays(c.total_active_ms) && (
+                              <div className="text-[10px] font-normal text-muted-foreground">≈ {fmtWorkdays(c.total_active_ms)}</div>
+                            )}
+                          </td>
                           <td className="text-right">{c.estimator_count || "—"}</td>
                           <td className="text-xs">{fmtDate(c.first_at)}</td>
                           <td className="text-xs">{fmtDate(c.submitted_at)}</td>
