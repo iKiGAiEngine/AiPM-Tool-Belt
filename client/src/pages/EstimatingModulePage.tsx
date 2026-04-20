@@ -3193,6 +3193,23 @@ ${html}
                         </span>
                       )}
                       <span style={{ color: "#f97316" }}>Freight: {fmt(n(q.freight))}</span>
+                      {(() => {
+                        const baseTotal = q.pricingMode === "lump_sum"
+                          ? n(q.lumpSumTotal)
+                          : (n(q.materialTotalCost) > 0
+                              ? n(q.materialTotalCost)
+                              : lineItems.filter(i => i.quoteId === q.id).reduce((s, i) => s + n(i.unitCost) * i.qty, 0));
+                        const quoteTotal = baseTotal + n(q.freight);
+                        return quoteTotal > 0 ? (
+                          <span
+                            data-testid={`text-quote-total-${q.id}`}
+                            className="px-1.5 py-0.5 rounded text-xs font-bold"
+                            style={{ background: "#a855f720", color: "#c084fc", border: "1px solid #a855f750" }}
+                            title={`Quote total = ${q.pricingMode === "lump_sum" ? "Lump Sum" : (n(q.materialTotalCost) > 0 ? "Material Total" : "Linked line items")} + Freight`}>
+                            Total: {fmt(quoteTotal)}
+                          </span>
+                        ) : null;
+                      })()}
                       {q.taxIncluded && <span className="px-1 py-0.5 rounded text-xs" style={{ background: "#f9731610", color: "#f97316" }}>Tax Incl</span>}
                       <div className="flex items-center gap-1 ml-auto">
                         {q.hasBackup && (q.status === null || q.status === "failed") && (
