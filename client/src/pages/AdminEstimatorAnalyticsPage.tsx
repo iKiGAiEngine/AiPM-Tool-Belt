@@ -50,8 +50,10 @@ interface OverviewResp {
   perEstimator: Array<{ user_id: number; name: string; bid_count: string; total_active_ms: string; avg_active_ms_per_bid: string }>;
   cycles: Array<{
     estimate_id: number; proposal_log_id: number | null; review_status: string | null;
+    project_name: string | null; estimate_number: string | null;
     first_at: string; last_at: string; version_count: string;
     submitted_at: string | null; submitted_by: string | null; cycle_ms: string;
+    total_active_ms: string; estimator_count: string;
   }>;
 }
 
@@ -71,6 +73,7 @@ interface DetailResp {
 export default function AdminEstimatorAnalyticsPage() {
   const [tab, setTab] = useState("leaderboard");
   const [searchEstimateId, setSearchEstimateId] = useState("");
+  const [statusFilter, setStatusFilter] = useState<"all" | "submitted" | "in_progress">("all");
   const [activeDetailId, setActiveDetailId] = useState<number | null>(null);
 
   const overview = useQuery<OverviewResp>({ queryKey: ["/api/admin/analytics/overview"] });
@@ -82,14 +85,37 @@ export default function AdminEstimatorAnalyticsPage() {
 
   const filteredCycles = useMemo(() => {
     if (!overview.data) return [];
-    if (!searchEstimateId.trim()) return overview.data.cycles;
+    let rows = overview.data.cycles;
+    if (statusFilter === "submitted") {
+      rows = rows.filter(c => !!c.submitted_at || (c.review_status || "").toLowerCase() === "submitted");
+    } else if (statusFilter === "in_progress") {
+      rows = rows.filter(c => !c.submitted_at && (c.review_status || "").toLowerCase() !== "submitted");
+    }
     const q = searchEstimateId.trim().toLowerCase();
-    return overview.data.cycles.filter(c =>
-      String(c.estimate_id).includes(q) ||
-      (c.proposal_log_id && String(c.proposal_log_id).includes(q)) ||
-      (c.submitted_by || "").toLowerCase().includes(q)
-    );
-  }, [overview.data, searchEstimateId]);
+    if (q) {
+      rows = rows.filter(c =>
+        String(c.estimate_id).includes(q) ||
+        (c.proposal_log_id && String(c.proposal_log_id).includes(q)) ||
+        (c.estimate_number || "").toLowerCase().includes(q) ||
+        (c.project_name || "").toLowerCase().includes(q) ||
+        (c.submitted_by || "").toLowerCase().includes(q)
+      );
+    }
+    return rows;
+  }, [overview.data, searchEstimateId, statusFilter]);
+
+  const projectTimeTotals = useMemo(() => {
+    const total = filteredCycles.reduce((s, c) => s + (parseInt(c.total_active_ms) || 0), 0);
+    const done = filteredCycles.filter(c => !!c.submitted_at);
+    const doneTotal = done.reduce((s, c) => s + (parseInt(c.total_active_ms) || 0), 0);
+    return {
+      projectCount: filteredCycles.length,
+      totalMs: total,
+      doneCount: done.length,
+      doneTotalMs: doneTotal,
+      doneAvgMs: done.length ? Math.round(doneTotal / done.length) : 0,
+    };
+  }, [filteredCycles]);
 
   return (
     <div className="container mx-auto px-4 py-6 max-w-7xl" data-testid="page-estimator-analytics">
@@ -107,7 +133,7 @@ export default function AdminEstimatorAnalyticsPage() {
       <Tabs value={tab} onValueChange={setTab}>
         <TabsList>
           <TabsTrigger value="leaderboard" data-testid="tab-leaderboard">Leaderboard</TabsTrigger>
-          <TabsTrigger value="bids" data-testid="tab-bids">Per-Bid Detail</TabsTrigger>
+          <TabsTrigger value="bids" data-testid="tab-bids">Project Time</TabsTrigger>
           <TabsTrigger value="bottlenecks" data-testid="tab-bottlenecks">Bottlenecks</TabsTrigger>
         </TabsList>
 
@@ -145,56 +171,117 @@ export default function AdminEstimatorAnalyticsPage() {
 
         {/* ── PER-BID DETAIL ── */}
         <TabsContent value="bids">
+          {/* Rollup cards — answer "how much time was spent on it?" at a glance */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+            <Card className="p-3" data-testid="card-rollup-projects">
+              <div className="text-[11px] uppercase tracking-wide text-muted-foreground">Projects shown</div>
+              <div className="font-heading text-2xl mt-1">{projectTimeTotals.projectCount}</div>
+            </Card>
+            <Card className="p-3" data-testid="card-rollup-total-time">
+              <div className="text-[11px] uppercase tracking-wide text-muted-foreground">Total active time</div>
+              <div className="font-heading text-2xl mt-1">{fmtMs(projectTimeTotals.totalMs)}</div>
+            </Card>
+            <Card className="p-3" data-testid="card-rollup-done-count">
+              <div className="text-[11px] uppercase tracking-wide text-muted-foreground">Submitted projects</div>
+              <div className="font-heading text-2xl mt-1">{projectTimeTotals.doneCount}</div>
+              <div className="text-xs text-muted-foreground mt-0.5">{fmtMs(projectTimeTotals.doneTotalMs)} total</div>
+            </Card>
+            <Card className="p-3" data-testid="card-rollup-done-avg">
+              <div className="text-[11px] uppercase tracking-wide text-muted-foreground">Avg per submitted project</div>
+              <div className="font-heading text-2xl mt-1">{fmtMs(projectTimeTotals.doneAvgMs)}</div>
+            </Card>
+          </div>
+
           <Card className="p-4">
-            <div className="flex items-center justify-between mb-3 gap-3">
-              <h2 className="font-heading text-base">Bid Cycle Times</h2>
-              <div className="flex items-center gap-2">
+            <div className="flex items-center justify-between mb-3 gap-3 flex-wrap">
+              <div>
+                <h2 className="font-heading text-base">Time Spent per Project</h2>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Total active engagement time (idle/inactive periods excluded). Use the status filter to isolate completed projects.
+                </p>
+              </div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <div className="flex rounded-md border overflow-hidden text-xs" role="tablist">
+                  {([
+                    ["all", "All"],
+                    ["submitted", "Submitted"],
+                    ["in_progress", "In progress"],
+                  ] as const).map(([val, label]) => (
+                    <button
+                      key={val}
+                      onClick={() => setStatusFilter(val)}
+                      className={`px-3 py-1.5 transition-colors ${statusFilter === val ? "bg-primary text-primary-foreground" : "bg-background hover:bg-muted"}`}
+                      data-testid={`button-status-${val}`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
                 <Input
                   className="h-8 w-56"
-                  placeholder="Filter by estimate / log id / user…"
+                  placeholder="Filter by project / estimate # / user…"
                   value={searchEstimateId}
                   onChange={e => setSearchEstimateId(e.target.value)}
                   data-testid="input-bid-filter"
                 />
-                <Button size="sm" variant="outline" onClick={() => csvDownload("bid-cycles.csv", filteredCycles)}>
+                <Button size="sm" variant="outline" onClick={() => csvDownload("project-time.csv", filteredCycles)}>
                   <Download className="w-3.5 h-3.5 mr-1.5" /> CSV
                 </Button>
               </div>
             </div>
             {overview.isLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : (
-              <table className="w-full text-sm">
-                <thead className="text-xs text-muted-foreground border-b">
-                  <tr>
-                    <th className="text-left py-2">Estimate</th>
-                    <th className="text-left">Status</th>
-                    <th className="text-left">First save</th>
-                    <th className="text-left">Submitted</th>
-                    <th className="text-right">Cycle</th>
-                    <th className="text-right">Versions</th>
-                    <th></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredCycles.map(c => (
-                    <tr key={c.estimate_id} className="border-b last:border-0" data-testid={`row-cycle-${c.estimate_id}`}>
-                      <td className="py-2">#{c.estimate_id}{c.proposal_log_id ? ` · log ${c.proposal_log_id}` : ""}</td>
-                      <td>{c.review_status || "—"}</td>
-                      <td>{fmtDate(c.first_at)}</td>
-                      <td>{fmtDate(c.submitted_at)}</td>
-                      <td className="text-right">{fmtMs(c.cycle_ms)}</td>
-                      <td className="text-right">{c.version_count}</td>
-                      <td className="text-right">
-                        <Button size="sm" variant="ghost" onClick={() => setActiveDetailId(c.estimate_id)} data-testid={`button-detail-${c.estimate_id}`}>
-                          Details
-                        </Button>
-                      </td>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="text-xs text-muted-foreground border-b">
+                    <tr>
+                      <th className="text-left py-2">Project</th>
+                      <th className="text-left">Status</th>
+                      <th className="text-right">Active time</th>
+                      <th className="text-right">Estimators</th>
+                      <th className="text-left">First save</th>
+                      <th className="text-left">Submitted</th>
+                      <th className="text-right">Cycle (wall-clock)</th>
+                      <th className="text-right">Versions</th>
+                      <th></th>
                     </tr>
-                  ))}
-                  {filteredCycles.length === 0 && (
-                    <tr><td colSpan={7} className="text-center py-8 text-muted-foreground">No bids match.</td></tr>
-                  )}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {filteredCycles.map(c => {
+                      const isDone = !!c.submitted_at || (c.review_status || "").toLowerCase() === "submitted";
+                      return (
+                        <tr key={c.estimate_id} className="border-b last:border-0 hover:bg-muted/30" data-testid={`row-cycle-${c.estimate_id}`}>
+                          <td className="py-2">
+                            <div className="font-medium">{c.project_name || `Estimate #${c.estimate_id}`}</div>
+                            <div className="text-xs text-muted-foreground">
+                              {c.estimate_number ? `${c.estimate_number} · ` : ""}#{c.estimate_id}
+                              {c.proposal_log_id ? ` · log ${c.proposal_log_id}` : ""}
+                            </div>
+                          </td>
+                          <td>
+                            <span className={`inline-block px-2 py-0.5 rounded text-xs ${isDone ? "bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-200" : "bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200"}`}>
+                              {isDone ? "Submitted" : (c.review_status || "In progress")}
+                            </span>
+                          </td>
+                          <td className="text-right font-medium" data-testid={`cell-active-time-${c.estimate_id}`}>{fmtMs(c.total_active_ms)}</td>
+                          <td className="text-right">{c.estimator_count || "—"}</td>
+                          <td className="text-xs">{fmtDate(c.first_at)}</td>
+                          <td className="text-xs">{fmtDate(c.submitted_at)}</td>
+                          <td className="text-right text-muted-foreground">{fmtMs(c.cycle_ms)}</td>
+                          <td className="text-right">{c.version_count}</td>
+                          <td className="text-right">
+                            <Button size="sm" variant="ghost" onClick={() => setActiveDetailId(c.estimate_id)} data-testid={`button-detail-${c.estimate_id}`}>
+                              Details
+                            </Button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                    {filteredCycles.length === 0 && (
+                      <tr><td colSpan={9} className="text-center py-8 text-muted-foreground">No projects match.</td></tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
             )}
           </Card>
 

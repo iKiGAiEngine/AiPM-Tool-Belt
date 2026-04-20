@@ -91,20 +91,31 @@ export function registerEstimateAnalyticsRoutes(app: Express) {
           FROM estimate_versions
           WHERE notes ~ 'Status:\s.+→\s*Submitted\s*$'
           ORDER BY estimate_id, saved_at ASC
+        ),
+        active_time AS (
+          SELECT estimate_id, SUM(duration_ms)::bigint as total_active_ms, COUNT(DISTINCT user_id) as estimator_count
+          FROM estimate_activity_events
+          GROUP BY estimate_id
         )
         SELECT
           e.id as estimate_id,
           e.proposal_log_id,
           e.review_status,
+          COALESCE(pl.project_name, e.project_name) as project_name,
+          COALESCE(pl.estimate_number, e.estimate_number) as estimate_number,
           fs.first_at,
           fs.last_at,
           fs.version_count,
           s.submitted_at,
           s.saved_by as submitted_by,
-          EXTRACT(EPOCH FROM (COALESCE(s.submitted_at, fs.last_at) - fs.first_at)) * 1000 as cycle_ms
+          EXTRACT(EPOCH FROM (COALESCE(s.submitted_at, fs.last_at) - fs.first_at)) * 1000 as cycle_ms,
+          COALESCE(at.total_active_ms, 0) as total_active_ms,
+          COALESCE(at.estimator_count, 0) as estimator_count
         FROM estimates e
         LEFT JOIN first_save fs ON fs.estimate_id = e.id
         LEFT JOIN submitted s ON s.estimate_id = e.id
+        LEFT JOIN active_time at ON at.estimate_id = e.id
+        LEFT JOIN proposal_log_entries pl ON pl.id = e.proposal_log_id
         WHERE fs.first_at IS NOT NULL
         ORDER BY fs.first_at DESC
       `);
