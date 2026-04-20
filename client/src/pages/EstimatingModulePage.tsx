@@ -1012,6 +1012,25 @@ function EstimatingModuleInner() {
       return;
     }
 
+    // Stage 1b: persist breakout allocations (bulk replace).
+    // Allocation edits live in local React state until this runs — without
+    // it, every quantity the estimator typed into a breakout cell is lost
+    // on the next page load.
+    try {
+      await apiRequest("POST", `/api/estimates/${estimateId}/allocations/bulk`, {
+        allocations: allocations.map(a => ({
+          lineItemId: a.lineItemId,
+          breakoutGroupId: a.breakoutGroupId,
+          qty: a.qty || 0,
+        })),
+      });
+    } catch (err: any) {
+      const detail = err?.message || "Unknown error";
+      toast({ title: "Breakout save failed", description: `Allocations could not be saved: ${detail}`, variant: "destructive" });
+      setIsSaving(false);
+      return;
+    }
+
     // Stage 2: save version snapshot (non-blocking on failure)
     const userName = user?.displayName || user?.username || user?.email || "Unknown";
     const snapshot = buildSnapshot({
@@ -1095,7 +1114,7 @@ function EstimatingModuleInner() {
       });
     }
     setIsSaving(false);
-  }, [estimateId, activeScopes, defaultOh, defaultFee, defaultEsc, taxRate, bondRate, catOverrides, catComplete, catQuals, assumptions, risks, effectiveChecklist, reviewStatus, calcData, lineItems, quotes, versions, user, proposalLogId, projInfo]);
+  }, [estimateId, activeScopes, defaultOh, defaultFee, defaultEsc, taxRate, bondRate, catOverrides, catComplete, catQuals, assumptions, risks, effectiveChecklist, reviewStatus, calcData, lineItems, quotes, versions, user, proposalLogId, projInfo, allocations]);
 
   // Stage transition + status checkpoint helpers.
   // When the user explicitly moves between stages or changes review status,
