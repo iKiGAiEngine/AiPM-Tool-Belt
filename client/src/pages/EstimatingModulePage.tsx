@@ -2936,6 +2936,17 @@ ${html}
                     <h3 className="text-sm font-semibold" style={{ color: "#06b6d4" }}>📊 Breakout Manager</h3>
                     <button onClick={() => setShowBreakoutPanel(false)} className="text-xs" style={{ color: "var(--text-muted)" }}>× Close</button>
                   </div>
+                  {/* How to use */}
+                  <div className="mb-3 p-3 rounded-md text-xs leading-relaxed" style={{ background: "#06b6d40d", border: "1px solid #06b6d430", color: "var(--text-secondary)" }}>
+                    <div className="font-semibold mb-1" style={{ color: "#06b6d4" }}>How to use</div>
+                    Use breakouts when the GC needs pricing split by <strong>building, phase, floor, or area</strong> instead of one bottom-line number.
+                    <ol className="list-decimal ml-4 mt-1 space-y-0.5">
+                      <li>Add a group below for each split (e.g. <em>BLDG-A</em>, <em>BLDG-B</em>).</li>
+                      <li>Open the line items table and assign every item to a group from its breakout dropdown.</li>
+                      <li>Subtotals (with OH/Fee/Esc) calculate per group automatically and appear on the proposal as separate rows.</li>
+                    </ol>
+                    <div className="mt-1" style={{ color: "var(--text-muted)" }}>You can leave this off entirely for single-bid jobs — defaults to one combined total.</div>
+                  </div>
                   {breakoutGroups.length === 0 ? (
                     <p className="text-xs text-center py-4" style={{ color: "var(--text-muted)" }}>No breakouts required. Add groups when the GC requests pricing by building, phase, or floor.</p>
                   ) : (
@@ -4961,6 +4972,19 @@ ${html}
             </div>
 
             <div className="p-5 flex-1">
+              {/* How to use — only shown before extraction starts */}
+              {extractedItems.length === 0 && (
+                <div className="mb-4 p-3 rounded-md text-xs leading-relaxed" style={{ background: "#06b6d40d", border: "1px solid #06b6d430", color: "var(--text-secondary)" }}>
+                  <div className="font-semibold mb-1" style={{ color: "#06b6d4" }}>How to use</div>
+                  Best for <strong>door, window, hardware, signage, accessory, and louver schedules</strong> coming off the plans.
+                  <ol className="list-decimal ml-4 mt-1 space-y-0.5">
+                    <li>Pick a tab — paste a screenshot of the schedule (recommended) or paste the raw text. Multi-page schedules: paste each page; they're combined.</li>
+                    <li>Hit <em>Extract Line Items</em>. AI returns a preview table — you can edit Mark, Description, Qty, and Type before importing.</li>
+                    <li>Confirm to push the items into the active scope's line items table. Existing items aren't touched; the new ones are appended.</li>
+                  </ol>
+                  <div className="mt-1" style={{ color: "var(--text-muted)" }}>Tip: clearer screenshots = better extraction. Crop tightly around the schedule grid and skip title blocks.</div>
+                </div>
+              )}
               {/* Tabs */}
               {extractedItems.length === 0 && (
                 <>
@@ -5276,6 +5300,19 @@ ${html}
             </div>
 
             <div className="p-5 flex-1">
+              {/* How to use — only shown before extraction starts */}
+              {extractedSpecs.length === 0 && (
+                <div className="mb-4 p-3 rounded-md text-xs leading-relaxed" style={{ background: "var(--gold)0d", border: "1px solid var(--gold)40", color: "var(--text-secondary)" }}>
+                  <div className="font-semibold mb-1" style={{ color: "var(--gold)" }}>How to use</div>
+                  Pulls products and quantities out of <strong>Division 10 spec sections</strong> (toilet accessories, partitions, lockers, signage, fire extinguishers, etc.).
+                  <ol className="list-decimal ml-4 mt-1 space-y-0.5">
+                    <li>Choose a tab — upload the spec PDF, paste a screenshot of a product schedule, or paste raw section text.</li>
+                    <li>AI parses Part 2 / Part 3 of the spec and returns a list of products with model numbers, basis-of-design manufacturer, and quantities where stated.</li>
+                    <li>Review the preview, then confirm to import. Items land in the active scope's line items table; Approved Manufacturers are auto-suggested from the basis of design.</li>
+                  </ol>
+                  <div className="mt-1" style={{ color: "var(--text-muted)" }}>Tip: a clean PDF of just the relevant section gives the best results — spec books with hundreds of pages may take longer.</div>
+                </div>
+              )}
               {/* Tabs */}
               {extractedSpecs.length === 0 && (
                 <>
