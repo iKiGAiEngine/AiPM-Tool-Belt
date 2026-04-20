@@ -236,12 +236,12 @@ export default function AdminEstimatorAnalyticsPage() {
                     <tr>
                       <th className="text-left py-2">Project</th>
                       <th className="text-left">Status</th>
-                      <th className="text-right">Active time</th>
-                      <th className="text-right">Estimators</th>
-                      <th className="text-left">First save</th>
-                      <th className="text-left">Submitted</th>
-                      <th className="text-right">Cycle (wall-clock)</th>
-                      <th className="text-right">Versions</th>
+                      <th className="text-right" title="Total active engagement time across all estimators. Idle and inactive periods are excluded — this is real hands-on-keyboard time.">Active time</th>
+                      <th className="text-right" title="How many distinct estimators logged activity on this project.">Estimators</th>
+                      <th className="text-left" title="Date and time the estimate was first saved.">First save</th>
+                      <th className="text-left" title="Date and time the estimate was marked Submitted.">Submitted</th>
+                      <th className="text-right" title="Calendar (wall-clock) time from first save to submit. Includes nights, weekends, and idle days — NOT the same as actual time spent. Use 'Active time' for that.">Calendar span</th>
+                      <th className="text-right" title="How many times the estimate was saved. More versions usually means more pricing rounds or revisions.">Saves</th>
                       <th></th>
                     </tr>
                   </thead>
