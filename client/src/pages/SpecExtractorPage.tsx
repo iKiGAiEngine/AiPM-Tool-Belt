@@ -207,6 +207,21 @@ export default function SpecExtractorPage() {
 
   const handleUpload = async () => {
     if (!selectedFile) return;
+
+    // Pre-flight: production proxy rejects bodies over ~95 MB with HTTP 413.
+    // Catch it here so the user gets a clear, actionable message instead of
+    // a vague "Upload Failed".
+    const MAX_UPLOAD_BYTES = 95 * 1024 * 1024;
+    if (selectedFile.size > MAX_UPLOAD_BYTES) {
+      const sizeMB = (selectedFile.size / (1024 * 1024)).toFixed(1);
+      toast({
+        title: "File Too Large",
+        description: `This PDF is ${sizeMB} MB. The maximum upload size is 95 MB. Please split the spec book (Division 10 only is fine), or compress / "Reduce File Size" the PDF in Acrobat or Preview, then try again.`,
+        variant: "destructive",
+      });
+      return;
+    }
+
     setIsUploading(true);
 
     try {
@@ -233,6 +248,14 @@ export default function SpecExtractorPage() {
       clearTimeout(timeoutId);
 
       if (!response.ok) {
+        // 413 = Content Too Large. The deployment proxy rejected the body
+        // before our server even saw it, so the response body may not be JSON.
+        if (response.status === 413) {
+          const sizeMB = (selectedFile.size / (1024 * 1024)).toFixed(1);
+          const e: any = new Error(`This PDF is ${sizeMB} MB, which exceeds the upload size limit. Please split the spec book or compress the PDF and try again.`);
+          e.title = "File Too Large";
+          throw e;
+        }
         let msg = "Upload failed";
         try { const err = await response.json(); msg = err.message || msg; } catch {}
         throw new Error(msg);
@@ -253,7 +276,7 @@ export default function SpecExtractorPage() {
       if (err instanceof DOMException && err.name === "AbortError") {
         toast({ title: "Upload Timeout", description: "The upload timed out. Try opening in a new tab.", variant: "destructive" });
       } else {
-        toast({ title: "Upload Failed", description: err.message, variant: "destructive" });
+        toast({ title: err?.title || "Upload Failed", description: err.message, variant: "destructive" });
       }
     } finally {
       setIsUploading(false);
