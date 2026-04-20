@@ -1649,13 +1649,14 @@ function EstimatingModuleInner() {
   <meta charset="utf-8" />
   <title>Proposal — ${projectName}</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=Rajdhani:wght@400;500;600;700&family=Source+Serif+4:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;0,900;1,400;1,700&family=Rajdhani:wght@400;500;600;700&display=swap" rel="stylesheet" />
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
-      font-family: Georgia, serif;
-      font-size: 11pt;
-      line-height: 1.65;
+      font-family: 'Rajdhani', sans-serif;
+      font-weight: 500;
+      font-size: 10pt;
+      line-height: 1.55;
       color: #1a1a1a;
       background: #fff;
       padding: 48px 56px;
@@ -4821,40 +4822,107 @@ ${html}
                   Show unit pricing
                 </label>
               </div>
-              <div id="proposal-print-area" className="p-5 rounded-lg overflow-y-auto" style={{ background: "#fff", color: "#1a1a1a", maxHeight: 500, fontFamily: "Georgia, serif", fontSize: 11, lineHeight: 1.6 }}>
-                <div style={{ fontWeight: 700, fontSize: 14, color: "#1a365d", fontFamily: "'Playfair Display', serif", letterSpacing: 1, marginBottom: 16 }}>NATIONAL BUILDING SPECIALTIES</div>
-                <div style={{ marginBottom: 14, fontSize: 10 }}>
-                  Date: {new Date().toLocaleDateString()} | Attn: {proposalEntry?.gcEstimateLead} | Re: {estimateData?.projectName} | PV#: {estimateData?.estimateNumber}
-                </div>
-                <p>National Building Specialties is pleased to submit the following proposal for <strong>furnishing</strong> Division 10 Specialties:</p>
-                {CATEGORIES.filter(c => calcData[c.id]?.items > 0).map(c => {
-                  const catItems = lineItems.filter(i => i.category === c.id);
-                  const d = calcData[c.id];
-                  return (
-                    <div key={c.id} style={{ marginBottom: 14 }}>
-                      <div style={{ fontWeight: 700, fontSize: 12, borderBottom: "1px solid #e2e8f0", paddingBottom: 4, marginBottom: 6 }}>
-                        {c.label} <span style={{ fontWeight: 400, fontSize: 9, color: "#666" }}>({c.csi})</span>
-                      </div>
-                      {catItems.map(item => (
-                        <div key={item.id}>
-                          <div style={{ display: "flex", justifyContent: "space-between", padding: "2px 0 2px 12px", fontSize: 10 }}>
-                            <span>{item.name} {item.model ? `(${item.model})` : ""} — Qty: {item.qty}</span>
-                            <span style={{ fontWeight: 500 }}>
-                              {showUnitPricing ? `${fmt(n(item.unitCost))}/ea = ` : ""}{fmt(n(item.unitCost) * item.qty)}
-                            </span>
-                          </div>
-                          {item.note && <div style={{ padding: "1px 0 3px 24px", fontSize: 9, color: "#b45309", fontStyle: "italic" }}>▸ {item.note}</div>}
-                        </div>
-                      ))}
-                      <div style={{ display: "flex", justifyContent: "space-between", fontWeight: 600, fontSize: 11, paddingTop: 4, paddingLeft: 12, borderTop: "1px solid #edf2f7" }}>
-                        <span>{c.label} Total</span><span>{fmt(d.total)}</span>
-                      </div>
+              <div id="proposal-print-area" className="p-5 rounded-lg overflow-y-auto" style={{ background: "#fff", color: "#1a1a1a", maxHeight: 500, fontFamily: "'Rajdhani', sans-serif", fontWeight: 500, fontSize: 10, lineHeight: 1.55 }}>
+                {(() => {
+                  const GOLD = "#C8A44E";
+                  const INK = "#1a1a1a";
+                  const INK_SOFT = "#4a4a4a";
+                  const INK_FAINT = "#8a8a8a";
+                  const RULE = "#d4d4d4";
+                  const RULE_FAINT = "#ececec";
+                  const sectionHeader = (num: string, title: string) => (
+                    <div style={{ display: "flex", alignItems: "baseline", gap: 12, margin: "20px 0 12px" }}>
+                      <span style={{ fontFamily: "'Playfair Display', serif", fontStyle: "italic", fontSize: 20, fontWeight: 700, color: GOLD, lineHeight: 1 }}>{num}</span>
+                      <span style={{ fontFamily: "'Rajdhani', sans-serif", fontSize: 11.5, fontWeight: 700, letterSpacing: 2, textTransform: "uppercase", flex: 1, color: INK }}>{title}</span>
+                      <span style={{ height: 1, background: INK, flex: 1, maxWidth: 60, opacity: 0.15 }} />
                     </div>
                   );
-                })}
-                <div style={{ borderTop: "2px solid #1a365d", marginTop: 10, paddingTop: 8, display: "flex", justifyContent: "space-between", fontWeight: 700, fontSize: 13 }}>
-                  <span>TOTAL BID (Furnish Only — Material Only)</span><span>{fmt(calcData.grandTotal)}</span>
-                </div>
+                  const preparedBy = estimateData?.createdBy || "—";
+                  const gcLead = proposalEntry?.gcEstimateLead || "—";
+                  const metaRows = [
+                    { label: "Date", value: new Date().toLocaleDateString() },
+                    { label: "Proposal #", value: estimateData?.estimateNumber || "—" },
+                    { label: "Project", value: estimateData?.projectName || "—" },
+                    { label: "GC", value: gcLead },
+                    { label: "Attn", value: gcLead },
+                    { label: "Prepared By", value: preparedBy },
+                  ];
+                  return (
+                    <>
+                      {/* ============ HEADER ============ */}
+                      <div style={{ position: "relative", paddingBottom: 20, marginBottom: 20, borderBottom: `3px solid ${GOLD}` }}>
+                        <div style={{ display: "grid", gridTemplateColumns: "0.85fr 1.6fr 1fr", gap: 16, alignItems: "center" }}>
+                          <div style={{ minWidth: 140, height: 54, border: `1px dashed ${GOLD}`, background: "rgba(200,164,78,0.06)", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'Rajdhani', sans-serif", fontSize: 8, letterSpacing: 2, color: INK_FAINT, textTransform: "uppercase", fontWeight: 600 }}>
+                            [ NBS LOGO ]
+                          </div>
+                          <div style={{ textAlign: "center" }}>
+                            <div style={{ fontFamily: "'Rajdhani', sans-serif", fontSize: 9, letterSpacing: 5, color: GOLD, fontWeight: 600, textTransform: "uppercase", marginBottom: 8 }}>Furnish Only · Division 10</div>
+                            <div style={{ fontFamily: "'Playfair Display', serif", fontSize: 22, fontWeight: 700, letterSpacing: 0.5, textTransform: "uppercase", lineHeight: 1.1, color: INK }}>Proposal</div>
+                            <div style={{ width: 50, height: 1, background: INK, margin: "10px auto 0" }} />
+                          </div>
+                          <div style={{ textAlign: "right", fontFamily: "'Rajdhani', sans-serif", fontSize: 8, lineHeight: 1.5, color: INK_SOFT }}>
+                            <div><strong style={{ color: INK, fontWeight: 600 }}>4130 Flat Rock Dr, Suite 110</strong></div>
+                            <div>Riverside, CA 92505</div>
+                            <div>NationalBuildingSpecialties.com</div>
+                            <div style={{ marginTop: 5, paddingTop: 5, borderTop: `1px solid ${RULE_FAINT}`, fontSize: 7, letterSpacing: 0.5, color: INK_FAINT }}>CA LIC #1101865</div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* ============ META GRID (6 fields) ============ */}
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", marginBottom: 18, borderTop: `1px solid ${RULE}`, borderBottom: `1px solid ${RULE}` }}>
+                        {metaRows.map((row, idx) => {
+                          const isOdd = idx % 2 === 0;
+                          const isLast = idx >= 4;
+                          return (
+                            <div key={row.label} style={{ display: "grid", gridTemplateColumns: "100px 1fr", padding: "6px 0", borderBottom: isLast ? "none" : `1px solid ${RULE_FAINT}`, fontSize: 9, paddingRight: isOdd ? 16 : 0, paddingLeft: isOdd ? 0 : 16, borderRight: isOdd ? `1px solid ${RULE_FAINT}` : "none" }}>
+                              <span style={{ fontFamily: "'Rajdhani', sans-serif", fontSize: 8.5, letterSpacing: 1.2, textTransform: "uppercase", color: INK_FAINT, fontWeight: 600, alignSelf: "center" }}>{row.label}</span>
+                              <span style={{ color: INK, fontWeight: 600, fontSize: 9.5 }}>{row.value}</span>
+                            </div>
+                          );
+                        })}
+                      </div>
+
+                      {/* ============ 01 SCOPE OF MATERIAL ============ */}
+                      {sectionHeader("01", "Scope of Material")}
+                      {CATEGORIES.filter(c => calcData[c.id]?.items > 0).map(c => {
+                        const catItems = lineItems.filter(i => i.category === c.id);
+                        const d = calcData[c.id];
+                        return (
+                          <div key={c.id} style={{ marginBottom: 16, pageBreakInside: "avoid" }}>
+                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", padding: "8px 0 6px", borderBottom: `1px solid ${INK}`, marginBottom: 6 }}>
+                              <span style={{ fontFamily: "'Rajdhani', sans-serif", fontWeight: 700, fontSize: 11, letterSpacing: 1.3, textTransform: "uppercase", color: INK }}>{c.label}</span>
+                              <span style={{ fontFamily: "'Rajdhani', sans-serif", fontSize: 8.5, fontWeight: 500, letterSpacing: 1.5, color: GOLD }}>{c.csi}</span>
+                            </div>
+                            {catItems.map(item => (
+                              <div key={item.id}>
+                                <div style={{ display: "flex", justifyContent: "space-between", padding: "2px 0 2px 12px", fontSize: 9.5 }}>
+                                  <span style={{ color: INK }}>{item.name}{item.model ? ` (${item.model})` : ""} — Qty: {item.qty}</span>
+                                  <span style={{ fontWeight: 500, color: INK, fontVariantNumeric: "tabular-nums" }}>
+                                    {showUnitPricing ? `${fmt(n(item.unitCost))}/ea = ` : ""}{fmt(n(item.unitCost) * item.qty)}
+                                  </span>
+                                </div>
+                                {item.note && <div style={{ padding: "1px 0 3px 24px", fontSize: 8.5, color: INK_FAINT, fontStyle: "italic" }}>▸ {item.note}</div>}
+                              </div>
+                            ))}
+                            <div style={{ display: "flex", justifyContent: "space-between", fontWeight: 700, fontSize: 10.5, paddingTop: 6, paddingLeft: 12, borderTop: `1px solid ${INK}`, marginTop: 4, fontFamily: "'Rajdhani', sans-serif", letterSpacing: 1, textTransform: "uppercase", color: INK }}>
+                              <span>{c.label} Subtotal</span><span style={{ fontVariantNumeric: "tabular-nums" }}>{fmt(d.total)}</span>
+                            </div>
+                          </div>
+                        );
+                      })}
+
+                      {/* ============ TOTAL BID ============ */}
+                      <div style={{ marginTop: 24, padding: "18px 22px", background: INK, color: "#fff", display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+                        <div>
+                          <div style={{ fontFamily: "'Rajdhani', sans-serif", fontSize: 9, letterSpacing: 3, color: GOLD, fontWeight: 600, textTransform: "uppercase" }}>Total Bid</div>
+                          <div style={{ fontFamily: "'Rajdhani', sans-serif", fontSize: 8, color: "rgba(255,255,255,0.55)", letterSpacing: 0.5, marginTop: 2 }}>Furnish Only — Material Only</div>
+                        </div>
+                        <div style={{ fontFamily: "'Playfair Display', serif", fontWeight: 700, fontSize: 24, color: GOLD, fontVariantNumeric: "tabular-nums" }}>{fmt(calcData.grandTotal)}</div>
+                      </div>
+                    </>
+                  );
+                })()}
 
                 {/* ───────── PRICING BREAKOUTS (Option B — itemized cards) ───────── */}
                 {breakoutGroups.length > 0 && (() => {
@@ -4867,10 +4935,10 @@ ${html}
 
                   return (
                     <div style={{ marginTop: 24, pageBreakInside: "avoid" }}>
-                      {/* Section header */}
+                      {/* Section header (no number — reconciliation view, sits between 01 and 02) */}
                       <div style={{ display: "flex", alignItems: "baseline", gap: 12, marginBottom: 6 }}>
-                        <span style={{ fontFamily: "'Playfair Display', serif", fontStyle: "italic", fontSize: 20, color: GOLD, fontWeight: 400 }}>02</span>
-                        <span style={{ fontFamily: "'Rajdhani', sans-serif", fontSize: 12, fontWeight: 700, letterSpacing: 2, textTransform: "uppercase", color: INK }}>Pricing Breakouts</span>
+                        <span style={{ fontFamily: "'Playfair Display', serif", fontStyle: "italic", fontSize: 18, color: GOLD, fontWeight: 700, lineHeight: 1 }}>·</span>
+                        <span style={{ fontFamily: "'Rajdhani', sans-serif", fontSize: 11.5, fontWeight: 700, letterSpacing: 2, textTransform: "uppercase", color: INK }}>Pricing Breakouts</span>
                         <span style={{ flex: 1, height: 1, background: RULE }} />
                       </div>
                       <p style={{ fontSize: 8, fontStyle: "italic", color: INK_FAINT, margin: "0 0 14px", lineHeight: 1.55 }}>
@@ -4903,7 +4971,7 @@ ${html}
                           <div key={group.id} style={{ border: `1px solid ${RULE}`, borderRadius: 2, marginBottom: 14, pageBreakInside: "avoid", background: "#fff" }}>
                             {/* Card header */}
                             <div style={{ display: "grid", gridTemplateColumns: "auto 1fr auto", alignItems: "baseline", gap: 12, padding: "8px 12px", background: "linear-gradient(to right, rgba(200,164,78,0.08), rgba(200,164,78,0.02))", borderBottom: `1px solid ${GOLD}` }}>
-                              <span style={{ fontFamily: "'JetBrains Mono', monospace", fontWeight: 700, fontSize: 9, color: GOLD, letterSpacing: 1 }}>{group.code}</span>
+                              <span style={{ fontFamily: "'Rajdhani', sans-serif", fontWeight: 700, fontSize: 9, color: GOLD, letterSpacing: 1.5, textTransform: "uppercase" }}>{group.code}</span>
                               <span style={{ fontFamily: "'Rajdhani', sans-serif", fontWeight: 700, fontSize: 11, textTransform: "uppercase", letterSpacing: 1.4, color: INK }}>{group.label}</span>
                               <span style={{ fontFamily: "'Playfair Display', serif", fontWeight: 700, fontSize: 13, color: INK, fontVariantNumeric: "tabular-nums" }}>{fmt(gd.total)}</span>
                             </div>
@@ -4946,18 +5014,18 @@ ${html}
                                       <tbody>
                                         {rows.map(r => (
                                           <tr key={r.id}>
-                                            <td style={{ fontFamily: "'JetBrains Mono', monospace", fontWeight: 700, fontSize: 7.5, textAlign: "center", color: INK, padding: "3px 4px", borderBottom: `0.5px dashed ${RULE_FAINT}` }}>{r.planCallout || "—"}</td>
+                                            <td style={{ fontFamily: "'Rajdhani', sans-serif", fontWeight: 700, fontSize: 8, textAlign: "center", color: INK, padding: "3px 4px", borderBottom: `0.5px dashed ${RULE_FAINT}`, letterSpacing: 0.5 }}>{r.planCallout || "—"}</td>
                                             <td style={{ fontFamily: "'Rajdhani', sans-serif", fontWeight: 600, fontSize: 8, color: INK, padding: "3px 4px", borderBottom: `0.5px dashed ${RULE_FAINT}` }}>{r.model || "—"}</td>
-                                            <td style={{ fontFamily: "'Source Serif 4', serif", fontSize: 8, color: INK, padding: "3px 4px", borderBottom: `0.5px dashed ${RULE_FAINT}` }}>{r.name}</td>
-                                            <td style={{ fontFamily: "'Source Serif 4', serif", fontVariantNumeric: "tabular-nums", textAlign: "right", color: INK, padding: "3px 4px", borderBottom: `0.5px dashed ${RULE_FAINT}` }}>{r.allocQty}</td>
+                                            <td style={{ fontFamily: "'Rajdhani', sans-serif", fontSize: 8, color: INK, padding: "3px 4px", borderBottom: `0.5px dashed ${RULE_FAINT}` }}>{r.name}</td>
+                                            <td style={{ fontFamily: "'Rajdhani', sans-serif", fontSize: 8, fontVariantNumeric: "tabular-nums", textAlign: "right", color: INK, padding: "3px 4px", borderBottom: `0.5px dashed ${RULE_FAINT}` }}>{r.allocQty}</td>
                                             <td style={{ fontFamily: "'Rajdhani', sans-serif", fontSize: 7.5, textTransform: "uppercase", textAlign: "center", color: INK_FAINT, padding: "3px 4px", borderBottom: `0.5px dashed ${RULE_FAINT}` }}>EA</td>
-                                            {showPx && <td style={{ fontFamily: "'Source Serif 4', serif", fontSize: 8, fontVariantNumeric: "tabular-nums", textAlign: "right", color: INK, padding: "3px 4px", borderBottom: `0.5px dashed ${RULE_FAINT}`, whiteSpace: "nowrap" }}>{fmt(r.unitCost)}</td>}
-                                            {showPx && <td style={{ fontFamily: "'Source Serif 4', serif", fontSize: 8, fontWeight: 600, fontVariantNumeric: "tabular-nums", textAlign: "right", color: INK, padding: "3px 4px", borderBottom: `0.5px dashed ${RULE_FAINT}`, whiteSpace: "nowrap" }}>{fmt(r.ext)}</td>}
+                                            {showPx && <td style={{ fontFamily: "'Rajdhani', sans-serif", fontSize: 8, fontVariantNumeric: "tabular-nums", textAlign: "right", color: INK, padding: "3px 4px", borderBottom: `0.5px dashed ${RULE_FAINT}`, whiteSpace: "nowrap" }}>{fmt(r.unitCost)}</td>}
+                                            {showPx && <td style={{ fontFamily: "'Rajdhani', sans-serif", fontSize: 8, fontWeight: 600, fontVariantNumeric: "tabular-nums", textAlign: "right", color: INK, padding: "3px 4px", borderBottom: `0.5px dashed ${RULE_FAINT}`, whiteSpace: "nowrap" }}>{fmt(r.ext)}</td>}
                                           </tr>
                                         ))}
                                         <tr>
                                           <td colSpan={showPx ? 6 : 4} style={{ fontFamily: "'Rajdhani', sans-serif", fontWeight: 700, textTransform: "uppercase", fontSize: 7.5, letterSpacing: 0.7, color: INK, paddingTop: 4, paddingBottom: 6, borderTop: `0.5px solid ${INK}` }}>{cat.label} Subtotal</td>
-                                          <td style={{ fontFamily: "'Source Serif 4', serif", fontWeight: 600, fontSize: 8.5, textAlign: "right", paddingTop: 4, paddingBottom: 6, borderTop: `0.5px solid ${INK}`, color: INK }}>{fmt(scopeTotal)}</td>
+                                          <td style={{ fontFamily: "'Rajdhani', sans-serif", fontWeight: 700, fontSize: 8.5, textAlign: "right", paddingTop: 4, paddingBottom: 6, borderTop: `0.5px solid ${INK}`, color: INK, fontVariantNumeric: "tabular-nums" }}>{fmt(scopeTotal)}</td>
                                         </tr>
                                       </tbody>
                                     </table>
@@ -4969,7 +5037,7 @@ ${html}
                             {/* Card footer */}
                             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", padding: "8px 12px", background: "rgba(26,26,26,0.03)", borderTop: `0.5px solid ${INK}` }}>
                               <span style={{ fontFamily: "'Rajdhani', sans-serif", fontWeight: 700, fontSize: 9, textTransform: "uppercase", letterSpacing: 1.2, color: INK }}>{group.code} — {group.label} Subtotal</span>
-                              <span style={{ fontFamily: "'Source Serif 4', serif", fontWeight: 600, fontSize: 11, color: INK, fontVariantNumeric: "tabular-nums" }}>{fmt(gd.total)}</span>
+                              <span style={{ fontFamily: "'Rajdhani', sans-serif", fontWeight: 700, fontSize: 11, color: INK, fontVariantNumeric: "tabular-nums" }}>{fmt(gd.total)}</span>
                             </div>
                           </div>
                         );
@@ -4989,32 +5057,104 @@ ${html}
                   );
                 })()}
 
-                {assumptions.length > 0 && (
-                  <div style={{ marginTop: 12 }}>
-                    <p style={{ fontWeight: 600 }}>Assumptions:</p>
-                    {assumptions.map((a, i) => <p key={i} style={{ fontSize: 10, margin: "2px 0", paddingLeft: 8 }}>• {a}</p>)}
-                  </div>
-                )}
-                <p style={{ fontWeight: 600, marginTop: 12 }}>Inclusions:</p>
-                <p style={{ fontSize: 10 }}>• Furnish all Division 10 materials per plans and specifications • {taxRate > 0 ? `Sales tax included (${taxRate}%)` : "Sales tax NOT included"} • Freight to jobsite included</p>
-                {CATEGORIES.filter(c => catQuals[c.id]?.inclusions || catQuals[c.id]?.exclusions || catQuals[c.id]?.qualifications).map(c => (
-                  <div key={c.id} style={{ margin: "6px 0", paddingLeft: 8 }}>
-                    <p style={{ fontSize: 10, fontWeight: 600, margin: "4px 0" }}>{c.label}:</p>
-                    {catQuals[c.id]?.inclusions && <p style={{ fontSize: 9, margin: "1px 0 1px 8px" }}>• Includes: {catQuals[c.id].inclusions}</p>}
-                    {catQuals[c.id]?.exclusions && <p style={{ fontSize: 9, margin: "1px 0 1px 8px", color: "#c53030" }}>• Excludes: {catQuals[c.id].exclusions}</p>}
-                    {catQuals[c.id]?.qualifications && <p style={{ fontSize: 9, margin: "1px 0 1px 8px", color: "#b45309", fontStyle: "italic" }}>▸ {catQuals[c.id].qualifications}</p>}
-                  </div>
-                ))}
-                <p style={{ fontWeight: 600 }}>Exclusions:</p>
-                <p style={{ fontSize: 10, color: "#c53030" }}>• Installation labor by others • Blocking, backing, and rough-in by others • Offloading, distribution, and handling by others • Items not specifically listed above • Any work beyond furnishing of materials</p>
-                {risks.length > 0 && (
-                  <div style={{ marginTop: 8 }}>
-                    <p style={{ fontWeight: 600, fontSize: 10, color: "#b45309" }}>Notes & Risks:</p>
-                    {risks.map((r, i) => <p key={i} style={{ fontSize: 9, margin: "1px 0", paddingLeft: 8, color: "#b45309", fontStyle: "italic" }}>⚠ {r}</p>)}
-                  </div>
-                )}
-                <p style={{ marginTop: 12 }}>Proposal valid 30 days.</p>
-                <p>Respectfully,<br /><strong>National Building Specialties</strong><br /><span style={{ fontSize: 9, color: "#666" }}>Furnish Only</span></p>
+                {(() => {
+                  const GOLD = "#C8A44E";
+                  const INK = "#1a1a1a";
+                  const INK_SOFT = "#4a4a4a";
+                  const INK_FAINT = "#8a8a8a";
+                  const RULE_FAINT = "#ececec";
+                  const sectionHeader = (num: string, title: string) => (
+                    <div style={{ display: "flex", alignItems: "baseline", gap: 12, margin: "20px 0 12px" }}>
+                      <span style={{ fontFamily: "'Playfair Display', serif", fontStyle: "italic", fontSize: 20, fontWeight: 700, color: GOLD, lineHeight: 1 }}>{num}</span>
+                      <span style={{ fontFamily: "'Rajdhani', sans-serif", fontSize: 11.5, fontWeight: 700, letterSpacing: 2, textTransform: "uppercase", flex: 1, color: INK }}>{title}</span>
+                      <span style={{ height: 1, background: INK, flex: 1, maxWidth: 60, opacity: 0.15 }} />
+                    </div>
+                  );
+                  const addendaList: string[] = (estimateData as any)?.addendaAcknowledged || [];
+                  const hasAddenda = addendaList.length > 0;
+                  const preparedBy = estimateData?.createdBy || "[Estimator name not set]";
+                  const scopeQuals = ALL_SCOPES.filter(s => activeScopes.includes(s.id));
+                  const inclusionScopes = scopeQuals.filter(c => catQuals[c.id]?.inclusions);
+                  const exclusionScopes = scopeQuals.filter(c => catQuals[c.id]?.exclusions);
+                  const qualScopes = scopeQuals.filter(c => catQuals[c.id]?.qualifications);
+                  return (
+                    <>
+                      {/* ============ 02 QUALIFICATIONS ============ */}
+                      {(qualScopes.length > 0 || assumptions.length > 0 || risks.length > 0) && (
+                        <>
+                          {sectionHeader("02", "Qualifications")}
+                          {assumptions.length > 0 && (
+                            <div style={{ marginBottom: 8, paddingLeft: 4 }}>
+                              {assumptions.map((a, i) => <div key={i} style={{ fontSize: 9.5, margin: "2px 0", paddingLeft: 12, color: INK }}>• {a}</div>)}
+                            </div>
+                          )}
+                          {qualScopes.map(c => (
+                            <div key={c.id} style={{ marginBottom: 6, paddingLeft: 4 }}>
+                              <div style={{ fontSize: 9.5, fontWeight: 600, color: INK, paddingLeft: 12 }}>{c.label}:</div>
+                              <div style={{ fontSize: 9, paddingLeft: 24, color: INK_SOFT, fontStyle: "italic" }}>▸ {catQuals[c.id].qualifications}</div>
+                            </div>
+                          ))}
+                          {risks.length > 0 && (
+                            <div style={{ marginTop: 8, paddingLeft: 4 }}>
+                              <div style={{ fontSize: 9, fontWeight: 700, color: GOLD, paddingLeft: 12, letterSpacing: 1, textTransform: "uppercase" }}>Notes &amp; Risks</div>
+                              {risks.map((r, i) => <div key={i} style={{ fontSize: 9, margin: "2px 0", paddingLeft: 24, color: INK_SOFT, fontStyle: "italic" }}>⚠ {r}</div>)}
+                            </div>
+                          )}
+                        </>
+                      )}
+
+                      {/* ============ 03 INCLUSIONS ============ */}
+                      {sectionHeader("03", "Inclusions")}
+                      <div style={{ paddingLeft: 4 }}>
+                        {hasAddenda && (
+                          <div style={{ fontSize: 9.5, margin: "2px 0", paddingLeft: 12, color: INK, fontWeight: 600 }}>
+                            • Addenda acknowledged: {addendaList.join(", ")}
+                          </div>
+                        )}
+                        <div style={{ fontSize: 9.5, margin: "2px 0", paddingLeft: 12, color: INK }}>• Furnish all Division 10 materials per plans and specifications</div>
+                        <div style={{ fontSize: 9.5, margin: "2px 0", paddingLeft: 12, color: INK }}>• {taxRate > 0 ? `Sales tax included (${taxRate}%)` : "Sales tax NOT included"}</div>
+                        <div style={{ fontSize: 9.5, margin: "2px 0", paddingLeft: 12, color: INK }}>• Freight to jobsite included</div>
+                        {inclusionScopes.map(c => (
+                          <div key={c.id} style={{ fontSize: 9.5, margin: "2px 0", paddingLeft: 12, color: INK }}>
+                            • <strong style={{ fontWeight: 600 }}>{c.label}:</strong> {catQuals[c.id].inclusions}
+                          </div>
+                        ))}
+                      </div>
+
+                      {/* ============ 04 EXCLUSIONS ============ */}
+                      {sectionHeader("04", "Exclusions")}
+                      <div style={{ paddingLeft: 4 }}>
+                        <div style={{ fontSize: 9.5, margin: "2px 0", paddingLeft: 12, color: INK }}>• Installation labor by others</div>
+                        <div style={{ fontSize: 9.5, margin: "2px 0", paddingLeft: 12, color: INK }}>• Blocking, backing, and rough-in by others</div>
+                        <div style={{ fontSize: 9.5, margin: "2px 0", paddingLeft: 12, color: INK }}>• Offloading, distribution, and handling by others</div>
+                        <div style={{ fontSize: 9.5, margin: "2px 0", paddingLeft: 12, color: INK }}>• Items not specifically listed above</div>
+                        <div style={{ fontSize: 9.5, margin: "2px 0", paddingLeft: 12, color: INK }}>• Any work beyond furnishing of materials</div>
+                        {exclusionScopes.map(c => (
+                          <div key={c.id} style={{ fontSize: 9.5, margin: "2px 0", paddingLeft: 12, color: INK }}>
+                            • <strong style={{ fontWeight: 600 }}>{c.label}:</strong> {catQuals[c.id].exclusions}
+                          </div>
+                        ))}
+                      </div>
+
+                      {/* ============ VALIDITY ============ */}
+                      <div style={{ marginTop: 24, paddingTop: 16, borderTop: `1px solid ${RULE_FAINT}` }}>
+                        <div style={{ fontFamily: "'Rajdhani', sans-serif", fontSize: 8, letterSpacing: 1.5, textTransform: "uppercase", color: INK_FAINT, fontWeight: 600 }}>Validity</div>
+                        <div style={{ fontSize: 9.5, color: INK, marginTop: 2 }}>This proposal is valid for 30 days from the date above.</div>
+                      </div>
+
+                      {/* ============ SIGNATURE BLOCK (placeholder — estimator profile in next stage) ============ */}
+                      <div style={{ marginTop: 28 }}>
+                        <div style={{ fontFamily: "'Rajdhani', sans-serif", fontSize: 10, color: INK }}>Best Regards,</div>
+                        <div style={{ fontFamily: "'Playfair Display', serif", fontStyle: "italic", fontSize: 22, color: INK, marginTop: 6, lineHeight: 1.1 }}>{preparedBy}</div>
+                        <div style={{ fontFamily: "'Rajdhani', sans-serif", fontWeight: 700, fontSize: 12, textTransform: "uppercase", letterSpacing: 1, color: INK, marginTop: 6 }}>{preparedBy}</div>
+                        <div style={{ fontFamily: "'Rajdhani', sans-serif", fontSize: 9, textTransform: "uppercase", letterSpacing: 1.2, color: INK_FAINT, marginTop: 1 }}>National Building Specialties · Furnish Only</div>
+                        <div style={{ marginTop: 14, padding: "16px 20px", border: `1px dashed ${GOLD}`, background: "rgba(200,164,78,0.06)", textAlign: "center", fontFamily: "'Rajdhani', sans-serif", fontSize: 8.5, letterSpacing: 2, color: INK_FAINT, textTransform: "uppercase", fontWeight: 600, maxWidth: 320 }}>
+                          [ NO SIGNATURE ON FILE ]
+                        </div>
+                      </div>
+                    </>
+                  );
+                })()}
               </div>
 
               {/* How to use — export actions */}

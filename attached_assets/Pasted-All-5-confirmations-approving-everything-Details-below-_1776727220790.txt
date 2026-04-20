@@ -1,0 +1,41 @@
+All 5 confirmations — approving everything. Details below on a couple of items.
+
+### 1. Add 4 estimator fields to users table — APPROVED
+Directly on users is the right call. No side table needed.
+
+### 2. Add estimates.preparedByUserId FK — APPROVED
+Good catch on the string-vs-FK issue. Add preparedByUserId as an integer FK to users.id on the estimates table. Nullable (so legacy estimates don't break the migration).
+
+Backfill plan for existing estimates:
+- For every existing estimate, attempt to match the createdBy string against users in this order: displayName → username → email
+- If a clean match is found, populate preparedByUserId with that user's ID
+- If no match is found or the match is ambiguous, leave preparedByUserId as NULL — do NOT guess
+- Produce a one-time migration report listing estimates where backfill failed, so I can clean those up manually
+
+Going forward (new estimates): saveEstimate should write BOTH fields — keep the human-readable createdBy string AND the new preparedByUserId FK. Belt-and-suspenders in case the FK ever gets orphaned by a user deletion.
+
+Fallback in the signature block when preparedByUserId is NULL on a given estimate:
+- Show the script line using the old createdBy string (fallback to "[Estimator name not set]" if that's also null)
+- Hide the D / M / E contact lines entirely (we have no user to pull them from)
+- Show the "[ NO SIGNATURE ON FILE ]" placeholder in the signature image slot
+
+### 3. company_info as a panel on AdminPage.tsx — APPROVED
+Panel is right. Doesn't need its own page yet. If it outgrows the panel later, promoting to a standalone page is trivial.
+
+### 4. Addenda field in Intake stage — APPROVED
+Intake, correct. Addenda are project metadata, not financial tuning. Put it near the other project-identification fields (project name, GC, location, RFP #, etc.).
+
+UI recommendation for the addenda input: a simple text input where the user types a comma-separated list like "01, 02, 03". Backend parses on save into the addenda_acknowledged jsonb array. If you think a tag-style multi-input (chip/pill UI) would be cleaner, I'm open — just flag the tradeoff. Simpler is better here.
+
+### 5. Staged plan with approval gates — APPROVED
+
+Proceed with G1 → G2 → G3 → G4 → G5 in sequence. Show me the result of each stage before moving to the next.
+
+### Confirmed starting point
+
+Kick off Stage 1: apply the v12 mockup changes to the on-screen proposal (visual only, no schema changes). Deliverables I expect at the end of Stage 1:
+- Screenshot or live URL showing the updated on-screen proposal at Stage 4 Bid Summary
+- Confirmation that the 7 items in section D are all applied: logo placeholder, 6-field metadata grid, removed intro paragraph, addenda bullet in Inclusions, sequential numbering only on 01/02/03/04 sections (breakouts stays unnumbered), font consolidation to Playfair + Rajdhani, real NBS company info in letterhead
+- Any visual issues or rendering quirks you notice that we should decide on before moving to Stage 2
+
+Once I approve Stage 1, proceed to Stage 2 (Estimator Profile schema + admin panel + company_info panel).
