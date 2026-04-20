@@ -2393,14 +2393,6 @@ ${html}
       {stage === "intake" && (
         <div className="max-w-7xl mx-auto px-6 pt-6 space-y-4">
 
-          {/* FURNISH ONLY banner */}
-          <div className="p-3 rounded-lg flex items-start gap-3" style={{ background: "#f9731610", border: "1px solid #f9731630" }}>
-            <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" style={{ color: "#f97316" }} />
-            <div>
-              <div className="text-xs font-bold" style={{ color: "#f97316" }}>MATERIAL ONLY — FURNISH ONLY</div>
-              <div className="text-xs mt-0.5" style={{ color: "var(--text-muted)" }}>This estimate covers furnishing Division 10 materials only. No labor, installation, or handling costs. All vendor quotes must be material-only.</div>
-            </div>
-          </div>
 
           {/* Review status */}
           <div className="rounded-lg p-3 flex items-center justify-between flex-wrap gap-2" style={{ background: "var(--bg-card)", border: "1px solid var(--border-ds)" }}>
