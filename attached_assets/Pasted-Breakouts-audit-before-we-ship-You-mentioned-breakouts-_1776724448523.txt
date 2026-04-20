@@ -1,0 +1,30 @@
+Breakouts audit — before we ship
+
+You mentioned breakouts are already built. Before I approve the final proposal PDF to go live, I need a full breakouts audit so we can make sure the design is right. Please provide (do not change any code — just report):
+
+A. Current implementation overview:
+   - Which files contain the breakouts logic (database schema, API routes, React components, PDF generator integration)
+   - Database structure: what tables/columns store breakouts, and how they relate to estimates and estimate_line_items
+   - Is a breakout a named group of line items, a modifier on existing items, or a standalone scope? Can one estimate have multiple breakouts?
+
+B. How breakouts currently render in the proposal PDF:
+   - Screenshot or exported sample PDF showing breakouts rendered in the proposal context (run with a test estimate that has at least 2 breakouts populated)
+   - Where on the page do breakouts appear? (Under the grand total? On page 2? Separate page?)
+   - What columns/fields show up in the breakout display? (Model, description, qty, pricing, etc.)
+   - How are breakouts totaled? Additive to base bid, standalone totals, or both?
+   - Do breakouts respect the "Show unit pricing" toggle the same way base-bid scopes do?
+
+C. UI flow for creating/editing breakouts:
+   - Walk me through the current user flow: where in the estimating module does an estimator create a breakout, add items to it, and edit it?
+   - Screenshot the current UI
+
+D. Terminology used in the code:
+   - Do "breakout," "alternate," "option," "adder," and "deduct" mean the same thing, or are they distinct concepts?
+   - What terminology is the user-facing UI using?
+
+E. How breakouts integrate with the NEW proposal PDF design:
+   - The current mockup (v11_FINAL.html attached previously) shows an "ALTERNATES / BREAKOUTS" placeholder card below the grand total on page 1
+   - Does your current implementation match this placement, or is it rendering somewhere else?
+   - If the placement or visual treatment differs from the mockup, describe what you built and why — I may or may not approve changes based on what works best
+
+Deliver this breakouts audit as a clear written report with screenshots and a sample PDF. I will review and give you design direction for any adjustments needed. Do not change breakouts code based on this audit until I give explicit approval.
