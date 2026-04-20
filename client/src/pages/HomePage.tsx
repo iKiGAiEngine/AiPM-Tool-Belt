@@ -526,6 +526,7 @@ export default function HomePage() {
                 <div
                   key={tool.id}
                   className="tool-card disabled"
+                  style={{ ["--i" as any]: i }}
                   data-testid={`tile-${tool.id}`}
                 >
                   <div className="tool-icon">
@@ -550,6 +551,7 @@ export default function HomePage() {
                 key={tool.id}
                 {...wrapperProps}
                 className={`tool-card ${isComingSoon ? "tool-card-coming" : ""}`}
+                style={{ ["--i" as any]: i }}
                 data-testid={`tile-${tool.id}`}
               >
                 <div className="tool-icon">

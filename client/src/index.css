@@ -694,14 +694,14 @@
   display: inline-block;
 }
 
-/* Staggered tool card animations */
-.tool-card:nth-child(1) { animation: fadeUp .3s ease .05s both; }
-.tool-card:nth-child(2) { animation: fadeUp .3s ease .09s both; }
-.tool-card:nth-child(3) { animation: fadeUp .3s ease .13s both; }
-.tool-card:nth-child(4) { animation: fadeUp .3s ease .17s both; }
-.tool-card:nth-child(5) { animation: fadeUp .3s ease .21s both; }
-.tool-card:nth-child(6) { animation: fadeUp .3s ease .25s both; }
-.tool-card:nth-child(7) { animation: fadeUp .3s ease .29s both; }
+/* Staggered tool card animations — uniform, buttery entrance.
+   Stagger driven by --i CSS var set inline from React (rendered index),
+   so feature-flag filtering keeps timing tight (no gaps). */
+.tool-card {
+  animation: tileEnter 520ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation-delay: calc(var(--i, 0) * 55ms + 40ms);
+  will-change: transform, opacity;
+}
 
 /* ===== RIGHT COLUMN — PROPOSAL LOG HUD ===== */
 .hud-col {
@@ -709,7 +709,7 @@
   flex-direction: column;
   height: calc(100vh - 3.5rem - 80px - 28px);
   min-height: 400px;
-  animation: fadeUp .35s ease .08s both;
+  animation: tileEnter 520ms cubic-bezier(0.22, 1, 0.36, 1) 80ms both;
 }
 
 .pl-card {
@@ -1081,6 +1081,15 @@
 @keyframes fadeUp {
   from { opacity: 0; transform: translateY(12px); }
   to   { opacity: 1; transform: none; }
+}
+
+@keyframes tileEnter {
+  from { opacity: 0; transform: translateY(14px) scale(0.985); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tool-card, .hud-col { animation: none !important; }
 }
 
 /* ===== RESPONSIVE FALLBACK (mobile) ===== */
