@@ -14,7 +14,7 @@ import {
   CheckSquare, Square, AlertTriangle, BarChart3, Send, RotateCcw,
   ClipboardList, Lock, Users, ChevronDown, ChevronUp, Copy,
   Upload, ClipboardPaste, ImageIcon, BookOpen, Loader2, FileSpreadsheet,
-  Paperclip, CheckCircle2, ExternalLink, RefreshCw
+  Paperclip, CheckCircle2, ExternalLink, RefreshCw, Info
 } from "lucide-react";
 import { exportEstimateToExcel } from "@/lib/exportEstimateExcel";
 
