@@ -2883,33 +2883,39 @@ ${html}
 
           {CATEGORIES.length > 0 && (
             <>
-              {/* Stage 2 action toolbar — extraction + breakouts on a single row */}
+              {/* Stage 2 action toolbar — extraction + breakouts on a single row.
+                  All three buttons share an identical squared, outlined chassis
+                  (h-8, px-3, 1px border, rounded-md, text-xs/600). Only the accent
+                  color differs so each tool stays visually distinct. */}
               <div className="flex items-center gap-2 flex-wrap mb-3">
                 <button
                   onClick={() => { setShowScheduleExtractor(true); setExtractedItems([]); setExtractorTab("image"); setExtractPasteText(""); setSchedulePasteCount(0); }}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-semibold"
-                  style={{ background: "#06b6d410", border: "1px solid #06b6d440", color: "#06b6d4" }}
+                  title="Pull door / window / hardware schedules from a PDF, image paste, or text. Adds the extracted line items into the active scope."
+                  className="h-8 inline-flex items-center gap-1.5 px-3 rounded-md text-xs font-semibold transition-colors hover:bg-opacity-100"
+                  style={{ background: "transparent", border: "1px solid #06b6d4", color: "#06b6d4" }}
                   data-testid="btn-extract-schedules-s2"
                 >
-                  <ClipboardList className="w-3 h-3" /> Extract from Schedules
+                  <ClipboardList className="w-3.5 h-3.5" /> Extract from Schedules
                 </button>
                 <button
                   onClick={() => { setShowSpecExtractor(true); setExtractedSpecs([]); setSpecExtractorTab("image"); }}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-semibold"
-                  style={{ background: "var(--gold)10", border: "1px solid var(--gold)40", color: "var(--gold)" }}
+                  title="Pull line items from Division 10 spec sections (toilet accessories, partitions, lockers, signage, etc.) directly into the active scope."
+                  className="h-8 inline-flex items-center gap-1.5 px-3 rounded-md text-xs font-semibold transition-colors"
+                  style={{ background: "transparent", border: "1px solid var(--gold)", color: "var(--gold)" }}
                   data-testid="btn-extract-specs-s2"
                 >
-                  <BookOpen className="w-3 h-3" /> Extract from Specs
+                  <BookOpen className="w-3.5 h-3.5" /> Extract from Specs
                 </button>
                 <button onClick={() => setShowBreakoutPanel(!showBreakoutPanel)}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-semibold"
+                  title="Define cost breakouts (by building, phase, area, etc.) and allocate each line item to one of those buckets so the proposal can show per-breakout subtotals."
+                  className="h-8 inline-flex items-center gap-1.5 px-3 rounded-md text-xs font-semibold transition-colors"
                   data-testid="btn-toggle-breakouts"
                   style={{
-                    background: breakoutGroups.length > 0 ? "#06b6d410" : "var(--bg-card)",
-                    border: `1px solid ${breakoutGroups.length > 0 ? "#06b6d440" : "var(--border-ds)"}`,
-                    color: breakoutGroups.length > 0 ? "#06b6d4" : "var(--text-muted)",
+                    background: "transparent",
+                    border: `1px solid ${breakoutGroups.length > 0 ? "#06b6d4" : "var(--border-ds)"}`,
+                    color: breakoutGroups.length > 0 ? "#06b6d4" : "var(--text-secondary)",
                   }}>
-                  <BarChart3 className="w-3 h-3" />
+                  <BarChart3 className="w-3.5 h-3.5" />
                   {breakoutGroups.length > 0 ? `Breakouts (${breakoutGroups.length})` : "Breakouts"}
                 </button>
                 {breakoutGroups.length > 0 && !breakoutValidation.valid && (
