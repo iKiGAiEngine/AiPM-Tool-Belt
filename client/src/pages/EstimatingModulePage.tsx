@@ -3151,16 +3151,20 @@ ${html}
                   </div>
                 </div>
                 {/* How to use */}
-                <div className="mb-3 p-3 rounded-md text-xs leading-relaxed" style={{ background: "var(--bg3)", border: "1px solid var(--border-ds)", color: "var(--text-secondary)" }}>
-                  <div className="font-semibold mb-1" style={{ color: "var(--text)" }}>How vendor quotes work</div>
-                  Log every vendor's pricing here so the line items below can be costed against real bids.
-                  <ul className="list-disc ml-4 mt-1 space-y-0.5">
-                    <li><strong>Manual</strong> — type vendor + freight + lump-sum or per-item pricing yourself.</li>
-                    <li><strong>AI Parse Quote</strong> — drop the vendor's PDF or image; AI extracts header, freight, and line items into a reviewable table.</li>
-                    <li>Attach the original PDF/image with the paperclip on any quote — extraction runs automatically and the row moves through <em>Processing → Needs Review → Ready to Approve</em>.</li>
-                    <li>Approving a quote pushes its line items into the table below and links them so unit costs stay in sync.</li>
-                  </ul>
-                </div>
+                <details className="mb-3 rounded-md" style={{ background: "var(--bg3)", border: "1px solid var(--border-ds)" }}>
+                  <summary className="cursor-pointer px-3 py-2 text-xs font-semibold flex items-center gap-1.5 select-none" style={{ color: "var(--text)" }}>
+                    <Info className="w-3 h-3" style={{ color: "var(--text-muted)" }} /> How Vendor Quotes Work
+                  </summary>
+                  <div className="px-3 pb-3 text-xs leading-relaxed" style={{ color: "var(--text-secondary)" }}>
+                    Log every vendor's pricing here so the line items below can be costed against real bids.
+                    <ul className="list-disc ml-4 mt-1 space-y-0.5">
+                      <li><strong>Manual</strong> — type vendor + freight + lump-sum or per-item pricing yourself.</li>
+                      <li><strong>AI Parse Quote</strong> — drop the vendor's PDF or image; AI extracts header, freight, and line items into a reviewable table.</li>
+                      <li>Attach the original PDF/image with the paperclip on any quote — extraction runs automatically and the row moves through <em>Processing → Needs Review → Ready to Approve</em>.</li>
+                      <li>Approving a quote pushes its line items into the table below and links them so unit costs stay in sync.</li>
+                    </ul>
+                  </div>
+                </details>
 
                 {/* Existing quotes */}
                 {catQuotes.map(q => (
@@ -3592,16 +3596,20 @@ ${html}
                   </button>
                 </div>
                 {/* How to use */}
-                <div className="px-4 py-3 text-xs leading-relaxed" style={{ background: "var(--bg3)", borderBottom: "1px solid var(--border-ds)", color: "var(--text-secondary)" }}>
-                  <div className="font-semibold mb-1" style={{ color: "var(--text)" }}>How line items work</div>
-                  This is the cost table that drives the proposal total for the active scope.
-                  <ul className="list-disc ml-4 mt-1 space-y-0.5">
-                    <li>Add items by hand with <strong>Add Item</strong>, or import them via the <em>Extract</em> buttons or by approving a vendor quote above.</li>
-                    <li>Quantity × Unit Cost = extended cost. Markups (OH / Fee / Esc / Freight) apply on top — see the markups tile below.</li>
-                    <li>Set the <strong>Manufacturer</strong> to drive the RFQ Generator and keep the global manufacturer list in sync. Link a row to a quote to lock its unit cost.</li>
-                    <li>Scroll right on small screens — every column stays visible.</li>
-                  </ul>
-                </div>
+                <details style={{ background: "var(--bg3)", borderBottom: "1px solid var(--border-ds)" }}>
+                  <summary className="cursor-pointer px-4 py-2 text-xs font-semibold flex items-center gap-1.5 select-none" style={{ color: "var(--text)" }}>
+                    <Info className="w-3 h-3" style={{ color: "var(--text-muted)" }} /> How Line Items Work
+                  </summary>
+                  <div className="px-4 pb-3 text-xs leading-relaxed" style={{ color: "var(--text-secondary)" }}>
+                    This is the cost table that drives the proposal total for the active scope.
+                    <ul className="list-disc ml-4 mt-1 space-y-0.5">
+                      <li>Add items by hand with <strong>Add Item</strong>, or import them via the <em>Extract</em> buttons or by approving a vendor quote above.</li>
+                      <li>Quantity × Unit Cost = extended cost. Markups (OH / Fee / Esc / Freight) apply on top — see the markups tile below.</li>
+                      <li>Set the <strong>Manufacturer</strong> to drive the RFQ Generator and keep the global manufacturer list in sync. Link a row to a quote to lock its unit cost.</li>
+                      <li>Scroll right on small screens — every column stays visible.</li>
+                    </ul>
+                  </div>
+                </details>
 
                 {/* Add item form */}
                 {addingItem && (
@@ -4857,16 +4865,20 @@ ${html}
               </div>
 
               {/* How to use — export actions */}
-              <div className="mt-3 mb-2 p-3 rounded-md text-xs leading-relaxed" style={{ background: "var(--bg3)", border: "1px solid var(--border-ds)", color: "var(--text-secondary)" }}>
-                <div className="font-semibold mb-1" style={{ color: "var(--text)" }}>What happens next</div>
-                The proposal preview above is locked to your current line items, markups, assumptions, and risks. Pick how you want to deliver it:
-                <ul className="list-disc ml-4 mt-1 space-y-0.5">
-                  <li><strong>Copy Text</strong> — copies the formatted proposal body to your clipboard so you can paste it into an email.</li>
-                  <li><strong>Print / PDF</strong> — opens the browser print dialog. Choose <em>Save as PDF</em> to produce the deliverable PDF for the GC.</li>
-                  <li><strong>Export Excel</strong> — generates the full estimate workbook (line items, quotes, breakouts, version history) for internal records.</li>
-                </ul>
-                <div className="mt-1" style={{ color: "var(--text-muted)" }}>None of these change the estimate's review status. To officially submit, use the Review Workflow below to advance to <em>Submitted</em>.</div>
-              </div>
+              <details className="mt-3 mb-2 rounded-md" style={{ background: "var(--bg3)", border: "1px solid var(--border-ds)" }}>
+                <summary className="cursor-pointer px-3 py-2 text-xs font-semibold flex items-center gap-1.5 select-none" style={{ color: "var(--text)" }}>
+                  <Info className="w-3 h-3" style={{ color: "var(--text-muted)" }} /> What These Export Buttons Do
+                </summary>
+                <div className="px-3 pb-3 text-xs leading-relaxed" style={{ color: "var(--text-secondary)" }}>
+                  The proposal preview above is locked to your current line items, markups, assumptions, and risks. Pick how you want to deliver it:
+                  <ul className="list-disc ml-4 mt-1 space-y-0.5">
+                    <li><strong>Copy Text</strong> — copies the formatted proposal body to your clipboard so you can paste it into an email.</li>
+                    <li><strong>Print / PDF</strong> — opens the browser print dialog. Choose <em>Save as PDF</em> to produce the deliverable PDF for the GC.</li>
+                    <li><strong>Export Excel</strong> — generates the full estimate workbook (line items, quotes, breakouts, version history) for internal records.</li>
+                  </ul>
+                  <div className="mt-1" style={{ color: "var(--text-muted)" }}>None of these change the estimate's review status. To officially submit, use the Review Workflow below to advance to <em>Submitted</em>.</div>
+                </div>
+              </details>
               <div className="flex gap-2 flex-wrap">
                 <button onClick={() => { navigator.clipboard.writeText(proposalText); toast({ title: "Copied", description: "Proposal text copied to clipboard." }); }}
                   className="text-xs px-3 py-2 rounded flex items-center gap-1"
@@ -4991,16 +5003,27 @@ ${html}
           </div>
 
           {/* Final action */}
+          <div className="mb-3 p-3 rounded-md text-xs leading-relaxed" style={{ background: "var(--bg3)", border: "1px solid var(--border-ds)", color: "var(--text-secondary)" }}>
+            <div className="font-semibold mb-1 flex items-center gap-1.5" style={{ color: "var(--text)" }}>
+              <Info className="w-3 h-3" style={{ color: "var(--text-muted)" }} /> What These Buttons Do
+            </div>
+            <ul className="list-disc ml-4 space-y-0.5">
+              <li><strong style={{ color: "var(--gold)" }}>Save &amp; Sync to Proposal Log Dashboard</strong> — saves all estimate edits and pushes the bid total, scopes, status, and notes to the matching row on the Proposal Log Dashboard. Use this often; it keeps the dashboard in sync without changing the review status.</li>
+              <li><strong style={{ color: "#06b6d4" }}>Mark as Submitted</strong> — saves and flips the review status to <em>Submitted</em>, locks in the version-history snapshot, and updates the dashboard row to <em>Submitted</em>. Use this once the proposal has actually been delivered to the GC.</li>
+            </ul>
+          </div>
           <div className="flex gap-3 flex-wrap">
             <button onClick={() => saveEstimate()} disabled={isSaving || !estimateId}
               className="px-6 py-3 rounded-lg text-sm font-semibold flex items-center gap-2"
-              style={{ background: "var(--gold)", color: "#000" }}>
+              style={{ background: "var(--gold)", color: "#000" }}
+              title="Save edits and push the bid total, scopes, status and notes to the matching Proposal Log Dashboard row.">
               💾 Save & Sync to Proposal Log Dashboard
             </button>
             <button onClick={() => { markDirty(); saveEstimate("submitted"); }}
               disabled={isSaving || !estimateId}
               className="px-6 py-3 rounded-lg text-sm font-semibold flex items-center gap-2"
-              style={{ background: "#06b6d4", color: "#fff" }}>
+              style={{ background: "#06b6d4", color: "#fff" }}
+              title="Save, flip review status to Submitted, snapshot the version, and update the Proposal Log Dashboard row to Submitted.">
               <Send className="w-4 h-4" /> Mark as Submitted
             </button>
           </div>
