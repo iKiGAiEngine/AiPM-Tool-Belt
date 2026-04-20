@@ -585,10 +585,18 @@ function EstimatingModuleInner() {
   const [headerExpanded, setHeaderExpanded] = useState(false);
   const [isHeaderScrolled, setIsHeaderScrolled] = useState(false);
   useEffect(() => {
+    // Hysteresis prevents oscillation: collapsing shortens the page, which
+    // would drop scrollY below a single threshold and immediately re-expand.
+    // Use two thresholds — collapse at >120, only re-expand when <40.
+    const COLLAPSE_AT = 120;
+    const EXPAND_AT = 40;
     const onScroll = () => {
-      const scrolled = window.scrollY > 80;
-      setIsHeaderScrolled(scrolled);
-      if (scrolled) setHeaderExpanded(false);
+      const y = window.scrollY;
+      setIsHeaderScrolled(prev => {
+        const next = prev ? y > EXPAND_AT : y > COLLAPSE_AT;
+        if (next && !prev) setHeaderExpanded(false);
+        return next;
+      });
     };
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => window.removeEventListener("scroll", onScroll);
@@ -3056,21 +3064,34 @@ ${html}
                   )}
                   {/* Add group */}
                   <div className="mt-3 p-3 rounded-lg" style={{ background: "var(--bg3)", border: "1px dashed #06b6d430" }}>
-                    <div className="text-xs font-semibold mb-2" style={{ color: "#06b6d4" }}>Add Breakout Group</div>
-                    <div className="flex gap-2 flex-wrap items-center">
-                      <input value={newBreakoutGroup.code} onChange={e => setNewBreakoutGroup(p => ({ ...p, code: e.target.value }))}
-                        placeholder="Code (B1)" className="text-xs px-2 py-1 rounded w-16" style={{ background: "var(--bg2)", border: "1px solid var(--border-ds)", color: "var(--text)" }} />
-                      <input value={newBreakoutGroup.label} onChange={e => setNewBreakoutGroup(p => ({ ...p, label: e.target.value }))}
-                        placeholder="Label (Building 1 - Main Tower)" className="text-xs px-2 py-1 rounded flex-1" style={{ background: "var(--bg2)", border: "1px solid var(--border-ds)", color: "var(--text)" }} />
-                      <select value={newBreakoutGroup.type} onChange={e => setNewBreakoutGroup(p => ({ ...p, type: e.target.value }))}
-                        className="text-xs px-2 py-1 rounded" style={{ background: "var(--bg2)", border: "1px solid var(--border-ds)", color: "var(--text)" }}>
-                        <option value="building">Building</option>
-                        <option value="phase">Phase</option>
-                        <option value="floor">Floor</option>
-                        <option value="scope_split">Scope Split</option>
-                        <option value="custom">Custom</option>
-                      </select>
-                      <button onClick={addBreakoutGroup} className="text-xs px-3 py-1 rounded font-semibold" style={{ background: "#06b6d4", color: "#fff" }}>+ Add</button>
+                    <p className="text-xs font-semibold mb-3" style={{ color: "#06b6d4" }}>Add Breakout Group</p>
+                    <div className="grid grid-cols-12 gap-3 mb-3">
+                      <div className="flex flex-col gap-1 col-span-2">
+                        <label className="text-xs font-medium" style={{ color: "var(--text-muted)" }}>Code</label>
+                        <input data-testid="input-breakout-code" value={newBreakoutGroup.code} onChange={e => setNewBreakoutGroup(p => ({ ...p, code: e.target.value }))}
+                          placeholder="B1" className="text-xs px-2 py-1.5 rounded"
+                          style={{ background: "var(--bg2)", border: "1px solid var(--border-ds)", color: "var(--text)" }} />
+                      </div>
+                      <div className="flex flex-col gap-1 col-span-7">
+                        <label className="text-xs font-medium" style={{ color: "var(--text-muted)" }}>Label</label>
+                        <input data-testid="input-breakout-label" value={newBreakoutGroup.label} onChange={e => setNewBreakoutGroup(p => ({ ...p, label: e.target.value }))}
+                          placeholder="e.g. Building 1 — Main Tower" className="text-xs px-2 py-1.5 rounded"
+                          style={{ background: "var(--bg2)", border: "1px solid var(--border-ds)", color: "var(--text)" }} />
+                      </div>
+                      <div className="flex flex-col gap-1 col-span-3">
+                        <label className="text-xs font-medium" style={{ color: "var(--text-muted)" }}>Type</label>
+                        <select data-testid="select-breakout-type" value={newBreakoutGroup.type} onChange={e => setNewBreakoutGroup(p => ({ ...p, type: e.target.value }))}
+                          className="text-xs px-2 py-1.5 rounded" style={{ background: "var(--bg2)", border: "1px solid var(--border-ds)", color: "var(--text)" }}>
+                          <option value="building">Building</option>
+                          <option value="phase">Phase</option>
+                          <option value="floor">Floor</option>
+                          <option value="scope_split">Scope Split</option>
+                          <option value="custom">Custom</option>
+                        </select>
+                      </div>
+                    </div>
+                    <div className="flex justify-end">
+                      <button data-testid="button-add-breakout" onClick={addBreakoutGroup} className="text-xs px-3 py-1.5 rounded font-semibold" style={{ background: "#06b6d4", color: "#fff" }}>+ Add Breakout Group</button>
                     </div>
                   </div>
                 </div>
