@@ -1,0 +1,123 @@
+Good audit. Here's the direction:
+
+### A. Mockup file
+
+Replacing all prior mockup references with nbs_proposal_mockup_v12.html (attached to this message). If it doesn't land in attached_assets/ again, let me know and I'll try a different upload method.
+
+### B. Breakouts decisions
+
+1. Depth of display — Keep itemized cards exactly as you built them. The GCs we work with want the line-item detail. Don't slim down, don't hide behind a toggle.
+
+2. Section heading — Change "02 — PRICING BREAKOUTS" to just "PRICING BREAKOUTS" (no number). This section is conceptually distinct from the sequentially-numbered sections (Scope of Material → Qualifications → Inclusions → Exclusions). It's a reconciliation view, not another step in the outline. Remove the number from the section header but keep the rest of the visual treatment (gold italic treatment, same typographic weight as other headers).
+
+3. Terminology is settled — "Breakout" only means "split this bid across physical areas/phases/buildings." Alternates, adders, and deducts are explicitly out of scope. If we ever need those, it's a new feature with a new schema — don't try to retrofit breakouts to cover them.
+
+4. Pricing toggle behavior is correct — breakouts should respect "Show unit pricing" the same way base-bid scopes do. Keep as-is.
+
+5. Italic preamble is good — "Itemized pricing for each cost bucket below. The Total Bid above remains the binding price; breakouts shown for reference only." This is exactly the right disclaimer. Keep it.
+
+6. Reconciliation row is great — keep the "Sum of Breakouts" + match indicator. This protects us from allocation errors making it to the GC.
+
+### C. pdf-lib PDF generator — DEFERRED
+
+Do NOT build the pdf-lib PDF generator in this pass. Keep the current browser-print flow. We'll ship a separate workstream for the real PDF generator later. That means:
+
+- Items 2, 5, 6 in the original PDF design spec (font embedding, layered rule effects, etc.) are all deferred
+- You still need to implement the visual mockup (v12) as on-screen HTML and have it render in the browser print dialog correctly
+- Keep the spec for pdf-lib in a TODO doc or comment block at the top of the relevant file so the next build pass has it ready
+
+This decision also means: ignore my earlier instructions about font embedding via @pdf-lib/fontkit and TTF files. Use the Google Fonts @import via the existing CSS approach, since we're still browser-rendering. The only fonts to load are Playfair Display and Rajdhani (we consolidated away from Source Serif 4 and JetBrains Mono earlier).
+
+### D. Mockup changes to apply to the current on-screen proposal (from v12)
+
+1. Top-left: remove any placeholder icon or monogram. Leave a clean rectangular area ~140px wide × 54px tall where the real uploaded NBS logo will render. If no logo is uploaded, show a dashed-gold-border placeholder box reading "[ NBS LOGO ]". When an image is uploaded to company_info, it replaces the placeholder.
+
+2. Header metadata grid — 6 fields only: Date, Proposal #, Project, GC, Attn, Prepared By. RFP # and Addenda rows are REMOVED from the metadata grid.
+
+3. Intro paragraph — REMOVED entirely. No "National Building Specialties is pleased to submit..." paragraph. Metadata grid flows directly into Scope of Material.
+
+4. Addenda handling — instead of a dedicated section at the bottom, the addenda list appears as the FIRST bullet in Section 03 Inclusions, formatted as "Addenda acknowledged: 01, 02, 03." This bullet should only render when estimates.addendaAcknowledged has entries. If empty, don't render the bullet at all.
+
+5. Section 03 / Section 04 numbering — sections continue as sequentially numbered (01 Scope of Material, 02 Qualifications, 03 Inclusions, 04 Exclusions). "PRICING BREAKOUTS" sits outside this numbering as a separate reconciliation section (positioned between TOTAL BID and Assumptions per your existing implementation).
+
+6. Font consolidation — confirmed final: Playfair Display (display/luxury moments) + Rajdhani (everything else). Drop Source Serif 4 and JetBrains Mono from font loaders. Body weight should be 500 (Rajdhani reads thin at 400 for small sizes).
+
+7. Company info in letterhead right column — Use real NBS data:
+   - 4130 Flat Rock Dr, Suite 110
+   - Riverside, CA 92505
+   - NationalBuildingSpecialties.com
+   - CA LIC #1101865
+   Do NOT repeat the company name. Do NOT include a phone number. Seed these as defaults in the new company_info record.
+
+### E. Estimator Profile / Signature System
+
+The signature block at the bottom of page 2 needs to be driven by user profile data, not hardcoded. Build this out as follows:
+
+1. Database — new fields on the users table (or a new estimator_profiles table linked by user_id, whichever is cleaner):
+   - displayName (text) — "Haley Kruse"
+   - jobTitle (text) — "Senior Project Engineer"
+   - directPhone (text) — "510.965.5323"
+   - mobilePhone (text) — "714.490.7364"
+   - email — should already exist; use it
+   - signatureImage (bytea) — same pattern as company_info.logoBytes
+
+2. Admin-only management — Only admins can create or edit estimator signature profiles. Build a new admin page at /admin/estimator-profiles that:
+   - Lists all users flagged as estimators (use however this is flagged today — check the schema)
+   - For each estimator, provides a form to set displayName, jobTitle, directPhone, mobilePhone, email, and upload signatureImage
+   - Gated by isAdmin check — non-admin users get a 403 or redirect
+   - Non-admin users can VIEW their own profile read-only elsewhere if that UX exists, but cannot edit
+
+3. Signature selection logic — The signature rendered on a given proposal PDF comes from the user assigned as "Prepared By" on that estimate. Use the existing field the metadata grid already pulls from (estimates.createdBy or similar — confirm which and use it).
+
+4. Signature block rendering on the proposal:
+   - "Best Regards," (Rajdhani 10pt)
+   - {estimator.displayName} in Playfair italic 22pt (scripted signature look)
+   - {estimator.displayName} uppercased in Rajdhani bold 12pt
+   - {estimator.jobTitle} in Rajdhani 9pt uppercase
+   - "D  {directPhone}" with bold "D" prefix
+   - "M  {mobilePhone}" with bold "M" prefix
+   - "E  {email}" with bold "E" prefix
+   - {signatureImage} rendered below the contact lines (~280px wide)
+   - If signatureImage is null, show a dashed-gold placeholder box reading "[ NO SIGNATURE ON FILE — ADMIN: UPLOAD VIA ESTIMATOR PROFILES ]"
+
+5. Fallback behavior when fields are missing:
+   - Missing jobTitle → hide the subtitle line
+   - Missing directPhone → hide the "D" line
+   - Missing mobilePhone → hide the "M" line
+   - Missing email → fall back to company_info.email, or hide if that's also missing
+   - Missing signatureImage → show the dashed placeholder described above
+   - Missing displayName → show "[Estimator name not set]" as the script line
+
+6. Seed Haley's profile — prepopulate the first estimator profile with Haley's info so we have at least one fully-populated estimator on day one:
+   - displayName: Haley Kruse
+   - jobTitle: Senior Project Engineer
+   - directPhone: 510.965.5323
+   - mobilePhone: 714.490.7364
+   - email: haley.kruse@nationalbuildingspecialties.com
+   - signatureImage: null for now — admin will upload after build
+
+7. UI discoverability — add a sidebar link or menu entry labeled "Estimator Profiles" to wherever existing admin routes live, so the new page can be found. If there's no admin routing pattern yet, flag it and recommend the cleanest spot to add one.
+
+### F. Test estimate for screenshots
+
+You asked for an estimate ID with populated breakouts. I don't have one ready to hand. Please create a test/demo estimate with:
+- Project Name: "Phoenix DC-4 Data Center" (or any demo project)
+- 3 scopes populated (Toilet Accessories, Toilet Partitions, Lockers are fine)
+- 4-6 line items per scope
+- 2 breakouts defined (e.g., "BLDG-A" and "BLDG-B") with items allocated across them
+- Use this as the reference for screenshots during verification (Section 11-E).
+
+### G. Staged delivery plan
+
+Handle in this order, with approval gates between each:
+
+1. Apply mockup changes from sections D (v12) to the on-screen proposal
+2. Build the Estimator Profile system + admin page (section E)
+3. Change the breakouts section header to "PRICING BREAKOUTS" (remove the "02 —" prefix)
+4. Create the test/demo estimate from section F
+5. Run Section 11-D and 11-E verification pass with screenshots
+6. Flag any schema/field gaps discovered along the way before marking complete
+
+Confirm back before you start which fields from section E already exist on users vs. need to be created, and whether an isAdmin role check already exists in the codebase. If admin role infrastructure doesn't exist yet, flag it — we may simplify to "any logged-in user edits their own profile" as a v1 fallback rather than building role infrastructure from scratch.
+
+Show me the results after each stage before moving to the next.

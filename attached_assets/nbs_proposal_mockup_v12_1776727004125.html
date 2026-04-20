@@ -1,0 +1,1324 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>NBS Proposal Preview — v5</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700;900&family=Rajdhani:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --gold: #C8A44E;
+    --gold-soft: #E8D4A0;
+    --ink: #1a1a1a;
+    --ink-soft: #4a4a4a;
+    --ink-faint: #8a8a8a;
+    --rule: #d4d4d4;
+    --rule-faint: #ececec;
+    --bg: #f5f3ee;
+    --paper: #ffffff;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    font-family: 'Rajdhani', sans-serif;
+    color: var(--ink);
+    padding: 40px 20px;
+    min-height: 100vh;
+    font-weight: 500;
+  }
+
+  .view-label {
+    max-width: 8.5in;
+    margin: 0 auto 20px;
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 12px;
+    letter-spacing: 3px;
+    color: var(--ink);
+    text-transform: uppercase;
+    font-weight: 700;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 14px 20px;
+    background: var(--paper);
+    border-left: 4px solid var(--gold);
+    box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+  }
+
+  .view-label .status {
+    font-size: 10px;
+    letter-spacing: 2px;
+    padding: 4px 10px;
+    border-radius: 2px;
+  }
+
+  .view-label .status.off {
+    background: var(--rule-faint);
+    color: var(--ink-faint);
+  }
+
+  .view-label .status.on {
+    background: var(--gold);
+    color: white;
+  }
+
+  .views-container {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 40px;
+    max-width: 1900px;
+    margin: 0 auto;
+  }
+
+  .view-column { min-width: 0; }
+
+  .page {
+    width: 100%;
+    max-width: 8.5in;
+    min-height: 11in;
+    margin: 0 auto 30px;
+    background: var(--paper);
+    padding: 0.75in;
+    box-shadow: 0 4px 30px rgba(0,0,0,0.08), 0 0 0 1px rgba(0,0,0,0.04);
+    position: relative;
+    font-size: 10pt;
+    line-height: 1.55;
+  }
+
+  /* ============ UNIFIED HEADER (3-column) ============ */
+  .header {
+    position: relative;
+    padding-bottom: 24px;
+    margin-bottom: 22px;
+  }
+
+  .header::after {
+    content: "";
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: var(--gold);
+    box-shadow: 0 4px 0 var(--paper), 0 5px 0 var(--gold);
+  }
+
+  .header-top {
+    display: grid;
+    grid-template-columns: 0.85fr 1.6fr 1fr;
+    gap: 16px;
+    align-items: center;
+  }
+
+  .brand-mark { display: flex; flex-direction: column; gap: 4px; }
+
+  .brand-logo {
+    width: 54px;
+    height: 54px;
+    background: var(--ink);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 10px;
+    position: relative;
+  }
+  .brand-logo svg {
+    width: 32px;
+    height: 32px;
+    color: var(--gold);
+  }
+
+  /* Placeholder for the real NBS logo upload */
+  .brand-logo-placeholder {
+    min-width: 140px;
+    height: 54px;
+    border: 1px dashed var(--gold);
+    background: rgba(200, 164, 78, 0.06);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 10px;
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 8pt;
+    letter-spacing: 2px;
+    color: var(--ink-faint);
+    text-transform: uppercase;
+    font-weight: 600;
+  }
+
+  /* Placeholder for the real uploaded signature image */
+  .sig-image-placeholder {
+    margin-top: 14px;
+    padding: 18px 20px;
+    border: 1px dashed var(--gold);
+    background: rgba(200, 164, 78, 0.06);
+    text-align: center;
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 8.5pt;
+    letter-spacing: 2px;
+    color: var(--ink-faint);
+    text-transform: uppercase;
+    font-weight: 600;
+    max-width: 280px;
+  }
+
+  /* Addenda acknowledgment (bottom of doc, above validity) */
+  .addenda-ack {
+    text-align: center;
+    margin-bottom: 14px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--rule-faint);
+  }
+
+  .addenda-label {
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 8pt;
+    font-weight: 700;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: var(--gold);
+    margin-bottom: 4px;
+  }
+
+  .addenda-value {
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 10pt;
+    font-weight: 600;
+    letter-spacing: 1.5px;
+    color: var(--ink);
+  }
+
+  .brand-name {
+    font-family: 'Playfair Display', serif;
+    font-size: 17px;
+    font-weight: 700;
+    line-height: 1.1;
+  }
+
+  .brand-tagline {
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 8.5px;
+    font-weight: 500;
+    letter-spacing: 2.5px;
+    color: var(--gold);
+    text-transform: uppercase;
+    margin-top: 4px;
+  }
+
+  /* Center column: document title — positioned near the divider */
+  .doc-title-lockup {
+    text-align: center;
+    align-self: end;
+    padding-bottom: 2px;
+  }
+
+  .doc-eyebrow {
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 9px;
+    letter-spacing: 5px;
+    color: var(--gold);
+    font-weight: 600;
+    text-transform: uppercase;
+    margin-bottom: 8px;
+  }
+
+  .doc-title {
+    font-family: 'Playfair Display', serif;
+    font-size: 22px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    line-height: 1.1;
+    white-space: nowrap;
+  }
+
+  .doc-title-rule {
+    width: 50px;
+    height: 1px;
+    background: var(--ink);
+    margin: 10px auto 0;
+  }
+
+  /* Right column: company info */
+  .company-block {
+    text-align: right;
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 8pt;
+    line-height: 1.5;
+    color: var(--ink-soft);
+  }
+
+  .company-block strong { color: var(--ink); font-weight: 600; }
+
+  .license {
+    margin-top: 5px;
+    padding-top: 5px;
+    border-top: 1px solid var(--rule-faint);
+    font-size: 7pt;
+    letter-spacing: 0.5px;
+    color: var(--ink-faint);
+  }
+
+  /* ============ META GRID ============ */
+  .meta-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    margin-bottom: 18px;
+    border-top: 1px solid var(--rule);
+    border-bottom: 1px solid var(--rule);
+  }
+
+  .meta-row {
+    display: grid;
+    grid-template-columns: 100px 1fr;
+    padding: 6px 0;
+    border-bottom: 1px solid var(--rule-faint);
+    font-size: 9pt;
+  }
+
+  .meta-row:last-child, .meta-row:nth-last-child(2) { border-bottom: none; }
+
+  .meta-grid > .meta-row:nth-child(odd) {
+    padding-right: 16px;
+    border-right: 1px solid var(--rule-faint);
+  }
+
+  .meta-grid > .meta-row:nth-child(even) { padding-left: 16px; }
+
+  .meta-label {
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 8.5pt;
+    letter-spacing: 1.2px;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    font-weight: 600;
+    align-self: center;
+  }
+
+  .meta-value { color: var(--ink); font-weight: 600; font-size: 9.5pt; }
+
+  /* ============ INTRO (small fine-print) ============ */
+  .intro {
+    margin-bottom: 18px;
+    font-size: 7.5pt;
+    line-height: 1.5;
+    color: var(--ink-faint);
+    font-style: italic;
+  }
+
+  .intro strong {
+    color: var(--ink-soft);
+    font-style: normal;
+    font-weight: 600;
+  }
+
+  /* ============ SECTION HEADERS ============ */
+  .section-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin: 20px 0 12px;
+  }
+
+  .section-header-num {
+    font-family: 'Playfair Display', serif;
+    font-size: 20px;
+    font-weight: 700;
+    font-style: italic;
+    color: var(--gold);
+    line-height: 1;
+  }
+
+  .section-header-title {
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 11.5pt;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    flex: 1;
+  }
+
+  .section-header-rule {
+    height: 1px;
+    background: var(--ink);
+    flex: 1;
+    max-width: 60px;
+    opacity: 0.15;
+  }
+
+  /* ============ SCOPE BLOCK ============ */
+  .scope {
+    margin-bottom: 16px;
+    page-break-inside: avoid;
+  }
+
+  .scope-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    padding: 8px 0 6px;
+    border-bottom: 1px solid var(--ink);
+    margin-bottom: 6px;
+  }
+
+  .scope-title {
+    font-family: 'Rajdhani', sans-serif;
+    font-weight: 700;
+    font-size: 11pt;
+    letter-spacing: 1.3px;
+    text-transform: uppercase;
+  }
+
+  .scope-csi {
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 8.5pt;
+    font-weight: 500;
+    letter-spacing: 1.5px;
+    color: var(--gold);
+  }
+
+  /* ============ LINE ITEM TABLE ============ */
+  .items-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 8.75pt;
+    margin: 6px 0;
+    table-layout: fixed;
+  }
+
+  .items-table thead tr {
+    border-bottom: 1px solid var(--rule);
+  }
+
+  .items-table th {
+    text-align: left;
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 7.5pt;
+    letter-spacing: 1.2px;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    font-weight: 600;
+    padding: 4px 6px;
+  }
+
+  .items-table th.num { text-align: right; }
+  .items-table th.center { text-align: center; }
+
+  .items-table td {
+    padding: 5px 6px;
+    vertical-align: top;
+    color: var(--ink-soft);
+    border-bottom: 1px solid var(--rule-faint);
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+  }
+
+  .items-table tr:last-child td { border-bottom: none; }
+
+  .items-table td.num {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+    color: var(--ink);
+    white-space: nowrap;
+  }
+
+  /* CALLOUT column — plain, just bold monospace */
+  .items-table td.callout {
+    font-family: 'Rajdhani', sans-serif;
+    font-weight: 700;
+    font-size: 8.25pt;
+    color: var(--ink);
+    text-align: center;
+    letter-spacing: 0.5px;
+    padding-left: 4px;
+    padding-right: 4px;
+    line-height: 1.3;
+  }
+
+  .items-table th.callout-head {
+    text-align: center;
+  }
+
+  .items-table td.model {
+    font-family: 'Rajdhani', sans-serif;
+    font-weight: 600;
+    color: var(--ink);
+    font-size: 8.5pt;
+    letter-spacing: 0.5px;
+  }
+
+  .items-table td.desc { color: var(--ink); }
+
+  .items-table td.uom {
+    text-align: center;
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 8pt;
+    color: var(--ink-faint);
+    letter-spacing: 1px;
+    text-transform: uppercase;
+  }
+
+  .item-note {
+    font-size: 7.75pt;
+    font-style: italic;
+    color: var(--ink-faint);
+    padding-top: 2px;
+    line-height: 1.4;
+  }
+  .item-note::before {
+    content: "▸ ";
+    color: var(--gold);
+    font-style: normal;
+  }
+
+  .scope-subtotal-row td {
+    border-top: 1px solid var(--ink);
+    border-bottom: none;
+    padding-top: 8px !important;
+    padding-bottom: 4px !important;
+    font-family: 'Rajdhani', sans-serif;
+    font-weight: 700;
+    font-size: 10pt;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: var(--ink) !important;
+  }
+
+  .scope-subtotal-row td.subtotal-callout {
+    border-top: 1px solid var(--ink);
+  }
+
+  .scope-subtotal-row td.num { font-size: 11pt; }
+
+  /* ============ GRAND TOTAL ============ */
+  .grand-total-wrapper {
+    margin-top: 24px;
+    padding: 18px 22px;
+    background: var(--ink);
+    color: #fff;
+    position: relative;
+    display: grid;
+    grid-template-columns: 1fr auto;
+    align-items: center;
+    gap: 20px;
+  }
+
+  .grand-total-wrapper::before {
+    content: "";
+    position: absolute;
+    top: -5px;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: var(--gold);
+  }
+
+  .grand-total-label {
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 10pt;
+    font-weight: 600;
+    letter-spacing: 2.5px;
+    text-transform: uppercase;
+    color: var(--gold);
+  }
+
+  .grand-total-sublabel {
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 8pt;
+    font-style: italic;
+    color: rgba(255,255,255,0.65);
+    margin-top: 2px;
+    letter-spacing: 0;
+    text-transform: none;
+    font-weight: 400;
+  }
+
+  .grand-total-value {
+    font-family: 'Playfair Display', serif;
+    font-size: 26pt;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    line-height: 1;
+  }
+
+  /* ============ FOOTER ============ */
+  .page-footer {
+    position: absolute;
+    bottom: 0.4in;
+    left: 0.75in;
+    right: 0.75in;
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    align-items: center;
+    padding-top: 8px;
+    border-top: 1px solid var(--gold);
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 7.5pt;
+    letter-spacing: 1.2px;
+    color: var(--ink-faint);
+    text-transform: uppercase;
+  }
+
+  .page-footer-center { text-align: center; }
+  .page-footer-right { text-align: right; }
+
+  /* ============ PAGE 2 HEADER (continuation) ============ */
+  .page-header-continuation {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding-bottom: 10px;
+    margin-bottom: 24px;
+    border-bottom: 1px solid var(--gold);
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 8.5pt;
+    letter-spacing: 1.3px;
+    color: var(--ink-faint);
+    text-transform: uppercase;
+  }
+
+  .page-header-continuation strong {
+    color: var(--ink);
+    font-weight: 600;
+  }
+
+  /* ============ ALTERNATES PLACEHOLDER ============ */
+  .alternates-placeholder {
+    margin-top: 22px;
+    padding: 18px 20px;
+    border: 1px dashed var(--gold);
+    background: rgba(200, 164, 78, 0.04);
+    text-align: center;
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 9pt;
+    color: var(--ink-faint);
+    letter-spacing: 1px;
+  }
+
+  .alternates-placeholder-title {
+    font-weight: 700;
+    color: var(--gold);
+    letter-spacing: 2.5px;
+    text-transform: uppercase;
+    margin-bottom: 4px;
+    font-size: 10pt;
+  }
+
+  /* ============ QUALIFICATIONS / INCLUSIONS / EXCLUSIONS ============ */
+  .terms-block {
+    margin-top: 20px;
+  }
+
+  .qual-scope {
+    padding: 10px 0;
+    border-bottom: 1px solid var(--rule-faint);
+  }
+
+  .qual-scope:last-child { border-bottom: none; }
+
+  .qual-scope-name {
+    font-family: 'Rajdhani', sans-serif;
+    font-weight: 700;
+    font-size: 9.5pt;
+    letter-spacing: 1.3px;
+    text-transform: uppercase;
+    color: var(--ink);
+    margin-bottom: 5px;
+  }
+
+  .qual-scope-csi {
+    font-size: 7.5pt;
+    letter-spacing: 1.5px;
+    color: var(--gold);
+    margin-left: 8px;
+    font-weight: 500;
+  }
+
+  .qual-line {
+    font-size: 8.5pt;
+    line-height: 1.55;
+    margin: 2px 0;
+    padding-left: 16px;
+    position: relative;
+    color: var(--ink-soft);
+  }
+
+  .qual-line::before {
+    position: absolute;
+    left: 0;
+    top: 0;
+    font-family: 'Rajdhani', sans-serif;
+    font-weight: 700;
+    font-size: 8pt;
+  }
+
+  .qual-includes::before { content: "✓"; color: #2d7a3e; }
+  .qual-excludes::before { content: "✕"; color: #b23030; }
+  .qual-notes::before { content: "▸"; color: var(--gold); }
+
+  /* Standard bulleted lists for global inclusions / exclusions */
+  .standard-list {
+    font-size: 8.75pt;
+    line-height: 1.7;
+    color: var(--ink-soft);
+    margin-top: 6px;
+  }
+
+  .standard-list li {
+    list-style: none;
+    padding-left: 14px;
+    position: relative;
+    margin: 1px 0;
+  }
+
+  .standard-list li::before {
+    content: "—";
+    position: absolute;
+    left: 0;
+    color: var(--gold);
+    font-weight: 700;
+  }
+
+  /* ============ SIGNATURE BLOCK (single column) ============ */
+  .signature-wrapper {
+    margin-top: 28px;
+    padding-top: 20px;
+    border-top: 2px solid var(--ink);
+    position: relative;
+  }
+
+  .signature-wrapper::before {
+    content: "";
+    position: absolute;
+    top: -6px;
+    left: 0;
+    right: 0;
+    height: 1px;
+    background: var(--gold);
+  }
+
+  .validity {
+    font-size: 8pt;
+    font-style: italic;
+    color: var(--ink-faint);
+    text-align: center;
+    margin-bottom: 20px;
+    letter-spacing: 0.3px;
+  }
+
+  .signature-single {
+    max-width: 340px;
+  }
+
+  .sig-best-regards {
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 10pt;
+    color: var(--ink);
+    margin-bottom: 6px;
+  }
+
+  .sig-profile-placeholder {
+    margin-top: 10px;
+    padding: 22px 20px;
+    border: 1px dashed var(--gold);
+    background: rgba(200, 164, 78, 0.06);
+    max-width: 340px;
+  }
+
+  .sig-profile-label {
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 9pt;
+    font-weight: 700;
+    letter-spacing: 3px;
+    color: var(--gold);
+    text-transform: uppercase;
+    margin-bottom: 6px;
+  }
+
+  .sig-profile-desc {
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 9pt;
+    color: var(--ink-faint);
+    line-height: 1.55;
+    letter-spacing: 0.3px;
+  }
+
+  .sig-line-filled {
+    font-family: 'Playfair Display', serif;
+    font-style: italic;
+    font-size: 22pt;
+    font-weight: 400;
+    color: var(--ink);
+    line-height: 1;
+    margin-bottom: 4px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid var(--ink);
+    display: inline-block;
+    min-width: 240px;
+  }
+
+  .sig-name-printed {
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 12pt;
+    font-weight: 700;
+    color: var(--ink);
+    letter-spacing: 0.5px;
+    margin-top: 10px;
+  }
+
+  .sig-title-printed {
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 9pt;
+    color: var(--ink-soft);
+    letter-spacing: 0.8px;
+    text-transform: uppercase;
+    margin-top: 1px;
+    margin-bottom: 8px;
+  }
+
+  .sig-contact-line {
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 9pt;
+    color: var(--ink-soft);
+    line-height: 1.7;
+    letter-spacing: 0.3px;
+  }
+
+  .sig-contact-line .prefix {
+    display: inline-block;
+    width: 14px;
+    font-weight: 700;
+    color: var(--ink);
+  }
+
+  .sig-nbs-lockup {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 14px;
+    padding-top: 10px;
+    border-top: 1px solid var(--rule);
+  }
+
+  .sig-nbs-lockup-icon {
+    width: 36px;
+    height: 36px;
+    background: var(--ink);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+
+  .sig-nbs-lockup-icon svg {
+    width: 22px;
+    height: 22px;
+    color: var(--gold);
+  }
+
+  .sig-nbs-lockup-divider {
+    width: 1px;
+    height: 28px;
+    background: var(--gold);
+  }
+
+  .sig-nbs-lockup-text {
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 11pt;
+    font-weight: 700;
+    letter-spacing: 2px;
+    color: var(--ink);
+    text-transform: uppercase;
+  }
+
+  @media (max-width: 1700px) {
+    .views-container { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<div class="views-container">
+
+  <!-- ============= LEFT: DEFAULT VIEW ============= -->
+  <div class="view-column">
+    <div class="view-label">
+      <span>Default View</span>
+      <span class="status off">Unit Pricing · OFF</span>
+    </div>
+
+    <div class="page">
+      <!-- UNIFIED HEADER -->
+      <div class="header">
+        <div class="header-top">
+          <div class="brand-mark">
+            <div class="brand-logo-placeholder">[ NBS LOGO ]</div>
+            <div class="brand-name">National Building<br>Specialties</div>
+            <div class="brand-tagline">Div 10 · Furnish Only</div>
+          </div>
+          <div class="doc-title-lockup">
+            <div class="doc-eyebrow">Formal Bid Proposal</div>
+            <div class="doc-title">Division 10 Specialties</div>
+            <div class="doc-title-rule"></div>
+          </div>
+          <div class="company-block">
+            
+            <strong>4130 Flat Rock Dr, Suite 110</strong><br>
+            Riverside, CA 92505<br>
+
+            E · NationalBuildingSpecialties.com
+            <div class="license">CA LIC #1101865</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="meta-grid">
+        <div class="meta-row"><div class="meta-label">Date</div><div class="meta-value">04/19/2026</div></div>
+        <div class="meta-row"><div class="meta-label">Proposal #</div><div class="meta-value">PV-2026-0847</div></div>
+        <div class="meta-row"><div class="meta-label">Project</div><div class="meta-value">Phoenix DC-4</div></div>
+        <div class="meta-row"><div class="meta-label">GC</div><div class="meta-value">Swinerton Builders</div></div>
+        <div class="meta-row"><div class="meta-label">Attn</div><div class="meta-value">Marcus Delgado</div></div>
+        <div class="meta-row"><div class="meta-label">Prepared By</div><div class="meta-value">Haley Kruse</div></div>
+      </div>
+
+      <div class="section-header">
+        <div class="section-header-num">01</div>
+        <div class="section-header-title">Scope of Material</div>
+        <div class="section-header-rule"></div>
+      </div>
+
+      <!-- SCOPE 1 -->
+      <div class="scope">
+        <div class="scope-header">
+          <div class="scope-title">Toilet Accessories</div>
+          <div class="scope-csi">CSI 10 28 00</div>
+        </div>
+        <table class="items-table">
+          <colgroup>
+            <col style="width:13%"><col style="width:22%"><col style="width:42%"><col style="width:10%"><col style="width:13%">
+          </colgroup>
+          <thead>
+            <tr>
+              <th class="callout-head">Callout</th>
+              <th>Model</th>
+              <th>Description</th>
+              <th class="num">Qty</th>
+              <th class="center">UOM</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td class="callout">TA-01</td><td class="model">B-165 2436</td><td class="desc">Bobrick channel-frame mirror, 24"×36"</td><td class="num">24</td><td class="uom">EA</td></tr>
+            <tr><td class="callout">TA-02</td><td class="model">B-2888</td><td class="desc">Surface-mounted paper towel dispenser</td><td class="num">12</td><td class="uom">EA</td></tr>
+            <tr><td class="callout">TA-03</td><td class="model">B-6806.99</td><td class="desc">Grab bar, 36", peened grip, stainless<div class="item-note">ADA-compliant, 1-1/2" diameter</div></td><td class="num">48</td><td class="uom">EA</td></tr>
+            <tr><td class="callout">TA-04</td><td class="model">B-4112</td><td class="desc">Recessed seat-cover dispenser</td><td class="num">12</td><td class="uom">EA</td></tr>
+            <tr class="scope-subtotal-row"><td class="subtotal-callout"></td><td colspan="3">Scope Subtotal</td><td class="num">$48,720</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- SCOPE 2 -->
+      <div class="scope">
+        <div class="scope-header">
+          <div class="scope-title">Toilet Partitions</div>
+          <div class="scope-csi">CSI 10 21 13</div>
+        </div>
+        <table class="items-table">
+          <colgroup>
+            <col style="width:13%"><col style="width:22%"><col style="width:42%"><col style="width:10%"><col style="width:13%">
+          </colgroup>
+          <thead>
+            <tr>
+              <th class="callout-head">Callout</th>
+              <th>Model</th>
+              <th>Description</th>
+              <th class="num">Qty</th>
+              <th class="center">UOM</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td class="callout">TP-01</td><td class="model">SP-OHB</td><td class="desc">Solid phenolic, overhead-braced, floor-mounted</td><td class="num">18</td><td class="uom">EA</td></tr>
+            <tr><td class="callout">TP-02</td><td class="model">SP-URN</td><td class="desc">Urinal screen, floor-anchored, solid phenolic<div class="item-note">Sloped top per spec</div></td><td class="num">6</td><td class="uom">EA</td></tr>
+            <tr><td class="callout">TP-03.A</td><td class="model">SP-ADA</td><td class="desc">ADA-compliant compartment door hardware</td><td class="num">4</td><td class="uom">SET</td></tr>
+            <tr class="scope-subtotal-row"><td class="subtotal-callout"></td><td colspan="3">Scope Subtotal</td><td class="num">$62,450</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- SCOPE 3 -->
+      <div class="scope">
+        <div class="scope-header">
+          <div class="scope-title">Lockers</div>
+          <div class="scope-csi">CSI 10 51 13</div>
+        </div>
+        <table class="items-table">
+          <colgroup>
+            <col style="width:13%"><col style="width:22%"><col style="width:42%"><col style="width:10%"><col style="width:13%">
+          </colgroup>
+          <thead>
+            <tr>
+              <th class="callout-head">Callout</th>
+              <th>Model</th>
+              <th>Description</th>
+              <th class="num">Qty</th>
+              <th class="center">UOM</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td class="callout">LK-01</td><td class="model">HD-151872</td><td class="desc">Heavy-duty steel locker, 15"W × 18"D × 72"H</td><td class="num">72</td><td class="uom">EA</td></tr>
+            <tr><td class="callout">LK-PAD</td><td class="model">LK-PAD</td><td class="desc">Keyed-alike padlock, brass shackle</td><td class="num">72</td><td class="uom">EA</td></tr>
+            <tr class="scope-subtotal-row"><td class="subtotal-callout"></td><td colspan="3">Scope Subtotal</td><td class="num">$34,890</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="grand-total-wrapper">
+        <div>
+          <div class="grand-total-label">Total Bid</div>
+          <div class="grand-total-sublabel">Furnish only · material &amp; freight included</div>
+        </div>
+        <div class="grand-total-value">$146,060</div>
+      </div>
+
+      <!-- ALTERNATES PLACEHOLDER -->
+      <div class="alternates-placeholder">
+        <div class="alternates-placeholder-title">Alternates / Breakouts</div>
+        <div>[Reserved — populated after breakout audit pass]</div>
+      </div>
+
+      <div class="page-footer">
+        <div>NBS · Furnish Only</div>
+        <div class="page-footer-center">Page 1 of 2</div>
+        <div class="page-footer-right">CA LIC #1101865</div>
+      </div>
+    </div>
+
+    <!-- ============= PAGE 2 (DEFAULT VIEW) ============= -->
+    <div class="page">
+      <div class="page-header-continuation">
+        <div><strong>NBS Proposal</strong> · Phoenix DC-4 · PV-2026-0847</div>
+        <div>04 / 19 / 2026</div>
+      </div>
+
+      <!-- QUALIFICATIONS -->
+      <div class="section-header">
+        <div class="section-header-num">02</div>
+        <div class="section-header-title">Qualifications</div>
+        <div class="section-header-rule"></div>
+      </div>
+
+      <div class="terms-block">
+        <div class="qual-scope">
+          <div class="qual-scope-name">Toilet Partitions<span class="qual-scope-csi">CSI 10 21 13</span></div>
+          <div class="qual-line qual-notes">Lead time 8–10 weeks from approved submittals.</div>
+          <div class="qual-line qual-notes">Final field measurements required prior to fabrication.</div>
+        </div>
+        <div class="qual-scope">
+          <div class="qual-scope-name">Lockers<span class="qual-scope-csi">CSI 10 51 13</span></div>
+          <div class="qual-line qual-notes">Standard manufacturer color chart — specific color selection required at submittal.</div>
+        </div>
+        <div class="qual-scope">
+          <div class="qual-scope-name">General<span class="qual-scope-csi">All Scopes</span></div>
+          <div class="qual-line qual-notes">Standard manufacturer warranty on all furnished items.</div>
+          <div class="qual-line qual-notes">Submittal package and product data provided within 10 business days of award.</div>
+          <div class="qual-line qual-notes">Delivery schedule to be coordinated with GC upon award.</div>
+        </div>
+      </div>
+
+      <!-- INCLUSIONS -->
+      <div class="section-header">
+        <div class="section-header-num">03</div>
+        <div class="section-header-title">Inclusions</div>
+        <div class="section-header-rule"></div>
+      </div>
+
+      <ul class="standard-list">
+        <li>Addenda acknowledged: 01, 02, 03.</li>
+        <li>Material furnished per plans, specifications, and addenda acknowledged above.</li>
+        <li>Sales tax included at 8.75%.</li>
+        <li>Freight to jobsite included, F.O.B. jobsite.</li>
+        <li>Product submittals, shop drawings, and manufacturer data sheets.</li>
+      </ul>
+
+      <!-- EXCLUSIONS -->
+      <div class="section-header">
+        <div class="section-header-num">04</div>
+        <div class="section-header-title">Exclusions</div>
+        <div class="section-header-rule"></div>
+      </div>
+
+      <ul class="standard-list">
+        <li>Installation labor (by others).</li>
+        <li>Blocking, backing, and rough-in (by others).</li>
+        <li>Offloading, distribution, and jobsite handling (by others).</li>
+        <li>Performance &amp; payment bonds unless itemized above.</li>
+        <li>Overtime, premium time, or accelerated fabrication schedules.</li>
+        <li>Any work or items not specifically listed in this proposal.</li>
+      </ul>
+
+      <!-- SIGNATURE BLOCK -->
+      <div class="signature-wrapper">
+        <div class="validity">This proposal is valid for thirty (30) days from the date above.</div>
+        <div class="signature-single">
+          <div class="sig-best-regards">Best Regards,</div>
+          <div class="sig-profile-placeholder">
+            <div class="sig-profile-label">Estimator Profile</div>
+            <div class="sig-profile-desc">Pulls from &quot;Prepared By&quot; user profile:<br>name, title, D phone, M phone, email, signature image</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="page-footer">
+        <div>NBS · Furnish Only</div>
+        <div class="page-footer-center">Page 2 of 2</div>
+        <div class="page-footer-right">CA LIC #1101865</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============= RIGHT: PRICING ON ============= -->
+  <div class="view-column">
+    <div class="view-label">
+      <span>Pricing Toggled On</span>
+      <span class="status on">Unit Pricing · ON</span>
+    </div>
+
+    <div class="page">
+      <div class="header">
+        <div class="header-top">
+          <div class="brand-mark">
+            <div class="brand-logo-placeholder">[ NBS LOGO ]</div>
+            <div class="brand-name">National Building<br>Specialties</div>
+            <div class="brand-tagline">Div 10 · Furnish Only</div>
+          </div>
+          <div class="doc-title-lockup">
+            <div class="doc-eyebrow">Formal Bid Proposal</div>
+            <div class="doc-title">Division 10 Specialties</div>
+            <div class="doc-title-rule"></div>
+          </div>
+          <div class="company-block">
+            
+            <strong>4130 Flat Rock Dr, Suite 110</strong><br>
+            Riverside, CA 92505<br>
+
+            E · NationalBuildingSpecialties.com
+            <div class="license">CA LIC #1101865</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="meta-grid">
+        <div class="meta-row"><div class="meta-label">Date</div><div class="meta-value">04/19/2026</div></div>
+        <div class="meta-row"><div class="meta-label">Proposal #</div><div class="meta-value">PV-2026-0847</div></div>
+        <div class="meta-row"><div class="meta-label">Project</div><div class="meta-value">Phoenix DC-4</div></div>
+        <div class="meta-row"><div class="meta-label">GC</div><div class="meta-value">Swinerton Builders</div></div>
+        <div class="meta-row"><div class="meta-label">Attn</div><div class="meta-value">Marcus Delgado</div></div>
+        <div class="meta-row"><div class="meta-label">Prepared By</div><div class="meta-value">Haley Kruse</div></div>
+      </div>
+
+      <div class="section-header">
+        <div class="section-header-num">01</div>
+        <div class="section-header-title">Scope of Material</div>
+        <div class="section-header-rule"></div>
+      </div>
+
+      <!-- SCOPE 1 -->
+      <div class="scope">
+        <div class="scope-header">
+          <div class="scope-title">Toilet Accessories</div>
+          <div class="scope-csi">CSI 10 28 00</div>
+        </div>
+        <table class="items-table">
+          <colgroup>
+            <col style="width:11%"><col style="width:16%"><col style="width:30%"><col style="width:7%"><col style="width:8%"><col style="width:14%"><col style="width:14%">
+          </colgroup>
+          <thead>
+            <tr>
+              <th class="callout-head">Callout</th>
+              <th>Model</th>
+              <th>Description</th>
+              <th class="num">Qty</th>
+              <th class="center">UOM</th>
+              <th class="num">Unit $</th>
+              <th class="num">Extended</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td class="callout">TA-01</td><td class="model">B-165 2436</td><td class="desc">Bobrick channel-frame mirror, 24"×36"</td><td class="num">24</td><td class="uom">EA</td><td class="num">$125.00</td><td class="num">$3,000.00</td></tr>
+            <tr><td class="callout">TA-02</td><td class="model">B-2888</td><td class="desc">Paper towel dispenser, surface-mounted</td><td class="num">12</td><td class="uom">EA</td><td class="num">$189.00</td><td class="num">$2,268.00</td></tr>
+            <tr><td class="callout">TA-03</td><td class="model">B-6806.99</td><td class="desc">Grab bar, 36", peened grip, stainless<div class="item-note">ADA-compliant, 1-1/2" diameter</div></td><td class="num">48</td><td class="uom">EA</td><td class="num">$87.50</td><td class="num">$4,200.00</td></tr>
+            <tr><td class="callout">TA-04</td><td class="model">B-4112</td><td class="desc">Recessed seat-cover dispenser</td><td class="num">12</td><td class="uom">EA</td><td class="num">$142.00</td><td class="num">$1,704.00</td></tr>
+            <tr class="scope-subtotal-row"><td class="subtotal-callout"></td><td colspan="5">Scope Subtotal</td><td class="num">$48,720</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- SCOPE 2 -->
+      <div class="scope">
+        <div class="scope-header">
+          <div class="scope-title">Toilet Partitions</div>
+          <div class="scope-csi">CSI 10 21 13</div>
+        </div>
+        <table class="items-table">
+          <colgroup>
+            <col style="width:11%"><col style="width:16%"><col style="width:30%"><col style="width:7%"><col style="width:8%"><col style="width:14%"><col style="width:14%">
+          </colgroup>
+          <thead>
+            <tr>
+              <th class="callout-head">Callout</th>
+              <th>Model</th>
+              <th>Description</th>
+              <th class="num">Qty</th>
+              <th class="center">UOM</th>
+              <th class="num">Unit $</th>
+              <th class="num">Extended</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td class="callout">TP-01</td><td class="model">SP-OHB</td><td class="desc">Solid phenolic, overhead-braced, floor-mounted</td><td class="num">18</td><td class="uom">EA</td><td class="num">$2,845.00</td><td class="num">$51,210.00</td></tr>
+            <tr><td class="callout">TP-02</td><td class="model">SP-URN</td><td class="desc">Urinal screen, floor-anchored<div class="item-note">Sloped top per spec</div></td><td class="num">6</td><td class="uom">EA</td><td class="num">$985.00</td><td class="num">$5,910.00</td></tr>
+            <tr><td class="callout">TP-03.A</td><td class="model">SP-ADA</td><td class="desc">ADA-compliant compartment door hardware</td><td class="num">4</td><td class="uom">SET</td><td class="num">$1,332.50</td><td class="num">$5,330.00</td></tr>
+            <tr class="scope-subtotal-row"><td class="subtotal-callout"></td><td colspan="5">Scope Subtotal</td><td class="num">$62,450</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- SCOPE 3 -->
+      <div class="scope">
+        <div class="scope-header">
+          <div class="scope-title">Lockers</div>
+          <div class="scope-csi">CSI 10 51 13</div>
+        </div>
+        <table class="items-table">
+          <colgroup>
+            <col style="width:11%"><col style="width:16%"><col style="width:30%"><col style="width:7%"><col style="width:8%"><col style="width:14%"><col style="width:14%">
+          </colgroup>
+          <thead>
+            <tr>
+              <th class="callout-head">Callout</th>
+              <th>Model</th>
+              <th>Description</th>
+              <th class="num">Qty</th>
+              <th class="center">UOM</th>
+              <th class="num">Unit $</th>
+              <th class="num">Extended</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td class="callout">LK-01</td><td class="model">HD-151872</td><td class="desc">Heavy-duty steel locker, 15"W × 18"D × 72"H</td><td class="num">72</td><td class="uom">EA</td><td class="num">$445.00</td><td class="num">$32,040.00</td></tr>
+            <tr><td class="callout">LK-PAD</td><td class="model">LK-PAD</td><td class="desc">Keyed-alike padlock, brass shackle</td><td class="num">72</td><td class="uom">EA</td><td class="num">$39.58</td><td class="num">$2,850.00</td></tr>
+            <tr class="scope-subtotal-row"><td class="subtotal-callout"></td><td colspan="5">Scope Subtotal</td><td class="num">$34,890</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="grand-total-wrapper">
+        <div>
+          <div class="grand-total-label">Total Bid</div>
+          <div class="grand-total-sublabel">Furnish only · material &amp; freight included</div>
+        </div>
+        <div class="grand-total-value">$146,060</div>
+      </div>
+
+      <!-- ALTERNATES PLACEHOLDER -->
+      <div class="alternates-placeholder">
+        <div class="alternates-placeholder-title">Alternates / Breakouts</div>
+        <div>[Reserved — populated after breakout audit pass]</div>
+      </div>
+
+      <div class="page-footer">
+        <div>NBS · Furnish Only</div>
+        <div class="page-footer-center">Page 1 of 2</div>
+        <div class="page-footer-right">CA LIC #1101865</div>
+      </div>
+    </div>
+
+    <!-- ============= PAGE 2 (PRICING ON) ============= -->
+    <div class="page">
+      <div class="page-header-continuation">
+        <div><strong>NBS Proposal</strong> · Phoenix DC-4 · PV-2026-0847</div>
+        <div>04 / 19 / 2026</div>
+      </div>
+
+      <!-- QUALIFICATIONS -->
+      <div class="section-header">
+        <div class="section-header-num">02</div>
+        <div class="section-header-title">Qualifications</div>
+        <div class="section-header-rule"></div>
+      </div>
+
+      <div class="terms-block">
+        <div class="qual-scope">
+          <div class="qual-scope-name">Toilet Partitions<span class="qual-scope-csi">CSI 10 21 13</span></div>
+          <div class="qual-line qual-notes">Lead time 8–10 weeks from approved submittals.</div>
+          <div class="qual-line qual-notes">Final field measurements required prior to fabrication.</div>
+        </div>
+        <div class="qual-scope">
+          <div class="qual-scope-name">Lockers<span class="qual-scope-csi">CSI 10 51 13</span></div>
+          <div class="qual-line qual-notes">Standard manufacturer color chart — specific color selection required at submittal.</div>
+        </div>
+        <div class="qual-scope">
+          <div class="qual-scope-name">General<span class="qual-scope-csi">All Scopes</span></div>
+          <div class="qual-line qual-notes">Standard manufacturer warranty on all furnished items.</div>
+          <div class="qual-line qual-notes">Submittal package and product data provided within 10 business days of award.</div>
+          <div class="qual-line qual-notes">Delivery schedule to be coordinated with GC upon award.</div>
+        </div>
+      </div>
+
+      <!-- INCLUSIONS -->
+      <div class="section-header">
+        <div class="section-header-num">03</div>
+        <div class="section-header-title">Inclusions</div>
+        <div class="section-header-rule"></div>
+      </div>
+
+      <ul class="standard-list">
+        <li>Addenda acknowledged: 01, 02, 03.</li>
+        <li>Material furnished per plans, specifications, and addenda acknowledged above.</li>
+        <li>Sales tax included at 8.75%.</li>
+        <li>Freight to jobsite included, F.O.B. jobsite.</li>
+        <li>Product submittals, shop drawings, and manufacturer data sheets.</li>
+      </ul>
+
+      <!-- EXCLUSIONS -->
+      <div class="section-header">
+        <div class="section-header-num">04</div>
+        <div class="section-header-title">Exclusions</div>
+        <div class="section-header-rule"></div>
+      </div>
+
+      <ul class="standard-list">
+        <li>Installation labor (by others).</li>
+        <li>Blocking, backing, and rough-in (by others).</li>
+        <li>Offloading, distribution, and jobsite handling (by others).</li>
+        <li>Performance &amp; payment bonds unless itemized above.</li>
+        <li>Overtime, premium time, or accelerated fabrication schedules.</li>
+        <li>Any work or items not specifically listed in this proposal.</li>
+      </ul>
+
+      <!-- SIGNATURE BLOCK -->
+      <div class="signature-wrapper">
+        <div class="validity">This proposal is valid for thirty (30) days from the date above.</div>
+        <div class="signature-single">
+          <div class="sig-best-regards">Best Regards,</div>
+          <div class="sig-profile-placeholder">
+            <div class="sig-profile-label">Estimator Profile</div>
+            <div class="sig-profile-desc">Pulls from &quot;Prepared By&quot; user profile:<br>name, title, D phone, M phone, email, signature image</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="page-footer">
+        <div>NBS · Furnish Only</div>
+        <div class="page-footer-center">Page 2 of 2</div>
+        <div class="page-footer-right">CA LIC #1101865</div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+</body>
+</html>
