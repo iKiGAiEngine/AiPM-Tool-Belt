@@ -1,0 +1,215 @@
+I'm redesigning the NBS estimate proposal printout. I've attached a mockup file (nbs_proposal_mockup_v8.html) that shows exactly what the final PDF should look like, with both views side by side (pricing hidden by default, pricing shown when toggled). Build the implementation to match this mockup. Ask me clarifying questions before writing code if anything is ambiguous — do not guess or improvise.
+
+### 1. Switch from browser print-to-PDF to real PDF generation
+
+Replace the current window.open + window.print flow in handlePrint (EstimatingModulePage.tsx lines 1609–1648) with a real PDF generator using pdf-lib (already installed, already used by Plan Parser and Project Export). The "Print / PDF" button should download a .pdf file directly — no popup, no OS print dialog.
+
+Keep the old browser-print flow available as a fallback that only triggers if pdf-lib generation fails.
+
+Font handling concern: The mockup uses Playfair Display, Rajdhani, Source Serif 4, and JetBrains Mono. pdf-lib requires fonts to be embedded as TTF/OTF files. Research the cleanest way to load these custom fonts into pdf-lib — if it's painful, recommend the nearest acceptable fallbacks that preserve the visual hierarchy (e.g., Times/Helvetica for serif/sans if custom fonts can't be embedded cleanly). Do not silently swap fonts without telling me.
+
+### 2. Page setup
+
+- Letter size (8.5" × 11"), portrait
+- Margins: 0.75" all sides
+- Standard two-page flow; more pages if content overflows
+- Page footer on every page: gold hairline, "NBS · Furnish Only" left, "Page X of Y" center, "CA LIC #1098745" right
+- Page header on page 2+: gold hairline, "NBS Proposal · [Project Name] · [PV#]" left, date right
+
+### 3. Page 1 structure (top to bottom)
+
+A. Unified header (3-column band)
+- Left column: NBS monogram logo box + "National Building Specialties" in Playfair Display 17px + "Div 10 · Furnish Only" tagline in Rajdhani 8.5px gold uppercase
+- Center column: "FORMAL BID PROPOSAL" eyebrow (Rajdhani 9px gold, 5px letter-spacing) + "DIVISION 10 SPECIALTIES" title (Playfair Display 24px, 1px letter-spacing) + 50px black underline. This is the document's dominant heading.
+- Right column: Company address block (Rajdhani 8pt, right-aligned). Shows: bold street address, city/state/zip, email. Below a hairline: "CA LIC #1098745 · B, C-61" in 7pt faint gray. Do NOT repeat the company name here (it's already on the left). Do NOT include a phone number.
+- Grid ratio: 1fr 1.3fr 1fr, all three columns vertically center-aligned
+- Close the header with the layered gold double-rule effect (3px gold + paper gap + 1px gold) at the bottom
+
+B. Metadata grid (two-column, 8-field)
+- Fields in order: Date | Proposal # (PV#) | Project | RFP # | GC | Attn | Addenda | Prepared By
+- Labels: Rajdhani 8.5pt uppercase faint gray, 1.2px letter-spacing
+- Values: Source Serif 4 9.5pt ink, 600 weight
+- Bordered top/bottom with thin vertical divider between columns
+
+C. Intro paragraph — fine-print style
+- 7.5pt italic, faint gray, line-height 1.5
+- Text: "National Building Specialties is pleased to submit the following proposal for furnishing Division 10 Specialties for the referenced project. Pricing below reflects material furnished only, F.O.B. jobsite, per the contract documents and addenda acknowledged above."
+- "National Building Specialties" is upright (not italic), 600 weight
+
+D. Section header: "01 — Scope of Material"
+- Italic gold "01" in Playfair 20px
+- Title in Rajdhani 11.5pt 700 weight uppercase, 2px letter-spacing
+- Thin hairline filler to the right
+
+E. Per-scope blocks — one table per active CSI category
+
+Each scope has:
+- Scope header row: scope name (Rajdhani 11pt caps) left, CSI code (Rajdhani 8.5pt gold) right, separated by 1px ink rule
+- Items table with these columns:
+
+Default view (pricing hidden): Callout | Model | Description | Qty | UOM
+Column widths: 13% / 22% / 42% / 10% / 13%
+
+Pricing-on view: Callout | Model | Description | Qty | UOM | Unit $ | Extended
+Column widths: 11% / 16% / 30% / 7% / 8% / 14% / 14%
+
+Column styling:
+- Callout: JetBrains Mono 8.25pt bold, centered, plain (no background color, no special border)
+- Model: Rajdhani 8.5pt 600 weight, ink color
+- Description: Source Serif 4 8.75pt, ink color. Line-item notes render below description as italic 7.75pt faint with gold ▸ prefix
+- Qty: tabular numerals, right-aligned
+- UOM: Rajdhani 8pt uppercase centered, faint color
+- Unit $ / Extended: tabular numerals, right-aligned, ink color, nowrap
+- Scope subtotal as a final table row: top border 1px solid ink, "SCOPE SUBTOTAL" in Rajdhani 10pt 700 uppercase, subtotal value at 11pt. Subtotal shows whole dollars (no cents) in both views.
+
+F. Grand Total bar
+- Dark band: background #1a1a1a, white text, padding 18px/22px
+- Gold 2px top border with a small gap (use the ::before layered approach from the mockup)
+- Left: "TOTAL BID" label (Rajdhani 10pt 700 gold uppercase, 2.5px letter-spacing) + sublabel "Furnish only · material & freight included" (Source Serif 4 8pt italic, 65% white)
+- Right: grand total amount in Playfair Display 26pt 700 weight. No cents. No gold accent on decimal. Whole dollars only.
+
+G. Alternates placeholder
+- Dashed gold border, subtle gold-tinted background
+- "ALTERNATES / BREAKOUTS" title in gold Rajdhani 10pt 700
+- Body: "[Reserved — populated after breakout audit pass]" in faint gray
+- Important: This is a placeholder for now. Do NOT attempt to implement breakouts logic yet — I'll run a separate breakouts audit and send a follow-up build prompt for this section.
+
+### 4. Page 2 structure
+
+A. Continuation header — gold hairline + "NBS Proposal · Phoenix DC-4 · PV-2026-0847" left, date right, Rajdhani 8.5pt
+
+B. Section 02 — Qualifications
+- Grouped by scope (one sub-block per scope that has qualifications)
+- Each sub-block: scope name + CSI code in gold, then qualification lines with gold ▸ prefix
+- Include a "General — All Scopes" sub-block at the end for cross-scope items (warranty, submittal timing, delivery coordination, etc.)
+- Pulls from: estimates.catQuals (per-scope) + a new general-qualifications field on estimates for cross-scope notes
+
+C. Section 03 — Inclusions
+- Bulleted list with gold em-dash markers, Source Serif 4 8.75pt
+- Dynamic tax rate sentence ("Sales tax included at X%" or "Sales tax NOT included")
+- Other inclusions currently hardcoded — move to a configurable list per estimate (new field) with sensible defaults
+
+D. Section 04 — Exclusions
+- Same list styling as Inclusions
+- Currently hardcoded in the app — move to a configurable list per estimate with sensible defaults (labor by others, blocking by others, offloading by others, bonds unless itemized, overtime, items not listed)
+
+E. Validity + Signature block
+- Top: 2px ink rule + gold hairline (mockup-style layered close)
+- Centered validity line: "This proposal is valid for thirty (30) days from the date above." Italic 8pt faint
+- Two-column signature:
+  - Left — "Respectfully Submitted": pre-signed signature line showing the estimator's name in Playfair italic 14pt, printed name + title below, date, NBS email contact below
+  - Right — "Accepted By": blank signature line, blank printed-name-and-title line, blank date line, plus "Acceptance constitutes award of this proposal and all terms listed herein." caption
+- Section headers for both columns: gold Rajdhani 8.5pt 700 uppercase with bottom hairline
+
+Estimator signature question: For now, render the signature as the estimator's name in Playfair italic (as in the mockup). In the future, we'll likely add a stored signature image per estimator — flag this as a TODO but don't build it yet.
+
+### 5. Color and typography system
+
+CSS variables to use throughout:
+- --gold: #C8A44E
+- --ink: #1a1a1a (primary text, dark backgrounds)
+- --ink-soft: #4a4a4a (secondary text)
+- --ink-faint: #8a8a8a (tertiary, labels, fine print)
+- --rule: #d4d4d4 (standard borders)
+- --rule-faint: #ececec (subtle borders)
+- --paper: #ffffff (page background)
+
+Fonts:
+- Display / headings: Playfair Display
+- Sans / labels / UI accents: Rajdhani
+- Body: Source Serif 4 (with Georgia as safe fallback)
+- Code / callouts: JetBrains Mono
+
+### 6. Toggle control
+
+In the Bid Summary stage (Stage 4), add ONE toggle switch labeled "Show unit pricing" (default: OFF). When ON, the Unit $ and Extended columns appear in every scope table; when OFF, they're hidden. Everything else on the proposal stays the same regardless of toggle state.
+
+Persist the toggle state on the estimate record (new boolean field showUnitPricing on estimates).
+
+### 7. Data model additions
+
+Before writing code, confirm whether these need to be created new or already exist:
+
+- company_info record — centralized NBS identity: logo path, address, email, license #, default estimator. If this doesn't exist, create it with a simple admin form in settings.
+- estimates.addendaAcknowledged — array or comma-separated list of addenda numbers
+- estimates.projectAddress — address string (distinct from GC contact)
+- estimates.rfpNumber — GC's RFP / project number
+- estimates.revisionNumber — optional integer for proposal revisions
+- estimates.showUnitPricing — boolean toggle state
+- estimates.generalQualifications — array of strings for cross-scope qualifications
+- estimates.customInclusions — array of strings (defaults injected if empty)
+- estimates.customExclusions — array of strings (defaults injected if empty)
+- Logo storage — where does the logo file live, how is it referenced? Suggest a clean pattern (uploaded to /uploads with a path stored on company_info, fallback to styled "N" monogram text if no logo is present).
+
+### 8. Page-break rules
+
+- Scopes must not split mid-row. Each scope either fits on the current page or starts fresh on the next.
+- Scope subtotal must stay with at least the last 2 line items of its scope on the same page.
+- Grand total bar must not be orphaned — it stays with at least the last scope subtotal.
+- Signature block must not split across pages — it moves to the next page as a whole unit if it doesn't fit.
+
+### 9. Scope fencing — do NOT touch
+
+- Excel export (client/src/lib/exportEstimateExcel.ts) — stays as-is
+- All estimating calculations — stays as-is
+- The on-screen #proposal-print-area preview in EstimatingModulePage.tsx — can stay as-is; the new PDF generator reads directly from React state, not from the DOM
+- No refactoring of unrelated code
+
+### 10. Before you start coding, confirm back to me:
+
+1. Your plan for embedding the four custom fonts into pdf-lib (or which fallbacks you'll use)
+2. Which of the new data fields in #7 need to be created (and your migration plan)
+3. Your approach for the logo — storage path, upload flow, fallback behavior
+4. Any rendering constraints in pdf-lib you foresee (e.g., complex layered gold-rule effects, background colors on the grand total bar, custom table rendering)
+5. Your plan for matching the mockup's typography scale at 8.5"×11" page size
+
+Deliver in this order: data model migrations first → PDF generator stub with one test scope → full page 1 rendering → full page 2 rendering → toggle integration → polish. Show me each stage before moving to the next.
+
+### 11. Data mapping audit — REQUIRED before and after build
+
+I need complete visibility into how estimate data flows into the new proposal PDF. Report on all of the following BEFORE writing code (sections A, B, C), and verify again AFTER the build (sections D, E):
+
+A. Field mapping confirmation
+
+For every field displayed in the new PDF (letterhead, metadata grid, line item tables, qualifications, inclusions, exclusions, signature block, etc.), tell me:
+- Where the data comes from: database table + column name, React state variable, hardcoded value, or the new company_info record
+- Whether that source currently exists and is populated, needs to be created, or exists but is empty/null on most estimates
+- The fallback behavior when that field is null, empty, or missing (e.g., "show 'TBD'", "hide the row entirely", "use default value")
+
+Present this as a table or structured list so I can scan it quickly.
+
+B. Orphaned fields — what's dropping off
+
+Compare the OLD proposal printout (current #proposal-print-area block in EstimatingModulePage.tsx lines 4648–4717) against the NEW PDF layout in the mockup. Tell me:
+- Any field, data point, or content section that currently renders in the old proposal but is NOT in the new PDF
+- For each orphaned field, the recommendation: is it intentionally removed (redundant/outdated), should it be added back somewhere in the new layout, or is it a mistake I need to decide on
+- Specifically check: hardcoded inclusion bullets, hardcoded exclusion bullets, assumptions array, risks array, tax rate handling, unit pricing display, scope-specific catQuals (inclusions / exclusions / qualifications text), date format, intro paragraph wording, "Proposal valid 30 days" line, signature block content
+
+C. New fields that need data entry UI
+
+For every NEW field the PDF requires that doesn't currently have a way for users to input it, flag what UI work is needed:
+- Field name
+- Where in the estimating flow it should be captured (which stage, which form, which component)
+- Input type (text, textarea, multi-select, date picker, etc.)
+- Whether it has a sensible default that avoids requiring user entry
+
+Examples I expect to see: Project Address, RFP #, Addenda Acknowledged list, Revision #, General Qualifications list, custom Inclusions/Exclusions lists, estimator signature image (if added).
+
+D. Null / empty state handling
+
+For each of these scenarios, tell me what the PDF does:
+- Estimate has no line items in a scope → does the scope block appear empty, get hidden, or error?
+- No addenda acknowledged → does the metadata row show "None," hide, or display "—"?
+- No breakouts (once that module is added) → placeholder text or section hidden?
+- Company info record is missing the logo → fall back to text monogram "N" or fail?
+- Estimator has no email on file → hide the contact line or show "TBD"?
+- Project address is blank → hide the row or show placeholder?
+
+E. Final verification checklist
+
+After the build is complete, before I approve it, run through a test estimate (either a real one or a fully-populated dummy) and produce a PDF. Send me:
+- The generated PDF file
+- A side-by-side check: every field in the PDF vs. the source data that populated it, so I can verify nothing is mis-mapped
+- A list of any fields that rendered with fallback values (meaning the source data was null/empty)
+
+Do not mark the work as complete until this verification pass is done and I've confirmed the mapping is correct.
