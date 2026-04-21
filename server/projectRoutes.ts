@@ -288,17 +288,18 @@ export function registerProjectRoutes(app: Express) {
       if (isNaN(id)) return res.status(400).json({ message: "Invalid ID" });
       const updateData = { ...req.body };
       if (updateData.selfPerformEstimators !== undefined) {
-        const allRegionsList = await db.select().from(regions).where(eq(regions.id, id));
-        const existing = allRegionsList[0]?.selfPerformEstimators || [];
         const incoming: string[] = Array.isArray(updateData.selfPerformEstimators) ? updateData.selfPerformEstimators : [];
-        const merged = [...existing];
+        const seen = new Set<string>();
+        const cleaned: string[] = [];
         for (const sp of incoming) {
-          const trimmed = sp.trim();
-          if (trimmed && !merged.some(e => e.toLowerCase() === trimmed.toLowerCase())) {
-            merged.push(trimmed);
+          const trimmed = (sp || "").trim();
+          const key = trimmed.toLowerCase();
+          if (trimmed && !seen.has(key)) {
+            seen.add(key);
+            cleaned.push(trimmed);
           }
         }
-        updateData.selfPerformEstimators = merged.length ? merged : null;
+        updateData.selfPerformEstimators = cleaned.length ? cleaned : null;
       }
       const region = await updateRegion(id, updateData);
       if (!region) return res.status(404).json({ message: "Not found" });
