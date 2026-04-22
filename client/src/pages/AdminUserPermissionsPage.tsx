@@ -57,11 +57,16 @@ export function AdminUserPermissionsPage() {
     setSelectedUser((cur) => cur ?? users[0]?.id ?? null);
   }, [users]);
 
+  function invalidateAll() {
+    queryClient.invalidateQueries({ queryKey: ["/api/admin/users/permissions/matrix"] });
+    queryClient.invalidateQueries({ queryKey: ["/api/user/features"] });
+  }
+
   const grantMutation = useMutation({
     mutationFn: async ({ userId, feature }: { userId: number; feature: string }) =>
       apiRequest("POST", `/api/admin/users/${userId}/permissions/grant`, { feature }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/admin/users/permissions/matrix"] });
+      invalidateAll();
       toast({ title: "Feature granted" });
     },
     onError: () => toast({ title: "Failed to grant feature", variant: "destructive" }),
@@ -71,7 +76,7 @@ export function AdminUserPermissionsPage() {
     mutationFn: async ({ userId, feature }: { userId: number; feature: string }) =>
       apiRequest("POST", `/api/admin/users/${userId}/permissions/revoke`, { feature }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/admin/users/permissions/matrix"] });
+      invalidateAll();
       toast({ title: "Feature revoked" });
     },
     onError: () => toast({ title: "Failed to revoke feature", variant: "destructive" }),
@@ -81,7 +86,7 @@ export function AdminUserPermissionsPage() {
     mutationFn: async (userId: number) =>
       apiRequest("POST", `/api/admin/users/${userId}/reset-permissions`, {}),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/admin/users/permissions/matrix"] });
+      invalidateAll();
       toast({ title: "Permissions reset to role defaults" });
     },
     onError: () => toast({ title: "Failed to reset permissions", variant: "destructive" }),
