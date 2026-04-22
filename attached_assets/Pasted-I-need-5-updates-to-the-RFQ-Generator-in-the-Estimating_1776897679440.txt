@@ -1,0 +1,53 @@
+I need 5 updates to the RFQ Generator in the Estimating Module (Stage 2 — Line Items page). Please read the current RFQ Generator code before making any changes and report back the relevant file paths. Then implement the following:
+
+1. RFQ Sent Log — Track RFQs sent and when
+Add a collapsible "RFQ Log" section below or adjacent to the RFQ Generator panel (same page, same scope section). Every time a user clicks "Copy" or "Open in Email" on an RFQ card, automatically log an entry with:
+
+Manufacturer name
+Date/time it was generated (timestamp)
+Estimator name (from logged-in user session)
+Project name
+Scope tab label
+
+Display this log as a small table with columns: Manufacturer | Sent By | Date & Time | Project | Scope. Store in a new database table rfq_log with those fields. Show the most recent 10 entries. Include a "View All" toggle to expand the full list.
+
+2. "Items Requested" — Spreadsheet-style column layout
+In the RFQ email body (both the Copy text and the email preview), the "Items Requested" block currently lists items as plain text. Replace it with a clean column format:
+ITEMS REQUESTED
+---------------------------------------------------------------
+Item Description          | Model #        | Qty   | Unit
+---------------------------------------------------------------
+Toilet Partition          | B-Series-1      | 12    | EA
+Grab Bar 36"              | B-6806          | 8     | EA
+---------------------------------------------------------------
+Use pipe characters and dashes to create the column structure in plain text (so it works in email). Space the columns so they align. Columns should be: Item Description | Model # | Qty | Unit.
+
+3. Ship To — Populate project address in the email
+The RFQ email body currently has a "Ship To:" line that is blank or missing. Update it to pull the project address from the estimate/proposal log record and insert it in the email body like this:
+Ship To:
+[Project Name]
+[Project Address]
+[City, State, ZIP]
+Check what field stores the project address — it may be on the proposal_log_entries table or the estimates table. Use whichever has address data. If no address is stored on the project, show: Ship To: [Address not on file — please add to project record]
+
+4. Manual RFQ Response Date field
+In the RFQ Generator panel (the UI, not the email), add a labeled input field:
+
+Label: "Vendor Response Needed By"
+Type: date picker (HTML <input type="date">)
+Placement: directly below the existing "Bid Due Date" display line inside the RFQ panel header section
+Default value: pre-filled with the current Bid Due Date from the proposal log
+Behavior: if the user changes this date, the RFQ email body should use THIS date as the "Bid Due Date" line in the email instead of the proposal log date. The proposal log Bid Due Date itself does NOT change — only the email reflects the override date.
+Label in the email should read: "Pricing Needed By: [date]" when an override is set.
+
+
+5. Remove the "IMPORTANT: NBS is a FURNISH ONLY subcontractor." line
+Find the line in the RFQ email template body that reads:
+IMPORTANT: NBS is a FURNISH ONLY subcontractor.
+Delete it entirely. Do not replace it with anything.
+
+After making all changes, please confirm:
+
+Which files were modified
+Whether a new DB table (rfq_log) was created and migrated
+Whether the Ship To address field exists on the current project data model or needs to be added
