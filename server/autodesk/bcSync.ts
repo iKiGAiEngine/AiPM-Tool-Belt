@@ -1208,7 +1208,7 @@ export function registerBcSyncRoutes(app: Express) {
       if (!entry.isDraft) return res.status(400).json({ message: "Entry is not a draft" });
       if (entry.deletedAt) return res.status(400).json({ message: "Entry has been deleted" });
 
-      const { projectName, region, dueDate, nbsEstimator, gcEstimateLead, owner, primaryMarket, notes, scopeList, force, mergeIntoId } = req.body || {};
+      const { projectName, region, dueDate, nbsEstimator, gcEstimateLead, owner, primaryMarket, notes, scopeList, projectAddress, squareFeet, anticipatedStart, anticipatedFinish, force, mergeIntoId } = req.body || {};
 
       const approverNameAC = user!.displayName || user!.email;
 
@@ -1259,6 +1259,10 @@ export function registerBcSyncRoutes(app: Express) {
       const finalOwner = owner !== undefined ? owner : entry.owner;
       const finalPrimaryMarket = primaryMarket || entry.primaryMarket || guessMarket(finalProjectName);
       const finalScopeList = scopeList !== undefined ? scopeList : entry.scopeList;
+      const finalProjectAddress = projectAddress !== undefined ? projectAddress : entry.projectAddress;
+      const finalSquareFeet = squareFeet !== undefined ? squareFeet : entry.squareFeet;
+      const finalAnticipatedStart = anticipatedStart !== undefined ? anticipatedStart : entry.anticipatedStart;
+      const finalAnticipatedFinish = anticipatedFinish !== undefined ? anticipatedFinish : entry.anticipatedFinish;
 
       if (!finalProjectName) {
         return res.status(400).json({ message: "Project name is required" });
@@ -1350,8 +1354,8 @@ export function registerBcSyncRoutes(app: Express) {
             }
             
             // B4: SHIP TO (Project Address)
-            if (entry.projectAddress) {
-              summarySheet.getCell("B4").value = entry.projectAddress;
+            if (finalProjectAddress) {
+              summarySheet.getCell("B4").value = finalProjectAddress;
               stampedCount++;
             }
             
@@ -1362,14 +1366,14 @@ export function registerBcSyncRoutes(app: Express) {
             }
             
             // B12: PROJECT START DATE
-            if (entry.anticipatedStart) {
-              summarySheet.getCell("B12").value = entry.anticipatedStart;
+            if (finalAnticipatedStart) {
+              summarySheet.getCell("B12").value = finalAnticipatedStart;
               stampedCount++;
             }
             
             // B13: PROJECT END DATE
-            if (entry.anticipatedFinish) {
-              summarySheet.getCell("B13").value = entry.anticipatedFinish;
+            if (finalAnticipatedFinish) {
+              summarySheet.getCell("B13").value = finalAnticipatedFinish;
               stampedCount++;
             }
           }
@@ -1396,7 +1400,7 @@ export function registerBcSyncRoutes(app: Express) {
         projectName: safeName,
         regionCode,
         dueDate: finalDueDate,
-        projectAddress: entry.projectAddress || undefined,
+        projectAddress: finalProjectAddress || undefined,
         status: "created",
         folderPath: projectDir,
         isTest: false,
@@ -1417,6 +1421,10 @@ export function registerBcSyncRoutes(app: Express) {
         primaryMarket: finalPrimaryMarket,
         notes: notes || entry.notes,
         scopeList: finalScopeList,
+        projectAddress: finalProjectAddress,
+        squareFeet: finalSquareFeet,
+        anticipatedStart: finalAnticipatedStart,
+        anticipatedFinish: finalAnticipatedFinish,
         projectDbId: project.id,
         filePath: projectDir,
         draftApprovedBy: approverName,
@@ -1509,7 +1517,7 @@ export function registerBcSyncRoutes(app: Express) {
       if (!entry) return res.status(404).json({ message: "Entry not found" });
       if (!entry.isDraft) return res.status(400).json({ message: "Entry is not a draft" });
 
-      const { projectName, region, dueDate, nbsEstimator, gcEstimateLead, owner, primaryMarket, notes, scopeList } = req.body;
+      const { projectName, region, dueDate, nbsEstimator, gcEstimateLead, owner, primaryMarket, notes, scopeList, projectAddress, squareFeet, anticipatedStart, anticipatedFinish } = req.body;
 
       const updates: Record<string, unknown> = {};
       if (projectName !== undefined) updates.projectName = projectName;
@@ -1521,6 +1529,10 @@ export function registerBcSyncRoutes(app: Express) {
       if (primaryMarket !== undefined) updates.primaryMarket = primaryMarket;
       if (notes !== undefined) updates.notes = notes;
       if (scopeList !== undefined) updates.scopeList = scopeList;
+      if (projectAddress !== undefined) updates.projectAddress = projectAddress;
+      if (squareFeet !== undefined) updates.squareFeet = squareFeet;
+      if (anticipatedStart !== undefined) updates.anticipatedStart = anticipatedStart;
+      if (anticipatedFinish !== undefined) updates.anticipatedFinish = anticipatedFinish;
 
       if (Object.keys(updates).length === 0) {
         return res.status(400).json({ message: "No fields to update" });

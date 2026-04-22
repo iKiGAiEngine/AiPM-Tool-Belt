@@ -33,6 +33,8 @@ interface ProposalLogEntry {
   projectDbId: number | null;
   anticipatedStart: string | null;
   anticipatedFinish: string | null;
+  projectAddress: string | null;
+  squareFeet: string | null;
   bcLink: string | null;
   screenshotPath: string | null;
   sourceType: string | null;
@@ -72,7 +74,7 @@ export default function ProjectLogPage() {
   const [sortDir, setSortDir] = useState<SortDir>("desc");
   const [showBcSync, setShowBcSync] = useState(false);
   const [editingDraft, setEditingDraft] = useState<ProposalLogEntry | null>(null);
-  const [editForm, setEditForm] = useState({ projectName: "", region: "", dueDate: "", nbsEstimator: "", gcEstimateLead: "", owner: "", primaryMarket: "", notes: "", scopeList: "" });
+  const [editForm, setEditForm] = useState({ projectName: "", region: "", dueDate: "", nbsEstimator: "", gcEstimateLead: "", owner: "", primaryMarket: "", notes: "", scopeList: "", projectAddress: "", squareFeet: "", anticipatedStart: "", anticipatedFinish: "" });
   const [rejectingDraftId, setRejectingDraftId] = useState<number | null>(null);
   const [rejectReason, setRejectReason] = useState("");
   const [approveResult, setApproveResult] = useState<{ projectId: string; downloadUrl: string; projectName: string } | null>(null);
@@ -466,6 +468,10 @@ export default function ProjectLogPage() {
       primaryMarket: entry.primaryMarket || "",
       notes: entry.notes || "",
       scopeList: entry.scopeList || "[]",
+      projectAddress: entry.projectAddress || "",
+      squareFeet: entry.squareFeet || "",
+      anticipatedStart: entry.anticipatedStart || "",
+      anticipatedFinish: entry.anticipatedFinish || "",
     });
   };
 
@@ -1487,6 +1493,48 @@ export default function ProjectLogPage() {
                         onChange={(e) => setEditForm(f => ({ ...f, primaryMarket: e.target.value }))}
                         className="text-sm"
                         data-testid="input-edit-market"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium mb-1 block" style={{ color: "var(--text-dim)" }}>Project Address</label>
+                    <Input
+                      value={editForm.projectAddress}
+                      onChange={(e) => setEditForm(f => ({ ...f, projectAddress: e.target.value }))}
+                      placeholder="Street, City, State ZIP"
+                      className="text-sm"
+                      data-testid="input-edit-project-address"
+                    />
+                  </div>
+                  <div className="grid grid-cols-3 gap-3">
+                    <div>
+                      <label className="text-xs font-medium mb-1 block" style={{ color: "var(--text-dim)" }}>Anticipated Start</label>
+                      <Input
+                        type="date"
+                        value={editForm.anticipatedStart}
+                        onChange={(e) => setEditForm(f => ({ ...f, anticipatedStart: e.target.value }))}
+                        className="text-sm"
+                        data-testid="input-edit-anticipated-start"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs font-medium mb-1 block" style={{ color: "var(--text-dim)" }}>Anticipated Finish</label>
+                      <Input
+                        type="date"
+                        value={editForm.anticipatedFinish}
+                        onChange={(e) => setEditForm(f => ({ ...f, anticipatedFinish: e.target.value }))}
+                        className="text-sm"
+                        data-testid="input-edit-anticipated-finish"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs font-medium mb-1 block" style={{ color: "var(--text-dim)" }}>Square Feet</label>
+                      <Input
+                        value={editForm.squareFeet}
+                        onChange={(e) => setEditForm(f => ({ ...f, squareFeet: e.target.value }))}
+                        placeholder="e.g. 125,000"
+                        className="text-sm"
+                        data-testid="input-edit-square-feet"
                       />
                     </div>
                   </div>
