@@ -8,10 +8,10 @@ import { Input } from "@/components/ui/input";
 import { Loader2, ArrowLeft, Download, ExternalLink } from "lucide-react";
 
 const STAGE_LABELS: Record<string, string> = {
-  intake: "Intake",
+  intake: "Project Info",
   lineItems: "Line Items",
   calculations: "Markups",
-  output: "Summary",
+  output: "Proposal",
 };
 
 function fmtMs(ms: number | string | null | undefined): string {

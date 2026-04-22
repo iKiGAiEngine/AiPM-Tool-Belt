@@ -1131,7 +1131,7 @@ function EstimatingModuleInner() {
   // milestones ("Moved to Markups", "Status: drafting → ready_for_review")
   // instead of relying on a manual save with a generic note.
   const STAGE_LABELS: Record<string, string> = {
-    intake: "Intake", lineItems: "Items", calculations: "Markups", output: "Summary",
+    intake: "Project Info", lineItems: "Line Items", calculations: "Markups", output: "Proposal",
   };
   const goToStage = useCallback(async (next: string) => {
     if (!estimateId || stage === next) { setStage(next as any); return; }
@@ -2204,10 +2204,10 @@ ${html}
         };
         const sm = STATUS_META[reviewStatus] || STATUS_META.drafting;
         const STAGES = [
-          { id: "intake",       label: "Intake",  color: "#C8A44E" },
-          { id: "lineItems",    label: "Items",   color: "#4ade80" },
+          { id: "intake",       label: "Project Info",  color: "#C8A44E" },
+          { id: "lineItems",    label: "Line Items",   color: "#4ade80" },
           { id: "calculations", label: "Markups", color: "#f97316" },
-          { id: "output",       label: "Summary", color: "#ef4444" },
+          { id: "output",       label: "Proposal", color: "#ef4444" },
         ] as const;
         const scopeAbbr = (label: string) => {
           if (label.length <= 4) return label.toUpperCase();
@@ -2361,7 +2361,7 @@ ${html}
                           {Math.round(progress.overall)}%
                         </span>
                         {[
-                          { label: "Intake",     pct: progress.intakePct,    color: "#C8A44E" },
+                          { label: "Project Info",     pct: progress.intakePct,    color: "#C8A44E" },
                           { label: "Line Items", pct: progress.lineItemsPct, color: "#4ade80" },
                           { label: "Markups",    pct: progress.calcsPct,     color: "#f97316" },
                           { label: "Output",     pct: progress.outputPct,    color: "#ef4444" },
@@ -2387,7 +2387,7 @@ ${html}
               </div>
             </div>
 
-            {/* SCOPE CHIPS BAR — only on the Line Items stage (Intake has its own scope picker) */}
+            {/* SCOPE CHIPS BAR — only on the Line Items stage (Project Info has its own scope picker) */}
             {stage === "lineItems" && activeScopes.length > 0 && (
               <div className="px-4 py-2"
                 style={{ background: "var(--bg-page)", borderBottom: "1px solid var(--border-ds)", backdropFilter: "blur(12px)" }}>
@@ -2687,9 +2687,9 @@ ${html}
             </div>
           </div>
 
-          {/* Intake checklist */}
+          {/* Project Info checklist */}
           <div className="rounded-lg p-5" style={{ background: "var(--bg-card)", border: "1px solid var(--border-ds)", borderLeft: "3px solid var(--gold)" }}>
-            <h3 className="text-sm font-semibold mb-3">Intake Checklist</h3>
+            <h3 className="text-sm font-semibold mb-3">Project Info Checklist</h3>
             {effectiveChecklist.filter(c => c.stage === "intake").map(c => (
               <label key={c.id} className="flex items-center gap-2 py-1.5 cursor-pointer text-xs"
                 style={{ color: c.done ? "#22c55e" : "var(--text-secondary)" }}>
@@ -2905,8 +2905,8 @@ ${html}
         <div className="max-w-7xl mx-auto px-6 pt-4">
           {CATEGORIES.length === 0 && (
             <div className="text-center py-12">
-              <p className="text-sm" style={{ color: "var(--text-muted)" }}>No scope sections selected. Go back to Intake to select scopes.</p>
-              <button onClick={() => setStage("intake")} className="mt-3 px-4 py-2 rounded text-sm" style={{ background: "var(--gold)", color: "#000" }}>← Go to Intake</button>
+              <p className="text-sm" style={{ color: "var(--text-muted)" }}>No scope sections selected. Go back to Project Info to select scopes.</p>
+              <button onClick={() => setStage("intake")} className="mt-3 px-4 py-2 rounded text-sm" style={{ background: "var(--gold)", color: "#000" }}>← Go to Project Info</button>
             </div>
           )}
 
@@ -3611,7 +3611,7 @@ ${html}
                         </div>
                         <div className="flex gap-2">
                           <button onClick={acceptParsedQuote} className="text-xs px-4 py-2 rounded font-semibold" style={{ background: "#22c55e", color: "#fff" }}>
-                            Accept & Add {(parsedQuote.items || []).filter((i: any) => i.selected !== false).length} Items
+                            Accept & Add {(parsedQuote.items || []).filter((i: any) => i.selected !== false).length} Line Items
                           </button>
                           <button onClick={() => { setParsedQuote(null); setShowNewQuote(false); setShowAiParse(false); }}
                             className="text-xs px-3 py-2 rounded" style={{ background: "var(--bg2)", border: "1px solid var(--border-ds)", color: "var(--text-secondary)" }}>Cancel</button>
@@ -5664,7 +5664,7 @@ ${html}
                     disabled={importingItems || extractedItems.filter(i => i._selected).length === 0}
                     className="text-xs px-4 py-2 rounded font-semibold flex items-center gap-1.5"
                     style={{ background: "#06b6d4", color: "#fff", opacity: importingItems ? 0.7 : 1 }}>
-                    {importingItems ? <><Loader2 className="w-3 h-3 animate-spin" /> Importing…</> : `Send ${extractedItems.filter(i => i._selected).length} Items to Estimate`}
+                    {importingItems ? <><Loader2 className="w-3 h-3 animate-spin" /> Importing…</> : `Send ${extractedItems.filter(i => i._selected).length} Line Items to Estimate`}
                   </button>
                 </div>
               </div>
