@@ -6,7 +6,7 @@ import {
   Loader2, FlaskConical,
   TableProperties, Sparkles, Users, Activity, FileBarChart,
   FolderOpenDot, Check, PackageCheck, Shield, Calculator, Link2, Mail, Paperclip,
-  BookOpen
+  BookOpen, LifeBuoy
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
@@ -113,6 +113,14 @@ const tools: ToolTile[] = [
     available: true,
     isExternal: true,
     feature: "procurement-process",
+  },
+  {
+    id: "helpcenter",
+    title: "Help Center",
+    description: "Step-by-step SOPs for the team — how to use each tool",
+    icon: LifeBuoy,
+    href: "/help-center",
+    available: true,
   },
   {
     id: "comingsoon",

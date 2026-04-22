@@ -30,6 +30,7 @@ import ChangelogPage from "@/pages/ChangelogPage";
 import ProposalChangeLogPage from "@/pages/ProposalChangeLogPage";
 import EstimatingModulePage from "@/pages/EstimatingModulePage";
 import AdminEstimatorAnalyticsPage from "@/pages/AdminEstimatorAnalyticsPage";
+import HelpCenterPage from "@/pages/HelpCenterPage";
 import NotFound from "@/pages/not-found";
 
 const PUBLIC_PATHS = ["/forgot-password", "/reset-password"];
@@ -63,6 +64,8 @@ function Router() {
       <Route path="/submittal-builder" component={SubmittalBuilderPage} />
       <Route path="/vendor-database" component={VendorDatabasePage} />
       <Route path="/estimates/:id" component={EstimatingModulePage} />
+      <Route path="/help-center" component={HelpCenterPage} />
+      <Route path="/help-center/:sop" component={HelpCenterPage} />
       <Route component={NotFound} />
     </Switch>
   );
