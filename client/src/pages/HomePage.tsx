@@ -112,6 +112,7 @@ const tools: ToolTile[] = [
     href: "/tools/procurement-process/",
     available: true,
     isExternal: true,
+    feature: "procurement-process",
   },
   {
     id: "comingsoon",

@@ -1215,6 +1215,7 @@ export const FEATURES = {
   PROJECT_START: "project-start",
   ESTIMATING_MODULE: "estimating-module",
   RFQ_VENDOR_LOOKUP: "rfq-vendor-lookup",
+  PROCUREMENT_PROCESS: "procurement-process",
 } as const;
 
 export type Feature = typeof FEATURES[keyof typeof FEATURES];

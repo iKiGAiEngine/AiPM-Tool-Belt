@@ -209,6 +209,26 @@ export async function initializePermissions() {
       console.log(`[Permissions] Granted estimating-module to ${grantedEstimatingCount} Admin user(s)`);
     }
 
+    // Top-up: ensure all admins have procurement-process
+    let grantedProcurementCount = 0;
+    for (const au of allAdmins) {
+      const existing = await db.execute(sql`
+        SELECT id FROM user_feature_access
+        WHERE user_id = ${au.id} AND feature = 'procurement-process'
+        LIMIT 1
+      `);
+      if (existing.rows.length === 0) {
+        await db.execute(sql`
+          INSERT INTO user_feature_access (user_id, feature)
+          VALUES (${au.id}, 'procurement-process')
+        `);
+        grantedProcurementCount++;
+      }
+    }
+    if (grantedProcurementCount > 0) {
+      console.log(`[Permissions] Granted procurement-process to ${grantedProcurementCount} Admin user(s)`);
+    }
+
     // One-time migration: revoke estimating-module from non-admin users who may have
     // received it via old catch-all defaults. Tracked by a flag in system_settings so
     // subsequent startups do not disturb Permissions UI grants.
