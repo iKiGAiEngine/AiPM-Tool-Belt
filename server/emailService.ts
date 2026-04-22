@@ -458,9 +458,16 @@ export async function sendPasswordResetEmail(to: string, token: string): Promise
       </div>
       <p style="color: #333; font-size: 15px;">We received a request to reset your password.</p>
       <p style="color: #555; font-size: 14px;">Click the button below to choose a new password. This link is valid for <strong>1 hour</strong>.</p>
-      <div style="text-align: center; margin: 28px 0;">
-        <a href="${link}" style="display: inline-block; padding: 13px 28px; background: linear-gradient(135deg, #D4A843, #B8903C); color: #fff; font-weight: 700; font-size: 15px; border-radius: 8px; text-decoration: none; letter-spacing: 0.5px;">Reset Password</a>
-      </div>
+      <table role="presentation" cellspacing="0" cellpadding="0" border="0" align="center" style="margin: 28px auto;">
+        <tr>
+          <td align="center" bgcolor="#B8903C" style="background-color: #B8903C; border-radius: 8px;">
+            <a href="${link}" target="_blank" style="display: inline-block; padding: 14px 32px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 15px; font-weight: 700; color: #ffffff; text-decoration: none; letter-spacing: 0.5px; border-radius: 8px; mso-padding-alt: 0;">
+              <!--[if mso]>&nbsp;&nbsp;&nbsp;&nbsp;<![endif]-->Reset Password<!--[if mso]>&nbsp;&nbsp;&nbsp;&nbsp;<![endif]-->
+            </a>
+          </td>
+        </tr>
+      </table>
+      <p style="color: #555; font-size: 13px; word-break: break-all;">Or copy and paste this link into your browser:<br><a href="${link}" style="color: #B8903C;">${link}</a></p>
       <p style="color: #888; font-size: 12px;">If you did not request a password reset, you can safely ignore this email.</p>
     </div>
   `;
