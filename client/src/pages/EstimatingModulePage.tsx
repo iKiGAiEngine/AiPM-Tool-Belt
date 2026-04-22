@@ -17,6 +17,7 @@ import {
   Paperclip, CheckCircle2, ExternalLink, RefreshCw, Info
 } from "lucide-react";
 import { exportEstimateToExcel } from "@/lib/exportEstimateExcel";
+import { MAX_UPLOAD_LABEL } from "@shared/uploadLimits";
 
 // ══════════════════════════════════════════════════
 // CONSTANTS
@@ -5747,7 +5748,7 @@ ${html}
                             {specPdfDropActive ? "Drop your spec PDF here" : "Drag & drop spec PDF, or click to browse"}
                           </p>
                           <p className="text-xs mt-1" style={{ color: "var(--text-muted)" }}>
-                            {specPdfDropActive ? "Release to load" : "Full project spec books supported — up to 150 MB"}
+                            {specPdfDropActive ? "Release to load" : `PDF spec books up to ${MAX_UPLOAD_LABEL}`}
                           </p>
                         </div>
                       ) : (

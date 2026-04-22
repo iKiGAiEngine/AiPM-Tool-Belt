@@ -2,6 +2,7 @@ import { useState, useCallback } from "react";
 import { Upload, FileText, X, AlertCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { MAX_UPLOAD_BYTES, MAX_UPLOAD_LABEL } from "@shared/uploadLimits";
 
 interface UploadZoneProps {
   onUpload: (file: File) => void;
@@ -33,8 +34,8 @@ export function UploadZone({ onUpload, isUploading }: UploadZoneProps) {
       setError("This file appears to be empty (0 bytes). Please re-select or try a different file.");
       return false;
     }
-    if (file.size > 100 * 1024 * 1024) {
-      setError("File size must be less than 100MB");
+    if (file.size > MAX_UPLOAD_BYTES) {
+      setError(`File size must be less than ${MAX_UPLOAD_LABEL}`);
       return false;
     }
     return true;
@@ -102,7 +103,7 @@ export function UploadZone({ onUpload, isUploading }: UploadZoneProps) {
                 or click to browse files
               </p>
               <p className="mt-4 text-xs text-muted-foreground">
-                PDF files up to 100MB
+                PDF files up to {MAX_UPLOAD_LABEL}
               </p>
             </div>
             <input

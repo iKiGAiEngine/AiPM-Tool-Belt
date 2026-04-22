@@ -19,6 +19,7 @@ import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import ProjectNameComboBox from "@/components/ProjectNameComboBox";
 import type { SpecExtractorSession, SpecExtractorSection } from "@shared/schema";
+import { MAX_UPLOAD_BYTES, MAX_UPLOAD_LABEL } from "@shared/uploadLimits";
 
 type ViewState = "upload" | "processing" | "results";
 
@@ -172,8 +173,8 @@ export default function SpecExtractorPage() {
       setFileError("This file appears to be empty");
       return false;
     }
-    if (file.size > 100 * 1024 * 1024) {
-      setFileError("File must be under 100MB");
+    if (file.size > MAX_UPLOAD_BYTES) {
+      setFileError(`File must be under ${MAX_UPLOAD_LABEL}`);
       return false;
     }
     return true;
@@ -208,15 +209,15 @@ export default function SpecExtractorPage() {
   const handleUpload = async () => {
     if (!selectedFile) return;
 
-    // Pre-flight: production proxy rejects bodies over ~95 MB with HTTP 413.
-    // Catch it here so the user gets a clear, actionable message instead of
-    // a vague "Upload Failed".
-    const MAX_UPLOAD_BYTES = 95 * 1024 * 1024;
+    // Pre-flight: production (Autoscale) proxy rejects bodies over ~32 MiB
+    // with HTTP 413, so we cap user uploads at MAX_UPLOAD_LABEL. Catch it
+    // here so the user gets a clear, actionable message instead of a vague
+    // "Upload Failed".
     if (selectedFile.size > MAX_UPLOAD_BYTES) {
       const sizeMB = (selectedFile.size / (1024 * 1024)).toFixed(1);
       toast({
         title: "File Too Large",
-        description: `This PDF is ${sizeMB} MB. The maximum upload size is 95 MB. Please split the spec book (Division 10 only is fine), or compress / "Reduce File Size" the PDF in Acrobat or Preview, then try again.`,
+        description: `This PDF is ${sizeMB} MB. The maximum upload size is ${MAX_UPLOAD_LABEL}. Please split the spec book (Division 10 only is fine), or compress / "Reduce File Size" the PDF in Acrobat or Preview, then try again.`,
         variant: "destructive",
       });
       return;
@@ -677,7 +678,7 @@ export default function SpecExtractorPage() {
                         {isDragging ? "Drop your spec PDF here" : "Drop your specification PDF here"}
                       </p>
                       <p className="text-sm text-muted-foreground">
-                        {isDragging ? "Release to begin extraction" : "or click to browse (PDF, up to 100MB)"}
+                        {isDragging ? "Release to begin extraction" : `or click to browse (PDF, up to ${MAX_UPLOAD_LABEL})`}
                       </p>
                     </div>
                   </div>
