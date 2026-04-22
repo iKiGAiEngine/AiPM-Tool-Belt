@@ -1,0 +1,1335 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NBS Procurement Process — How It Works</title>
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,wght@0,300;0,400;0,500;1,400&family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.9/babel.min.js"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #F7F6F3; }
+  #root { min-height: 100vh; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const { useState } = React;
+
+const T = {
+  bg: "#F7F6F3", surface: "#FFFFFF", border: "#EDECE8", borderActive: "#D4D2CB",
+  text: "#1A1A18", textMid: "#6B6A65", textLight: "#9E9D97", textFaint: "#C4C3BD",
+  happy: "#4A9B5A", happyBg: "#F0F7F1",
+  warn: "#D4A032", warnBg: "#FEF8EC",
+  problem: "#C4483E", problemBg: "#FEF2F0",
+  auto: "#2E8B8B", autoBg: "#EDF8F7",
+  gate: "#8B5E3C", gateBg: "#FBF5EF",
+  co: "#C4783E", coBg: "#FDF4EC",
+  estimate: "#6366F1", estimateBg: "#EEEDFD",
+  buyout: "#0E7490", buyoutBg: "#ECFDF5",
+  setup: "#5C6A7D", setupBg: "#F0F1F3",
+  purple: "#7C6BC4", purpleBg: "#F3F0FA",
+  blue: "#4A8DC7", blueBg: "#EFF5FB",
+  procure: "#D4A032", procureBg: "#FEF8EC",
+  deliver: "#4A9B5A", deliverBg: "#F0F7F1",
+  billing: "#B45309", billingBg: "#FFFBEB",
+};
+
+const font = {
+  d: "'Newsreader', Georgia, serif",
+  b: "'DM Sans', 'Helvetica Neue', sans-serif",
+  m: "'JetBrains Mono', 'SF Mono', monospace",
+};
+
+const $ = n => (n < 0 ? "-" : "") + "$" + Math.abs(n).toLocaleString();
+
+// ─── Shared Components ───
+
+function StepN({ n, color, size = 28 }) {
+  return (
+    <div style={{ width: size, height: size, borderRadius: "50%", background: color, display: "flex", alignItems: "center", justifyContent: "center", fontSize: size * 0.4, fontWeight: 700, color: "#FFF", fontFamily: font.b, flexShrink: 0 }}>{n}</div>
+  );
+}
+
+function AutoPill({ label }) {
+  return <span style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "3px 9px", borderRadius: 20, background: T.autoBg, border: `1px solid ${T.auto}20`, fontSize: 13, color: T.auto, fontWeight: 500, fontFamily: font.b }}>⚡ {label}</span>;
+}
+
+function Badge({ text, color, bg }) {
+  return <span style={{ fontSize: 13, fontWeight: 600, fontFamily: font.b, padding: "2px 8px", borderRadius: 4, background: bg, color, letterSpacing: 0.3, whiteSpace: "nowrap" }}>{text}</span>;
+}
+
+function GateLock({ label, desc }) {
+  return (
+    <div style={{ padding: "10px 14px", borderRadius: 8, background: T.gateBg, border: `1.5px dashed ${T.gate}40`, display: "flex", alignItems: "center", gap: 8, width: "100%" }}>
+      <span style={{ fontSize: 19 }}>🔒</span>
+      <div>
+        <div style={{ fontSize: 14, fontWeight: 700, color: T.gate, fontFamily: font.b }}>{label}</div>
+        <div style={{ fontSize: 13, color: T.textMid, marginTop: 1 }}>{desc}</div>
+      </div>
+    </div>
+  );
+}
+
+function SectionLabel({ color, children }) {
+  return <div style={{ fontSize: 12, fontWeight: 700, color, textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 6, fontFamily: font.b }}>{children}</div>;
+}
+
+function FieldRow({ label, value, highlight, mono }) {
+  return (
+    <div style={{ display: "grid", gridTemplateColumns: "90px 1fr", padding: "4px 8px", background: T.bg, borderRadius: 4, marginBottom: 2 }}>
+      <span style={{ fontSize: 12, fontWeight: 600, color: T.textLight }}>{label}</span>
+      <span style={{ fontSize: 12, fontWeight: highlight ? 700 : 500, color: highlight || T.text, fontFamily: mono ? font.m : font.b }}>{value}</span>
+    </div>
+  );
+}
+
+function DataCreated({ items, color }) {
+  return (
+    <div style={{ marginTop: 8, padding: "8px 10px", borderRadius: 6, background: color + "08", border: `1px solid ${color}15` }}>
+      <div style={{ fontSize: 12, fontWeight: 700, color, marginBottom: 4 }}>DATA CREATED / UPDATED</div>
+      {items.map((item, i) => (
+        <div key={i} style={{ fontSize: 13, color: T.textMid, fontFamily: font.b, display: "flex", gap: 4, padding: "1px 0" }}>
+          <span style={{ color, fontWeight: 700 }}>+</span> {item}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function Handoff({ from, to, color, autos }) {
+  return (
+    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: "12px 0", gap: 6 }}>
+      <div style={{ fontSize: 12, color: T.textLight, fontWeight: 600, fontFamily: font.b }}>{from}</div>
+      <svg width="20" height="32" viewBox="0 0 20 32"><line x1="10" y1="0" x2="10" y2="24" stroke={color} strokeWidth="2" /><polygon points="4,22 10,30 16,22" fill={color} /></svg>
+      <div style={{ fontSize: 12, color, fontWeight: 700, fontFamily: font.b }}>{to}</div>
+      {autos && autos.length > 0 && (
+        <div style={{ display: "flex", gap: 4, flexWrap: "wrap", justifyContent: "center", marginTop: 2 }}>
+          {autos.map((a, i) => <AutoPill key={i} label={a} />)}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Mini spreadsheet component ───
+function MiniTable({ headers, rows, headerBg, headerColor }) {
+  return (
+    <div style={{ background: T.surface, borderRadius: 6, overflow: "hidden", border: `1px solid ${T.border}`, fontSize: 12, fontFamily: font.m }}>
+      <div style={{ display: "grid", gridTemplateColumns: `repeat(${headers.length}, 1fr)`, background: headerBg, borderBottom: `1px solid ${T.border}` }}>
+        {headers.map(h => <div key={h} style={{ padding: "5px 5px", fontWeight: 700, color: headerColor, fontSize: 12, textTransform: "uppercase" }}>{h}</div>)}
+      </div>
+      {rows.map((row, i) => (
+        <div key={i} style={{ display: "grid", gridTemplateColumns: `repeat(${headers.length}, 1fr)`, borderBottom: i < rows.length - 1 ? `1px solid ${T.border}` : "none", background: row._bg || "transparent" }}>
+          {headers.map((h, j) => (
+            <div key={j} style={{ padding: "4px 5px", color: row._colors?.[j] || T.textMid, fontWeight: row._bold?.[j] ? 700 : 400, fontSize: 12 }}>{row[j]}</div>
+          ))}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════
+// SLIDE: Pipeline Overview
+// ═══════════════════════════════════════
+
+function PipelineOverview() {
+  const stages = [
+    { n: "1", label: "Estimate", color: T.estimate, items: ["Spec sections scoped", "Bid vendors + bid pricing", "Bid totals established"] },
+    { n: "2", label: "Award / NTP", color: T.purple, items: ["Project officially won", "Contract value locked", "Scope confirmed"] },
+    { n: "3", label: "Project Setup", color: T.setup, items: ["Data imported to system", "Bid data preserved", "Buyout fields empty"] },
+    { n: "4", label: "Buyout", color: T.buyout, items: ["Shop or confirm vendors", "Lock in final pricing", "Variance calculated"] },
+    { n: "5", label: "Submittals", color: T.blue, items: ["One per spec section", "Buyout vendor products", "🔒 Gate: approved → PO"] },
+    { n: "6", label: "Procurement", color: T.procure, items: ["POs to final vendors", "Lead time tracked", "Delivery dates set"] },
+    { n: "7", label: "Delivery", color: T.deliver, items: ["Verify against PO", "Complete / partial / damaged", "🔒 Gate: delivered → bill"] },
+    { n: "8", label: "Billing", color: T.billing, items: ["Match invoice to PO", "Bill GC on pay app", "Track payments + retainage"] },
+  ];
+
+  return (
+    <div>
+      <div style={{ textAlign: "center", marginBottom: 28 }}>
+        <h2 style={{ fontSize: 31, fontFamily: font.d, fontWeight: 400, color: T.text, margin: "0 0 6px 0" }}>The Complete NBS Procurement Pipeline</h2>
+        <p style={{ fontSize: 16, color: T.textMid, margin: 0 }}>8 stages from estimate to payment. Built-in checkpoints to prevent items from slipping through.</p>
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 8, marginBottom: 8 }}>
+        {stages.slice(0, 4).map((s, i) => (
+          <div key={i} style={{ padding: "14px 12px", borderRadius: 10, background: T.surface, border: `1.5px solid ${s.color}20`, position: "relative" }}>
+            <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 3, borderRadius: "10px 10px 0 0", background: s.color }} />
+            <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}>
+              <StepN n={s.n} color={s.color} size={24} />
+              <span style={{ fontSize: 15, fontWeight: 700, color: s.color }}>{s.label}</span>
+            </div>
+            {s.items.map((item, j) => <div key={j} style={{ fontSize: 13, color: T.textMid, padding: "1px 0" }}><span style={{ color: s.color }}>·</span> {item}</div>)}
+          </div>
+        ))}
+      </div>
+      <div style={{ display: "flex", justifyContent: "center", padding: "2px 0" }}>
+        <svg width="40" height="20" viewBox="0 0 40 20"><line x1="20" y1="0" x2="20" y2="12" stroke={T.textFaint} strokeWidth="2" /><polygon points="14,10 20,18 26,10" fill={T.textFaint} /></svg>
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 8 }}>
+        {stages.slice(4).map((s, i) => (
+          <div key={i} style={{ padding: "14px 12px", borderRadius: 10, background: T.surface, border: `1.5px solid ${s.color}20`, position: "relative" }}>
+            <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 3, borderRadius: "10px 10px 0 0", background: s.color }} />
+            <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}>
+              <StepN n={s.n} color={s.color} size={24} />
+              <span style={{ fontSize: 15, fontWeight: 700, color: s.color }}>{s.label}</span>
+            </div>
+            {s.items.map((item, j) => <div key={j} style={{ fontSize: 13, color: T.textMid, padding: "1px 0" }}><span style={{ color: s.color }}>·</span> {item}</div>)}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════
+// SLIDE: How Data Moves (with sub-tabs)
+// ═══════════════════════════════════════
+
+function HowDataMoves() {
+  const [subTab, setSubTab] = useState("original");
+  return (
+    <div>
+      <div style={{ marginBottom: 20 }}>
+        <h2 style={{ fontSize: 29, fontFamily: font.d, fontWeight: 400, color: T.text, margin: "0 0 6px 0" }}>Step by Step</h2>
+        <p style={{ fontSize: 16, color: T.textMid, margin: "0 0 16px 0" }}>Click each handoff to see what data comes in, what gets created, and what the system does automatically.</p>
+        <div style={{ display: "flex", gap: 4, background: T.bg, borderRadius: 8, padding: 3, width: "fit-content" }}>
+          {[
+            { key: "original", label: "Original Scope Flow", icon: "📊" },
+            { key: "co", label: "Change Order Flow", icon: "⚡" },
+          ].map(t => (
+            <button key={t.key} onClick={() => setSubTab(t.key)} style={{
+              padding: "7px 16px", borderRadius: 6, border: "none", cursor: "pointer",
+              fontSize: 14, fontWeight: 600, fontFamily: font.b,
+              background: subTab === t.key ? T.surface : "transparent",
+              color: subTab === t.key ? T.text : T.textLight,
+              boxShadow: subTab === t.key ? "0 1px 3px rgba(0,0,0,0.06)" : "none",
+              display: "flex", alignItems: "center", gap: 5,
+            }}>{t.icon} {t.label}</button>
+          ))}
+        </div>
+      </div>
+      {subTab === "original" ? <OriginalScopeFlow /> : <ChangeOrderFlow />}
+    </div>
+  );
+}
+
+// ── Change Order Data Flow ──
+
+function ChangeOrderFlow() {
+  const [expanded, setExpanded] = useState(null);
+
+  const handoffs = [
+    {
+      id: "cor-entry", fromN: "⚡", toN: "1", fromLabel: "COR Spreadsheet", toLabel: "System: CO Created",
+      fromColor: T.co, toColor: T.co,
+      desc: "A change order starts the same way as the original scope — with a spreadsheet. The PM or estimator builds a COR pricing file with the added/deleted items. Since this is on an existing project, the system already has all the sections, vendors, and history.",
+      fromBox: {
+        title: "COR pricing spreadsheet", color: T.co, bg: T.coBg,
+        table: {
+          headers: ["Spec", "Description", "Qty", "$/Unit", "Add/Deduct"],
+          headerBg: T.co + "12", headerColor: T.co,
+          rows: [
+            { 0: "10 28 00", 1: "ADA Grab Bars B-4112", 2: "12", 3: "$42", 4: "+$504", _colors: { 4: T.happy }, _bold: { 4: true } },
+            { 0: "10 28 00", 1: "Mounting hardware", 2: "12", 3: "$18", 4: "+$216", _colors: { 4: T.happy }, _bold: { 4: true } },
+            { 0: "12 24 00", 1: "Delete 14 shades per ASI", 2: "-14", 3: "$420", 4: "-$5,880", _colors: { 2: T.problem, 4: T.problem }, _bold: { 4: true } },
+          ],
+        },
+      },
+      toBox: {
+        title: "What gets created in the system", color: T.co, bg: T.coBg,
+        fields: [
+          { label: "CO Record", value: "CO-003 created, linked to project" },
+          { label: "Status", value: "Draft → ready for GC submission" },
+          { label: "Type", value: "Additive + Deductive (net -$5,160)" },
+          { label: "Sections", value: "Linked to 10 28 00 and 12 24 00" },
+          { label: "Line items", value: "New items created OR existing items modified" },
+          { label: "Project", value: "Attaches to existing Cedars-Sinai — no new setup needed", highlight: T.auto },
+        ],
+      },
+      autos: ["CO number auto-assigned", "Net value auto-calculated", "Affected sections auto-identified"],
+      dataCreated: ["1 Change Order record (CO-003)", "CO line items with add/deduct quantities", "Links to affected spec sections + existing line items"],
+    },
+    {
+      id: "cor-gc", fromN: "1", toN: "2", fromLabel: "CO Created", toLabel: "GC Approval",
+      fromColor: T.co, toColor: T.warn,
+      desc: "The CO gets submitted to the GC for approval. This is a decision point — the GC can approve, reject, or sit on it. The system tracks status and auto-chases.",
+      fromBox: {
+        title: "CO submitted to GC", color: T.co, bg: T.coBg,
+        fields: [
+          { label: "CO-003", value: "Net -$5,160 (add grab bars, deduct shades)" },
+          { label: "Backup", value: "COR spreadsheet + vendor quotes attached" },
+          { label: "Sent to", value: "Swinerton PM — Gene Trabert" },
+          { label: "Date sent", value: "Feb 10, 2026" },
+        ],
+      },
+      toBox: {
+        title: "GC decision outcomes", color: T.warn, bg: T.warnBg,
+        fields: [
+          { label: "✓ Approved", value: "CO proceeds → cascades into pipeline", highlight: T.happy },
+          { label: "✕ Rejected", value: "NBS absorbs or negotiates → documented", highlight: T.problem },
+          { label: "⏳ Pending", value: "No response — system auto-chases", highlight: T.warn },
+          { label: "↩ Revise", value: "GC wants pricing adjusted → loop back", highlight: T.co },
+        ],
+      },
+      autos: ["Auto-reminder to GC at 7 days", "Escalation alert at 14 days", "Pending CO value tracked separately in reports"],
+      dataCreated: ["CO status updated: Submitted → Approved/Rejected/Pending", "GC response date logged", "Approval documentation attached"],
+    },
+    {
+      id: "cor-cascade", fromN: "2", toN: "⚡", fromLabel: "CO Approved", toLabel: "System Cascade",
+      fromColor: T.happy, toColor: T.auto,
+      desc: "When the GC approves, the system cascades the change across the project. This is where the CO merges into the main procurement flow. Contract value adjusts, affected sections update, and new/modified line items flow into the pipeline.",
+      fromBox: {
+        title: "What the system updates automatically", color: T.auto, bg: T.autoBg,
+        fields: [
+          { label: "Contract", value: "$287,000 → $281,840 (-$5,160)" },
+          { label: "10 28 00", value: "2 line items added (grab bars + hardware)" },
+          { label: "12 24 00", value: "Shade qty reduced: 140 → 126 (-14)" },
+          { label: "Section totals", value: "Recalculated for both sections" },
+          { label: "PO impact", value: "Assessed — does this need a new PO or PO revision?" },
+        ],
+      },
+      toBox: {
+        title: "Where the CO items enter the pipeline", color: T.auto, bg: T.autoBg,
+        fields: [
+          { label: "Key question", value: "Has the affected section already passed a gate?" },
+          { label: "If pre-submittal", value: "New items added to submittal package" },
+          { label: "If post-submittal", value: "Supplemental submittal may be needed (re-enters gate)" },
+          { label: "If PO already issued", value: "PO revision or supplemental PO to vendor" },
+          { label: "If delivered", value: "Deductive CO adjusts billing only — no procurement needed" },
+        ],
+      },
+      autos: ["Contract value auto-updated", "Section totals recalculated", "GC report auto-updated", "Affected POs flagged for revision"],
+      dataCreated: ["Line items added/modified/reduced", "Contract value updated on project", "CO cascade audit trail created"],
+    },
+    {
+      id: "cor-submit", fromN: "⚡", toN: "3", fromLabel: "CO Items in Pipeline", toLabel: "Submittal (if needed)",
+      fromColor: T.auto, toColor: T.blue,
+      desc: "Not every CO needs a new submittal. If the section's submittal was already approved and the CO uses the same vendor/product, the existing approval covers it. But if it's a new product or a different vendor, a supplemental submittal is required.",
+      fromBox: {
+        title: "Does this CO need a submittal?", color: T.blue, bg: T.blueBg,
+        fields: [
+          { label: "Same product", value: "Grab bars B-4112 already on approved submittal → NO new submittal needed", highlight: T.happy },
+          { label: "New product", value: "If CO adds a product not on the original submittal → supplemental submittal required" },
+          { label: "Deductive", value: "Deleting 14 shades → NO submittal needed (just reducing qty)" },
+          { label: "Vendor change", value: "If CO changes vendor → new submittal required for that vendor's product" },
+        ],
+      },
+      toBox: {
+        title: "Example: CO-003 on Cedars-Sinai", color: T.blue, bg: T.blueBg,
+        fields: [
+          { label: "Grab bars", value: "B-4112 already approved on SUB-101 → skip submittal ✓", highlight: T.happy },
+          { label: "Hardware", value: "Mounting hardware from same vendor → covered ✓", highlight: T.happy },
+          { label: "Shade deduct", value: "Just reducing quantity → no submittal needed ✓", highlight: T.happy },
+          { label: "Result", value: "This CO skips straight to procurement →", highlight: T.auto },
+        ],
+      },
+      autos: ["System checks existing submittal approvals", "Flags if supplemental submittal is required", "If skipped, item moves directly to PO stage"],
+      dataCreated: ["Supplemental submittal record (if needed)", "Or: submittal gate auto-bypassed with reason logged"],
+    },
+    {
+      id: "cor-po", fromN: "3", toN: "4", fromLabel: "Submittal Cleared", toLabel: "PO / Procurement",
+      fromColor: T.blue, toColor: T.procure,
+      desc: "The CO items need to be purchased. If a PO already exists with the same vendor, the system can issue a PO revision (adding items to the existing order). If it's a new vendor or a separate order, a new PO is created.",
+      fromBox: {
+        title: "PO decision for CO items", color: T.procure, bg: T.procureBg,
+        fields: [
+          { label: "Existing PO?", value: "Bobrick already has PO-4821 on this section" },
+          { label: "Option A", value: "Revise PO-4821 → add 12 grab bars + hardware" },
+          { label: "Option B", value: "Issue supplemental PO-4821-R1" },
+          { label: "Deductive", value: "Mecho shade deduct → revise PO-4830 qty down or credit memo" },
+        ],
+      },
+      toBox: {
+        title: "What gets created", color: T.procure, bg: T.procureBg,
+        table: {
+          headers: ["Action", "PO", "Vendor", "Change", "New Value"],
+          headerBg: T.procure + "12", headerColor: T.procure,
+          rows: [
+            { 0: "Revise", 1: "PO-4821", 2: "Bobrick", 3: "+$720", 4: "$18,936", _colors: { 3: T.happy }, _bold: { 3: true } },
+            { 0: "Revise", 1: "PO-4830", 2: "Mecho", 3: "-$5,880", 4: "$52,920", _colors: { 3: T.problem }, _bold: { 3: true } },
+          ],
+        },
+      },
+      autos: ["PO revision auto-drafted", "Vendor notified of change", "Lead time reassessed if items added", "Delivery date recalculated"],
+      dataCreated: ["PO revision record (linked to original PO + CO)", "Updated PO value and line items", "New lead time if applicable"],
+    },
+    {
+      id: "cor-deliver", fromN: "4", toN: "5", fromLabel: "PO Revised", toLabel: "Delivery + Billing",
+      fromColor: T.procure, toColor: T.deliver,
+      desc: "Additive CO items follow the normal delivery → billing flow. Deductive COs that reduce quantity on already-delivered items skip delivery entirely and adjust billing only.",
+      fromBox: {
+        title: "Delivery scenarios for CO items", color: T.deliver, bg: T.deliverBg,
+        fields: [
+          { label: "Added items", value: "12 grab bars + hardware → new delivery expected" },
+          { label: "Lead time", value: "Bobrick confirms 35 days from PO revision" },
+          { label: "Deductive (undelivered)", value: "Mecho reduces from 140 → 126 shades on existing order" },
+          { label: "Deductive (delivered)", value: "If shades already arrived → no delivery change, billing credit only" },
+        ],
+      },
+      toBox: {
+        title: "Billing impact", color: T.billing, bg: T.billingBg,
+        fields: [
+          { label: "Grab bars", value: "🔒 Awaiting delivery → then bill GC +$720" },
+          { label: "Shade deduct", value: "GC billing reduced by -$5,880 on next pay app" },
+          { label: "Net CO billing", value: "Will reduce next GC pay app by $5,160" },
+          { label: "Vendor side", value: "Bobrick invoice will increase · Mecho will issue credit" },
+        ],
+      },
+      autos: ["Delivery tracking for added items", "Billing adjustment auto-calculated", "Vendor credit tracked against original invoice", "GC pay app reflects CO net on next cycle"],
+      dataCreated: ["Delivery record for new items (when they arrive)", "Billing adjustment record linked to CO", "Vendor credit memo tracked", "Updated pay app line items"],
+    },
+  ];
+
+  return (
+    <div>
+      {/* CO context banner */}
+      <div style={{
+        padding: "12px 16px", borderRadius: 10, background: T.coBg,
+        border: `1.5px solid ${T.co}25`, marginBottom: 16,
+        display: "flex", alignItems: "flex-start", gap: 10,
+      }}>
+        <span style={{ fontSize: 21, flexShrink: 0 }}>⚡</span>
+        <div>
+          <div style={{ fontSize: 16, fontWeight: 600, color: T.co, fontFamily: font.b, marginBottom: 4 }}>Change Order Flow — How It Differs</div>
+          <div style={{ fontSize: 14, color: T.textMid, lineHeight: 1.6, fontFamily: font.b }}>
+            A COR starts from a pricing spreadsheet (just like an estimate) but enters an <strong>existing project</strong>. 
+            It skips Project Setup and Buyout — those are already done. Depending on where the affected sections are in the pipeline, 
+            the CO may also skip submittals entirely. The system figures out where each CO item needs to enter the flow.
+          </div>
+          <div style={{ display: "flex", gap: 6, marginTop: 8, flexWrap: "wrap" }}>
+            {["Skips: Project Setup", "Skips: Buyout", "May skip: Submittals", "Enters: Procurement → Delivery → Billing"].map(s => (
+              <span key={s} style={{ fontSize: 12, fontWeight: 600, padding: "3px 8px", borderRadius: 4, background: T.surface, color: T.co, border: `1px solid ${T.co}20`, fontFamily: font.b }}>{s}</span>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Side-by-side pipeline comparison */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 20 }}>
+        <div style={{ padding: "12px 14px", borderRadius: 8, background: T.estimate + "06", border: `1px solid ${T.estimate}15` }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: T.estimate, textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 6 }}>Original Scope Path (8 steps)</div>
+          <div style={{ display: "flex", gap: 3, flexWrap: "wrap" }}>
+            {["Estimate", "Award", "Setup", "Buyout", "Submittal", "PO", "Delivery", "Billing"].map(s => (
+              <span key={s} style={{ fontSize: 12, padding: "3px 7px", borderRadius: 4, background: T.estimate + "12", color: T.estimate, fontWeight: 600 }}>{s}</span>
+            ))}
+          </div>
+        </div>
+        <div style={{ padding: "12px 14px", borderRadius: 8, background: T.co + "06", border: `1px solid ${T.co}15` }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: T.co, textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 6 }}>Change Order Path (up to 6 steps)</div>
+          <div style={{ display: "flex", gap: 3, flexWrap: "wrap" }}>
+            {[
+              { label: "COR Sheet", active: true }, { label: "GC Approval", active: true },
+              { label: "Cascade", active: true }, { label: "Submittal", active: true, note: "if needed" },
+              { label: "PO", active: true }, { label: "Delivery + Billing", active: true },
+            ].map(s => (
+              <span key={s.label} style={{ fontSize: 12, padding: "3px 7px", borderRadius: 4, background: s.active ? T.co + "12" : T.bg, color: s.active ? T.co : T.textFaint, fontWeight: 600 }}>
+                {s.label}{s.note ? ` *` : ""}
+              </span>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Handoff cards — reuse same rendering pattern */}
+      <div style={{ display: "grid", gap: 6 }}>
+        {handoffs.map((h) => {
+          const isOpen = expanded === h.id;
+          return (
+            <div key={h.id} style={{ borderRadius: 12, background: T.surface, border: `1.5px solid ${isOpen ? h.toColor : T.border}`, overflow: "hidden", transition: "border-color 0.2s" }}>
+              <div onClick={() => setExpanded(isOpen ? null : h.id)}
+                style={{ padding: "14px 18px", cursor: "pointer", display: "flex", alignItems: "center", gap: 12 }}>
+                <StepN n={h.fromN} color={h.fromColor} size={24} />
+                <svg width="24" height="12" viewBox="0 0 24 12"><line x1="0" y1="6" x2="16" y2="6" stroke={T.textFaint} strokeWidth="1.5" /><polygon points="14,2 22,6 14,10" fill={T.textFaint} /></svg>
+                <StepN n={h.toN} color={h.toColor} size={24} />
+                <div style={{ flex: 1, marginLeft: 4 }}>
+                  <span style={{ fontSize: 16, fontWeight: 600, color: T.text, fontFamily: font.b }}>{h.fromLabel} → {h.toLabel}</span>
+                </div>
+                <span style={{ fontSize: 19, color: T.textFaint, transform: isOpen ? "rotate(180deg)" : "none", transition: "transform 0.2s" }}>⌄</span>
+              </div>
+              {isOpen && (
+                <div style={{ padding: "0 18px 18px", borderTop: `1px solid ${T.border}` }}>
+                  <div style={{ fontSize: 15, color: T.textMid, lineHeight: 1.6, padding: "12px 0 14px", fontFamily: font.b }}>{h.desc}</div>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+                    <div style={{ padding: "12px 14px", borderRadius: 8, background: h.fromBox.bg || T.bg, border: `1px solid ${(h.fromBox.color || h.fromColor) + "20"}` }}>
+                      <SectionLabel color={h.fromBox.color || h.fromColor}>{h.fromBox.title}</SectionLabel>
+                      {h.fromBox.table ? (
+                        <MiniTable headers={h.fromBox.table.headers} rows={h.fromBox.table.rows} headerBg={h.fromBox.table.headerBg} headerColor={h.fromBox.table.headerColor} />
+                      ) : (
+                        h.fromBox.fields.map((f, i) => <FieldRow key={i} label={f.label} value={f.value} highlight={f.highlight} />)
+                      )}
+                    </div>
+                    <div style={{ padding: "12px 14px", borderRadius: 8, background: h.toBox.bg || T.bg, border: `1px solid ${(h.toBox.color || h.toColor) + "20"}` }}>
+                      <SectionLabel color={h.toBox.color || h.toColor}>{h.toBox.title}</SectionLabel>
+                      {h.toBox.table ? (
+                        <MiniTable headers={h.toBox.table.headers} rows={h.toBox.table.rows} headerBg={h.toBox.table.headerBg} headerColor={h.toBox.table.headerColor} />
+                      ) : (
+                        h.toBox.fields.map((f, i) => <FieldRow key={i} label={f.label} value={f.value} highlight={f.highlight} />)
+                      )}
+                    </div>
+                  </div>
+                  {h.autos && <div style={{ marginTop: 12, display: "flex", gap: 6, flexWrap: "wrap" }}>{h.autos.map((a, i) => <AutoPill key={i} label={a} />)}</div>}
+                  {h.dataCreated && <DataCreated items={h.dataCreated} color={h.toColor} />}
+                  {h.gate && <div style={{ marginTop: 10 }}><GateLock label={h.gate.label} desc={h.gate.desc} /></div>}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ── Original Scope Flow (unchanged) ──
+
+function OriginalScopeFlow() {
+  const [expanded, setExpanded] = useState(null);
+
+  const handoffs = [
+    {
+      id: "est-setup", fromN: "1", toN: "3", fromLabel: "Estimate Sheet", toLabel: "Project Setup",
+      fromColor: T.estimate, toColor: T.setup,
+      desc: "The estimator's spreadsheet is the source of truth. When the project is awarded, this data gets imported into the system — but bid vendors are preserved as a reference, not committed.",
+      fromBox: {
+        title: "What's on the estimate sheet", color: T.estimate, bg: T.estimateBg,
+        table: {
+          headers: ["Spec", "Product", "Qty", "$/Unit", "Vendor"],
+          headerBg: T.estimate + "12", headerColor: T.estimate,
+          rows: [
+            ["10 28 00", "Grab Bars B-4112", "96", "$42", "Bobrick"],
+            ["10 28 00", "Soap Disp B-2112", "48", "$85", "Bobrick"],
+            ["10 28 00", "Hooks 9119", "96", "$18", "Bradley"],
+            ["10 51 00", "Lockers Vanguard", "240", "$195", "Penco"],
+            ["10 14 00", "Wayfinding Pkg", "1", "$22K", "ASI"],
+            ["10 26 00", "Corner Guards", "320", "$28", "Pawling"],
+            ["12 24 00", "Motor Shades", "140", "$420", "Mecho"],
+          ],
+        },
+      },
+      toBox: {
+        title: "What gets created in the system", color: T.setup, bg: T.setupBg,
+        fields: [
+          { label: "Project", value: "Cedars-Sinai MOB Phase 2" },
+          { label: "Sections", value: "5 spec sections created" },
+          { label: "Line Items", value: "16 items imported across sections" },
+          { label: "Bid Vendor", value: "Saved on each line item (reference)" },
+          { label: "Bid Price", value: "Saved on each line item (baseline)" },
+          { label: "Buyout Vendor", value: "— TBD — (empty until buyout)", highlight: T.warn },
+          { label: "Buyout Price", value: "— TBD — (empty until buyout)", highlight: T.warn },
+        ],
+      },
+      autos: ["Sections auto-grouped from spec numbers", "Bid totals auto-summed per section"],
+      dataCreated: ["1 Project record", "5 Spec Section records", "16 Line Item records (with bid vendor + bid price)"],
+    },
+    {
+      id: "setup-buyout", fromN: "3", toN: "4", fromLabel: "Project Setup", toLabel: "Buyout",
+      fromColor: T.setup, toColor: T.buyout,
+      desc: "Buyout starts with the bid data as the baseline. For each section, the PM either confirms the bid vendor (sole source) or shops it to alternatives. The final vendor and pricing get locked in.",
+      fromBox: {
+        title: "What buyout starts with", color: T.setup, bg: T.setupBg,
+        fields: [
+          { label: "Per section", value: "Bid vendor, bid pricing, bid total" },
+          { label: "Decision", value: "Shop it or confirm bid vendor?" },
+          { label: "10 28 00", value: "Bobrick bid → shop Bradley as alt" },
+          { label: "10 51 00", value: "Penco bid → sole source (proprietary)" },
+          { label: "10 14 00", value: "ASI bid → sole source" },
+        ],
+      },
+      toBox: {
+        title: "What buyout produces", color: T.buyout, bg: T.buyoutBg,
+        table: {
+          headers: ["Section", "Bid $", "Buyout $", "Vendor", "Δ"],
+          headerBg: T.buyout + "12", headerColor: T.buyout,
+          rows: [
+            { 0: "10 28 00", 1: "$18,216", 2: "$16,940", 3: "Bradley ←", 4: "-$1,276", _colors: { 3: T.buyout, 4: T.happy }, _bold: { 3: true, 4: true } },
+            { 0: "10 51 00", 1: "$52,400", 2: "$50,800", 3: "Penco", 4: "-$1,600", _colors: { 4: T.happy }, _bold: { 4: true } },
+            { 0: "10 14 00", 1: "$33,900", 2: "$33,900", 3: "ASI", 4: "$0", _colors: {} },
+            { 0: "10 26 00", 1: "$56,320", 2: "$54,100", 3: "Pawling", 4: "-$2,220", _colors: { 4: T.happy }, _bold: { 4: true } },
+            { 0: "12 24 00", 1: "$67,080", 2: "$66,500", 3: "Mecho", 4: "-$580", _colors: { 4: T.happy }, _bold: { 4: true } },
+          ],
+        },
+      },
+      autos: ["Variance auto-calculated bid vs. buyout", "Buyout report auto-generated"],
+      dataCreated: ["Buyout Vendor set on each line item", "Buyout Price set on each line item", "Section-level variance calculated", "Buyout type tagged: Shopped / Sole Source"],
+    },
+    {
+      id: "buyout-sub", fromN: "4", toN: "5", fromLabel: "Buyout", toLabel: "Submittals",
+      fromColor: T.buyout, toColor: T.blue,
+      desc: "Once buyout selects the final vendor, the estimator prepares submittals using that vendor's products. One submittal per spec section — even if there are multiple vendors in the section.",
+      fromBox: {
+        title: "What feeds into submittals", color: T.buyout, bg: T.buyoutBg,
+        fields: [
+          { label: "Per section", value: "Final vendor(s) selected, products confirmed" },
+          { label: "10 28 00", value: "Bradley hooks + Bobrick accessories" },
+          { label: "10 51 00", value: "Penco lockers + benches" },
+          { label: "Key", value: "Submittal uses BUYOUT vendor products, not bid vendor" },
+        ],
+      },
+      toBox: {
+        title: "What gets created", color: T.blue, bg: T.blueBg,
+        fields: [
+          { label: "SUB-101", value: "10 28 00 Toilet Accessories → Swinerton" },
+          { label: "SUB-102", value: "10 51 00 Metal Lockers → Swinerton" },
+          { label: "SUB-103", value: "10 14 00 Signage → Swinerton" },
+          { label: "SUB-104", value: "10 26 00 Wall Protection → Swinerton" },
+          { label: "SUB-105", value: "12 24 00 Window Coverings → Swinerton" },
+          { label: "Status", value: "Preparing → Submitted → Under Review → Decision" },
+        ],
+      },
+      autos: ["Submittal number auto-assigned", "14-day auto-reminder if no GC response", "R&R triggers action item to estimator"],
+      dataCreated: ["5 Submittal records (one per section)", "Each linked to its spec section + all line items", "Status tracking: Preparing → Approved (or R&R loop)"],
+      gate: { label: "GATE: Submittal must be Approved or Approved as Noted", desc: "POs cannot be issued for any vendor under this section until the submittal clears." },
+    },
+    {
+      id: "sub-po", fromN: "5", toN: "6", fromLabel: "Submittals (Approved)", toLabel: "Procurement / POs",
+      fromColor: T.blue, toColor: T.procure,
+      desc: "Once the submittal gate opens, line items get grouped by vendor and POs are issued. Each vendor gets their own PO, even if multiple vendors are under one spec section.",
+      fromBox: {
+        title: "Submittal gate opens — what's unlocked", color: T.blue, bg: T.blueBg,
+        fields: [
+          { label: "10 28 00", value: "Approved → 6 line items across 2 vendors unlocked" },
+          { label: "Bradley", value: "2 items: hooks + napkin disp → ready for PO" },
+          { label: "Bobrick", value: "4 items: grab bars, soap, mirrors, towels → ready for PO" },
+          { label: "Key", value: "Line items grouped by VENDOR for PO creation" },
+        ],
+      },
+      toBox: {
+        title: "POs created", color: T.procure, bg: T.procureBg,
+        table: {
+          headers: ["PO #", "Vendor", "Items", "Value", "Lead", "Est. Delivery"],
+          headerBg: T.procure + "12", headerColor: T.procure,
+          rows: [
+            { 0: "PO-4821", 1: "Bobrick", 2: "4 items", 3: "$18,216", 4: "35d", 5: "Feb 26" },
+            { 0: "PO-4822", 1: "Bradley", 2: "2 items", 3: "$3,288", 4: "28d", 5: "Feb 21" },
+          ],
+        },
+      },
+      autos: ["PO number auto-generated", "Delivery date = PO date + lead time", "Lead time countdown starts", "7-day and 3-day delivery alerts queued"],
+      dataCreated: ["Purchase Order records (one per vendor per section)", "Each PO linked to its line items + vendor + section", "Delivery date calculated and calendared", "PO status tracking: Issued → Acknowledged → In Production → Shipped"],
+    },
+    {
+      id: "po-lead", fromN: "6", toN: "6b", fromLabel: "PO Issued", toLabel: "Lead Time Tracking",
+      fromColor: T.procure, toColor: T.setup,
+      desc: "Once the PO is issued, the system counts down to the expected delivery. Each PO has its own lead time — Bobrick at 35 days doesn't affect Bradley at 28 days. The system monitors and alerts automatically.",
+      fromBox: {
+        title: "What the system tracks during lead time", color: T.setup, bg: T.setupBg,
+        fields: [
+          { label: "PO-4821", value: "Bobrick · Issued Jan 22 · 35d lead · Due Feb 26" },
+          { label: "PO-4822", value: "Bradley · Issued Jan 24 · 28d lead · Due Feb 21" },
+          { label: "Status", value: "In Production → Shipped → In Transit" },
+          { label: "Vendor updates", value: "Delay? System recalculates. No ETA? System chases." },
+        ],
+      },
+      toBox: {
+        title: "Automated monitoring", color: T.auto, bg: T.autoBg,
+        fields: [
+          { label: "Day 0", value: "PO issued — countdown starts" },
+          { label: "Ongoing", value: "Status visible on dashboard + project view" },
+          { label: "7 days out", value: "Alert: PM + warehouse + GC site contact" },
+          { label: "3 days out", value: "Confirm shipment tracking with vendor" },
+          { label: "If delayed", value: "New date calculated, schedule impact assessed" },
+          { label: "If no ETA", value: "Auto-email vendor at 3, 7, 14 days" },
+        ],
+      },
+      autos: ["Countdown runs automatically", "Alerts at milestones", "Delays auto-recalculate"],
+      dataCreated: ["Lead time progress updated daily", "Vendor status changes logged", "Any delays create audit trail"],
+    },
+    {
+      id: "lead-delivery", fromN: "6b", toN: "7", fromLabel: "Lead Time Complete", toLabel: "Delivery",
+      fromColor: T.setup, toColor: T.deliver,
+      desc: "Material arrives. PM or warehouse verifies against the PO and packing list. The delivery record captures what actually showed up — which may differ from what was ordered.",
+      fromBox: {
+        title: "Delivery scenarios", color: T.deliver, bg: T.deliverBg,
+        fields: [
+          { label: "✓ Complete", value: "Everything arrived, quantities match, no damage" },
+          { label: "◐ Partial", value: "Some items arrived, rest on backorder" },
+          { label: "✕ Damaged", value: "Material defective — RMA + replacement needed" },
+          { label: "✕ Wrong", value: "Vendor shipped incorrect product" },
+        ],
+      },
+      toBox: {
+        title: "Example: Bradley PO-4822 delivered Feb 20", color: T.deliver, bg: T.deliverBg,
+        table: {
+          headers: ["PO", "Ordered", "Received", "Status"],
+          headerBg: T.deliver + "12", headerColor: T.deliver,
+          rows: [
+            { 0: "PO-4822", 1: "96 hooks", 2: "96 hooks", 3: "✓ Complete", _colors: { 3: T.happy }, _bold: { 3: true } },
+            { 0: "PO-4822", 1: "24 nap disp", 2: "24 nap disp", 3: "✓ Complete", _colors: { 3: T.happy }, _bold: { 3: true } },
+            { 0: "PO-4821", 1: "4 Bobrick items", 2: "—", 3: "In Production", _colors: { 3: T.warn }, _bold: { 3: true } },
+          ],
+        },
+      },
+      autos: ["Delivery date logged on record", "GC notified if requested", "Partial → backorder tracker created", "Damaged → RMA auto-generated"],
+      dataCreated: ["Delivery record linked to PO", "Received quantities per line item", "Delivery date (becomes proof for billing)", "Any damage/shortage documented"],
+      gate: { label: "GATE: Material must be delivered before billing GC", desc: "The billing function checks for a completed delivery record. No delivery = no GC pay app for that PO." },
+    },
+    {
+      id: "delivery-billing", fromN: "7", toN: "8", fromLabel: "Delivery (Complete)", toLabel: "Billing",
+      fromColor: T.deliver, toColor: T.billing,
+      desc: "Two billing events happen: the vendor invoices NBS (cost side), and NBS bills the GC (revenue side). The system matches both sides and tracks the margin.",
+      fromBox: {
+        title: "Cost side: Vendor invoice", color: T.billing, bg: T.billingBg,
+        fields: [
+          { label: "Invoice", value: "Vendor sends invoice to NBS" },
+          { label: "Match", value: "System compares invoice to PO — flags discrepancies" },
+          { label: "Example", value: "Bradley INV-8840 for $3,288 → matches PO-4822 ✓" },
+          { label: "If mismatch", value: "Variance flagged, PM reviews before processing" },
+        ],
+      },
+      toBox: {
+        title: "Revenue side: GC pay application", color: T.billing, bg: T.billingBg,
+        table: {
+          headers: ["Pay App", "Section", "Vendor", "Amount", "Status"],
+          headerBg: T.billing + "12", headerColor: T.billing,
+          rows: [
+            { 0: "#03 Mar", 1: "10 28 00", 2: "Bradley", 3: "$3,288", 4: "Submitted", _colors: { 4: T.warn }, _bold: { 4: true } },
+            { 0: "#03 Mar", 1: "10 28 00", 2: "Bobrick", 3: "—", 4: "🔒 Not delivered", _colors: { 4: T.gate } },
+            { 0: "#03 Mar", 1: "10 26 00", 2: "Pawling", 3: "—", 4: "🔒 Not delivered", _colors: { 4: T.gate } },
+          ],
+        },
+      },
+      autos: ["Invoice-to-PO auto-matching", "GC billing reminder at pay app cycle", "Retainage auto-calculated per contract %", "Payment receipt tracked"],
+      dataCreated: ["Vendor Invoice record (linked to PO)", "GC Billing record (linked to pay app #)", "Payment Status: Submitted → Approved → Paid", "Retainage balance tracked until release"],
+    },
+  ];
+
+  return (
+    <div>
+      <div style={{ marginBottom: 24 }}>
+        <h2 style={{ fontSize: 29, fontFamily: font.d, fontWeight: 400, color: T.text, margin: "0 0 6px 0" }}>Step by Step</h2>
+        <p style={{ fontSize: 16, color: T.textMid, margin: 0 }}>Click each handoff to see exactly what data comes in, what gets created, and what the system does automatically.</p>
+      </div>
+
+      <div style={{ display: "grid", gap: 6 }}>
+        {handoffs.map((h) => {
+          const isOpen = expanded === h.id;
+          return (
+            <div key={h.id} style={{ borderRadius: 12, background: T.surface, border: `1.5px solid ${isOpen ? h.toColor : T.border}`, overflow: "hidden", transition: "border-color 0.2s" }}>
+              {/* Header */}
+              <div onClick={() => setExpanded(isOpen ? null : h.id)}
+                style={{ padding: "14px 18px", cursor: "pointer", display: "flex", alignItems: "center", gap: 12 }}>
+                <StepN n={h.fromN} color={h.fromColor} size={24} />
+                <svg width="24" height="12" viewBox="0 0 24 12"><line x1="0" y1="6" x2="16" y2="6" stroke={T.textFaint} strokeWidth="1.5" /><polygon points="14,2 22,6 14,10" fill={T.textFaint} /></svg>
+                <StepN n={h.toN} color={h.toColor} size={24} />
+                <div style={{ flex: 1, marginLeft: 4 }}>
+                  <span style={{ fontSize: 16, fontWeight: 600, color: T.text, fontFamily: font.b }}>{h.fromLabel} → {h.toLabel}</span>
+                </div>
+                <span style={{ fontSize: 19, color: T.textFaint, transform: isOpen ? "rotate(180deg)" : "none", transition: "transform 0.2s" }}>⌄</span>
+              </div>
+
+              {/* Expanded */}
+              {isOpen && (
+                <div style={{ padding: "0 18px 18px", borderTop: `1px solid ${T.border}` }}>
+                  <div style={{ fontSize: 15, color: T.textMid, lineHeight: 1.6, padding: "12px 0 14px", fontFamily: font.b }}>{h.desc}</div>
+
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+                    {/* From box */}
+                    <div style={{ padding: "12px 14px", borderRadius: 8, background: h.fromBox.bg || T.bg, border: `1px solid ${(h.fromBox.color || h.fromColor) + "20"}` }}>
+                      <SectionLabel color={h.fromBox.color || h.fromColor}>{h.fromBox.title}</SectionLabel>
+                      {h.fromBox.table ? (
+                        <MiniTable headers={h.fromBox.table.headers} rows={h.fromBox.table.rows} headerBg={h.fromBox.table.headerBg} headerColor={h.fromBox.table.headerColor} />
+                      ) : (
+                        h.fromBox.fields.map((f, i) => <FieldRow key={i} label={f.label} value={f.value} highlight={f.highlight} />)
+                      )}
+                    </div>
+
+                    {/* To box */}
+                    <div style={{ padding: "12px 14px", borderRadius: 8, background: h.toBox.bg || T.bg, border: `1px solid ${(h.toBox.color || h.toColor) + "20"}` }}>
+                      <SectionLabel color={h.toBox.color || h.toColor}>{h.toBox.title}</SectionLabel>
+                      {h.toBox.table ? (
+                        <MiniTable headers={h.toBox.table.headers} rows={h.toBox.table.rows} headerBg={h.toBox.table.headerBg} headerColor={h.toBox.table.headerColor} />
+                      ) : (
+                        h.toBox.fields.map((f, i) => <FieldRow key={i} label={f.label} value={f.value} highlight={f.highlight} />)
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Automations */}
+                  {h.autos && (
+                    <div style={{ marginTop: 12, display: "flex", gap: 6, flexWrap: "wrap" }}>
+                      {h.autos.map((a, i) => <AutoPill key={i} label={a} />)}
+                    </div>
+                  )}
+
+                  {/* Data created */}
+                  {h.dataCreated && <DataCreated items={h.dataCreated} color={h.toColor} />}
+
+                  {/* Gate */}
+                  {h.gate && <div style={{ marginTop: 10 }}><GateLock label={h.gate.label} desc={h.gate.desc} /></div>}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════
+// SLIDE: Buyout Report
+// ═══════════════════════════════════════
+
+function BuyoutReport() {
+  const sections = [
+    { spec: "10 28 00", name: "Toilet Accessories", bidV: "Bobrick", buyV: "Bradley", bid: 18216, buy: 16940, type: "Shopped" },
+    { spec: "10 51 00", name: "Metal Lockers", bidV: "Penco", buyV: "Penco", bid: 52400, buy: 50800, type: "Sole Source" },
+    { spec: "10 14 00", name: "Signage", bidV: "ASI", buyV: "ASI", bid: 33900, buy: 33900, type: "Sole Source" },
+    { spec: "10 26 00", name: "Wall Protection", bidV: "Pawling", buyV: "Pawling", bid: 56320, buy: 54100, type: "Confirmed" },
+    { spec: "12 24 00", name: "Window Coverings", bidV: "Mecho", buyV: "Mecho", bid: 67080, buy: 66500, type: "Confirmed" },
+  ];
+  const totBid = sections.reduce((s, x) => s + x.bid, 0);
+  const totBuy = sections.reduce((s, x) => s + x.buy, 0);
+
+  return (
+    <div>
+      <div style={{ marginBottom: 24 }}>
+        <h2 style={{ fontSize: 29, fontFamily: font.d, fontWeight: 400, color: T.text, margin: "0 0 6px 0" }}>Buyout Variance Report</h2>
+        <p style={{ fontSize: 16, color: T.textMid, margin: 0 }}>Section-level view: bid vs. buyout pricing and vendor changes.</p>
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12, marginBottom: 20 }}>
+        {[
+          { label: "Total Bid", value: $(totBid), color: T.text },
+          { label: "Total Buyout", value: $(totBuy), color: T.buyout },
+          { label: "Net Savings", value: $(totBuy - totBid), color: T.happy },
+        ].map(k => (
+          <div key={k.label} style={{ background: T.surface, borderRadius: 10, padding: "14px 16px", border: `1px solid ${T.border}` }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: T.textLight, textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 4 }}>{k.label}</div>
+            <div style={{ fontSize: 29, fontFamily: font.d, color: k.color }}>{k.value}</div>
+          </div>
+        ))}
+      </div>
+      <div style={{ borderRadius: 10, overflow: "hidden", border: `1px solid ${T.border}`, background: T.surface }}>
+        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14, fontFamily: font.b }}>
+          <thead>
+            <tr style={{ borderBottom: `2px solid ${T.border}` }}>
+              {["Section", "Bid Vendor", "Buyout Vendor", "Type", "Bid $", "Buyout $", "Δ"].map(h => (
+                <th key={h} style={{ padding: "9px 10px", textAlign: "left", fontWeight: 700, color: T.textLight, fontSize: 12, textTransform: "uppercase", letterSpacing: 0.8 }}>{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {sections.map(s => {
+              const v = s.buy - s.bid;
+              const changed = s.buyV !== s.bidV;
+              return (
+                <tr key={s.spec} style={{ borderBottom: `1px solid ${T.border}` }}>
+                  <td style={{ padding: "9px 10px" }}><span style={{ fontFamily: font.m, color: T.purple, fontWeight: 600, fontSize: 13 }}>{s.spec}</span> <span style={{ color: T.text }}>{s.name}</span></td>
+                  <td style={{ padding: "9px 10px", color: T.textMid }}>{s.bidV}</td>
+                  <td style={{ padding: "9px 10px", color: changed ? T.buyout : T.textMid, fontWeight: changed ? 600 : 400 }}>{s.buyV}{changed ? " ←" : ""}</td>
+                  <td style={{ padding: "9px 10px" }}><Badge text={s.type} color={s.type === "Shopped" ? T.buyout : T.textMid} bg={s.type === "Shopped" ? T.buyoutBg : T.bg} /></td>
+                  <td style={{ padding: "9px 10px", fontFamily: font.m, textAlign: "right" }}>{$(s.bid)}</td>
+                  <td style={{ padding: "9px 10px", fontFamily: font.m, textAlign: "right" }}>{$(s.buy)}</td>
+                  <td style={{ padding: "9px 10px", fontFamily: font.m, textAlign: "right", fontWeight: 700, color: v <= 0 ? T.happy : T.problem }}>{v <= 0 ? "" : "+"}{$(v)}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+          <tfoot>
+            <tr style={{ borderTop: `2px solid ${T.border}`, background: T.bg }}>
+              <td colSpan={4} style={{ padding: "9px 10px", fontWeight: 700 }}>Total</td>
+              <td style={{ padding: "9px 10px", fontFamily: font.m, fontWeight: 700, textAlign: "right" }}>{$(totBid)}</td>
+              <td style={{ padding: "9px 10px", fontFamily: font.m, fontWeight: 700, textAlign: "right" }}>{$(totBuy)}</td>
+              <td style={{ padding: "9px 10px", fontFamily: font.m, fontWeight: 700, textAlign: "right", color: T.happy }}>{$(totBuy - totBid)}</td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════
+// SLIDE: Data Model
+// ═══════════════════════════════════════
+
+function DataModel() {
+  const records = [
+    { level: 0, color: T.purple, label: "PROJECT", fields: ["Name, GC, PM, contract value, award date"], note: "One per job" },
+    { level: 1, color: T.estimate, label: "SPEC SECTION", fields: ["CSI #, name, bid total, buyout total, variance, buyout type", "Submittal: number, status, date, architect notes"], note: "One submittal per section" },
+    { level: 2, color: T.buyout, label: "LINE ITEM", fields: ["Description, qty, unit, unit cost", "Bid vendor + bid price (from estimate, never overwritten)", "Buyout vendor + buyout price (set during buyout)"], note: "Core data unit" },
+    { level: 2, color: T.procure, label: "PURCHASE ORDER", fields: ["PO #, vendor, date, value, lead time, est. delivery", "Groups line items by vendor within a section"], note: "One per vendor per section" },
+    { level: 3, color: T.deliver, label: "DELIVERY", fields: ["Date, status, received qty vs. ordered, linked to PO"], note: "Can be multiple per PO" },
+    { level: 3, color: T.billing, label: "VENDOR INVOICE", fields: ["Invoice #, amount, matched to PO, discrepancy flag"], note: "Cost side" },
+    { level: 3, color: T.billing, label: "GC BILLING", fields: ["Pay app #, amount, date submitted, payment status, retainage"], note: "Revenue side" },
+    { level: 1, color: T.co, label: "CHANGE ORDER", fields: ["CO #, description, value (+/-), status, affected section + items", "Cascade: updates contract value, line items, projections"], note: "Any phase" },
+  ];
+
+  return (
+    <div>
+      <div style={{ marginBottom: 24 }}>
+        <h2 style={{ fontSize: 29, fontFamily: font.d, fontWeight: 400, color: T.text, margin: "0 0 6px 0" }}>Complete Data Model</h2>
+        <p style={{ fontSize: 16, color: T.textMid, margin: 0 }}>Every record type and how they connect.</p>
+      </div>
+      <div style={{ display: "grid", gap: 8 }}>
+        {records.map((r, i) => (
+          <div key={i} style={{ marginLeft: r.level * 28, padding: "12px 16px", borderRadius: 8, background: T.surface, border: `1.5px solid ${r.color}20`, position: "relative" }}>
+            {r.level > 0 && <div style={{ position: "absolute", left: -16, top: 18, width: 12, height: 1, background: T.border }} />}
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+              <span style={{ padding: "2px 8px", borderRadius: 4, background: r.color + "12", fontSize: 13, fontWeight: 700, color: r.color, fontFamily: font.m }}>{r.label}</span>
+              <span style={{ fontSize: 13, color: T.textLight, fontStyle: "italic" }}>{r.note}</span>
+            </div>
+            {r.fields.map((f, j) => <div key={j} style={{ fontSize: 14, color: T.textMid, display: "flex", gap: 4, padding: "1px 0" }}><span style={{ color: r.color }}>→</span> {f}</div>)}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════
+// SLIDE: Documentation Requirements + CC Quick Purchase
+// ═══════════════════════════════════════
+
+function DocumentationTab() {
+  return (
+    <div>
+      <div style={{ marginBottom: 20 }}>
+        <h2 style={{ fontSize: 29, fontFamily: font.d, fontWeight: 400, color: T.text, margin: "0 0 6px 0" }}>Required Documentation by Phase</h2>
+        <p style={{ fontSize: 16, color: T.textMid, margin: 0 }}>Every step in the procurement pipeline has documentation requirements. Required docs block progress — optional docs support it. Exception rules define when and how a step can be overridden with management approval.</p>
+      </div>
+      <DocRequirements />
+    </div>
+  );
+}
+
+function MiscToolsTab() {
+  const [subTab, setSubTab] = useState("cc");
+  return (
+    <div>
+      <div style={{ marginBottom: 20 }}>
+        <h2 style={{ fontSize: 29, fontFamily: font.d, fontWeight: 400, color: T.text, margin: "0 0 6px 0" }}>Tools & Special Workflows</h2>
+        <p style={{ fontSize: 16, color: T.textMid, margin: "0 0 16px 0" }}>Workflows that don't go through the full procurement pipeline but still need to be tracked in the system.</p>
+        <div style={{ display: "flex", gap: 4, background: T.bg, borderRadius: 8, padding: 3, width: "fit-content" }}>
+          {[
+            { key: "cc", label: "CC Quick Purchase", icon: "💳" },
+          ].map(t => (
+            <button key={t.key} onClick={() => setSubTab(t.key)} style={{
+              padding: "7px 16px", borderRadius: 6, border: "none", cursor: "pointer",
+              fontSize: 14, fontWeight: 600, fontFamily: font.b,
+              background: subTab === t.key ? T.surface : "transparent",
+              color: subTab === t.key ? T.text : T.textLight,
+              boxShadow: subTab === t.key ? "0 1px 3px rgba(0,0,0,0.06)" : "none",
+              display: "flex", alignItems: "center", gap: 5,
+            }}>{t.icon} {t.label}</button>
+          ))}
+        </div>
+      </div>
+      {subTab === "cc" && <CCQuickPurchase />}
+    </div>
+  );
+}
+
+function DocRequirements() {
+  const [expandedPhase, setExpandedPhase] = useState(null);
+
+  const phases = [
+    {
+      id: "award", label: "Award / Project Setup", color: T.purple, icon: "📁",
+      required: [
+        { doc: "NTP Letter / Award Letter from GC", note: "Official notice to proceed — this starts everything" },
+        { doc: "Executed Subcontract or LOI", note: "Signed contract or letter of intent with scope + value" },
+        { doc: "Contract Scope of Work", note: "The spec sections NBS is responsible for" },
+        { doc: "Project Schedule (from GC)", note: "Milestone dates that drive submittal + delivery deadlines" },
+        { doc: "Estimate / Bid Recap", note: "The estimate sheet used for pricing — becomes the baseline" },
+      ],
+      optional: [
+        { doc: "Bid Bond / Performance Bond docs", note: "If bonding was required" },
+        { doc: "Insurance certificate", note: "COI for the project" },
+      ],
+      override: null,
+    },
+    {
+      id: "buyout", label: "Buyout", color: T.buyout, icon: "🤝",
+      required: [
+        { doc: "Vendor Quote(s)", note: "Written quote from each vendor considered — even if sole source" },
+        { doc: "Buyout Comparison (if shopped)", note: "Side-by-side pricing from competing vendors" },
+        { doc: "Vendor Selection Justification", note: "Why this vendor was chosen — price, spec compliance, lead time" },
+        { doc: "Spec Compliance Confirmation", note: "Written confirmation the buyout vendor's product meets the spec" },
+      ],
+      optional: [
+        { doc: "Manufacturer rep confirmation", note: "Email/letter confirming product availability and pricing" },
+        { doc: "Credit application (new vendor)", note: "If NBS doesn't have an existing account" },
+      ],
+      override: { title: "Exception: Buyout without competitive quotes", desc: "If a section is sole source or proprietary, a competitive comparison isn't possible. The PM documents the reason (proprietary spec, single manufacturer, etc.) and gets PM/management sign-off. The system logs the exception with the approver's name and date." },
+    },
+    {
+      id: "submittal", label: "Submittals", color: T.blue, icon: "📋",
+      required: [
+        { doc: "Product Submittal Package", note: "Cut sheets, data sheets, shop drawings per spec requirements" },
+        { doc: "Transmittal to GC", note: "Cover letter/form documenting what's being submitted + spec section" },
+        { doc: "GC Return Letter", note: "Architect's review stamp: Approved, Approved as Noted, or R&R" },
+        { doc: "Architect Notes (if Approved as Noted)", note: "The specific comments/conditions that must be addressed" },
+      ],
+      optional: [
+        { doc: "Spec section markup", note: "Highlighted spec showing how each requirement is met" },
+        { doc: "Substitution request (if applicable)", note: "If proposing an alternate product — requires architect approval" },
+      ],
+      override: { title: "Exception: Procure before submittal approval", desc: "Sometimes the schedule forces ordering before the submittal is returned — long lead items, for example. This requires written management approval. The system locks PO creation behind the submittal gate by default. To override: PM requests exception, manager approves in system, reason documented, and the override is flagged on the PO and all downstream records." },
+    },
+    {
+      id: "procurement", label: "Procurement / POs", color: T.procure, icon: "🛒",
+      required: [
+        { doc: "Approved Submittal", note: "Must be Approved or Approved as Noted (the gate)" },
+        { doc: "Vendor Quote (final/confirmed)", note: "The price the PO will be issued at — must match buyout" },
+        { doc: "Purchase Order", note: "System-generated PO with line items, quantities, pricing, delivery terms" },
+        { doc: "Vendor PO Acknowledgment", note: "Written confirmation from vendor: price, lead time, ship date" },
+      ],
+      optional: [
+        { doc: "Freight / shipping terms", note: "FOB point, freight cost, who arranges delivery" },
+        { doc: "Tax exemption certificate", note: "If project is tax exempt" },
+      ],
+      override: { title: "Exception: PO issued without vendor acknowledgment", desc: "If the vendor hasn't acknowledged the PO within 5 business days, the system flags it. PM can proceed with lead time tracking based on quoted lead time, but the record is flagged as 'Unacknowledged' until vendor confirms." },
+    },
+    {
+      id: "delivery", label: "Delivery", color: T.deliver, icon: "🚛",
+      required: [
+        { doc: "Packing List / Bill of Lading", note: "What the vendor says they shipped" },
+        { doc: "Delivery Receipt", note: "NBS sign-off confirming what was actually received" },
+        { doc: "Quantity Verification", note: "Received qty matches PO qty — any discrepancy documented" },
+        { doc: "Condition Report", note: "Material is undamaged and correct product — or document issues" },
+      ],
+      optional: [
+        { doc: "Photos of damage (if applicable)", note: "Required if filing an RMA or freight claim" },
+        { doc: "RMA documentation", note: "Return authorization from vendor for damaged/wrong items" },
+        { doc: "GC delivery notification", note: "Confirmation to GC that material is on-site or ready for delivery" },
+      ],
+      override: null,
+    },
+    {
+      id: "billing", label: "Billing", color: T.billing, icon: "💰",
+      required: [
+        { doc: "Vendor Invoice", note: "Vendor's bill to NBS — matched against PO" },
+        { doc: "Delivery Receipt (the gate)", note: "Proof that material was delivered — required before billing GC" },
+        { doc: "GC Pay Application", note: "NBS billing to GC — schedule of values with amounts billed" },
+        { doc: "Lien Waiver (if required)", note: "Conditional or unconditional waiver per GC/state requirements" },
+      ],
+      optional: [
+        { doc: "Retainage tracking sheet", note: "Running balance of retainage held by GC" },
+        { doc: "Back-charge documentation", note: "If GC back-charges NBS for any reason — documented + disputed if needed" },
+      ],
+      override: { title: "Exception: Bill GC before full delivery", desc: "For partial shipments where some material is on-site, NBS can bill for the delivered portion only. The system splits the billing — delivered items are billable, undelivered items remain locked. If management approves billing for stored materials (not yet installed), the override is logged with approver and reason." },
+    },
+    {
+      id: "cor", label: "Change Orders (COR)", color: T.co, icon: "⚡",
+      required: [
+        { doc: "COR Pricing Spreadsheet", note: "The itemized pricing for the added/deducted scope" },
+        { doc: "Source of Change", note: "Who requested it — RFI, ASI, bulletin, GC directive, field condition" },
+        { doc: "NTP / Authorization", note: "GC's written approval to proceed with the change" },
+        { doc: "Vendor Quote(s)", note: "Supporting vendor pricing for the CO items" },
+        { doc: "Approved Submittals (if new products)", note: "If CO introduces products not on the original submittal" },
+      ],
+      optional: [
+        { doc: "RFI / ASI reference", note: "The RFI or ASI number that triggered the change" },
+        { doc: "Photos / field documentation", note: "If change is due to field conditions" },
+        { doc: "Schedule impact analysis", note: "If CO affects the project schedule" },
+      ],
+      override: { title: "Exception: Proceed before GC CO approval", desc: "GC sometimes issues verbal direction to proceed before the CO is formally approved. This is risky — NBS could absorb the cost. To proceed: PM documents the verbal authorization (email trail, meeting notes), gets NBS management approval to proceed at risk, and the system flags the CO as 'Proceeding at Risk' until formal approval is received. All downstream records carry this flag." },
+    },
+  ];
+
+  return (
+    <div>
+      {/* Legend */}
+      <div style={{ display: "flex", gap: 12, marginBottom: 16, flexWrap: "wrap" }}>
+        {[
+          { color: T.problem, label: "Required — system won't proceed without it" },
+          { color: T.textLight, label: "Optional — helpful but not blocking" },
+          { color: T.gate, label: "Exception / Override — needs management approval" },
+        ].map(l => (
+          <div key={l.label} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 14, color: T.textMid }}>
+            <div style={{ width: 10, height: 10, borderRadius: 3, background: l.color + "20", border: `1.5px solid ${l.color}` }} />
+            {l.label}
+          </div>
+        ))}
+      </div>
+
+      {/* Phase cards */}
+      <div style={{ display: "grid", gap: 6 }}>
+        {phases.map(phase => {
+          const isOpen = expandedPhase === phase.id;
+          return (
+            <div key={phase.id} style={{ borderRadius: 12, background: T.surface, border: `1.5px solid ${isOpen ? phase.color : T.border}`, overflow: "hidden", transition: "border-color 0.2s" }}>
+              <div onClick={() => setExpandedPhase(isOpen ? null : phase.id)}
+                style={{ padding: "14px 18px", cursor: "pointer", display: "flex", alignItems: "center", gap: 12 }}>
+                <StepN n={phase.icon} color={phase.color} size={28} />
+                <div style={{ flex: 1 }}>
+                  <span style={{ fontSize: 17, fontWeight: 600, color: phase.color, fontFamily: font.b }}>{phase.label}</span>
+                  <span style={{ fontSize: 14, color: T.textLight, marginLeft: 8 }}>{phase.required.length} required · {phase.optional.length} optional{phase.override ? " · 1 exception rule" : ""}</span>
+                </div>
+                <span style={{ fontSize: 19, color: T.textFaint, transform: isOpen ? "rotate(180deg)" : "none", transition: "transform 0.2s" }}>⌄</span>
+              </div>
+
+              {isOpen && (
+                <div style={{ padding: "0 18px 18px", borderTop: `1px solid ${T.border}` }}>
+                  {/* Required */}
+                  <div style={{ marginTop: 14 }}>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: T.problem, textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 8, fontFamily: font.b }}>Required Documents</div>
+                    <div style={{ display: "grid", gap: 4 }}>
+                      {phase.required.map((doc, i) => (
+                        <div key={i} style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "8px 12px", borderRadius: 6, background: T.problemBg, border: `1px solid ${T.problem}15` }}>
+                          <div style={{ width: 16, height: 16, borderRadius: 4, border: `2px solid ${T.problem}`, flexShrink: 0, marginTop: 1, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                            <span style={{ fontSize: 12, color: T.problem, fontWeight: 700 }}>!</span>
+                          </div>
+                          <div>
+                            <div style={{ fontSize: 15, fontWeight: 600, color: T.text, fontFamily: font.b }}>{doc.doc}</div>
+                            <div style={{ fontSize: 13, color: T.textMid, marginTop: 1 }}>{doc.note}</div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Optional */}
+                  {phase.optional.length > 0 && (
+                    <div style={{ marginTop: 14 }}>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: T.textLight, textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 8, fontFamily: font.b }}>Optional / Supporting</div>
+                      <div style={{ display: "grid", gap: 4 }}>
+                        {phase.optional.map((doc, i) => (
+                          <div key={i} style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "8px 12px", borderRadius: 6, background: T.bg }}>
+                            <div style={{ width: 16, height: 16, borderRadius: 4, border: `1.5px solid ${T.textFaint}`, flexShrink: 0, marginTop: 1 }} />
+                            <div>
+                              <div style={{ fontSize: 15, fontWeight: 500, color: T.textMid, fontFamily: font.b }}>{doc.doc}</div>
+                              <div style={{ fontSize: 13, color: T.textLight, marginTop: 1 }}>{doc.note}</div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Override / Exception */}
+                  {phase.override && (
+                    <div style={{ marginTop: 14 }}>
+                      <div style={{
+                        padding: "12px 16px", borderRadius: 8, background: T.gateBg,
+                        border: `1.5px dashed ${T.gate}40`,
+                      }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}>
+                          <span style={{ fontSize: 17 }}>⚠️</span>
+                          <span style={{ fontSize: 14, fontWeight: 700, color: T.gate, fontFamily: font.b }}>{phase.override.title}</span>
+                        </div>
+                        <div style={{ fontSize: 14, color: T.textMid, lineHeight: 1.6, fontFamily: font.b }}>{phase.override.desc}</div>
+                        <div style={{ marginTop: 8, display: "flex", gap: 6, flexWrap: "wrap" }}>
+                          <AutoPill label="Override requires manager approval" />
+                          <AutoPill label="Reason + approver logged on all records" />
+                          <AutoPill label="Exception flag visible on reports" />
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function CCQuickPurchase() {
+  const [step, setStep] = useState(0);
+
+  const workflow = [
+    { n: "1", label: "Quick Entry", color: T.procure, desc: "PM needs to make a one-off purchase — small item, not on the original scope, or a field emergency. Opens the CC Quick Purchase form.",
+      fields: [
+        { label: "Project", value: "Select from active projects", type: "select" },
+        { label: "Spec Section", value: "Select existing or 'Miscellaneous'", type: "select" },
+        { label: "Description", value: "What are you buying?", type: "text" },
+        { label: "Vendor", value: "Select existing or '+ New Vendor'", type: "select" },
+        { label: "Amount", value: "Dollar amount", type: "number" },
+        { label: "Card Used", value: "Select company CC", type: "select" },
+        { label: "Justification", value: "Why is this needed?", type: "text" },
+      ],
+    },
+    { n: "2", label: "New Vendor (if needed)", color: T.buyout, desc: "If the vendor isn't in the system, a quick-add form captures the minimum needed. Full vendor profile can be completed later.",
+      fields: [
+        { label: "Vendor Name", value: "e.g. Home Depot, Grainger, local supplier", type: "text" },
+        { label: "Contact", value: "Phone or email (optional for CC buys)", type: "text" },
+        { label: "Type", value: "One-off / Occasional / To be evaluated", type: "select" },
+        { label: "W-9", value: "Not required for CC purchase — can add later", type: "note" },
+      ],
+    },
+    { n: "3", label: "Approval + Receipt", color: T.warn, desc: "Depending on the amount, the purchase may need approval before or after. Receipt/invoice is attached for reconciliation.",
+      fields: [
+        { label: "< $500", value: "PM can self-approve — receipt required within 48 hours", type: "rule" },
+        { label: "$500 – $2,000", value: "Requires manager approval before purchase", type: "rule" },
+        { label: "> $2,000", value: "Should go through standard PO process instead", type: "rule" },
+        { label: "Receipt", value: "Photo of receipt or vendor invoice uploaded", type: "upload" },
+      ],
+    },
+    { n: "4", label: "System Integration", color: T.auto, desc: "The CC purchase gets logged in the system just like any other procurement record — linked to the project, section, and tracked for billing.",
+      fields: [
+        { label: "Line Item", value: "Auto-created under the selected spec section", type: "auto" },
+        { label: "PO Type", value: "Tagged as 'CC Purchase' (not standard PO)", type: "auto" },
+        { label: "Delivery", value: "Auto-marked as 'Received' (it's a pickup/CC buy)", type: "auto" },
+        { label: "Billing", value: "Eligible for GC billing immediately (delivery gate satisfied)", type: "auto" },
+        { label: "CC Reconciliation", value: "Appears on monthly CC statement reconciliation report", type: "auto" },
+      ],
+    },
+  ];
+
+  return (
+    <div>
+      {/* Context banner */}
+      <div style={{
+        padding: "12px 16px", borderRadius: 10, background: T.procureBg,
+        border: `1.5px solid ${T.procure}25`, marginBottom: 20,
+        display: "flex", alignItems: "flex-start", gap: 10,
+      }}>
+        <span style={{ fontSize: 21, flexShrink: 0 }}>💳</span>
+        <div>
+          <div style={{ fontSize: 16, fontWeight: 600, color: T.procure, fontFamily: font.b, marginBottom: 4 }}>CC Quick Purchase — When It's Used</div>
+          <div style={{ fontSize: 14, color: T.textMid, lineHeight: 1.6, fontFamily: font.b }}>
+            Not everything goes through the full procurement pipeline. Small one-off purchases, field emergencies, 
+            and miscellaneous items often get bought on a company credit card. This workflow captures those purchases 
+            in the system so they're tracked, billable to the GC, and show up on project reporting — without forcing 
+            the PM through the full PO/submittal process.
+          </div>
+          <div style={{ display: "flex", gap: 6, marginTop: 8, flexWrap: "wrap" }}>
+            {["Skips: Buyout", "Skips: Submittal", "Skips: Standard PO", "Enters: System as CC Purchase → Billing-ready"].map(s => (
+              <span key={s} style={{ fontSize: 12, fontWeight: 600, padding: "3px 8px", borderRadius: 4, background: T.surface, color: T.procure, border: `1px solid ${T.procure}20`, fontFamily: font.b }}>{s}</span>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Workflow steps */}
+      <div style={{ display: "grid", gap: 8 }}>
+        {workflow.map((s, idx) => {
+          const isOpen = step === idx;
+          return (
+            <div key={idx} style={{ borderRadius: 12, background: T.surface, border: `1.5px solid ${isOpen ? s.color : T.border}`, overflow: "hidden" }}>
+              <div onClick={() => setStep(isOpen ? -1 : idx)}
+                style={{ padding: "14px 18px", cursor: "pointer", display: "flex", alignItems: "center", gap: 12 }}>
+                <StepN n={s.n} color={s.color} size={28} />
+                <div style={{ flex: 1 }}>
+                  <span style={{ fontSize: 17, fontWeight: 600, color: s.color, fontFamily: font.b }}>{s.label}</span>
+                </div>
+                <span style={{ fontSize: 19, color: T.textFaint, transform: isOpen ? "rotate(180deg)" : "none", transition: "transform 0.2s" }}>⌄</span>
+              </div>
+
+              {isOpen && (
+                <div style={{ padding: "0 18px 18px", borderTop: `1px solid ${T.border}` }}>
+                  <div style={{ fontSize: 15, color: T.textMid, lineHeight: 1.6, padding: "12px 0 14px", fontFamily: font.b }}>{s.desc}</div>
+
+                  {/* Form-like display */}
+                  <div style={{ display: "grid", gap: 4 }}>
+                    {s.fields.map((f, i) => {
+                      const typeStyles = {
+                        select: { bg: T.blueBg, border: T.blue + "20", icon: "▾" },
+                        text: { bg: T.surface, border: T.border, icon: "✎" },
+                        number: { bg: T.surface, border: T.border, icon: "#" },
+                        upload: { bg: T.warnBg, border: T.warn + "20", icon: "📎" },
+                        rule: { bg: T.gateBg, border: T.gate + "20", icon: "📏" },
+                        note: { bg: T.bg, border: T.border, icon: "ℹ" },
+                        auto: { bg: T.autoBg, border: T.auto + "20", icon: "⚡" },
+                      };
+                      const ts = typeStyles[f.type] || typeStyles.text;
+
+                      return (
+                        <div key={i} style={{
+                          display: "grid", gridTemplateColumns: "120px 1fr 24px",
+                          padding: "8px 12px", borderRadius: 6, background: ts.bg,
+                          border: `1px solid ${ts.border}`, alignItems: "center",
+                        }}>
+                          <span style={{ fontSize: 14, fontWeight: 600, color: T.textMid, fontFamily: font.b }}>{f.label}</span>
+                          <span style={{ fontSize: 14, color: f.type === "auto" ? T.auto : f.type === "rule" ? T.gate : T.text, fontFamily: font.b, fontWeight: f.type === "rule" ? 600 : 400 }}>{f.value}</span>
+                          <span style={{ fontSize: 13, color: T.textFaint, textAlign: "right" }}>{ts.icon}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* Step 4: Show how it connects */}
+                  {idx === 3 && (
+                    <div style={{ marginTop: 12, padding: "10px 14px", borderRadius: 8, background: T.autoBg, border: `1px solid ${T.auto}20` }}>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: T.auto, marginBottom: 4 }}>THE KEY POINT FOR KENNY</div>
+                      <div style={{ fontSize: 14, color: T.textMid, lineHeight: 1.6 }}>
+                        A CC purchase doesn't disappear into a receipt pile. It enters the same system as every PO — 
+                        linked to the project, the spec section, and trackable for GC billing. The PM bought $85 worth of 
+                        touch-up paint at Home Depot? It shows up on the project, the monthly CC reconciliation report, 
+                        and the next GC pay application — just like a $50,000 Bobrick order. Same system, lighter process.
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Example */}
+      <div style={{ marginTop: 20, padding: "16px 20px", borderRadius: 10, background: T.surface, border: `1px solid ${T.border}` }}>
+        <div style={{ fontSize: 15, fontWeight: 700, color: T.text, marginBottom: 10, fontFamily: font.b }}>Example: Field Emergency Purchase</div>
+        <div style={{ display: "grid", gridTemplateColumns: "100px 1fr", gap: 2 }}>
+          {[
+            ["Situation", "GC needs 6 extra door stops tomorrow — not on the original scope"],
+            ["Action", "PM buys from Grainger on company CC for $127"],
+            ["System entry", "CC Quick Purchase → Cedars-Sinai → 10 28 00 → Grainger (new vendor) → $127"],
+            ["Approval", "Under $500 → PM self-approves, uploads receipt photo"],
+            ["Billing", "Appears on next GC pay app under 10 28 00 miscellaneous"],
+            ["Tracking", "Shows on CC reconciliation report + project cost report"],
+          ].map(([label, value], i) => (
+            <div key={i} style={{ display: "contents" }}>
+              <span style={{ fontSize: 13, fontWeight: 600, color: T.textLight, padding: "5px 0", borderBottom: `1px solid ${T.border}` }}>{label}</span>
+              <span style={{ fontSize: 14, color: T.text, padding: "5px 0", borderBottom: `1px solid ${T.border}` }}>{value}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════
+// MAIN
+// ═══════════════════════════════════════
+
+function App() {
+  const [slide, setSlide] = useState(0);
+  const slides = [
+    { label: "Pipeline", comp: <PipelineOverview /> },
+    { label: "Step by Step", comp: <HowDataMoves /> },
+  ];
+
+  return (
+    <div style={{ minHeight: "100vh", fontFamily: font.b, background: T.bg, color: T.text, paddingBottom: 60 }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 28px", background: T.surface, borderBottom: `1px solid ${T.border}` }}>
+        <div style={{ display: "flex", alignItems: "baseline", gap: 10 }}>
+          <span style={{ fontSize: 20, fontFamily: font.d, fontWeight: 500 }}>NBS Procurement Process</span>
+          <span style={{ fontSize: 14, fontFamily: font.m, color: T.textFaint }}>How every Division 10 project moves from estimate to payment</span>
+        </div>
+        <div style={{ display: "flex", gap: 4, background: T.bg, borderRadius: 8, padding: 3 }}>
+          {slides.map((s, i) => (
+            <button key={i} onClick={() => setSlide(i)} style={{ padding: "7px 14px", borderRadius: 6, border: "none", cursor: "pointer", fontSize: 14, fontWeight: 600, fontFamily: font.b, background: slide === i ? T.surface : "transparent", color: slide === i ? T.text : T.textLight, boxShadow: slide === i ? "0 1px 3px rgba(0,0,0,0.06)" : "none" }}>{s.label}</button>
+          ))}
+        </div>
+      </div>
+      <div style={{ padding: "28px 36px 48px", maxWidth: 1020, margin: "0 auto" }}>
+        {slides[slide].comp}
+        <div style={{ marginTop: 32, paddingTop: 16, borderTop: "1px solid rgba(139,105,20,0.15)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <span style={{ fontFamily: "'Source Sans 3','Source Sans Pro',sans-serif", fontSize: 11, color: "#2C2416", letterSpacing: "0.04em" }}>Prepared by: Haley Kruse · Senior Project Engineer, NBS</span>
+          <span style={{ fontFamily: "'Source Sans 3','Source Sans Pro',sans-serif", fontSize: 11, color: "#2C2416", letterSpacing: "0.04em" }}>April 2026 · v1.0</span>
+        </div>
+      </div>
+      <div style={{ position: "fixed", bottom: 0, left: 0, right: 0, display: "flex", justifyContent: "center", gap: 12, padding: "10px 0", background: T.surface, borderTop: `1px solid ${T.border}` }}>
+        <button onClick={() => setSlide(Math.max(0, slide - 1))} disabled={slide === 0} style={{ padding: "7px 18px", borderRadius: 6, border: `1px solid ${T.border}`, background: T.surface, fontSize: 15, fontWeight: 600, cursor: slide === 0 ? "default" : "pointer", color: slide === 0 ? T.textFaint : T.text, fontFamily: font.b }}>← Back</button>
+        <span style={{ display: "flex", alignItems: "center", gap: 6 }}>{slides.map((_, i) => <span key={i} onClick={() => setSlide(i)} style={{ width: 8, height: 8, borderRadius: "50%", background: slide === i ? T.text : T.border, cursor: "pointer" }} />)}</span>
+        <button onClick={() => setSlide(Math.min(slides.length - 1, slide + 1))} disabled={slide === slides.length - 1} style={{ padding: "7px 18px", borderRadius: 6, border: "none", background: slide === slides.length - 1 ? T.border : T.text, fontSize: 15, fontWeight: 600, cursor: slide === slides.length - 1 ? "default" : "pointer", color: T.surface, fontFamily: font.b }}>Next →</button>
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(App));
+</script>
+</body>
+</html>

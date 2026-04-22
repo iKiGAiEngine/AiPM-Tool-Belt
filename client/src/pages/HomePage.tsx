@@ -5,7 +5,8 @@ import {
   ScanSearch, Receipt, FolderPlus, ClipboardList,
   Loader2, FlaskConical,
   TableProperties, Sparkles, Users, Activity, FileBarChart,
-  FolderOpenDot, Check, PackageCheck, Shield, Calculator, Link2, Mail, Paperclip
+  FolderOpenDot, Check, PackageCheck, Shield, Calculator, Link2, Mail, Paperclip,
+  BookOpen
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
@@ -102,6 +103,15 @@ const tools: ToolTile[] = [
     href: "/vendor-database",
     available: true,
     feature: "vendor-database",
+  },
+  {
+    id: "procurementprocess",
+    title: "Procurement Process",
+    description: "Reference docs: how it works, how it's organized, reporting",
+    icon: BookOpen,
+    href: "/tools/procurement-process/",
+    available: true,
+    isExternal: true,
   },
   {
     id: "comingsoon",

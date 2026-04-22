@@ -1,0 +1,1005 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>NBS · Procurement OS · Field Architecture</title>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=Source+Sans+3:wght@300;400;600;700&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: #F5F0E8;
+      font-family: 'Source Sans 3', Georgia, serif;
+      color: #2C2416;
+      padding-bottom: 80px;
+    }
+
+    /* ── HEADER ── */
+    .page-header {
+      background: #2C2416;
+      padding: 48px 40px 44px;
+      position: relative;
+      overflow: hidden;
+    }
+    .page-header::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(ellipse at 15% 60%, rgba(200,164,78,0.07) 0%, transparent 55%);
+      pointer-events: none;
+    }
+    .header-inner {
+      max-width: 1040px;
+      margin: 0 auto;
+      position: relative;
+    }
+    .eyebrow {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+    .eyebrow-line { height: 1px; width: 28px; background: rgba(200,164,78,0.4); }
+    .eyebrow-text {
+      font-size: 10px;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: #C8A44E;
+      font-weight: 700;
+    }
+    h1 {
+      font-family: 'Playfair Display', serif;
+      font-size: clamp(28px, 4vw, 44px);
+      font-weight: 700;
+      color: #F5F0E8;
+      letter-spacing: -0.01em;
+      line-height: 1.1;
+      margin-bottom: 6px;
+    }
+    .subheading {
+      font-family: 'Source Sans 3', sans-serif;
+      font-size: 16px;
+      font-weight: 300;
+      color: rgba(245,240,232,0.5);
+      letter-spacing: 0.04em;
+      margin-bottom: 28px;
+    }
+    .subtitle {
+      font-size: 15px;
+      color: rgba(245,240,232,0.45);
+      font-weight: 300;
+      margin-bottom: 0;
+    }
+    .header-stats {
+      display: flex;
+      gap: 36px;
+      flex-wrap: wrap;
+      padding-top: 24px;
+      border-top: 1px solid rgba(200,164,78,0.15);
+    }
+    .stat-val {
+      font-family: 'Playfair Display', serif;
+      font-size: 22px;
+      color: #C8A44E;
+      font-weight: 600;
+    }
+    .stat-label {
+      font-size: 11px;
+      color: rgba(245,240,232,0.3);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-top: 2px;
+    }
+
+    /* ── MAIN CONTENT ── */
+    .content {
+      max-width: 1040px;
+      margin: 0 auto;
+      padding: 36px 24px 0;
+    }
+
+    .hint {
+      text-align: center;
+      font-size: 13px;
+      color: rgba(44,36,22,0.35);
+      margin-bottom: 32px;
+      font-style: italic;
+    }
+
+    /* ── MODULE ── */
+    .module { margin-bottom: 20px; }
+
+    .module-header {
+      background: #2C2416;
+      border-radius: 6px 6px 0 0;
+      padding: 16px 24px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      cursor: pointer;
+      user-select: none;
+      transition: opacity 0.15s;
+    }
+    .module-header:hover { opacity: 0.92; }
+    .module-header.collapsed { border-radius: 6px; }
+
+    /* ── CONSISTENT BADGE — gold always ── */
+    .module-badge {
+      min-width: 42px;
+      height: 42px;
+      border-radius: 4px;
+      background: #C8A44E;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: 'Playfair Display', serif;
+      font-size: 16px;
+      font-weight: 700;
+      color: #2C2416;
+      flex-shrink: 0;
+      border: 1px solid rgba(200,164,78,0.6);
+    }
+
+    .module-title-wrap { flex: 1; }
+    .module-title-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    .module-name {
+      font-family: 'Playfair Display', serif;
+      font-size: 18px;
+      font-weight: 600;
+      color: #F5F0E8;
+    }
+    .module-count {
+      font-size: 11px;
+      padding: 2px 8px;
+      border-radius: 3px;
+      background: rgba(200,164,78,0.15);
+      color: #C8A44E;
+      font-weight: 600;
+      letter-spacing: 0.06em;
+    }
+    .module-purpose {
+      font-size: 13px;
+      color: rgba(245,240,232,0.4);
+      margin-top: 2px;
+      font-weight: 300;
+    }
+    .chevron {
+      color: #C8A44E;
+      font-size: 18px;
+      transition: transform 0.2s;
+      flex-shrink: 0;
+    }
+    .chevron.up { transform: rotate(0deg); }
+    .chevron.down { transform: rotate(-90deg); }
+
+    /* ── MODULE BODY ── */
+    .module-body {
+      background: #FAF6EE;
+      border: 1px solid rgba(200,164,78,0.2);
+      border-top: none;
+      border-radius: 0 0 6px 6px;
+      overflow: hidden;
+    }
+
+    .flow-bar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 24px;
+      background: rgba(200,164,78,0.06);
+      border-bottom: 1px solid rgba(200,164,78,0.12);
+      flex-wrap: wrap;
+    }
+    .flow-section-name {
+      font-size: 11px;
+      font-weight: 700;
+      color: #8B6914;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+    }
+    .flow-arrow { color: rgba(139,105,20,0.35); font-size: 12px; }
+
+    .sections-grid {
+      display: grid;
+      gap: 0;
+    }
+    .section-col {
+      padding: 20px 24px;
+      border-right: 1px solid rgba(200,164,78,0.12);
+    }
+    .section-col:last-child { border-right: none; }
+
+    .section-label {
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: #8B6914;
+      margin-bottom: 14px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .section-label-line {
+      width: 16px;
+      height: 2px;
+      background: #C8A44E;
+      border-radius: 1px;
+    }
+
+    /* ── FIELD CARD ── */
+    .fields-list { display: flex; flex-direction: column; gap: 6px; }
+    .field-card {
+      background: #FFFDF8;
+      border: 1px solid rgba(139,105,20,0.1);
+      border-radius: 5px;
+      padding: 8px 12px;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 8px;
+    }
+    .field-name {
+      font-size: 13px;
+      font-weight: 600;
+      color: #2C2416;
+      line-height: 1.3;
+    }
+    .field-note {
+      font-size: 11px;
+      color: rgba(44,36,22,0.4);
+      margin-top: 2px;
+      font-style: italic;
+      line-height: 1.3;
+    }
+    .field-type {
+      font-size: 10px;
+      font-weight: 600;
+      padding: 2px 6px;
+      border-radius: 3px;
+      white-space: nowrap;
+      margin-top: 1px;
+      flex-shrink: 0;
+      background: #fff;
+      color: rgba(44,36,22,0.45);
+      border: 1px solid rgba(44,36,22,0.1);
+    }
+
+    /* ── FOOTER ── */
+    .footer {
+      margin-top: 40px;
+      background: #2C2416;
+      border-radius: 8px;
+      padding: 28px 32px;
+      position: relative;
+      overflow: hidden;
+    }
+    .footer::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(ellipse at 80% 50%, rgba(200,164,78,0.05) 0%, transparent 60%);
+      pointer-events: none;
+    }
+    .footer-inner { position: relative; }
+    .footer-title {
+      font-family: 'Playfair Display', serif;
+      font-size: 16px;
+      color: #C8A44E;
+      font-weight: 600;
+      margin-bottom: 14px;
+    }
+    .footer-lines { display: flex; flex-direction: column; gap: 7px; }
+    .footer-line { display: flex; gap: 10px; align-items: flex-start; }
+    .footer-bullet { color: #C8A44E; font-size: 11px; margin-top: 3px; flex-shrink: 0; }
+    .footer-text { font-size: 13px; color: rgba(245,240,232,0.45); line-height: 1.5; }
+
+    @media (max-width: 700px) {
+      .page-header { padding: 32px 20px 28px; }
+      .legend-bar { padding: 12px 20px; }
+      .content { padding: 24px 16px 0; }
+      .sections-grid { grid-template-columns: 1fr !important; }
+      .section-col { border-right: none; border-bottom: 1px solid rgba(200,164,78,0.12); }
+      .section-col:last-child { border-bottom: none; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- HEADER -->
+<div class="page-header">
+  <div class="header-inner">
+    <div class="eyebrow">
+      <div class="eyebrow-line"></div>
+      <span class="eyebrow-text">National Building Specialties · Division 10 · Material Supply</span>
+    </div>
+    <h1>Procurement Operating System</h1>
+    <p class="subheading">Module Field Architecture</p>
+    
+    <div class="header-stats">
+      <div>
+        <div class="stat-val">9</div>
+        <div class="stat-label">Modules</div>
+      </div>
+      <div>
+        <div class="stat-val">27</div>
+        <div class="stat-label">Sections</div>
+      </div>
+      <div>
+        <div class="stat-val">157</div>
+        <div class="stat-label">Total Fields</div>
+      </div>
+      <div>
+        <div class="stat-val">1 Root ID</div>
+        <div class="stat-label">PV Number links everything</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+</div>
+
+<!-- CONTENT -->
+<div class="content">
+
+  <!-- ═══════════════════════════════════════════════ -->
+  <!-- MODULE 01 — PROPOSAL LOG -->
+  <!-- ═══════════════════════════════════════════════ -->
+  <div class="module">
+    <div class="module-header" onclick="toggleModule('proposal')" style="border-radius:6px;">
+      <div class="module-badge">01</div>
+      <div class="module-title-wrap">
+        <div class="module-title-row">
+          <span class="module-name">Proposal Log</span>
+          <span class="module-count">19 fields</span>
+        </div>
+        <div class="module-purpose">Tracks every bid opportunity from invitation through award</div>
+      </div>
+      <div class="chevron" id="chevron-proposal" style="transform:rotate(-90deg);">▾</div>
+    </div>
+    <div class="module-body" id="body-proposal" style="display:none;">
+      <div class="flow-bar">
+        <span class="flow-section-name">Project Identity</span>
+        <span class="flow-arrow">→</span>
+        <span class="flow-section-name">Bid Details</span>
+        <span class="flow-arrow">→</span>
+        <span class="flow-section-name">Award & Schedule</span>
+      </div>
+      <div class="sections-grid" style="grid-template-columns: repeat(3, 1fr);">
+
+        <div class="section-col">
+          <div class="section-label"><div class="section-label-line"></div> Project Identity</div>
+          <div class="fields-list">
+            <div class="field-card"><div><div class="field-name">PV Number</div><div class="field-note">Root ID — never changes</div></div><span class="field-type">ID</span></div>
+            <div class="field-card"><div><div class="field-name">Project Name</div></div><span class="field-type">Text</span></div>
+            <div class="field-card"><div><div class="field-name">NBS Job Number</div><div class="field-note">Assigned at award</div></div><span class="field-type">ID</span></div>
+            <div class="field-card"><div><div class="field-name">GC Project Number</div></div><span class="field-type">Text</span></div>
+            <div class="field-card"><div><div class="field-name">Region</div></div><span class="field-type">Select</span></div>
+            <div class="field-card"><div><div class="field-name">Market Type</div><div class="field-note">Healthcare, Education, Commercial…</div></div><span class="field-type">Select</span></div>
+          </div>
+        </div>
+
+        <div class="section-col">
+          <div class="section-label"><div class="section-label-line"></div> Bid Details</div>
+          <div class="fields-list">
+            <div class="field-card"><div><div class="field-name">General Contractor</div></div><span class="field-type">Text</span></div>
+            <div class="field-card"><div><div class="field-name">GC Contact</div></div><span class="field-type">Text</span></div>
+            <div class="field-card"><div><div class="field-name">Invite Date</div></div><span class="field-type">Date</span></div>
+            <div class="field-card"><div><div class="field-name">Bid Due Date</div></div><span class="field-type">Date</span></div>
+            <div class="field-card"><div><div class="field-name">Estimator Assigned</div></div><span class="field-type">User</span></div>
+            <div class="field-card"><div><div class="field-name">Bid Status</div><div class="field-note">Active / Submitted / Awarded / No-Bid / Lost</div></div><span class="field-type">Select</span></div>
+            <div class="field-card"><div><div class="field-name">Swinerton Project</div><div class="field-note">Yes / No</div></div><span class="field-type">Flag</span></div>
+          </div>
+        </div>
+
+        <div class="section-col">
+          <div class="section-label"><div class="section-label-line"></div> Award & Schedule</div>
+          <div class="fields-list">
+            <div class="field-card"><div><div class="field-name">Award Date</div></div><span class="field-type">Date</span></div>
+            <div class="field-card"><div><div class="field-name">Original Contract Value</div><div class="field-note">OCV — set at award</div></div><span class="field-type">$</span></div>
+            <div class="field-card"><div><div class="field-name">Anticipated Start Date</div></div><span class="field-type">Date</span></div>
+            <div class="field-card"><div><div class="field-name">Anticipated Finish Date</div></div><span class="field-type">Date</span></div>
+            <div class="field-card"><div><div class="field-name">Project Owner</div></div><span class="field-type">Text</span></div>
+            <div class="field-card"><div><div class="field-name">Final Reviewer</div></div><span class="field-type">User</span></div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════ -->
+  <!-- MODULE 02 — ESTIMATING -->
+  <!-- ═══════════════════════════════════════════════ -->
+  <div class="module">
+    <div class="module-header" onclick="toggleModule('estimating')" style="border-radius:6px;">
+      <div class="module-badge">02</div>
+      <div class="module-title-wrap">
+        <div class="module-title-row">
+          <span class="module-name">Estimating Module</span>
+          <span class="module-count">21 fields</span>
+        </div>
+        <div class="module-purpose">Builds the material-only estimate for each active bid</div>
+      </div>
+      <div class="chevron" id="chevron-estimating" style="transform:rotate(-90deg);">▾</div>
+    </div>
+    <div class="module-body" id="body-estimating" style="display:none;">
+      <div class="flow-bar">
+        <span class="flow-section-name">Scope Setup</span>
+        <span class="flow-arrow">→</span>
+        <span class="flow-section-name">Line Items</span>
+        <span class="flow-arrow">→</span>
+        <span class="flow-section-name">Markup & Totals</span>
+      </div>
+      <div class="sections-grid" style="grid-template-columns: repeat(3, 1fr);">
+
+        <div class="section-col">
+          <div class="section-label"><div class="section-label-line"></div> Scope Setup</div>
+          <div class="fields-list">
+            <div class="field-card"><div><div class="field-name">PV Number (linked)</div><div class="field-note">From Proposal Log</div></div><span class="field-type">ID</span></div>
+            <div class="field-card"><div><div class="field-name">Scope Categories</div><div class="field-note">Toilet Access., Partitions, Lockers, Signage, FEC, Wall Protection, Window Shades…</div></div><span class="field-type">Multi-select</span></div>
+            <div class="field-card"><div><div class="field-name">Spec Sections</div><div class="field-note">e.g. 10 28 00, 10 21 13</div></div><span class="field-type">Text</span></div>
+            <div class="field-card"><div><div class="field-name">Approved Manufacturers</div><div class="field-note">From spec docs</div></div><span class="field-type">Text</span></div>
+            <div class="field-card"><div><div class="field-name">Alternates / VE Options</div></div><span class="field-type">Text</span></div>
+          </div>
+        </div>
+
+        <div class="section-col">
+          <div class="section-label"><div class="section-label-line"></div> Line Items</div>
+          <div class="fields-list">
+            <div class="field-card"><div><div class="field-name">Line Item #</div></div><span class="field-type">ID</span></div>
+            <div class="field-card"><div><div class="field-name">CSI Code</div></div><span class="field-type">Text</span></div>
+            <div class="field-card"><div><div class="field-name">Description</div></div><span class="field-type">Text</span></div>
+            <div class="field-card"><div><div class="field-name">Manufacturer</div></div><span class="field-type">Text</span></div>
+            <div class="field-card"><div><div class="field-name">Model Number</div></div><span class="field-type">Text</span></div>
+            <div class="field-card"><div><div class="field-name">Quantity</div></div><span class="field-type">Number</span></div>
+            <div class="field-card"><div><div class="field-name">Unit of Measure</div><div class="field-note">EA, LF, SF…</div></div><span class="field-type">Select</span></div>
+            <div class="field-card"><div><div class="field-name">Unit Cost</div><div class="field-note">From vendor quote</div></div><span class="field-type">$</span></div>
+            <div class="field-card"><div><div class="field-name">Extended Cost</div><div class="field-note">Qty × Unit Cost</div></div><span class="field-type">$</span></div>
+          </div>
+        </div>
+
+        <div class="section-col">
+          <div class="section-label"><div class="section-label-line"></div> Markup & Totals</div>
+          <div class="fields-list">
+            <div class="field-card"><div><div class="field-name">Material Subtotal</div></div><span class="field-type">$</span></div>
+            <div class="field-card"><div><div class="field-name">Overhead %</div></div><span class="field-type">%</span></div>
+            <div class="field-card"><div><div class="field-name">Fee %</div></div><span class="field-type">%</span></div>
+            <div class="field-card"><div><div class="field-name">Total Bid Amount</div><div class="field-note">Writes back to Proposal Log</div></div><span class="field-type">$</span></div>
+            <div class="field-card"><div><div class="field-name">Date Submitted</div></div><span class="field-type">Date</span></div>
+            <div class="field-card"><div><div class="field-name">Submitted By</div></div><span class="field-type">User</span></div>
+            <div class="field-card"><div><div class="field-name">Sales Tax Applied</div><div class="field-note">Yes / No + %</div></div><span class="field-type">Flag</span></div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════ -->
+  <!-- MODULE 03 — BUYOUT -->
+  <!-- ═══════════════════════════════════════════════ -->
+  <div class="module">
+    <div class="module-header" onclick="toggleModule('buyout')" style="border-radius:6px;">
+      <div class="module-badge">03</div>
+      <div class="module-title-wrap">
+        <div class="module-title-row">
+          <span class="module-name">Buyout Module</span>
+          <span class="module-count">19 fields</span>
+        </div>
+        <div class="module-purpose">Assigns every estimate line item to a real vendor and confirmed price</div>
+      </div>
+      <div class="chevron" id="chevron-buyout" style="transform:rotate(-90deg);">▾</div>
+    </div>
+    <div class="module-body" id="body-buyout" style="display:none;">
+      <div class="flow-bar">
+        <span class="flow-section-name">Vendor Quotes</span>
+        <span class="flow-arrow">→</span>
+        <span class="flow-section-name">Comparison & Selection</span>
+        <span class="flow-arrow">→</span>
+        <span class="flow-section-name">Approval</span>
+      </div>
+      <div class="sections-grid" style="grid-template-columns: repeat(3, 1fr);">
+
+        <div class="section-col">
+          <div class="section-label"><div class="section-label-line"></div> Vendor Quotes</div>
+          <div class="fields-list">
+            <div class="field-card"><div><div class="field-name">PV Number (linked)</div></div><span class="field-type">ID</span></div>
+            <div class="field-card"><div><div class="field-name">Line Item # (linked)</div><div class="field-note">From Estimating</div></div><span class="field-type">ID</span></div>
+            <div class="field-card"><div><div class="field-name">Vendor Name</div></div><span class="field-type">Text</span></div>
+            <div class="field-card"><div><div class="field-name">Manufacturer</div></div><span class="field-type">Text</span></div>
+            <div class="field-card"><div><div class="field-name">Model / Product Line</div></div><span class="field-type">Text</span></div>
+            <div class="field-card"><div><div class="field-name">Quoted Price</div></div><span class="field-type">$</span></div>
+            <div class="field-card"><div><div class="field-name">Quote Date</div></div><span class="field-type">Date</span></div>
+            <div class="field-card"><div><div class="field-name">Quote Expiration</div></div><span class="field-type">Date</span></div>
+            <div class="field-card"><div><div class="field-name">Lead Time (weeks)</div></div><span class="field-type">Number</span></div>
+          </div>
+        </div>
+
+        <div class="section-col">
+          <div class="section-label"><div class="section-label-line"></div> Comparison & Selection</div>
+          <div class="fields-list">
+            <div class="field-card"><div><div class="field-name">Estimate Budget (per line)</div><div class="field-note">From Estimating Module</div></div><span class="field-type">$</span></div>
+            <div class="field-card"><div><div class="field-name">Quoted Amount</div></div><span class="field-type">$</span></div>
+            <div class="field-card"><div><div class="field-name">Variance ($)</div><div class="field-note">Auto-calculated</div></div><span class="field-type">$</span></div>
+            <div class="field-card"><div><div class="field-name">Variance (%)</div><div class="field-note">Flagged if over threshold</div></div><span class="field-type">%</span></div>
+            <div class="field-card"><div><div class="field-name">Vendor Selected</div><div class="field-note">Yes / No</div></div><span class="field-type">Flag</span></div>
+            <div class="field-card"><div><div class="field-name">Selection Reason</div></div><span class="field-type">Text</span></div>
+          </div>
+        </div>
+
+        <div class="section-col">
+          <div class="section-label"><div class="section-label-line"></div> Approval</div>
+          <div class="fields-list">
+            <div class="field-card"><div><div class="field-name">Approved By</div></div><span class="field-type">User</span></div>
+            <div class="field-card"><div><div class="field-name">Approval Date</div></div><span class="field-type">Date</span></div>
+            <div class="field-card"><div><div class="field-name">Approval Notes</div></div><span class="field-type">Text</span></div>
+            <div class="field-card"><div><div class="field-name">Buyout Complete</div><div class="field-note">Yes → triggers Submittal Module</div></div><span class="field-type">Flag</span></div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════ -->
+  <!-- MODULE 04 — SUBMITTALS -->
+  <!-- ═══════════════════════════════════════════════ -->
+  <div class="module">
+    <div class="module-header" onclick="toggleModule('submittals')" style="border-radius:6px;">
+      <div class="module-badge">04</div>
+      <div class="module-title-wrap">
+        <div class="module-title-row">
+          <span class="module-name">Submittal Module</span>
+          <span class="module-count">21 fields</span>
+        </div>
+        <div class="module-purpose">Prepares and tracks product approval packages sent to GC and architect</div>
+      </div>
+      <div class="chevron" id="chevron-submittals" style="transform:rotate(-90deg);">▾</div>
+    </div>
+    <div class="module-body" id="body-submittals" style="display:none;">
+      <div class="flow-bar">
+        <span class="flow-section-name">Submittal Identity</span>
+        <span class="flow-arrow">→</span>
+        <span class="flow-section-name">Transmission</span>
+        <span class="flow-arrow">→</span>
+        <span class="flow-section-name">Review & Approval</span>
+      </div>
+      <div class="sections-grid" style="grid-template-columns: repeat(3, 1fr);">
+
+        <div class="section-col">
+          <div class="section-label"><div class="section-label-line"></div> Submittal Identity</div>
+          <div class="fields-list">
+            <div class="field-card"><div><div class="field-name">PV Number (linked)</div></div><span class="field-type">ID</span></div>
+            <div class="field-card"><div><div class="field-name">Submittal Number</div><div class="field-note">Sequential per project</div></div><span class="field-type">ID</span></div>
+            <div class="field-card"><div><div class="field-name">Spec Section</div><div class="field-note">e.g. 10 28 00</div></div><span class="field-type">Text</span></div>
+            <div class="field-card"><div><div class="field-name">Product Description</div></div><span class="field-type">Text</span></div>
+            <div class="field-card"><div><div class="field-name">Manufacturer</div><div class="field-note">Locked from buyout approval</div></div><span class="field-type">Text</span></div>
+            <div class="field-card"><div><div class="field-name">Model Number</div><div class="field-note">Locked from buyout approval</div></div><span class="field-type">Text</span></div>
+            <div class="field-card"><div><div class="field-name">Finish / Color Selection</div></div><span class="field-type">Text</span></div>
+            <div class="field-card"><div><div class="field-name">Prepared By</div></div><span class="field-type">User</span></div>
+            <div class="field-card"><div><div class="field-name">Date Prepared</div></div><span class="field-type">Date</span></div>
+          </div>
+        </div>
+
+        <div class="section-col">
+          <div class="section-label"><div class="section-label-line"></div> Transmission</div>
+          <div class="fields-list">
+            <div class="field-card"><div><div class="field-name">Transmitted To</div><div class="field-note">GC contact name</div></div><span class="field-type">Text</span></div>
+            <div class="field-card"><div><div class="field-name">Transmission Method</div><div class="field-note">Email / Procore</div></div><span class="field-type">Select</span></div>
+            <div class="field-card"><div><div class="field-name">Transmission Date</div></div><span class="field-type">Date</span></div>
+            <div class="field-card"><div><div class="field-name">GC Submittal Log #</div></div><span class="field-type">Text</span></div>
+          </div>
+        </div>
+
+        <div class="section-col">
+          <div class="section-label"><div class="section-label-line"></div> Review & Approval</div>
+          <div class="fields-list">
+            <div class="field-card"><div><div class="field-name">Review Status</div><div class="field-note">Approved / Approved as Noted / Revise & Resubmit / Rejected</div></div><span class="field-type">Select</span></div>
+            <div class="field-card"><div><div class="field-name">Review Date</div></div><span class="field-type">Date</span></div>
+            <div class="field-card"><div><div class="field-name">Reviewer Notes</div></div><span class="field-type">Text</span></div>
+            <div class="field-card"><div><div class="field-name">Resubmittal Required</div><div class="field-note">Yes / No</div></div><span class="field-type">Flag</span></div>
+            <div class="field-card"><div><div class="field-name">Resubmittal Date</div></div><span class="field-type">Date</span></div>
+            <div class="field-card"><div><div class="field-name">Final Approval Status</div></div><span class="field-type">Select</span></div>
+            <div class="field-card"><div><div class="field-name">Final Approval Date</div></div><span class="field-type">Date</span></div>
+            <div class="field-card"><div><div class="field-name">Released to Procurement</div><div class="field-note">Yes → triggers PO</div></div><span class="field-type">Flag</span></div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════ -->
+  <!-- MODULE 05 — PURCHASE ORDERS -->
+  <!-- ═══════════════════════════════════════════════ -->
+  <div class="module">
+    <div class="module-header" onclick="toggleModule('po')" style="border-radius:6px;">
+      <div class="module-badge">05</div>
+      <div class="module-title-wrap">
+        <div class="module-title-row">
+          <span class="module-name">Purchase Order Module</span>
+          <span class="module-count">23 fields</span>
+        </div>
+        <div class="module-purpose">Issues and tracks all material purchase orders to vendors</div>
+      </div>
+      <div class="chevron" id="chevron-po" style="transform:rotate(-90deg);">▾</div>
+    </div>
+    <div class="module-body" id="body-po" style="display:none;">
+      <div class="flow-bar">
+        <span class="flow-section-name">PO Header</span>
+        <span class="flow-arrow">→</span>
+        <span class="flow-section-name">Line Items</span>
+        <span class="flow-arrow">→</span>
+        <span class="flow-section-name">Approval & Release</span>
+        <span class="flow-arrow">→</span>
+        <span class="flow-section-name">Delivery Tracking</span>
+      </div>
+      <div class="sections-grid" style="grid-template-columns: repeat(4, 1fr);">
+
+        <div class="section-col">
+          <div class="section-label"><div class="section-label-line"></div> PO Header</div>
+          <div class="fields-list">
+            <div class="field-card"><div><div class="field-name">PO Number</div><div class="field-note">Sequential, unique</div></div><span class="field-type">ID</span></div>
+            <div class="field-card"><div><div class="field-name">PO Date</div></div><span class="field-type">Date</span></div>
+            <div class="field-card"><div><div class="field-name">PV Number (linked)</div></div><span class="field-type">ID</span></div>
+            <div class="field-card"><div><div class="field-name">Submittal # (linked)</div><div class="field-note">What authorized this PO</div></div><span class="field-type">ID</span></div>
+            <div class="field-card"><div><div class="field-name">Vendor Name</div></div><span class="field-type">Text</span></div>
+            <div class="field-card"><div><div class="field-name">Vendor Contact</div></div><span class="field-type">Text</span></div>
+            <div class="field-card"><div><div class="field-name">Ship-To Address</div><div class="field-note">Warehouse or job site</div></div><span class="field-type">Text</span></div>
+            <div class="field-card"><div><div class="field-name">Required Delivery Date</div></div><span class="field-type">Date</span></div>
+          </div>
+        </div>
+
+        <div class="section-col">
+          <div class="section-label"><div class="section-label-line"></div> Line Items</div>
+          <div class="fields-list">
+            <div class="field-card"><div><div class="field-name">Product Description</div></div><span class="field-type">Text</span></div>
+            <div class="field-card"><div><div class="field-name">Manufacturer & Model</div></div><span class="field-type">Text</span></div>
+            <div class="field-card"><div><div class="field-name">Quantity Ordered</div></div><span class="field-type">Number</span></div>
+            <div class="field-card"><div><div class="field-name">Unit Price</div></div><span class="field-type">$</span></div>
+            <div class="field-card"><div><div class="field-name">Extended Price</div></div><span class="field-type">$</span></div>
+            <div class="field-card"><div><div class="field-name">PO Total</div></div><span class="field-type">$</span></div>
+          </div>
+        </div>
+
+        <div class="section-col">
+          <div class="section-label"><div class="section-label-line"></div> Approval & Release</div>
+          <div class="fields-list">
+            <div class="field-card"><div><div class="field-name">Approved By</div></div><span class="field-type">User</span></div>
+            <div class="field-card"><div><div class="field-name">Approval Date</div></div><span class="field-type">Date</span></div>
+            <div class="field-card"><div><div class="field-name">Released to Vendor Date</div></div><span class="field-type">Date</span></div>
+            <div class="field-card"><div><div class="field-name">Vendor Acknowledgment</div><div class="field-note">Yes / No</div></div><span class="field-type">Flag</span></div>
+            <div class="field-card"><div><div class="field-name">Vendor Ack Date</div></div><span class="field-type">Date</span></div>
+          </div>
+        </div>
+
+        <div class="section-col">
+          <div class="section-label"><div class="section-label-line"></div> Delivery Tracking</div>
+          <div class="fields-list">
+            <div class="field-card"><div><div class="field-name">Expected Ship Date</div></div><span class="field-type">Date</span></div>
+            <div class="field-card"><div><div class="field-name">Confirmed Ship Date</div></div><span class="field-type">Date</span></div>
+            <div class="field-card"><div><div class="field-name">Tracking Number</div></div><span class="field-type">Text</span></div>
+            <div class="field-card"><div><div class="field-name">Delivery Status</div><div class="field-note">Open / In Transit / Partial / Complete</div></div><span class="field-type">Select</span></div>
+            <div class="field-card"><div><div class="field-name">Delay Flag</div><div class="field-note">Yes / No</div></div><span class="field-type">Flag</span></div>
+            <div class="field-card"><div><div class="field-name">Delay Reason</div></div><span class="field-type">Text</span></div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════ -->
+  <!-- MODULE 06 — RECEIVING -->
+  <!-- ═══════════════════════════════════════════════ -->
+  <div class="module">
+    <div class="module-header" onclick="toggleModule('receiving')" style="border-radius:6px;">
+      <div class="module-badge">06</div>
+      <div class="module-title-wrap">
+        <div class="module-title-row">
+          <span class="module-name">Receiving Module</span>
+          <span class="module-count">20 fields</span>
+        </div>
+        <div class="module-purpose">Logs every material delivery and matches it to the open PO before acceptance</div>
+      </div>
+      <div class="chevron" id="chevron-receiving" style="transform:rotate(-90deg);">▾</div>
+    </div>
+    <div class="module-body" id="body-receiving" style="display:none;">
+      <div class="flow-bar">
+        <span class="flow-section-name">Receipt Record</span>
+        <span class="flow-arrow">→</span>
+<span class="flow-section-name">Inspection</span>
+      </div>
+      <div class="sections-grid" style="grid-template-columns: repeat(2, 1fr);">
+
+        <div class="section-col">
+          <div class="section-label"><div class="section-label-line"></div> Receipt Record</div>
+          <div class="fields-list">
+            <div class="field-card"><div><div class="field-name">Receipt ID</div></div><span class="field-type">ID</span></div>
+            <div class="field-card"><div><div class="field-name">Receipt Date</div></div><span class="field-type">Date</span></div>
+            <div class="field-card"><div><div class="field-name">PO Number (linked)</div><div class="field-note">Must match open PO</div></div><span class="field-type">ID</span></div>
+            <div class="field-card"><div><div class="field-name">PV Number (linked)</div></div><span class="field-type">ID</span></div>
+            <div class="field-card"><div><div class="field-name">Vendor Name</div></div><span class="field-type">Text</span></div>
+            <div class="field-card"><div><div class="field-name">Packing Slip Number</div></div><span class="field-type">Text</span></div>
+            <div class="field-card"><div><div class="field-name">Items Received</div></div><span class="field-type">Text</span></div>
+            <div class="field-card"><div><div class="field-name">Quantities Received</div></div><span class="field-type">Number</span></div>
+          </div>
+        </div>
+
+        <div class="section-col">
+          <div class="section-label"><div class="section-label-line"></div> Inspection</div>
+          <div class="fields-list">
+            <div class="field-card"><div><div class="field-name">PO Quantity</div><div class="field-note">From PO</div></div><span class="field-type">Number</span></div>
+            <div class="field-card"><div><div class="field-name">Received Quantity</div><div class="field-note">Actual count</div></div><span class="field-type">Number</span></div>
+            <div class="field-card"><div><div class="field-name">Condition</div><div class="field-note">Good / Damaged / Wrong Item</div></div><span class="field-type">Select</span></div>
+            <div class="field-card"><div><div class="field-name">Discrepancy Flag</div><div class="field-note">Yes / No</div></div><span class="field-type">Flag</span></div>
+            <div class="field-card"><div><div class="field-name">Discrepancy Notes</div></div><span class="field-type">Text</span></div>
+            <div class="field-card"><div><div class="field-name">Photo Attached</div><div class="field-note">Yes / No</div></div><span class="field-type">Flag</span></div>
+            <div class="field-card"><div><div class="field-name">Received By</div></div><span class="field-type">User</span></div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════ -->
+  <!-- MODULE 07 — BILLING / SOV -->
+  <!-- ═══════════════════════════════════════════════ -->
+  <div class="module">
+    <div class="module-header" onclick="toggleModule('billing')" style="border-radius:6px;">
+      <div class="module-badge">07</div>
+      <div class="module-title-wrap">
+        <div class="module-title-row">
+          <span class="module-name">Billing / SOV Module</span>
+          <span class="module-count">19 fields</span>
+        </div>
+        <div class="module-purpose">Manages the Schedule of Values and monthly pay applications to the GC</div>
+      </div>
+      <div class="chevron" id="chevron-billing" style="transform:rotate(-90deg);">▾</div>
+    </div>
+    <div class="module-body" id="body-billing" style="display:none;">
+      <div class="flow-bar">
+        <span class="flow-section-name">Schedule of Values</span>
+        <span class="flow-arrow">→</span>
+        <span class="flow-section-name">Pay Application</span>
+        <span class="flow-arrow">→</span>
+        <span class="flow-section-name">GC Approval</span>
+      </div>
+      <div class="sections-grid" style="grid-template-columns: repeat(3, 1fr);">
+
+        <div class="section-col">
+          <div class="section-label"><div class="section-label-line"></div> Schedule of Values</div>
+          <div class="fields-list">
+            <div class="field-card"><div><div class="field-name">PV Number (linked)</div></div><span class="field-type">ID</span></div>
+            <div class="field-card"><div><div class="field-name">SOV Line #</div></div><span class="field-type">ID</span></div>
+            <div class="field-card"><div><div class="field-name">Description</div></div><span class="field-type">Text</span></div>
+            <div class="field-card"><div><div class="field-name">Scheduled Value</div><div class="field-note">Must total Original Contract Value (OCV)</div></div><span class="field-type">$</span></div>
+            <div class="field-card"><div><div class="field-name">GC Approved SOV</div><div class="field-note">Yes / No</div></div><span class="field-type">Flag</span></div>
+            <div class="field-card"><div><div class="field-name">SOV Approval Date</div></div><span class="field-type">Date</span></div>
+          </div>
+        </div>
+
+        <div class="section-col">
+          <div class="section-label"><div class="section-label-line"></div> Pay Application</div>
+          <div class="fields-list">
+            <div class="field-card"><div><div class="field-name">Payment ID</div><div class="field-note">Unique ID per monthly billing submitted to GC (Pay App 1, 2, 3…)</div></div><span class="field-type">ID</span></div>
+            <div class="field-card"><div><div class="field-name">Billing Period</div></div><span class="field-type">Date Range</span></div>
+            <div class="field-card"><div><div class="field-name">% Complete per Line Item</div></div><span class="field-type">%</span></div>
+            <div class="field-card"><div><div class="field-name">Materials Stored</div><div class="field-note">If applicable per contract</div></div><span class="field-type">$</span></div>
+            <div class="field-card"><div><div class="field-name">Amount Billed This Period</div></div><span class="field-type">$</span></div>
+            <div class="field-card"><div><div class="field-name">Total Billed to Date</div></div><span class="field-type">$</span></div>
+            <div class="field-card"><div><div class="field-name">Retention Withheld</div></div><span class="field-type">$</span></div>
+            <div class="field-card"><div><div class="field-name">Net Payment Due</div></div><span class="field-type">$</span></div>
+          </div>
+        </div>
+
+        <div class="section-col">
+          <div class="section-label"><div class="section-label-line"></div> GC Approval</div>
+          <div class="fields-list">
+            <div class="field-card"><div><div class="field-name">Submitted Date</div></div><span class="field-type">Date</span></div>
+            <div class="field-card"><div><div class="field-name">GC Approval Date</div></div><span class="field-type">Date</span></div>
+            <div class="field-card"><div><div class="field-name">Approved Amount</div></div><span class="field-type">$</span></div>
+            <div class="field-card"><div><div class="field-name">Reductions Noted</div></div><span class="field-type">Text</span></div>
+            <div class="field-card"><div><div class="field-name">Expected Payment Date</div></div><span class="field-type">Date</span></div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════ -->
+  <!-- MODULE 08 — AP / INVOICE -->
+  <!-- ═══════════════════════════════════════════════ -->
+  <div class="module">
+    <div class="module-header" onclick="toggleModule('ap')" style="border-radius:6px;">
+      <div class="module-badge">08</div>
+      <div class="module-title-wrap">
+        <div class="module-title-row">
+          <span class="module-name">AP / Invoice Module</span>
+          <span class="module-count">20 fields</span>
+        </div>
+        <div class="module-purpose">Processes vendor invoices through 3-way match before any payment is released</div>
+      </div>
+      <div class="chevron" id="chevron-ap" style="transform:rotate(-90deg);">▾</div>
+    </div>
+    <div class="module-body" id="body-ap" style="display:none;">
+      <div class="flow-bar">
+        <span class="flow-section-name">Invoice Record</span>
+        <span class="flow-arrow">→</span>
+        <span class="flow-section-name">3-Way Match</span>
+        <span class="flow-arrow">→</span>
+        <span class="flow-section-name">Payment</span>
+      </div>
+      <div class="sections-grid" style="grid-template-columns: repeat(3, 1fr);">
+
+        <div class="section-col">
+          <div class="section-label"><div class="section-label-line"></div> Invoice Record</div>
+          <div class="fields-list">
+            <div class="field-card"><div><div class="field-name">Invoice Number</div></div><span class="field-type">ID</span></div>
+            <div class="field-card"><div><div class="field-name">Invoice Date</div></div><span class="field-type">Date</span></div>
+            <div class="field-card"><div><div class="field-name">Date Received</div></div><span class="field-type">Date</span></div>
+            <div class="field-card"><div><div class="field-name">Vendor Name</div></div><span class="field-type">Text</span></div>
+            <div class="field-card"><div><div class="field-name">PO Number (linked)</div><div class="field-note">Must match</div></div><span class="field-type">ID</span></div>
+            <div class="field-card"><div><div class="field-name">PV Number (linked)</div></div><span class="field-type">ID</span></div>
+            <div class="field-card"><div><div class="field-name">Invoice Amount</div></div><span class="field-type">$</span></div>
+          </div>
+        </div>
+
+        <div class="section-col">
+          <div class="section-label"><div class="section-label-line"></div> 3-Way Match</div>
+          <div class="fields-list">
+            <div class="field-card"><div><div class="field-name">PO Amount</div><div class="field-note">From PO Module</div></div><span class="field-type">$</span></div>
+            <div class="field-card"><div><div class="field-name">Received Quantity</div><div class="field-note">From Receiving Module</div></div><span class="field-type">Number</span></div>
+            <div class="field-card"><div><div class="field-name">Invoice Amount</div></div><span class="field-type">$</span></div>
+            <div class="field-card"><div><div class="field-name">Match Status</div><div class="field-note">Pass / Fail / Partial</div></div><span class="field-type">Select</span></div>
+            <div class="field-card"><div><div class="field-name">Discrepancy Amount</div></div><span class="field-type">$</span></div>
+            <div class="field-card"><div><div class="field-name">Discrepancy Reason</div></div><span class="field-type">Text</span></div>
+          </div>
+        </div>
+
+        <div class="section-col">
+          <div class="section-label"><div class="section-label-line"></div> Payment</div>
+          <div class="fields-list">
+            <div class="field-card"><div><div class="field-name">Approved By</div></div><span class="field-type">User</span></div>
+            <div class="field-card"><div><div class="field-name">Approval Date</div></div><span class="field-type">Date</span></div>
+            <div class="field-card"><div><div class="field-name">Payment Due Date</div></div><span class="field-type">Date</span></div>
+            <div class="field-card"><div><div class="field-name">Payment Amount</div></div><span class="field-type">$</span></div>
+            <div class="field-card"><div><div class="field-name">Check / ACH Reference</div></div><span class="field-type">Text</span></div>
+            <div class="field-card"><div><div class="field-name">Payment Date</div></div><span class="field-type">Date</span></div>
+            <div class="field-card"><div><div class="field-name">Payment Status</div><div class="field-note">Pending / Scheduled / Paid</div></div><span class="field-type">Select</span></div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════ -->
+  <!-- MODULE 09 — CASH & CLOSEOUT -->
+  <!-- ═══════════════════════════════════════════════ -->
+  <div class="module">
+    <div class="module-header" onclick="toggleModule('cash')" style="border-radius:6px;">
+      <div class="module-badge">09</div>
+      <div class="module-title-wrap">
+        <div class="module-title-row">
+          <span class="module-name">Cash & Closeout Module</span>
+          <span class="module-count">15 fields</span>
+        </div>
+        <div class="module-purpose">Records incoming payments, tracks retention, and closes the project financially</div>
+      </div>
+      <div class="chevron" id="chevron-cash" style="transform:rotate(-90deg);">▾</div>
+    </div>
+    <div class="module-body" id="body-cash" style="display:none;">
+      <div class="flow-bar">
+        <span class="flow-section-name">Payment Receipt</span>
+        <span class="flow-arrow">→</span>
+        <span class="flow-section-name">Retention</span>
+        <span class="flow-arrow">→</span>
+        <span class="flow-section-name">Project Close</span>
+      </div>
+      <div class="sections-grid" style="grid-template-columns: repeat(3, 1fr);">
+
+        <div class="section-col">
+          <div class="section-label"><div class="section-label-line"></div> Payment Receipt</div>
+          <div class="fields-list">
+            <div class="field-card"><div><div class="field-name">PV Number (linked)</div></div><span class="field-type">ID</span></div>
+            <div class="field-card"><div><div class="field-name">Payment Received Date</div></div><span class="field-type">Date</span></div>
+            <div class="field-card"><div><div class="field-name">Amount Received</div></div><span class="field-type">$</span></div>
+            <div class="field-card"><div><div class="field-name">Pay App # Applied To</div></div><span class="field-type">ID</span></div>
+            <div class="field-card"><div><div class="field-name">Underpayment Flag</div><div class="field-note">Yes / No</div></div><span class="field-type">Flag</span></div>
+            <div class="field-card"><div><div class="field-name">Underpayment Amount</div></div><span class="field-type">$</span></div>
+          </div>
+        </div>
+
+        <div class="section-col">
+          <div class="section-label"><div class="section-label-line"></div> Retention</div>
+          <div class="fields-list">
+            <div class="field-card"><div><div class="field-name">Retention % per Contract</div></div><span class="field-type">%</span></div>
+            <div class="field-card"><div><div class="field-name">Retention Withheld to Date</div></div><span class="field-type">$</span></div>
+            <div class="field-card"><div><div class="field-name">Expected Retention Release Date</div></div><span class="field-type">Date</span></div>
+            <div class="field-card"><div><div class="field-name">Retention Released</div><div class="field-note">Yes / No</div></div><span class="field-type">Flag</span></div>
+            <div class="field-card"><div><div class="field-name">Retention Release Date</div></div><span class="field-type">Date</span></div>
+            <div class="field-card"><div><div class="field-name">Retention Amount Collected</div></div><span class="field-type">$</span></div>
+          </div>
+        </div>
+
+        <div class="section-col">
+          <div class="section-label"><div class="section-label-line"></div> Project Close</div>
+          <div class="fields-list">
+            <div class="field-card"><div><div class="field-name">All POs Closed</div><div class="field-note">Yes / No</div></div><span class="field-type">Flag</span></div>
+            <div class="field-card"><div><div class="field-name">All Vendor Invoices Paid</div><div class="field-note">Yes / No</div></div><span class="field-type">Flag</span></div>
+            <div class="field-card"><div><div class="field-name">Final Pay App Submitted</div><div class="field-note">Yes / No</div></div><span class="field-type">Flag</span></div>
+            <div class="field-card"><div><div class="field-name">Final Pay App Approved</div><div class="field-note">Yes / No</div></div><span class="field-type">Flag</span></div>
+            <div class="field-card"><div><div class="field-name">Retention Collected</div><div class="field-note">Yes / No</div></div><span class="field-type">Flag</span></div>
+            <div class="field-card"><div><div class="field-name">Project Close Date</div></div><span class="field-type">Date</span></div>
+            <div class="field-card"><div><div class="field-name">Final Job Profit / Loss</div><div class="field-note">Actual vs. OCV</div></div><span class="field-type">$</span></div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- ── FOOTER ── -->
+  <div class="footer">
+    <div class="footer-inner">
+      <div class="footer-title">How the modules connect</div>
+      <div class="footer-lines">
+        <div class="footer-line"><span class="footer-bullet">▸</span><span class="footer-text">Proposal Log → creates the PV Number that every downstream module references</span></div>
+        <div class="footer-line"><span class="footer-bullet">▸</span><span class="footer-text">Estimating → line items become the buyout budget baseline</span></div>
+        <div class="footer-line"><span class="footer-bullet">▸</span><span class="footer-text">Buyout → approved vendors feed directly into Submittals</span></div>
+        <div class="footer-line"><span class="footer-bullet">▸</span><span class="footer-text">Submittals → approved products release Purchase Orders</span></div>
+        <div class="footer-line"><span class="footer-bullet">▸</span><span class="footer-text">POs + Receiving → 3-way match required before any vendor invoice is paid</span></div>
+        <div class="footer-line"><span class="footer-bullet">▸</span><span class="footer-text">Billing (SOV) → tracks what NBS bills the GC each month</span></div>
+        <div class="footer-line"><span class="footer-bullet">▸</span><span class="footer-text">Cash & Closeout → records incoming payments and closes the job</span></div>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /content -->
+
+<script>
+  function toggleModule(id) {
+    const body = document.getElementById('body-' + id);
+    const chevron = document.getElementById('chevron-' + id);
+    const header = body.previousElementSibling;
+    const isHidden = body.style.display === 'none';
+    body.style.display = isHidden ? 'block' : 'none';
+    chevron.style.transform = isHidden ? 'rotate(0deg)' : 'rotate(-90deg)';
+    header.style.borderRadius = isHidden ? '6px 6px 0 0' : '6px';
+  }
+</script>
+
+
+
+  <!-- ── DOCUMENT CREDIT ── -->
+  <div style="
+    max-width: 1040px;
+    margin: 32px auto 0;
+    padding: 16px 24px;
+    border-top: 1px solid rgba(139,105,20,0.15);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+  ">
+    <span style="font-family:'Source Sans 3',sans-serif; font-size:11px; color:#2C2416; letter-spacing:0.04em;">
+      Prepared by: Haley Kruse &nbsp;·&nbsp; Senior Project Engineer, NBS
+    </span>
+    <span style="font-family:'Source Sans 3',sans-serif; font-size:11px; color:#2C2416; letter-spacing:0.04em;">
+      April 2026 &nbsp;·&nbsp; v1.0
+    </span>
+  </div>
+
+</body>
+</html>

@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NBS Procurement Process</title>
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #1a1a1a;
+    color: #f5f0e8;
+    font-family: 'DM Sans', system-ui, sans-serif;
+    min-height: 100vh;
+    padding: 56px 24px 80px;
+  }
+  .wrap { max-width: 980px; margin: 0 auto; }
+  .eyebrow {
+    display: flex; align-items: center; gap: 12px;
+    color: #C8A44E; font-size: 11px; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 0.18em;
+    margin-bottom: 16px;
+  }
+  .eyebrow-line { height: 1px; width: 32px; background: rgba(200,164,78,0.5); }
+  h1 {
+    font-family: 'Rajdhani', sans-serif;
+    font-size: clamp(34px, 5vw, 52px);
+    font-weight: 700;
+    line-height: 1.05;
+    letter-spacing: -0.01em;
+    margin-bottom: 12px;
+  }
+  h1 .gold { color: #C8A44E; }
+  .lede {
+    font-size: 16px;
+    color: rgba(245,240,232,0.6);
+    max-width: 640px;
+    margin-bottom: 44px;
+    line-height: 1.55;
+  }
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 18px;
+  }
+  .card {
+    display: flex; flex-direction: column;
+    background: #232220;
+    border: 1px solid rgba(200,164,78,0.18);
+    border-radius: 10px;
+    padding: 28px 24px 24px;
+    text-decoration: none;
+    color: inherit;
+    transition: border-color 0.18s ease, transform 0.18s ease, background 0.18s ease;
+    position: relative;
+    overflow: hidden;
+  }
+  .card::before {
+    content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px;
+    background: linear-gradient(90deg, #C8A44E, #E0C277);
+    opacity: 0.7;
+  }
+  .card:hover {
+    border-color: rgba(200,164,78,0.55);
+    background: #2a2826;
+    transform: translateY(-2px);
+  }
+  .num {
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 13px; font-weight: 700;
+    color: #C8A44E;
+    letter-spacing: 0.16em;
+    margin-bottom: 12px;
+  }
+  .name {
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 24px;
+    font-weight: 600;
+    margin-bottom: 8px;
+    line-height: 1.15;
+  }
+  .desc {
+    font-size: 14px;
+    color: rgba(245,240,232,0.55);
+    line-height: 1.5;
+    margin-bottom: 18px;
+    flex: 1;
+  }
+  .open {
+    color: #C8A44E;
+    font-size: 13px; font-weight: 600;
+    letter-spacing: 0.04em;
+    display: inline-flex; align-items: center; gap: 6px;
+  }
+  .back {
+    display: inline-flex; align-items: center; gap: 6px;
+    color: rgba(245,240,232,0.5);
+    font-size: 13px;
+    text-decoration: none;
+    margin-bottom: 28px;
+    transition: color 0.15s;
+  }
+  .back:hover { color: #C8A44E; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <a class="back" href="/">&larr; Back to AiPM Tool Belt</a>
+  <div class="eyebrow">
+    <div class="eyebrow-line"></div>
+    <span>National Building Specialties &middot; Reference Library</span>
+  </div>
+  <h1><span class="gold">NBS</span> Procurement Process</h1>
+  <p class="lede">Three reference documents covering how Division 10 procurement flows from estimate through billing, how the system is organized, and what gets reported at each stage.</p>
+
+  <div class="grid">
+    <a class="card" href="/tools/procurement-process/how-it-works.html">
+      <div class="num">01 &middot; PROCESS</div>
+      <div class="name">How It Works</div>
+      <div class="desc">The complete 8-stage procurement pipeline from estimate to payment. Click each handoff to see what data moves, what gets created, and what the system automates.</div>
+      <div class="open">Open document &rarr;</div>
+    </a>
+    <a class="card" href="/tools/procurement-process/how-its-organized.html">
+      <div class="num">02 &middot; ARCHITECTURE</div>
+      <div class="name">How It's Organized</div>
+      <div class="desc">Module field architecture &mdash; the 9 modules, 27 sections, and 157 fields that make up the Procurement Operating System, all linked by one PV Number.</div>
+      <div class="open">Open document &rarr;</div>
+    </a>
+    <a class="card" href="/tools/procurement-process/visibility-and-reporting.html">
+      <div class="num">03 &middot; REPORTING</div>
+      <div class="name">Visibility &amp; Reporting</div>
+      <div class="desc">The checkpoints, variance reports, and projections produced at each stage &mdash; from buyout variance through billing-readiness and final-margin forecasts.</div>
+      <div class="open">Open document &rarr;</div>
+    </a>
+  </div>
+</div>
+</body>
+</html>

@@ -1,0 +1,481 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NBS Procurement Process — Visibility & Reporting</title>
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,wght@0,300;0,400;0,500;1,400&family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.9/babel.min.js"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #F7F6F3; }
+  #root { min-height: 100vh; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const { useState } = React;
+
+const T = {
+  bg: "#F7F6F3", surface: "#FFFFFF", border: "#EDECE8",
+  text: "#1A1A18", textMid: "#6B6A65", textLight: "#9E9D97", textFaint: "#C4C3BD",
+  happy: "#4A9B5A", happyBg: "#F0F7F1",
+  warn: "#D4A032", warnBg: "#FEF8EC",
+  problem: "#C4483E", problemBg: "#FEF2F0",
+  auto: "#2E8B8B", autoBg: "#EDF8F7",
+  gate: "#8B5E3C", gateBg: "#FBF5EF",
+  co: "#C4783E", coBg: "#FDF4EC",
+  estimate: "#6366F1", estimateBg: "#EEEDFD",
+  buyout: "#0E7490", buyoutBg: "#ECFDF5",
+  setup: "#5C6A7D",
+  blue: "#4A8DC7", blueBg: "#EFF5FB",
+  procure: "#D4A032", procureBg: "#FEF8EC",
+  deliver: "#4A9B5A", deliverBg: "#F0F7F1",
+  billing: "#B45309", billingBg: "#FFFBEB",
+  report: "#7E22CE", reportBg: "#FAF5FF",
+};
+
+const font = {
+  d: "'Newsreader', Georgia, serif",
+  b: "'DM Sans', 'Helvetica Neue', sans-serif",
+  m: "'JetBrains Mono', 'SF Mono', monospace",
+};
+
+const $ = n => (n < 0 ? "-" : "") + "$" + Math.abs(n).toLocaleString();
+
+function StepN({ n, color, size = 28 }) {
+  return (
+    <div style={{ width: size, height: size, borderRadius: "50%", background: color, display: "flex", alignItems: "center", justifyContent: "center", fontSize: size * 0.4, fontWeight: 700, color: "#FFF", fontFamily: font.b, flexShrink: 0 }}>{n}</div>
+  );
+}
+
+function AutoPill({ label }) {
+  return <span style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "3px 9px", borderRadius: 20, background: T.autoBg, border: `1px solid ${T.auto}20`, fontSize: 13, color: T.auto, fontWeight: 500, fontFamily: font.b }}>⚡ {label}</span>;
+}
+
+function ReportPill({ label }) {
+  return <span style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "3px 9px", borderRadius: 20, background: T.reportBg, border: `1px solid ${T.report}20`, fontSize: 13, color: T.report, fontWeight: 500, fontFamily: font.b }}>📊 {label}</span>;
+}
+
+// ═══════════════════════════════════════
+// MAIN PIPELINE WITH REPORTING OVERLAY
+// ═══════════════════════════════════════
+
+const STAGES = [
+  {
+    n: "1", label: "Estimate", color: T.estimate,
+    sub: "Bid baseline established",
+    items: ["Spec sections scoped", "Bid vendors + pricing", "Bid totals per section"],
+    reports: [],
+    checkpoint: {
+      title: "Bid Snapshot",
+      type: "baseline",
+      desc: "The estimate total becomes the baseline that everything is measured against. This number never changes — it's the anchor for all variance reporting downstream.",
+      metrics: [
+        { label: "Bid Total", value: "$287,000", note: "Frozen at award — the reference point" },
+      ],
+      projections: [],
+      autoReports: ["Bid recap export for project file"],
+    },
+  },
+  {
+    n: "2", label: "Award / NTP", color: "#7C6BC4",
+    sub: "Contract locked",
+    items: ["Project officially won", "Contract value confirmed", "Schedule milestones set"],
+    reports: [],
+    checkpoint: {
+      title: "Contract Baseline",
+      type: "baseline",
+      desc: "The contract value may differ from the bid total (negotiated scope changes at award). Both numbers are preserved. The delta between bid and contract is tracked as a pre-buyout variance.",
+      metrics: [
+        { label: "Contract Value", value: "$287,000", note: "What the GC is paying NBS" },
+        { label: "Bid vs. Contract Δ", value: "$0", note: "Any award-time scope adjustments" },
+      ],
+      projections: [
+        { label: "Projected Margin", value: "Based on bid pricing vs. estimated costs", timing: "Snapshot at award" },
+      ],
+      autoReports: ["Award summary report", "Initial project cost projection"],
+    },
+  },
+  {
+    n: "3", label: "Project Setup", color: T.setup,
+    sub: "Data imported",
+    items: ["Sections + items imported", "Bid data preserved", "Buyout fields empty"],
+    reports: [],
+    checkpoint: null,
+  },
+  {
+    n: "4", label: "Buyout", color: T.buyout,
+    sub: "Vendors + pricing finalized",
+    items: ["Shop or confirm per section", "Final vendor selected", "Final pricing locked"],
+    reports: [],
+    checkpoint: {
+      title: "Buyout Variance Report",
+      type: "variance",
+      desc: "This is where NBS finds out if the project will make or lose money vs. what was bid. Every section's buyout total is compared to its bid total. This report should be reviewed by management as sections complete buyout — not just at the end.",
+      metrics: [
+        { label: "Bid Total", value: "$287,000", note: "Original estimate pricing" },
+        { label: "Buyout Total", value: "$281,340", note: "Actual committed vendor pricing" },
+        { label: "Buyout Variance", value: "$5,660", note: "Savings vs. bid" },
+        { label: "Buyout Variance %", value: "2.0%", note: "Savings as percentage of bid" },
+      ],
+      projections: [
+        { label: "Projected Final Cost", value: "Buyout total + estimated remaining", timing: "Updates as each section completes buyout" },
+        { label: "Projected Margin", value: "Contract value - projected final cost", timing: "Refines with each buyout decision" },
+        { label: "At-Risk Sections", value: "Any section where buyout > bid", timing: "Flagged immediately when buyout pricing entered" },
+      ],
+      autoReports: ["Buyout variance report (per section)", "Buyout progress tracker", "Management alert if any section exceeds bid by >5%"],
+    },
+  },
+  {
+    n: "5", label: "Submittals", color: T.blue,
+    sub: "Gate before procurement",
+    items: ["One per spec section", "GC → Architect review", "🔒 Must approve before PO"],
+    reports: [],
+    checkpoint: {
+      title: "Submittal Status Report",
+      type: "status",
+      desc: "Submittal turnaround time directly affects the project schedule. If submittals sit with the GC/architect too long, it pushes procurement, which pushes delivery, which pushes billing. This checkpoint tracks cycle times and flags delays.",
+      metrics: [
+        { label: "Submittals Sent", value: "5 of 5", note: "All sections submitted" },
+        { label: "Approved / AAN", value: "2 of 5", note: "Gate open for 2 sections" },
+        { label: "Avg Review Time", value: "27 days", note: "Time from submit to return" },
+        { label: "Oldest Pending", value: "SUB-102 — 58 days", note: "Locker submittal with GC" },
+      ],
+      projections: [
+        { label: "Projected All-Approved Date", value: "Based on avg review time applied to pending submittals", timing: "Updates weekly" },
+        { label: "Procurement Start Forecast", value: "When POs can begin issuing, based on submittal projections", timing: "Drives downstream delivery + billing forecasts" },
+        { label: "Schedule Impact", value: "If submittal delays push delivery past GC need dates", timing: "Flagged when projected approval date exceeds schedule tolerance" },
+      ],
+      autoReports: ["Submittal status log (for GC reporting)", "Overdue submittal alerts", "Projected approval timeline"],
+    },
+  },
+  {
+    n: "6", label: "Procurement", color: T.procure,
+    sub: "POs issued to vendors",
+    items: ["POs grouped by vendor", "Lead times locked", "Delivery dates calculated"],
+    reports: [],
+    checkpoint: {
+      title: "Commitment & Delivery Forecast",
+      type: "forecast",
+      desc: "Once POs are issued, NBS is financially committed. This checkpoint tracks how much has been committed vs. the buyout budget, and projects when deliveries will arrive — which drives when NBS can bill the GC.",
+      metrics: [
+        { label: "POs Issued", value: "2 of 5 vendors", note: "2 POs worth $71,040" },
+        { label: "Committed Value", value: "$71,040", note: "Of $281,340 buyout total (25%)" },
+        { label: "Uncommitted", value: "$210,300", note: "Sections still in submittal" },
+        { label: "Longest Lead", value: "56 days (Mecho)", note: "Critical path item" },
+      ],
+      projections: [
+        { label: "Delivery Forecast", value: "Per-PO expected delivery dates plotted on a timeline", timing: "Updates when POs are issued or vendors report changes" },
+        { label: "Cash Outflow Projection", value: "When NBS will need to pay vendors (30-day terms from delivery)", timing: "Drives cash flow planning" },
+        { label: "Billing Eligibility Forecast", value: "When material will be on-site and billable to GC", timing: "Drives revenue recognition projections" },
+        { label: "Critical Path Items", value: "Items where lead time puts delivery past GC schedule", timing: "Flagged at PO issuance" },
+      ],
+      autoReports: ["PO commitment summary", "Delivery date forecast", "Cash outflow projection", "Critical path alert"],
+    },
+  },
+  {
+    n: "7", label: "Delivery", color: T.deliver,
+    sub: "Material received + verified",
+    items: ["Verify against PO", "Complete / partial / damaged", "🔒 Must deliver to bill GC"],
+    reports: [],
+    checkpoint: {
+      title: "Delivery & Billing Readiness",
+      type: "readiness",
+      desc: "Delivery is the trigger for billing. This checkpoint tracks what's been delivered, what's outstanding, and projects when remaining deliveries will arrive — directly forecasting when NBS can bill the GC and recognize revenue.",
+      metrics: [
+        { label: "Delivered Value", value: "$0", note: "No POs delivered yet" },
+        { label: "In Transit", value: "$0", note: "Shipped but not received" },
+        { label: "In Production", value: "$71,040", note: "POs issued, awaiting delivery" },
+        { label: "Not Yet Ordered", value: "$210,300", note: "Awaiting submittals" },
+      ],
+      projections: [
+        { label: "Delivery Schedule", value: "Gantt-style view of expected deliveries by week/month", timing: "Rolling forecast updated as deliveries arrive" },
+        { label: "Billing Readiness Forecast", value: "$ value eligible for GC billing by pay app period", timing: "Updated with each delivery" },
+        { label: "Outstanding Material Report", value: "What's still coming, from which vendor, ETA", timing: "For GC status reporting" },
+        { label: "Partial Delivery Tracker", value: "Items with backorders — qty received vs. remaining", timing: "Per-PO tracking" },
+      ],
+      autoReports: ["Delivery status report", "GC material status report", "Billing readiness by pay app period", "Backorder tracker"],
+    },
+  },
+  {
+    n: "8", label: "Billing", color: T.billing,
+    sub: "Invoice → GC pay app",
+    items: ["Match vendor invoice to PO", "Bill GC on pay application", "Track payments + retainage"],
+    reports: [],
+    checkpoint: {
+      title: "Financial Health & Projections",
+      type: "financial",
+      desc: "The billing checkpoint is where everything comes together financially. How much has NBS billed, how much has been paid, what's the retainage balance, and what's the projected final cost and margin for the project.",
+      metrics: [
+        { label: "Total Billed to GC", value: "$0", note: "No deliveries yet → no billing" },
+        { label: "GC Payments Received", value: "$0", note: "Nothing billed yet" },
+        { label: "Retainage Held", value: "$0", note: "Per contract terms" },
+        { label: "Vendor Invoices Paid", value: "$0", note: "No deliveries = no invoices" },
+      ],
+      projections: [
+        { label: "Projected Billing by Month", value: "Based on delivery forecast + pay app schedule", timing: "Rolling 6-month projection" },
+        { label: "Cash Flow Projection", value: "GC payments in vs. vendor payments out", timing: "Monthly forecast" },
+        { label: "Projected Final Cost", value: "Buyout total + approved COs + known overages", timing: "Updated with each CO and PO revision" },
+        { label: "Projected Margin", value: "Contract value + COs - projected final cost", timing: "The number Kenny watches" },
+        { label: "Retainage Forecast", value: "When retainage will be released based on project schedule", timing: "Tied to substantial + final completion dates" },
+      ],
+      autoReports: ["Monthly billing summary", "Cash flow report", "Project cost report (bid vs. buyout vs. actual)", "Margin analysis", "Retainage aging report"],
+    },
+  },
+];
+
+const CROSS_CUTTING = [
+  {
+    title: "Change Order Impact Report",
+    color: T.co,
+    icon: "⚡",
+    desc: "Runs across the entire pipeline. Every approved CO adjusts the contract value, section totals, and downstream projections. This report shows the cumulative CO impact at any point in time.",
+    metrics: ["Total CO value (approved + pending)", "CO impact on contract value", "CO impact on projected margin", "COs pending GC approval (exposure)"],
+  },
+  {
+    title: "Weekly Status Report (for GC)",
+    color: T.blue,
+    icon: "📋",
+    desc: "A snapshot compiled from every stage of the pipeline. Shows submittal status, PO status, delivery ETAs, and any issues — all in one report for the GC PM.",
+    metrics: ["Submittal status per section", "PO / procurement status", "Delivery schedule + ETAs", "Open COs + pending items"],
+  },
+  {
+    title: "Company-Wide View",
+    color: T.report,
+    icon: "📊",
+    desc: "Kenny's view. Cross-project rollup showing portfolio health — total committed, total billed, projected margins, at-risk projects, and buyout performance.",
+    metrics: ["Portfolio value + committed %", "Buyout savings across all projects", "Projected margin per project", "At-risk items across portfolio"],
+  },
+];
+
+function PipelineView() {
+  const [activeStage, setActiveStage] = useState(null);
+
+  return (
+    <div>
+      <div style={{ marginBottom: 24 }}>
+        <h2 style={{ fontSize: 31, fontFamily: font.d, fontWeight: 400, color: T.text, margin: "0 0 6px 0" }}>NBS Procurement Process — What Leadership Can See</h2>
+        <p style={{ fontSize: 16, color: T.textMid, margin: 0 }}>At every stage of a project, these are the numbers and status updates available to you. Click any stage to see the detail.</p>
+      </div>
+
+      {/* Legend */}
+      <div style={{ display: "flex", gap: 12, marginBottom: 20, flexWrap: "wrap" }}>
+        {[
+          { color: T.estimate, label: "Baseline — frozen reference numbers" },
+          { color: T.buyout, label: "Variance — comparing actual vs. baseline" },
+          { color: T.blue, label: "Status — where things stand right now" },
+          { color: T.procure, label: "Forecast — projecting forward from current data" },
+          { color: T.deliver, label: "Readiness — what's ready for the next step" },
+          { color: T.billing, label: "Financial — cost, billing, margin, cash flow" },
+        ].map(l => (
+          <div key={l.label} style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <div style={{ width: 10, height: 10, borderRadius: 3, background: l.color }} />
+            <span style={{ fontSize: 13, color: T.textMid, fontFamily: font.b }}>{l.label}</span>
+          </div>
+        ))}
+      </div>
+
+      {/* Pipeline — two rows of 4 */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 8, marginBottom: 8 }}>
+        {STAGES.slice(0, 4).map((s, i) => (
+          <StageCard key={i} stage={s} isActive={activeStage === s.n} onClick={() => setActiveStage(activeStage === s.n ? null : s.n)} />
+        ))}
+      </div>
+      <div style={{ display: "flex", justifyContent: "center", padding: "2px 0" }}>
+        <svg width="40" height="18" viewBox="0 0 40 18"><line x1="20" y1="0" x2="20" y2="10" stroke={T.textFaint} strokeWidth="2" /><polygon points="14,8 20,16 26,8" fill={T.textFaint} /></svg>
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 8, marginBottom: 20 }}>
+        {STAGES.slice(4).map((s, i) => (
+          <StageCard key={i} stage={s} isActive={activeStage === s.n} onClick={() => setActiveStage(activeStage === s.n ? null : s.n)} />
+        ))}
+      </div>
+
+      {/* Expanded checkpoint detail */}
+      {activeStage && (() => {
+        const stage = STAGES.find(s => s.n === activeStage);
+        if (!stage?.checkpoint) return (
+          <div style={{ padding: "16px 20px", borderRadius: 12, background: T.surface, border: `1px solid ${T.border}`, marginBottom: 20 }}>
+            <div style={{ fontSize: 16, color: T.textLight, fontStyle: "italic" }}>No reporting checkpoint at this stage — data passes through to the next stage.</div>
+          </div>
+        );
+        const cp = stage.checkpoint;
+        const typeColors = { baseline: T.estimate, variance: T.buyout, status: T.blue, forecast: T.procure, readiness: T.deliver, financial: T.billing };
+        const tc = typeColors[cp.type] || T.text;
+
+        return (
+          <div style={{ borderRadius: 14, background: T.surface, border: `1.5px solid ${tc}30`, overflow: "hidden", marginBottom: 20 }}>
+            <div style={{ padding: "18px 22px", borderBottom: `1px solid ${T.border}` }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
+                <StepN n={stage.n} color={stage.color} size={28} />
+                <div>
+                  <div style={{ fontSize: 20, fontWeight: 600, color: tc, fontFamily: font.b }}>{cp.title}</div>
+                  <div style={{ fontSize: 14, color: T.textLight, textTransform: "uppercase", letterSpacing: 0.8, fontWeight: 600 }}>{cp.type} checkpoint</div>
+                </div>
+              </div>
+              <div style={{ fontSize: 15, color: T.textMid, lineHeight: 1.6, marginTop: 8 }}>{cp.desc}</div>
+            </div>
+
+            <div style={{ padding: "18px 22px" }}>
+              {/* Metrics */}
+              <div style={{ fontSize: 13, fontWeight: 700, color: T.textLight, textTransform: "uppercase", letterSpacing: 1, marginBottom: 10 }}>Current Metrics</div>
+              <div style={{ display: "grid", gridTemplateColumns: `repeat(${Math.min(cp.metrics.length, 4)}, 1fr)`, gap: 10, marginBottom: 20 }}>
+                {cp.metrics.map((m, i) => (
+                  <div key={i} style={{ padding: "12px 14px", borderRadius: 8, background: tc + "08", border: `1px solid ${tc}15` }}>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: T.textLight, textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 4 }}>{m.label}</div>
+                    <div style={{ fontSize: 23, fontFamily: font.d, color: tc, fontWeight: 400 }}>{m.value}</div>
+                    <div style={{ fontSize: 12, color: T.textLight, marginTop: 3 }}>{m.note}</div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Projections */}
+              {cp.projections && cp.projections.length > 0 && (
+                <div style={{ marginBottom: 20 }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: T.report, textTransform: "uppercase", letterSpacing: 1, marginBottom: 10 }}>📈 Forward Projections</div>
+                  <div style={{ display: "grid", gap: 6 }}>
+                    {cp.projections.map((p, i) => (
+                      <div key={i} style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 12, padding: "10px 14px", borderRadius: 8, background: T.reportBg, border: `1px solid ${T.report}15`, alignItems: "center" }}>
+                        <div>
+                          <div style={{ fontSize: 15, fontWeight: 600, color: T.report, fontFamily: font.b }}>{p.label}</div>
+                          <div style={{ fontSize: 14, color: T.textMid, marginTop: 2 }}>{p.value}</div>
+                        </div>
+                        <div style={{ fontSize: 12, color: T.textLight, fontFamily: font.m, textAlign: "right", maxWidth: 180 }}>{p.timing}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Auto-generated reports */}
+              {cp.autoReports && (
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: T.auto, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>⚡ Auto-Generated Reports</div>
+                  <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                    {cp.autoReports.map((r, i) => <AutoPill key={i} label={r} />)}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* Cross-cutting reports */}
+      <div style={{ marginBottom: 8 }}>
+        <div style={{ fontSize: 13, fontWeight: 700, color: T.textLight, textTransform: "uppercase", letterSpacing: 1, marginBottom: 10, fontFamily: font.b }}>Reports available at any time</div>
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 20 }}>
+        {CROSS_CUTTING.map((r, i) => (
+          <div key={i} style={{ padding: "16px 18px", borderRadius: 12, background: T.surface, border: `1.5px solid ${r.color}20` }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+              <span style={{ fontSize: 19 }}>{r.icon}</span>
+              <span style={{ fontSize: 16, fontWeight: 700, color: r.color, fontFamily: font.b }}>{r.title}</span>
+            </div>
+            <div style={{ fontSize: 14, color: T.textMid, lineHeight: 1.5, marginBottom: 10 }}>{r.desc}</div>
+            <div style={{ display: "grid", gap: 3 }}>
+              {r.metrics.map((m, j) => (
+                <div key={j} style={{ fontSize: 13, color: T.textMid, display: "flex", gap: 4 }}>
+                  <span style={{ color: r.color, fontWeight: 700 }}>·</span> {m}
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Projection timeline */}
+      <div style={{ padding: "18px 22px", borderRadius: 12, background: T.surface, border: `1.5px solid ${T.report}20` }}>
+        <div style={{ fontSize: 17, fontWeight: 700, color: T.report, fontFamily: font.b, marginBottom: 4 }}>📈 How Projections Refine Over Time</div>
+        <div style={{ fontSize: 15, color: T.textMid, lineHeight: 1.6, marginBottom: 14 }}>
+          The further a project progresses through the pipeline, the more accurate the projections become. Early stages are estimates — later stages are based on hard commitments and actual data.
+        </div>
+        <div style={{ display: "flex", gap: 0, alignItems: "stretch" }}>
+          {[
+            { label: "Estimate", confidence: "Low", pct: 20, color: T.estimate, note: "Based on bid pricing and assumptions" },
+            { label: "Buyout", confidence: "Medium", pct: 45, color: T.buyout, note: "Actual vendor pricing committed" },
+            { label: "POs Issued", confidence: "High", pct: 70, color: T.procure, note: "Costs locked, delivery dates known" },
+            { label: "Delivered", confidence: "Very High", pct: 90, color: T.deliver, note: "Material received, invoices pending" },
+            { label: "Billed", confidence: "Actual", pct: 100, color: T.billing, note: "Real numbers — no projection needed" },
+          ].map((stage, i) => (
+            <div key={i} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center" }}>
+              {/* Confidence bar */}
+              <div style={{ width: "100%", height: 8, background: T.border, position: "relative" }}>
+                <div style={{ width: `${stage.pct}%`, height: "100%", background: stage.color, borderRadius: i === 0 ? "4px 0 0 4px" : i === 4 ? "0 4px 4px 0" : 0 }} />
+              </div>
+              <div style={{ padding: "8px 6px", textAlign: "center" }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: stage.color, fontFamily: font.b }}>{stage.label}</div>
+                <div style={{ fontSize: 21, fontFamily: font.d, color: stage.color, margin: "2px 0" }}>{stage.pct}%</div>
+                <div style={{ fontSize: 12, color: T.textLight, fontWeight: 600 }}>{stage.confidence}</div>
+                <div style={{ fontSize: 12, color: T.textFaint, marginTop: 2 }}>{stage.note}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function StageCard({ stage, isActive, onClick }) {
+  const hasCheckpoint = !!stage.checkpoint;
+  return (
+    <div onClick={onClick} style={{
+      padding: "14px 12px", borderRadius: 10, background: T.surface,
+      border: `1.5px solid ${isActive ? stage.color : T.border}`,
+      cursor: "pointer", position: "relative", transition: "all 0.2s ease",
+      boxShadow: isActive ? `0 0 0 3px ${stage.color}12` : "none",
+    }}>
+      <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 3, borderRadius: "10px 10px 0 0", background: stage.color }} />
+      <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}>
+        <StepN n={stage.n} color={stage.color} size={22} />
+        <span style={{ fontSize: 15, fontWeight: 700, color: stage.color, fontFamily: font.b }}>{stage.label}</span>
+      </div>
+      <div style={{ fontSize: 13, color: T.textLight, marginBottom: 6 }}>{stage.sub}</div>
+      {stage.items.map((item, j) => (
+        <div key={j} style={{ fontSize: 13, color: T.textMid, padding: "1px 0" }}>
+          <span style={{ color: stage.color }}>·</span> {item}
+        </div>
+      ))}
+      {/* Reporting indicator */}
+      {hasCheckpoint && (
+        <div style={{
+          marginTop: 8, padding: "4px 8px", borderRadius: 4,
+          background: T.reportBg, border: `1px solid ${T.report}15`,
+          display: "flex", alignItems: "center", gap: 4,
+        }}>
+          <span style={{ fontSize: 12 }}>📊</span>
+          <span style={{ fontSize: 12, fontWeight: 600, color: T.report, fontFamily: font.b }}>{stage.checkpoint.title}</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function App() {
+  return (
+    <div style={{ minHeight: "100vh", fontFamily: font.b, background: T.bg, color: T.text, paddingBottom: 40 }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 28px", background: T.surface, borderBottom: `1px solid ${T.border}` }}>
+        <div style={{ display: "flex", alignItems: "baseline", gap: 10 }}>
+          <span style={{ fontSize: 20, fontFamily: font.d, fontWeight: 500 }}>NBS Procurement Process</span>
+          <span style={{ fontSize: 14, fontFamily: font.m, color: T.textFaint }}>What Leadership Can See</span>
+        </div>
+      </div>
+      <div style={{ padding: "28px 36px", maxWidth: 1020, margin: "0 auto" }}>
+        <PipelineView />
+        <div style={{ marginTop: 32, paddingTop: 16, borderTop: "1px solid rgba(139,105,20,0.15)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <span style={{ fontFamily: "'Source Sans 3','Source Sans Pro',sans-serif", fontSize: 11, color: "#2C2416", letterSpacing: "0.04em" }}>Prepared by: Haley Kruse · Senior Project Engineer, NBS</span>
+          <span style={{ fontFamily: "'Source Sans 3','Source Sans Pro',sans-serif", fontSize: 11, color: "#2C2416", letterSpacing: "0.04em" }}>April 2026 · v1.0</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(App));
+</script>
+</body>
+</html>
