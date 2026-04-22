@@ -917,6 +917,8 @@ export const proposalLogEntries = pgTable("proposal_log_entries", {
   projectDbId: integer("project_db_id"),
   anticipatedStart: varchar("anticipated_start", { length: 20 }),
   anticipatedFinish: varchar("anticipated_finish", { length: 20 }),
+  projectAddress: varchar("project_address", { length: 1000 }),
+  squareFeet: varchar("square_feet", { length: 50 }),
   notes: text("notes").default(""),
   bcLink: varchar("bc_link", { length: 1000 }),
   isTest: boolean("is_test").default(false),

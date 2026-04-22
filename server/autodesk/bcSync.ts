@@ -44,6 +44,7 @@ interface BcOpportunity {
   invitedDate?: string;
   expectedStart?: string;
   expectedFinish?: string;
+  squareFeet?: string;
   gcCompanyName?: string;
   gcOfficeHint?: string;
   gcContactName?: string;
@@ -213,6 +214,25 @@ export function normalizeOpportunity(raw: Record<string, any>): BcOpportunity {
     "project.endDate",
   );
 
+  const squareFeet = deepGet(raw,
+    "squareFootage",
+    "squareFeet",
+    "buildingSize",
+    "projectSize",
+    "size",
+    "estimatedSize",
+    "totalSquareFootage",
+    "attributes.squareFootage",
+    "attributes.squareFeet",
+    "attributes.buildingSize",
+    "attributes.projectSize",
+    "attributes.size",
+    "project.squareFootage",
+    "project.squareFeet",
+    "project.buildingSize",
+    "project.size",
+  );
+
   const rawScopes = src.trades || src.scopes || raw.trades || raw.scopes;
   let scopes: string[] = [];
   if (Array.isArray(rawScopes)) {
@@ -236,6 +256,7 @@ export function normalizeOpportunity(raw: Record<string, any>): BcOpportunity {
     invitedDate,
     expectedStart,
     expectedFinish,
+    squareFeet,
     gcCompanyName,
     gcOfficeHint,
     gcContactName,
@@ -559,6 +580,7 @@ async function mapOpportunityToEntry(opp: BcOpportunity) {
     bcOpportunityIds: JSON.stringify([opp.id]),
     scopeList: opp.scopes ? JSON.stringify(opp.scopes) : null,
     projectAddress: locationStr,
+    squareFeet: opp.squareFeet || "",
     sourceType: "bc",
     isDraft: true,
     estimateStatus: "Draft",
@@ -599,6 +621,18 @@ async function detectFieldChanges(existing: typeof proposalLogEntries.$inferSele
   }
   if (existing.gcEstimateLead !== mapped.gcEstimateLead && mapped.gcEstimateLead) {
     changes.push(`gcEstimateLead: ${existing.gcEstimateLead || "none"} → ${mapped.gcEstimateLead}`);
+  }
+  if (existing.anticipatedStart !== mapped.anticipatedStart && mapped.anticipatedStart) {
+    changes.push(`anticipatedStart: ${existing.anticipatedStart || "none"} → ${mapped.anticipatedStart}`);
+  }
+  if (existing.anticipatedFinish !== mapped.anticipatedFinish && mapped.anticipatedFinish) {
+    changes.push(`anticipatedFinish: ${existing.anticipatedFinish || "none"} → ${mapped.anticipatedFinish}`);
+  }
+  if (existing.projectAddress !== mapped.projectAddress && mapped.projectAddress) {
+    changes.push(`projectAddress: ${existing.projectAddress || "none"} → ${mapped.projectAddress}`);
+  }
+  if (existing.squareFeet !== mapped.squareFeet && mapped.squareFeet) {
+    changes.push(`squareFeet: ${existing.squareFeet || "none"} → ${mapped.squareFeet}`);
   }
 
   const existingScopes = existing.scopeList ? JSON.parse(existing.scopeList) as string[] : [];
@@ -870,6 +904,10 @@ export function registerBcSyncRoutes(app: Express) {
               await db.update(proposalLogEntries).set({
                 dueDate: mapped.dueDate || existingEntry.dueDate,
                 gcEstimateLead: mapped.gcEstimateLead || existingEntry.gcEstimateLead,
+                anticipatedStart: mapped.anticipatedStart || existingEntry.anticipatedStart,
+                anticipatedFinish: mapped.anticipatedFinish || existingEntry.anticipatedFinish,
+                projectAddress: mapped.projectAddress || existingEntry.projectAddress,
+                squareFeet: mapped.squareFeet || existingEntry.squareFeet,
                 scopeList: JSON.stringify([...mergedScopes]),
                 bcUpdateFlag: true,
                 bcChangeLog: JSON.stringify(existingChangeLog),
