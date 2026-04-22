@@ -6,10 +6,18 @@ import {
   ChevronRight,
 } from "lucide-react";
 
+import shotHomePage from "@assets/sop-screenshots/01-home-page.png";
+import shotProposalLog from "@assets/sop-screenshots/10-proposal-log-dashboard.png";
+import shotBcSyncTable from "@assets/sop-screenshots/11-bc-sync-table-admin.png";
+import shotProjectStart from "@assets/sop-screenshots/20-project-start.png";
+import shotSpecExtractor from "@assets/sop-screenshots/30-spec-extractor.png";
+import shotScheduleConverter from "@assets/sop-screenshots/40-schedule-converter.png";
+
 interface SopStep {
   title: string;
   body: string | string[];
   screenshot?: string;
+  image?: string;
   tip?: string;
 }
 
@@ -65,7 +73,8 @@ const SOPS: Sop[] = [
             title: "Open the Proposal Log",
             body:
               "From the home page, click the Proposal Log Dashboard tile. The sync controls are at the top of the page (admin-only — non-admins won't see them).",
-            screenshot: "Proposal Log header showing the Sync button",
+            screenshot: "Proposal Log Dashboard — sync controls at the top (admin view)",
+            image: shotProposalLog,
           },
           {
             title: "Click Sync",
@@ -179,15 +188,17 @@ const SOPS: Sop[] = [
           {
             title: "Open Project Start from the home page",
             body: "Click the Project Start tile on the home page.",
-            screenshot: "Project Start tile on home page",
+            screenshot: "Home page — Project Start tile (top row)",
+            image: shotHomePage,
           },
           {
             title: "Enter the basics",
             body: [
               "Fill in Project Name, GC, Region, Primary Market, Due Date.",
-              "If you have a screenshot of the invite (BC invite email, project listing, etc.), drag it into the OCR field — the app will read it and auto-fill what it can.",
+              "If you have a screenshot of the invite (BC invite email, project listing, etc.), drag it into the Quick Fill from Screenshot area at the top — the app will read it and auto-fill what it can.",
             ],
-            screenshot: "Project Start form with screenshot OCR area",
+            screenshot: "Project Start — full form (Quick Fill, Project Details, Intake, Documents)",
+            image: shotProjectStart,
             tip: "OCR works best on clean, high-resolution screenshots. If a field comes back wrong, just type over it.",
           },
           {
@@ -247,7 +258,8 @@ const SOPS: Sop[] = [
             title: "Project name + due date",
             body:
               "On the left. The due date shows in business days remaining (e.g., '3BD' = due in 3 business days, 'Overdue' = past due).",
-            screenshot: "A typical proposal log row",
+            screenshot: "Proposal Log Dashboard — full view with rows, status pills, and filters",
+            image: shotProposalLog,
           },
           {
             title: "Status",
@@ -396,7 +408,8 @@ const SOPS: Sop[] = [
             title: "Manual / standalone",
             body:
               "You can also run it on any PDF without creating a project — open the Spec Extractor tile from the home page and drop a PDF in.",
-            screenshot: "Spec Extractor tile + standalone upload page",
+            screenshot: "Spec Extractor — standalone upload page",
+            image: shotSpecExtractor,
           },
         ],
       },
@@ -480,7 +493,8 @@ const SOPS: Sop[] = [
           {
             title: "Open Schedule Converter from the home page",
             body: "Click the Schedule Converter tile.",
-            screenshot: "Schedule Converter tile",
+            screenshot: "Home page — Schedule Converter tile",
+            image: shotHomePage,
           },
           {
             title: "Paste a screenshot or upload an image",
@@ -488,9 +502,11 @@ const SOPS: Sop[] = [
               "Two ways to give it the schedule:",
               "• Paste an image directly (Ctrl+V / Cmd+V) from your clipboard",
               "• Upload an image file (PNG, JPG)",
+              "You can also switch to the Text tab and paste schedule text instead.",
               "Higher resolution = better results.",
             ],
-            screenshot: "Schedule paste/upload area",
+            screenshot: "Schedule Converter — Image paste/upload area",
+            image: shotScheduleConverter,
           },
           {
             title: "Click Convert",
@@ -751,6 +767,32 @@ function ScreenshotPlaceholder({ caption }: { caption: string }) {
   );
 }
 
+function ScreenshotImage({ src, caption }: { src: string; caption: string }) {
+  return (
+    <figure
+      className="my-3 rounded-md overflow-hidden border"
+      style={{ borderColor: "rgba(200, 164, 78, 0.25)" }}
+    >
+      <img
+        src={src}
+        alt={caption}
+        loading="lazy"
+        className="block w-full h-auto"
+        data-testid="screenshot-image"
+      />
+      <figcaption
+        className="text-xs px-3 py-2"
+        style={{
+          background: "rgba(200, 164, 78, 0.08)",
+          color: "rgba(255,255,255,0.6)",
+        }}
+      >
+        {caption}
+      </figcaption>
+    </figure>
+  );
+}
+
 function SopHub() {
   return (
     <div className="max-w-5xl mx-auto px-6 py-10">
@@ -916,9 +958,11 @@ function SopDetail({ sop }: { sop: Sop }) {
                       {step.body}
                     </p>
                   )}
-                  {step.screenshot && (
+                  {step.image ? (
+                    <ScreenshotImage src={step.image} caption={step.screenshot ?? step.title} />
+                  ) : step.screenshot ? (
                     <ScreenshotPlaceholder caption={step.screenshot} />
-                  )}
+                  ) : null}
                   {step.tip && (
                     <div
                       className="mt-2 rounded-md px-3 py-2 text-sm"
