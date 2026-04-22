@@ -2103,7 +2103,7 @@ ${html}
     // Match line items to manufacturer using flexible name match (3-char min substring)
     const catItems = lineItems.filter(i => i.category === activeCat && i.mfr && namesMatch(i.mfr, mfr));
     const estimatorName = user?.displayName || user?.username || user?.email || "NBS Estimating";
-    const subject = `RFQ — ${proposalEntry?.projectName || ""} — ${catLabel}`;
+    const subject = `${proposalEntry?.projectName || ""} — ${catLabel}`;
     const itemLines = catItems.length > 0
       ? catItems.map(i => `  - ${i.name}${i.model ? ` (${i.model})` : ""} — Qty: ${i.qty}`).join("\n")
       : "  - TBD — see attached plans and specs";
@@ -6477,7 +6477,7 @@ ${html}
         const estimatorName = user?.displayName || user?.username || user?.email || "NBS Estimating";
 
         // Build consolidated email body grouped by manufacturer
-        const subject = `RFQ — ${proposalEntry?.projectName || ""} — ${catLabel} — ${group.manufacturers.map(m => m.name).join(", ")}`;
+        const subject = `${proposalEntry?.projectName || ""} — ${catLabel} — ${group.manufacturers.map(m => m.name).join(", ")}`;
         const mfrBlocks = group.manufacturers.map(m => {
           const lines = m.items.length > 0
             ? m.items.map(i => `  - ${i.name}${i.model ? ` (${i.model})` : ""} — Qty: ${i.qty}`).join("\n")
@@ -6592,7 +6592,7 @@ ${html}
           ? sortedBaseVendors.filter(v => v.name.toLowerCase().includes(vendorSearchLower)).slice(0, 50)
           : sortedBaseVendors.slice(0, 50);
 
-        const subject = `RFQ — ${proposalEntry?.projectName || ""} — ${catLabel}${vendorName ? ` — ${vendorName}` : ""}`;
+        const subject = `${proposalEntry?.projectName || ""} — ${catLabel}${vendorName ? ` — ${vendorName}` : ""}`;
         const itemLines = selectedItems.length > 0
           ? selectedItems.map(i => `  - ${i.name}${i.model ? ` (${i.model})` : ""}${i.mfr ? ` [${i.mfr}]` : ""} — Qty: ${i.qty}`).join("\n")
           : "  - TBD — see attached plans and specs";
