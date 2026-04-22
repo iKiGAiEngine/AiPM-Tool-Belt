@@ -603,6 +603,10 @@ interface PreviewItem {
   primaryMarket: string;
   location: string;
   bcLink: string;
+  anticipatedStart: string;
+  anticipatedFinish: string;
+  projectAddress: string;
+  squareFeet: string;
   existingEntryId?: number;
   scopeChanges?: string[];
   fieldChanges?: string[];
@@ -714,6 +718,10 @@ export function registerBcSyncRoutes(app: Express) {
                 primaryMarket: existingEntry.primaryMarket || updMapped.primaryMarket,
                 location: getLocationStr(opp),
                 bcLink: existingEntry.bcLink || "",
+                anticipatedStart: updMapped.anticipatedStart || existingEntry.anticipatedStart || "",
+                anticipatedFinish: updMapped.anticipatedFinish || existingEntry.anticipatedFinish || "",
+                projectAddress: updMapped.projectAddress || existingEntry.projectAddress || "",
+                squareFeet: updMapped.squareFeet || existingEntry.squareFeet || "",
                 existingEntryId: existingEntry.id,
                 fieldChanges: changes,
               });
@@ -738,6 +746,10 @@ export function registerBcSyncRoutes(app: Express) {
             primaryMarket: existingEntry.primaryMarket || mrgMapped.primaryMarket,
             location: getLocationStr(opp),
             bcLink: existingEntry.bcLink || "",
+            anticipatedStart: mrgMapped.anticipatedStart || existingEntry.anticipatedStart || "",
+            anticipatedFinish: mrgMapped.anticipatedFinish || existingEntry.anticipatedFinish || "",
+            projectAddress: mrgMapped.projectAddress || existingEntry.projectAddress || "",
+            squareFeet: mrgMapped.squareFeet || existingEntry.squareFeet || "",
             existingEntryId: existingEntry.id,
             scopeChanges: opp.scopes || [],
           });
@@ -760,6 +772,10 @@ export function registerBcSyncRoutes(app: Express) {
             primaryMarket: existing.primaryMarket,
             location: getLocationStr(opp),
             bcLink: existing.bcLink,
+            anticipatedStart: existing.anticipatedStart,
+            anticipatedFinish: existing.anticipatedFinish,
+            projectAddress: existing.projectAddress,
+            squareFeet: existing.squareFeet,
             scopeChanges: opp.scopes || [],
           });
           continue;
@@ -781,6 +797,10 @@ export function registerBcSyncRoutes(app: Express) {
             primaryMarket: mapped.primaryMarket,
             location: getLocationStr(opp),
             bcLink: mapped.bcLink,
+            anticipatedStart: mapped.anticipatedStart || "",
+            anticipatedFinish: mapped.anticipatedFinish || "",
+            projectAddress: mapped.projectAddress || "",
+            squareFeet: mapped.squareFeet || "",
             scopeChanges: opp.scopes || [],
           };
           preview.push(item);

@@ -17,6 +17,10 @@ interface PreviewEntry {
   gcCompanyName: string;
   location: string;
   bcLink: string;
+  anticipatedStart?: string;
+  anticipatedFinish?: string;
+  projectAddress?: string;
+  squareFeet?: string;
   existingEntryId?: number;
   scopeChanges?: string[];
   fieldChanges?: string[];
@@ -236,13 +240,33 @@ export function BCSyncPreview({ onClose }: BCSyncPreviewProps) {
                       </td>
                       <td className="py-2 px-2 text-xs" style={{ color: "var(--text-dim)" }}>{fmtDate(entry.dueDate)}</td>
                       <td className="py-2 px-2 text-xs" style={{ color: "var(--text-dim)" }}>
+                        {(entry.anticipatedStart || entry.anticipatedFinish) && (
+                          <div className="text-[10px]" data-testid={`text-bc-dates-${entry.opportunityId}`}>
+                            <span style={{ color: "var(--text-dim)" }}>Const: </span>
+                            <span style={{ color: "var(--text)" }}>
+                              {fmtDate(entry.anticipatedStart || "")} &rarr; {fmtDate(entry.anticipatedFinish || "")}
+                            </span>
+                          </div>
+                        )}
+                        {entry.projectAddress && (
+                          <div className="text-[10px]" data-testid={`text-bc-address-${entry.opportunityId}`}>
+                            <span style={{ color: "var(--text-dim)" }}>Addr: </span>
+                            <span style={{ color: "var(--text)" }}>{entry.projectAddress}</span>
+                          </div>
+                        )}
+                        {entry.squareFeet && (
+                          <div className="text-[10px]" data-testid={`text-bc-sqft-${entry.opportunityId}`}>
+                            <span style={{ color: "var(--text-dim)" }}>Size: </span>
+                            <span style={{ color: "var(--text)" }}>{entry.squareFeet} SF</span>
+                          </div>
+                        )}
                         {entry.action === "update" && entry.fieldChanges?.map((c, i) => (
                           <div key={i} className="text-[10px] text-amber-500">{c}</div>
                         ))}
                         {entry.action === "merge" && entry.scopeChanges && entry.scopeChanges.length > 0 && (
                           <div className="text-[10px] text-blue-500">+{entry.scopeChanges.length} scopes</div>
                         )}
-                        {entry.action === "create" && entry.location && (
+                        {entry.action === "create" && entry.location && !entry.projectAddress && (
                           <div className="text-[10px]">{entry.location}</div>
                         )}
                       </td>
