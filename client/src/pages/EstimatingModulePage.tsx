@@ -4352,8 +4352,10 @@ ${html}
                     if (!src) continue;
                     for (const v of src.vendors) {
                       const scopesOk = !v.scopes || v.scopes.length === 0 || v.scopes.includes(activeCat);
-                      const mfrOk = !v.manufacturerIds || v.manufacturerIds.length === 0 || v.manufacturerIds.includes(src.mfrId);
-                      if (!scopesOk || !mfrOk) continue;
+                      // Loosened eligibility: only the scope tag gates a vendor.
+                      // Manufacturer tags are no longer required — any scope-eligible
+                      // vendor surfaces for every manufacturer card.
+                      if (!scopesOk) continue;
                       let g = byVendor.get(v.vendorId);
                       if (!g) {
                         g = { vendorId: v.vendorId, vendorName: v.vendorName, manufacturerDirect: !!v.manufacturerDirect, contacts: [], manufacturers: [] };
@@ -4440,10 +4442,22 @@ ${html}
                       )}
 
                       {/* ── Vendor-grouped view ── */}
-                      {rfqGroupByVendor && combined.length > 0 && vendorGroups.length === 0 && (
-                        <p className="text-xs" style={{ color: "var(--text-muted)" }}>No eligible vendors found for this scope. Tag vendors in the Vendor Database with the active scope and/or these manufacturers.</p>
-                      )}
-                      {rfqGroupByVendor && vendorGroups.map(g => {
+                      {(() => {
+                        const visibleVendorGroups = vendorGroups.filter(g => g.contacts.length > 0);
+                        const hiddenVendorCount = vendorGroups.length - visibleVendorGroups.length;
+                        if (!rfqGroupByVendor) return null;
+                        return (
+                          <>
+                            {combined.length > 0 && visibleVendorGroups.length === 0 && (
+                              <p className="text-xs" style={{ color: "var(--text-muted)" }}>No eligible vendors with contacts for this scope. Tag vendors in the Vendor Database with the active scope, or use Open RFQ above for ad-hoc requests.</p>
+                            )}
+                            {hiddenVendorCount > 0 && (
+                              <p className="text-[10px] mb-2" style={{ color: "var(--text-muted)" }}>{hiddenVendorCount} vendor card{hiddenVendorCount === 1 ? "" : "s"} hidden (no contacts).</p>
+                            )}
+                          </>
+                        );
+                      })()}
+                      {rfqGroupByVendor && vendorGroups.filter(g => g.contacts.length > 0).map(g => {
                         const eligibleCount = g.contacts.length;
                         return (
                           <div key={g.vendorId} className="mb-3 p-3 rounded-lg" style={{ background: "var(--bg3)", border: "1px solid var(--border-ds)" }} data-testid={`rfq-vendor-card-${g.vendorId}`}>
@@ -4497,14 +4511,15 @@ ${html}
                         if (source) {
                           for (const v of source.vendors) {
                             const scopesOk = !v.scopes || v.scopes.length === 0 || v.scopes.includes(activeCat);
-                            const mfrOk = !v.manufacturerIds || v.manufacturerIds.length === 0 || v.manufacturerIds.includes(source.mfrId);
-                            if (!scopesOk || !mfrOk) continue;
+                            // Loosened: only the scope tag gates eligibility.
+                            if (!scopesOk) continue;
                             for (const c of v.contacts) {
                               eligibleContacts.push({ id: c.id, name: c.name, role: c.role, email: c.email, isPrimary: c.isPrimary, vendorName: v.vendorName });
                             }
                           }
                         }
                         const eligibleCount = eligibleContacts.length;
+                        if (eligibleCount === 0) return null;
                         return (
                           <div key={name} className="mb-3 p-3 rounded-lg" style={{ background: "var(--bg3)", border: "1px solid var(--border-ds)" }} data-testid={`rfq-card-${name}`}>
                             <div className="flex items-center justify-between mb-2">
@@ -6454,8 +6469,8 @@ ${html}
           for (const v of approved.vendors) {
             // Vendor-level eligibility (untagged = covers everything)
             const scopesOk = !v.scopes || v.scopes.length === 0 || v.scopes.includes(activeCat);
-            const mfrOk = !v.manufacturerIds || v.manufacturerIds.length === 0 || v.manufacturerIds.includes(mfrId);
-            if (!scopesOk || !mfrOk) continue;
+            // Loosened: only the scope tag gates eligibility.
+            if (!scopesOk) continue;
             if (v.contacts.length > 0) groups.push({ vendorId: v.vendorId, vendorName: v.vendorName, manufacturerDirect: !!v.manufacturerDirect, contacts: v.contacts });
           }
         }
@@ -6613,8 +6628,8 @@ ${html}
           if (!src) continue;
           for (const v of src.vendors) {
             const scopesOk = !v.scopes || v.scopes.length === 0 || v.scopes.includes(activeCat);
-            const mfrOk = !v.manufacturerIds || v.manufacturerIds.length === 0 || v.manufacturerIds.includes(src.mfrId);
-            if (!scopesOk || !mfrOk) continue;
+            // Loosened: only the scope tag gates eligibility.
+            if (!scopesOk) continue;
             let g = map.get(v.vendorId);
             if (!g) { g = { vendorId: v.vendorId, vendorName: v.vendorName, manufacturerDirect: !!v.manufacturerDirect, contacts: [], manufacturers: [] }; map.set(v.vendorId, g); }
             for (const c of v.contacts) { if (!g.contacts.find(x => x.id === c.id)) g.contacts.push(c); }
