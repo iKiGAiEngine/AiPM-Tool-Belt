@@ -4413,7 +4413,7 @@ ${html}
                         <button
                           onClick={() => {
                             setOpenRfqSelectedItemIds(new Set(catLineItems.map(i => String(i.id))));
-                            setOpenRfqExistingVendorId(null);
+                            setOpenRfqExistingVendorIds(new Set());
                             setOpenRfqVendorMode("existing");
                             setOpenRfqVendorSearch("");
                             setOpenRfqOnlyDirect(false);
