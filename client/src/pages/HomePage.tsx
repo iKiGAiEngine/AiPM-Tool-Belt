@@ -125,7 +125,7 @@ const tools: ToolTile[] = [
   },
   {
     id: "regions",
-    title: "Regions / Airport Codes",
+    title: "Regional Profiles",
     description: "Manage regional codes, names, aliases & self-perform estimators",
     icon: MapPin,
     href: "/settings",
