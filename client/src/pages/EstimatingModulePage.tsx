@@ -2145,12 +2145,18 @@ ${html}
   // ── RFQ email helpers ──
   const formatItemsTable = useCallback((items: { name: string; model?: string | null; qty: number; uom?: string | null }[]) => {
     if (items.length === 0) return "  TBD — see attached plans and specs";
-    const COLS = { desc: 32, model: 16, qty: 6, unit: 6 };
-    const pad = (s: string, w: number) => (s.length >= w ? s.slice(0, w - 1) + "…" : s + " ".repeat(w - s.length));
-    const sep = "-".repeat(COLS.desc + COLS.model + COLS.qty + COLS.unit + 9);
-    const header = `${pad("Item Description", COLS.desc)} | ${pad("Model #", COLS.model)} | ${pad("Qty", COLS.qty)} | ${pad("Unit", COLS.unit)}`;
-    const rows = items.map(i => `${pad(i.name || "", COLS.desc)} | ${pad(i.model || "", COLS.model)} | ${pad(String(i.qty ?? ""), COLS.qty)} | ${pad(i.uom || "EA", COLS.unit)}`);
-    return [sep, header, sep, ...rows, sep].join("\n");
+    // One line per item, proportional-font friendly (Calibri/Arial/etc).
+    // Format:  1. Item Description  —  Model: B-5120  —  Qty: 20 EA
+    return items.map((i, idx) => {
+      const num = `${idx + 1}.`.padEnd(3, " ");
+      const name = (i.name || "").trim() || "(unnamed item)";
+      const model = (i.model || "").trim();
+      const qty = `${i.qty ?? ""} ${(i.uom || "EA").trim()}`.trim();
+      const parts = [`${num} ${name}`];
+      if (model) parts.push(`Model: ${model}`);
+      parts.push(`Qty: ${qty}`);
+      return parts.join("  —  ");
+    }).join("\n");
   }, []);
 
   const buildShipToBlock = useCallback(() => {
