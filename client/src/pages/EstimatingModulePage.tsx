@@ -4066,9 +4066,8 @@ ${html}
                           const extended = n(item.unitCost) * item.qty;
                           const quoteOpts = [{ id: "", label: "— No Quote —" }, ...catQuotes.map(q => ({ id: String(q.id), label: q.vendor + (q.note ? ` (${q.note})` : "") }))];
                           const isExpanded = expandedItems.has(item.id);
-                          return (
-                            <Fragment key={item.id}>
-                              <tr style={{ borderBottom: "1px solid var(--border-ds)", background: selectedLineItemIds.has(item.id) ? "var(--gold)08" : idx % 2 === 0 ? "transparent" : "var(--bg3)50" }}
+                          return [
+                              <tr key={`${item.id}-main`} style={{ borderBottom: "1px solid var(--border-ds)", background: selectedLineItemIds.has(item.id) ? "var(--gold)08" : idx % 2 === 0 ? "transparent" : "var(--bg3)50" }}
                                 className="hover:bg-blue-500/5 transition-colors">
                                 <td className="px-2 py-1.5 text-center">
                                   <input type="checkbox" aria-label={`Select line item ${item.name || item.id}`}
@@ -4156,9 +4155,9 @@ ${html}
                                     </button>
                                   </div>
                                 </td>
-                              </tr>
-                              {/* Allocation row */}
-                              {isExpanded && breakoutGroups.length > 0 && (
+                              </tr>,
+                              /* Allocation row */
+                              (isExpanded && breakoutGroups.length > 0) && (
                                 <tr key={`alloc-${item.id}`} style={{ background: "#06b6d408", borderBottom: "1px solid var(--border-ds)" }}>
                                   <td colSpan={12} className="px-4 py-2">
                                     <div className="flex items-center gap-3 text-xs">
@@ -4183,9 +4182,8 @@ ${html}
                                     </div>
                                   </td>
                                 </tr>
-                              )}
-                            </Fragment>
-                          );
+                              ),
+                          ];
                         })}
                       </tbody>
                       <tfoot>

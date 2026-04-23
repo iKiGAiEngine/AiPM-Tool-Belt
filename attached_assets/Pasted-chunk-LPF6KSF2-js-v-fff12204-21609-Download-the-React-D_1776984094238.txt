@@ -1,0 +1,311 @@
+chunk-LPF6KSF2.js?v=fff12204:21609 Download the React DevTools for a better development experience: https://reactjs.org/link/react-devtools
+EstimatingModulePage.tsx:4070 Warning: Invalid prop `data-replit-metadata` supplied to `React.Fragment`. React.Fragment can only have `key` and `children` props.
+    at EstimatingModuleInner (https://f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.dev/src/pages/EstimatingModulePage.tsx?t=1776983967239:331:24)
+    at EstimatingModulePage (https://f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.dev/src/pages/EstimatingModulePage.tsx?t=1776983967239:15153:54)
+    at Route (https://f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/wouter.js?v=fff12204:322:16)
+    at Switch (https://f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/wouter.js?v=fff12204:378:17)
+    at Router
+    at div
+    at TestModeProvider (https://f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.dev/src/lib/testMode.tsx:25:36)
+    at AuthGate (https://f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.dev/src/App.tsx?t=1776983967239:253:62)
+    at AuthProvider (https://f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.dev/src/lib/auth.tsx:30:32)
+    at Provider (https://f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/chunk-6BRII5CC.js?v=fff12204:37:15)
+    at TooltipProvider (https://f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/@radix-ui_react-tooltip.js?v=fff12204:159:5)
+    at ThemeProvider (https://f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.dev/src/lib/theme.tsx:20:33)
+    at QueryClientProvider (https://f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/@tanstack_react-query.js?v=fff12204:2747:3)
+    at App
+printWarning @ react_jsx-dev-runtime.js?v=fff12204:64
+error @ react_jsx-dev-runtime.js?v=fff12204:48
+validateFragmentProps @ react_jsx-dev-runtime.js?v=fff12204:796
+jsxWithValidation @ react_jsx-dev-runtime.js?v=fff12204:874
+(anonymous) @ EstimatingModulePage.tsx:4070
+EstimatingModuleInner @ EstimatingModulePage.tsx:4065
+renderWithHooks @ chunk-LPF6KSF2.js?v=fff12204:11596
+updateFunctionComponent @ chunk-LPF6KSF2.js?v=fff12204:14630
+beginWork @ chunk-LPF6KSF2.js?v=fff12204:15972
+beginWork$1 @ chunk-LPF6KSF2.js?v=fff12204:19806
+performUnitOfWork @ chunk-LPF6KSF2.js?v=fff12204:19251
+workLoopSync @ chunk-LPF6KSF2.js?v=fff12204:19190
+renderRootSync @ chunk-LPF6KSF2.js?v=fff12204:19169
+performSyncWorkOnRoot @ chunk-LPF6KSF2.js?v=fff12204:18927
+flushSyncCallbacks @ chunk-LPF6KSF2.js?v=fff12204:9166
+(anonymous) @ chunk-LPF6KSF2.js?v=fff12204:18677
+EstimatingModulePage.tsx:4070 Warning: Invalid prop `data-replit-metadata` supplied to `React.Fragment`. React.Fragment can only have `key` and `children` props.
+    at EstimatingModuleInner (https://f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.dev/src/pages/EstimatingModulePage.tsx?t=1776983967239:331:24)
+    at EstimatingModulePage (https://f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.dev/src/pages/EstimatingModulePage.tsx?t=1776983967239:15153:54)
+    at Route (https://f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/wouter.js?v=fff12204:322:16)
+    at Switch (https://f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/wouter.js?v=fff12204:378:17)
+    at Router
+    at div
+    at TestModeProvider (https://f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.dev/src/lib/testMode.tsx:25:36)
+    at AuthGate (https://f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.dev/src/App.tsx?t=1776983967239:253:62)
+    at AuthProvider (https://f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.dev/src/lib/auth.tsx:30:32)
+    at Provider (https://f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/chunk-6BRII5CC.js?v=fff12204:37:15)
+    at TooltipProvider (https://f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/@radix-ui_react-tooltip.js?v=fff12204:159:5)
+    at ThemeProvider (https://f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.dev/src/lib/theme.tsx:20:33)
+    at QueryClientProvider (https://f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/@tanstack_react-query.js?v=fff12204:2747:3)
+    at App
+printWarning @ react_jsx-dev-runtime.js?v=fff12204:64
+error @ react_jsx-dev-runtime.js?v=fff12204:48
+validateFragmentProps @ react_jsx-dev-runtime.js?v=fff12204:796
+jsxWithValidation @ react_jsx-dev-runtime.js?v=fff12204:874
+(anonymous) @ EstimatingModulePage.tsx:4070
+EstimatingModuleInner @ EstimatingModulePage.tsx:4065
+renderWithHooks @ chunk-LPF6KSF2.js?v=fff12204:11596
+updateFunctionComponent @ chunk-LPF6KSF2.js?v=fff12204:14630
+beginWork @ chunk-LPF6KSF2.js?v=fff12204:15972
+beginWork$1 @ chunk-LPF6KSF2.js?v=fff12204:19806
+performUnitOfWork @ chunk-LPF6KSF2.js?v=fff12204:19251
+workLoopSync @ chunk-LPF6KSF2.js?v=fff12204:19190
+renderRootSync @ chunk-LPF6KSF2.js?v=fff12204:19169
+performSyncWorkOnRoot @ chunk-LPF6KSF2.js?v=fff12204:18927
+flushSyncCallbacks @ chunk-LPF6KSF2.js?v=fff12204:9166
+(anonymous) @ chunk-LPF6KSF2.js?v=fff12204:18677
+EstimatingModulePage.tsx:4070 Warning: Invalid prop `data-replit-metadata` supplied to `React.Fragment`. React.Fragment can only have `key` and `children` props.
+    at EstimatingModuleInner (https://f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.dev/src/pages/EstimatingModulePage.tsx?t=1776983967239:331:24)
+    at EstimatingModulePage (https://f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.dev/src/pages/EstimatingModulePage.tsx?t=1776983967239:15153:54)
+    at Route (https://f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/wouter.js?v=fff12204:322:16)
+    at Switch (https://f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/wouter.js?v=fff12204:378:17)
+    at Router
+    at div
+    at TestModeProvider (https://f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.dev/src/lib/testMode.tsx:25:36)
+    at AuthGate (https://f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.dev/src/App.tsx?t=1776983967239:253:62)
+    at AuthProvider (https://f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.dev/src/lib/auth.tsx:30:32)
+    at Provider (https://f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/chunk-6BRII5CC.js?v=fff12204:37:15)
+    at TooltipProvider (https://f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/@radix-ui_react-tooltip.js?v=fff12204:159:5)
+    at ThemeProvider (https://f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.dev/src/lib/theme.tsx:20:33)
+    at QueryClientProvider (https://f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/@tanstack_react-query.js?v=fff12204:2747:3)
+    at App
+printWarning @ react_jsx-dev-runtime.js?v=fff12204:64
+error @ react_jsx-dev-runtime.js?v=fff12204:48
+validateFragmentProps @ react_jsx-dev-runtime.js?v=fff12204:796
+jsxWithValidation @ react_jsx-dev-runtime.js?v=fff12204:874
+(anonymous) @ EstimatingModulePage.tsx:4070
+EstimatingModuleInner @ EstimatingModulePage.tsx:4065
+renderWithHooks @ chunk-LPF6KSF2.js?v=fff12204:11596
+updateFunctionComponent @ chunk-LPF6KSF2.js?v=fff12204:14630
+beginWork @ chunk-LPF6KSF2.js?v=fff12204:15972
+beginWork$1 @ chunk-LPF6KSF2.js?v=fff12204:19806
+performUnitOfWork @ chunk-LPF6KSF2.js?v=fff12204:19251
+workLoopSync @ chunk-LPF6KSF2.js?v=fff12204:19190
+renderRootSync @ chunk-LPF6KSF2.js?v=fff12204:19169
+performSyncWorkOnRoot @ chunk-LPF6KSF2.js?v=fff12204:18927
+flushSyncCallbacks @ chunk-LPF6KSF2.js?v=fff12204:9166
+(anonymous) @ chunk-LPF6KSF2.js?v=fff12204:18677
+EstimatingModulePage.tsx:4070 Warning: Invalid prop `data-replit-metadata` supplied to `React.Fragment`. React.Fragment can only have `key` and `children` props.
+    at EstimatingModuleInner (https://f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.dev/src/pages/EstimatingModulePage.tsx?t=1776983967239:331:24)
+    at EstimatingModulePage (https://f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.dev/src/pages/EstimatingModulePage.tsx?t=1776983967239:15153:54)
+    at Route (https://f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/wouter.js?v=fff12204:322:16)
+    at Switch (https://f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/wouter.js?v=fff12204:378:17)
+    at Router
+    at div
+    at TestModeProvider (https://f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.dev/src/lib/testMode.tsx:25:36)
+    at AuthGate (https://f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.dev/src/App.tsx?t=1776983967239:253:62)
+    at AuthProvider (https://f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.dev/src/lib/auth.tsx:30:32)
+    at Provider (https://f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/chunk-6BRII5CC.js?v=fff12204:37:15)
+    at TooltipProvider (https://f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/@radix-ui_react-tooltip.js?v=fff12204:159:5)
+    at ThemeProvider (https://f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.dev/src/lib/theme.tsx:20:33)
+    at QueryClientProvider (https://f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/@tanstack_react-query.js?v=fff12204:2747:3)
+    at App
+printWarning @ react_jsx-dev-runtime.js?v=fff12204:64
+error @ react_jsx-dev-runtime.js?v=fff12204:48
+validateFragmentProps @ react_jsx-dev-runtime.js?v=fff12204:796
+jsxWithValidation @ react_jsx-dev-runtime.js?v=fff12204:874
+(anonymous) @ EstimatingModulePage.tsx:4070
+EstimatingModuleInner @ EstimatingModulePage.tsx:4065
+renderWithHooks @ chunk-LPF6KSF2.js?v=fff12204:11596
+updateFunctionComponent @ chunk-LPF6KSF2.js?v=fff12204:14630
+beginWork @ chunk-LPF6KSF2.js?v=fff12204:15972
+beginWork$1 @ chunk-LPF6KSF2.js?v=fff12204:19806
+performUnitOfWork @ chunk-LPF6KSF2.js?v=fff12204:19251
+workLoopSync @ chunk-LPF6KSF2.js?v=fff12204:19190
+renderRootSync @ chunk-LPF6KSF2.js?v=fff12204:19169
+performSyncWorkOnRoot @ chunk-LPF6KSF2.js?v=fff12204:18927
+flushSyncCallbacks @ chunk-LPF6KSF2.js?v=fff12204:9166
+(anonymous) @ chunk-LPF6KSF2.js?v=fff12204:18677
+EstimatingModulePage.tsx:4070 Warning: Invalid prop `data-replit-metadata` supplied to `React.Fragment`. React.Fragment can only have `key` and `children` props.
+    at EstimatingModuleInner (https://f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.dev/src/pages/EstimatingModulePage.tsx?t=1776983967239:331:24)
+    at EstimatingModulePage (https://f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.dev/src/pages/EstimatingModulePage.tsx?t=1776983967239:15153:54)
+    at Route (https://f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/wouter.js?v=fff12204:322:16)
+    at Switch (https://f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/wouter.js?v=fff12204:378:17)
+    at Router
+    at div
+    at TestModeProvider (https://f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.dev/src/lib/testMode.tsx:25:36)
+    at AuthGate (https://f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.dev/src/App.tsx?t=1776983967239:253:62)
+    at AuthProvider (https://f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.dev/src/lib/auth.tsx:30:32)
+    at Provider (https://f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/chunk-6BRII5CC.js?v=fff12204:37:15)
+    at TooltipProvider (https://f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/@radix-ui_react-tooltip.js?v=fff12204:159:5)
+    at ThemeProvider (https://f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.dev/src/lib/theme.tsx:20:33)
+    at QueryClientProvider (https://f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/@tanstack_react-query.js?v=fff12204:2747:3)
+    at App
+printWarning @ react_jsx-dev-runtime.js?v=fff12204:64
+error @ react_jsx-dev-runtime.js?v=fff12204:48
+validateFragmentProps @ react_jsx-dev-runtime.js?v=fff12204:796
+jsxWithValidation @ react_jsx-dev-runtime.js?v=fff12204:874
+(anonymous) @ EstimatingModulePage.tsx:4070
+EstimatingModuleInner @ EstimatingModulePage.tsx:4065
+renderWithHooks @ chunk-LPF6KSF2.js?v=fff12204:11596
+updateFunctionComponent @ chunk-LPF6KSF2.js?v=fff12204:14630
+beginWork @ chunk-LPF6KSF2.js?v=fff12204:15972
+beginWork$1 @ chunk-LPF6KSF2.js?v=fff12204:19806
+performUnitOfWork @ chunk-LPF6KSF2.js?v=fff12204:19251
+workLoopSync @ chunk-LPF6KSF2.js?v=fff12204:19190
+renderRootSync @ chunk-LPF6KSF2.js?v=fff12204:19169
+performSyncWorkOnRoot @ chunk-LPF6KSF2.js?v=fff12204:18927
+flushSyncCallbacks @ chunk-LPF6KSF2.js?v=fff12204:9166
+(anonymous) @ chunk-LPF6KSF2.js?v=fff12204:18677
+EstimatingModulePage.tsx:4070 Warning: Invalid prop `data-replit-metadata` supplied to `React.Fragment`. React.Fragment can only have `key` and `children` props.
+    at EstimatingModuleInner (https://f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.dev/src/pages/EstimatingModulePage.tsx?t=1776983967239:331:24)
+    at EstimatingModulePage (https://f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.dev/src/pages/EstimatingModulePage.tsx?t=1776983967239:15153:54)
+    at Route (https://f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/wouter.js?v=fff12204:322:16)
+    at Switch (https://f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/wouter.js?v=fff12204:378:17)
+    at Router
+    at div
+    at TestModeProvider (https://f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.dev/src/lib/testMode.tsx:25:36)
+    at AuthGate (https://f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.dev/src/App.tsx?t=1776983967239:253:62)
+    at AuthProvider (https://f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.dev/src/lib/auth.tsx:30:32)
+    at Provider (https://f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/chunk-6BRII5CC.js?v=fff12204:37:15)
+    at TooltipProvider (https://f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/@radix-ui_react-tooltip.js?v=fff12204:159:5)
+    at ThemeProvider (https://f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.dev/src/lib/theme.tsx:20:33)
+    at QueryClientProvider (https://f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/@tanstack_react-query.js?v=fff12204:2747:3)
+    at App
+printWarning @ react_jsx-dev-runtime.js?v=fff12204:64
+error @ react_jsx-dev-runtime.js?v=fff12204:48
+validateFragmentProps @ react_jsx-dev-runtime.js?v=fff12204:796
+jsxWithValidation @ react_jsx-dev-runtime.js?v=fff12204:874
+(anonymous) @ EstimatingModulePage.tsx:4070
+EstimatingModuleInner @ EstimatingModulePage.tsx:4065
+renderWithHooks @ chunk-LPF6KSF2.js?v=fff12204:11596
+updateFunctionComponent @ chunk-LPF6KSF2.js?v=fff12204:14630
+beginWork @ chunk-LPF6KSF2.js?v=fff12204:15972
+beginWork$1 @ chunk-LPF6KSF2.js?v=fff12204:19806
+performUnitOfWork @ chunk-LPF6KSF2.js?v=fff12204:19251
+workLoopSync @ chunk-LPF6KSF2.js?v=fff12204:19190
+renderRootSync @ chunk-LPF6KSF2.js?v=fff12204:19169
+performSyncWorkOnRoot @ chunk-LPF6KSF2.js?v=fff12204:18927
+flushSyncCallbacks @ chunk-LPF6KSF2.js?v=fff12204:9166
+(anonymous) @ chunk-LPF6KSF2.js?v=fff12204:18677
+EstimatingModulePage.tsx:4070 Warning: Invalid prop `data-replit-metadata` supplied to `React.Fragment`. React.Fragment can only have `key` and `children` props.
+    at EstimatingModuleInner (https://f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.dev/src/pages/EstimatingModulePage.tsx?t=1776983967239:331:24)
+    at EstimatingModulePage (https://f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.dev/src/pages/EstimatingModulePage.tsx?t=1776983967239:15153:54)
+    at Route (https://f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/wouter.js?v=fff12204:322:16)
+    at Switch (https://f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/wouter.js?v=fff12204:378:17)
+    at Router
+    at div
+    at TestModeProvider (https://f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.dev/src/lib/testMode.tsx:25:36)
+    at AuthGate (https://f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.dev/src/App.tsx?t=1776983967239:253:62)
+    at AuthProvider (https://f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.dev/src/lib/auth.tsx:30:32)
+    at Provider (https://f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/chunk-6BRII5CC.js?v=fff12204:37:15)
+    at TooltipProvider (https://f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/@radix-ui_react-tooltip.js?v=fff12204:159:5)
+    at ThemeProvider (https://f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.dev/src/lib/theme.tsx:20:33)
+    at QueryClientProvider (https://f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/@tanstack_react-query.js?v=fff12204:2747:3)
+    at App
+printWarning @ react_jsx-dev-runtime.js?v=fff12204:64
+error @ react_jsx-dev-runtime.js?v=fff12204:48
+validateFragmentProps @ react_jsx-dev-runtime.js?v=fff12204:796
+jsxWithValidation @ react_jsx-dev-runtime.js?v=fff12204:874
+(anonymous) @ EstimatingModulePage.tsx:4070
+EstimatingModuleInner @ EstimatingModulePage.tsx:4065
+renderWithHooks @ chunk-LPF6KSF2.js?v=fff12204:11596
+updateFunctionComponent @ chunk-LPF6KSF2.js?v=fff12204:14630
+beginWork @ chunk-LPF6KSF2.js?v=fff12204:15972
+beginWork$1 @ chunk-LPF6KSF2.js?v=fff12204:19806
+performUnitOfWork @ chunk-LPF6KSF2.js?v=fff12204:19251
+workLoopSync @ chunk-LPF6KSF2.js?v=fff12204:19190
+renderRootSync @ chunk-LPF6KSF2.js?v=fff12204:19169
+performSyncWorkOnRoot @ chunk-LPF6KSF2.js?v=fff12204:18927
+flushSyncCallbacks @ chunk-LPF6KSF2.js?v=fff12204:9166
+(anonymous) @ chunk-LPF6KSF2.js?v=fff12204:18677
+EstimatingModulePage.tsx:4070 Warning: Invalid prop `data-replit-metadata` supplied to `React.Fragment`. React.Fragment can only have `key` and `children` props.
+    at EstimatingModuleInner (https://f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.dev/src/pages/EstimatingModulePage.tsx?t=1776983967239:331:24)
+    at EstimatingModulePage (https://f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.dev/src/pages/EstimatingModulePage.tsx?t=1776983967239:15153:54)
+    at Route (https://f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/wouter.js?v=fff12204:322:16)
+    at Switch (https://f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/wouter.js?v=fff12204:378:17)
+    at Router
+    at div
+    at TestModeProvider (https://f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.dev/src/lib/testMode.tsx:25:36)
+    at AuthGate (https://f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.dev/src/App.tsx?t=1776983967239:253:62)
+    at AuthProvider (https://f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.dev/src/lib/auth.tsx:30:32)
+    at Provider (https://f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/chunk-6BRII5CC.js?v=fff12204:37:15)
+    at TooltipProvider (https://f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/@radix-ui_react-tooltip.js?v=fff12204:159:5)
+    at ThemeProvider (https://f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.dev/src/lib/theme.tsx:20:33)
+    at QueryClientProvider (https://f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/@tanstack_react-query.js?v=fff12204:2747:3)
+    at App
+printWarning @ react_jsx-dev-runtime.js?v=fff12204:64
+error @ react_jsx-dev-runtime.js?v=fff12204:48
+validateFragmentProps @ react_jsx-dev-runtime.js?v=fff12204:796
+jsxWithValidation @ react_jsx-dev-runtime.js?v=fff12204:874
+(anonymous) @ EstimatingModulePage.tsx:4070
+EstimatingModuleInner @ EstimatingModulePage.tsx:4065
+renderWithHooks @ chunk-LPF6KSF2.js?v=fff12204:11596
+updateFunctionComponent @ chunk-LPF6KSF2.js?v=fff12204:14630
+beginWork @ chunk-LPF6KSF2.js?v=fff12204:15972
+beginWork$1 @ chunk-LPF6KSF2.js?v=fff12204:19806
+performUnitOfWork @ chunk-LPF6KSF2.js?v=fff12204:19251
+workLoopSync @ chunk-LPF6KSF2.js?v=fff12204:19190
+renderRootSync @ chunk-LPF6KSF2.js?v=fff12204:19169
+performSyncWorkOnRoot @ chunk-LPF6KSF2.js?v=fff12204:18927
+flushSyncCallbacks @ chunk-LPF6KSF2.js?v=fff12204:9166
+(anonymous) @ chunk-LPF6KSF2.js?v=fff12204:18677
+EstimatingModulePage.tsx:4070 Warning: Invalid prop `data-replit-metadata` supplied to `React.Fragment`. React.Fragment can only have `key` and `children` props.
+    at EstimatingModuleInner (https://f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.dev/src/pages/EstimatingModulePage.tsx?t=1776983967239:331:24)
+    at EstimatingModulePage (https://f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.dev/src/pages/EstimatingModulePage.tsx?t=1776983967239:15153:54)
+    at Route (https://f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/wouter.js?v=fff12204:322:16)
+    at Switch (https://f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/wouter.js?v=fff12204:378:17)
+    at Router
+    at div
+    at TestModeProvider (https://f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.dev/src/lib/testMode.tsx:25:36)
+    at AuthGate (https://f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.dev/src/App.tsx?t=1776983967239:253:62)
+    at AuthProvider (https://f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.dev/src/lib/auth.tsx:30:32)
+    at Provider (https://f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/chunk-6BRII5CC.js?v=fff12204:37:15)
+    at TooltipProvider (https://f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/@radix-ui_react-tooltip.js?v=fff12204:159:5)
+    at ThemeProvider (https://f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.dev/src/lib/theme.tsx:20:33)
+    at QueryClientProvider (https://f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/@tanstack_react-query.js?v=fff12204:2747:3)
+    at App
+printWarning @ react_jsx-dev-runtime.js?v=fff12204:64
+error @ react_jsx-dev-runtime.js?v=fff12204:48
+validateFragmentProps @ react_jsx-dev-runtime.js?v=fff12204:796
+jsxWithValidation @ react_jsx-dev-runtime.js?v=fff12204:874
+(anonymous) @ EstimatingModulePage.tsx:4070
+EstimatingModuleInner @ EstimatingModulePage.tsx:4065
+renderWithHooks @ chunk-LPF6KSF2.js?v=fff12204:11596
+updateFunctionComponent @ chunk-LPF6KSF2.js?v=fff12204:14630
+beginWork @ chunk-LPF6KSF2.js?v=fff12204:15972
+beginWork$1 @ chunk-LPF6KSF2.js?v=fff12204:19806
+performUnitOfWork @ chunk-LPF6KSF2.js?v=fff12204:19251
+workLoopSync @ chunk-LPF6KSF2.js?v=fff12204:19190
+renderRootSync @ chunk-LPF6KSF2.js?v=fff12204:19169
+performSyncWorkOnRoot @ chunk-LPF6KSF2.js?v=fff12204:18927
+flushSyncCallbacks @ chunk-LPF6KSF2.js?v=fff12204:9166
+(anonymous) @ chunk-LPF6KSF2.js?v=fff12204:18677
+EstimatingModulePage.tsx:4070 Warning: Invalid prop `data-replit-metadata` supplied to `React.Fragment`. React.Fragment can only have `key` and `children` props.
+    at EstimatingModuleInner (https://f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.dev/src/pages/EstimatingModulePage.tsx?t=1776983967239:331:24)
+    at EstimatingModulePage (https://f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.dev/src/pages/EstimatingModulePage.tsx?t=1776983967239:15153:54)
+    at Route (https://f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/wouter.js?v=fff12204:322:16)
+    at Switch (https://f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/wouter.js?v=fff12204:378:17)
+    at Router
+    at div
+    at TestModeProvider (https://f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.dev/src/lib/testMode.tsx:25:36)
+    at AuthGate (https://f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.dev/src/App.tsx?t=1776983967239:253:62)
+    at AuthProvider (https://f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.dev/src/lib/auth.tsx:30:32)
+    at Provider (https://f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/chunk-6BRII5CC.js?v=fff12204:37:15)
+    at TooltipProvider (https://f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/@radix-ui_react-tooltip.js?v=fff12204:159:5)
+    at ThemeProvider (https://f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.dev/src/lib/theme.tsx:20:33)
+    at QueryClientProvider (https://f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/@tanstack_react-query.js?v=fff12204:2747:3)
+    at App
+printWarning @ react_jsx-dev-runtime.js?v=fff12204:64
+error @ react_jsx-dev-runtime.js?v=fff12204:48
+validateFragmentProps @ react_jsx-dev-runtime.js?v=fff12204:796
+jsxWithValidation @ react_jsx-dev-runtime.js?v=fff12204:874
+(anonymous) @ EstimatingModulePage.tsx:4070
+EstimatingModuleInner @ EstimatingModulePage.tsx:4065
+renderWithHooks @ chunk-LPF6KSF2.js?v=fff12204:11596
+updateFunctionComponent @ chunk-LPF6KSF2.js?v=fff12204:14630
+beginWork @ chunk-LPF6KSF2.js?v=fff12204:15972
+beginWork$1 @ chunk-LPF6KSF2.js?v=fff12204:19806
+performUnitOfWork @ chunk-LPF6KSF2.js?v=fff12204:19251
+workLoopSync @ chunk-LPF6KSF2.js?v=fff12204:19190
+renderRootSync @ chunk-LPF6KSF2.js?v=fff12204:19169
+performSyncWorkOnRoot @ chunk-LPF6KSF2.js?v=fff12204:18927
+flushSyncCallbacks @ chunk-LPF6KSF2.js?v=fff12204:9166
+(anonymous) @ chunk-LPF6KSF2.js?v=fff12204:18677
