@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/dialog";
 import { useTestMode } from "@/lib/testMode";
 import { useAuth } from "@/lib/auth";
+import { useFeatureAccess } from "@/hooks/use-feature-access";
 import { cn } from "@/lib/utils";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { NotificationBell } from "@/components/NotificationBell";
@@ -160,6 +161,8 @@ export function Header() {
   const [location, navigate] = useLocation();
   const { isTestMode, toggleTestMode } = useTestMode();
   const { user, isAdmin, logout } = useAuth();
+  const { hasFeature } = useFeatureAccess();
+  const canSettingsRegions = hasFeature("settings-regions");
   const isHome = location === "/";
   const [changePwOpen, setChangePwOpen] = useState(false);
 
@@ -247,9 +250,9 @@ export function Header() {
               />
             </label>
           )}
-          {isAdmin && (
+          {(isAdmin || canSettingsRegions) && (
             <Link href="/settings">
-              <Button variant="ghost" size="icon" title="Settings" data-testid="link-settings">
+              <Button variant="ghost" size="icon" title={isAdmin ? "Settings" : "Regions"} data-testid="link-settings">
                 <Settings className="h-4 w-4" />
               </Button>
             </Link>

@@ -16,9 +16,26 @@ import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import type { Vendor, Div10Product, ScopeDictionary, Region, FolderTemplate, EstimateTemplate, StampMapping, SpecsiftConfig, AccessoryScopeData } from "@shared/schema";
 import { DIV10_SCOPE_CATEGORIES, PLAN_PARSER_SCOPES } from "@shared/schema";
+import { useAuth } from "@/lib/auth";
+import { useFeatureAccess } from "@/hooks/use-feature-access";
+import { Lock } from "lucide-react";
 
 export default function CentralSettingsPage() {
-  const [activeTab, setActiveTab] = useState("vendors");
+  const { isAdmin } = useAuth();
+  const { hasFeature } = useFeatureAccess();
+  const regionsOnly = !isAdmin && hasFeature("settings-regions");
+  const [activeTab, setActiveTab] = useState(regionsOnly ? "regions" : "vendors");
+
+  useEffect(() => {
+    if (regionsOnly && activeTab !== "regions") setActiveTab("regions");
+  }, [regionsOnly, activeTab]);
+
+  const handleTabChange = (val: string) => {
+    if (regionsOnly && val !== "regions") return;
+    setActiveTab(val);
+  };
+
+  const lockIcon = regionsOnly ? <Lock className="w-3 h-3 ml-1 opacity-60" /> : null;
 
   return (
     <div className="container max-w-6xl mx-auto py-8 px-4 animate-page-enter">
@@ -29,8 +46,8 @@ export default function CentralSettingsPage() {
           </Button>
         </Link>
         <div className="flex-1">
-          <h1 className="text-2xl font-semibold text-foreground font-heading">Settings</h1>
-          <p className="text-muted-foreground">Manage vendors, products, scope dictionaries, regions, templates, spec extraction, and email notifications</p>
+          <h1 className="text-2xl font-semibold text-foreground font-heading">{regionsOnly ? "Settings — Regions" : "Settings"}</h1>
+          <p className="text-muted-foreground">{regionsOnly ? "You have access to the Regions tab. Other tabs are visible but restricted to admins." : "Manage vendors, products, scope dictionaries, regions, templates, spec extraction, and email notifications"}</p>
         </div>
         <Link href="/tools/bc-sync-table">
           <Button variant="outline" className="gap-2" data-testid="button-bc-sync-table">
@@ -40,39 +57,39 @@ export default function CentralSettingsPage() {
         </Link>
       </div>
 
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
+      <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-6">
         <TabsList className="flex flex-wrap gap-1 max-w-5xl">
-          <TabsTrigger value="vendors" className="gap-2" data-testid="tab-vendors">
+          <TabsTrigger value="vendors" className={`gap-2 ${regionsOnly ? "opacity-50 cursor-not-allowed" : ""}`} data-testid="tab-vendors" title={regionsOnly ? "Restricted to admins" : undefined}>
             <Building2 className="w-4 h-4" />
-            Vendors
+            Vendors{lockIcon}
           </TabsTrigger>
-          <TabsTrigger value="products" className="gap-2" data-testid="tab-products">
+          <TabsTrigger value="products" className={`gap-2 ${regionsOnly ? "opacity-50 cursor-not-allowed" : ""}`} data-testid="tab-products" title={regionsOnly ? "Restricted to admins" : undefined}>
             <Package className="w-4 h-4" />
-            Products
+            Products{lockIcon}
           </TabsTrigger>
-          <TabsTrigger value="scopes" className="gap-2" data-testid="tab-scopes">
+          <TabsTrigger value="scopes" className={`gap-2 ${regionsOnly ? "opacity-50 cursor-not-allowed" : ""}`} data-testid="tab-scopes" title={regionsOnly ? "Restricted to admins" : undefined}>
             <BookOpen className="w-4 h-4" />
-            Scopes
+            Scopes{lockIcon}
           </TabsTrigger>
           <TabsTrigger value="regions" className="gap-2" data-testid="tab-regions">
             <MapPin className="w-4 h-4" />
             Regions
           </TabsTrigger>
-          <TabsTrigger value="folder-templates" className="gap-2" data-testid="tab-folder-templates">
+          <TabsTrigger value="folder-templates" className={`gap-2 ${regionsOnly ? "opacity-50 cursor-not-allowed" : ""}`} data-testid="tab-folder-templates" title={regionsOnly ? "Restricted to admins" : undefined}>
             <FolderArchive className="w-4 h-4" />
-            Folders
+            Folders{lockIcon}
           </TabsTrigger>
-          <TabsTrigger value="estimate-templates" className="gap-2" data-testid="tab-estimate-templates">
+          <TabsTrigger value="estimate-templates" className={`gap-2 ${regionsOnly ? "opacity-50 cursor-not-allowed" : ""}`} data-testid="tab-estimate-templates" title={regionsOnly ? "Restricted to admins" : undefined}>
             <FileSpreadsheet className="w-4 h-4" />
-            Estimates
+            Estimates{lockIcon}
           </TabsTrigger>
-          <TabsTrigger value="spec-extractor" className="gap-2" data-testid="tab-spec-extractor">
+          <TabsTrigger value="spec-extractor" className={`gap-2 ${regionsOnly ? "opacity-50 cursor-not-allowed" : ""}`} data-testid="tab-spec-extractor" title={regionsOnly ? "Restricted to admins" : undefined}>
             <FileSearch className="w-4 h-4" />
-            Spec Extractor
+            Spec Extractor{lockIcon}
           </TabsTrigger>
-          <TabsTrigger value="email-templates" className="gap-2" data-testid="tab-email-templates">
+          <TabsTrigger value="email-templates" className={`gap-2 ${regionsOnly ? "opacity-50 cursor-not-allowed" : ""}`} data-testid="tab-email-templates" title={regionsOnly ? "Restricted to admins" : undefined}>
             <Mail className="w-4 h-4" />
-            Email Templates
+            Email Templates{lockIcon}
           </TabsTrigger>
         </TabsList>
 

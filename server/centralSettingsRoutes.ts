@@ -18,6 +18,7 @@ import {
   searchProducts,
 } from "./centralSettingsStorage";
 import { getAllScopeDictionaries, createScopeDictionary, getAllRegions, createRegion, updateRegion } from "./scopeDictionaryStorage";
+import { requireAdmin } from "./authRoutes";
 import ExcelJS from "exceljs";
 
 export function registerCentralSettingsRoutes(app: Express) {
@@ -25,7 +26,7 @@ export function registerCentralSettingsRoutes(app: Express) {
   // Vendor Routes
   // =====================================================
 
-  app.get("/api/settings/vendors", async (req: Request, res: Response) => {
+  app.get("/api/settings/vendors", requireAdmin, async (req: Request, res: Response) => {
     try {
       const activeOnly = req.query.active === "true";
       const vendors = activeOnly ? await getActiveVendors() : await getAllVendors();
@@ -36,7 +37,7 @@ export function registerCentralSettingsRoutes(app: Express) {
     }
   });
 
-  app.get("/api/settings/vendors/search", async (req: Request, res: Response) => {
+  app.get("/api/settings/vendors/search", requireAdmin, async (req: Request, res: Response) => {
     try {
       const query = req.query.q as string;
       if (!query) {
@@ -50,7 +51,7 @@ export function registerCentralSettingsRoutes(app: Express) {
     }
   });
 
-  app.get("/api/settings/vendors/:id", async (req: Request, res: Response) => {
+  app.get("/api/settings/vendors/:id", requireAdmin, async (req: Request, res: Response) => {
     try {
       const id = parseInt(req.params.id);
       if (isNaN(id)) {
@@ -67,7 +68,7 @@ export function registerCentralSettingsRoutes(app: Express) {
     }
   });
 
-  app.post("/api/settings/vendors", async (req: Request, res: Response) => {
+  app.post("/api/settings/vendors", requireAdmin, async (req: Request, res: Response) => {
     try {
       const parsed = insertVendorSchema.safeParse(req.body);
       if (!parsed.success) {
@@ -81,7 +82,7 @@ export function registerCentralSettingsRoutes(app: Express) {
     }
   });
 
-  app.put("/api/settings/vendors/:id", async (req: Request, res: Response) => {
+  app.put("/api/settings/vendors/:id", requireAdmin, async (req: Request, res: Response) => {
     try {
       const id = parseInt(req.params.id);
       if (isNaN(id)) {
@@ -102,7 +103,7 @@ export function registerCentralSettingsRoutes(app: Express) {
     }
   });
 
-  app.delete("/api/settings/vendors/:id", async (req: Request, res: Response) => {
+  app.delete("/api/settings/vendors/:id", requireAdmin, async (req: Request, res: Response) => {
     try {
       const id = parseInt(req.params.id);
       if (isNaN(id)) {
@@ -123,7 +124,7 @@ export function registerCentralSettingsRoutes(app: Express) {
   // Div10 Product Routes
   // =====================================================
 
-  app.get("/api/settings/products", async (req: Request, res: Response) => {
+  app.get("/api/settings/products", requireAdmin, async (req: Request, res: Response) => {
     try {
       const activeOnly = req.query.active === "true";
       const scope = req.query.scope as string;
@@ -141,7 +142,7 @@ export function registerCentralSettingsRoutes(app: Express) {
     }
   });
 
-  app.get("/api/settings/products/search", async (req: Request, res: Response) => {
+  app.get("/api/settings/products/search", requireAdmin, async (req: Request, res: Response) => {
     try {
       const query = req.query.q as string;
       if (!query) {
@@ -155,7 +156,7 @@ export function registerCentralSettingsRoutes(app: Express) {
     }
   });
 
-  app.get("/api/settings/products/:id", async (req: Request, res: Response) => {
+  app.get("/api/settings/products/:id", requireAdmin, async (req: Request, res: Response) => {
     try {
       const id = parseInt(req.params.id);
       if (isNaN(id)) {
@@ -172,7 +173,7 @@ export function registerCentralSettingsRoutes(app: Express) {
     }
   });
 
-  app.post("/api/settings/products", async (req: Request, res: Response) => {
+  app.post("/api/settings/products", requireAdmin, async (req: Request, res: Response) => {
     try {
       const parsed = insertDiv10ProductSchema.safeParse(req.body);
       if (!parsed.success) {
@@ -186,7 +187,7 @@ export function registerCentralSettingsRoutes(app: Express) {
     }
   });
 
-  app.put("/api/settings/products/:id", async (req: Request, res: Response) => {
+  app.put("/api/settings/products/:id", requireAdmin, async (req: Request, res: Response) => {
     try {
       const id = parseInt(req.params.id);
       if (isNaN(id)) {
@@ -207,7 +208,7 @@ export function registerCentralSettingsRoutes(app: Express) {
     }
   });
 
-  app.delete("/api/settings/products/:id", async (req: Request, res: Response) => {
+  app.delete("/api/settings/products/:id", requireAdmin, async (req: Request, res: Response) => {
     try {
       const id = parseInt(req.params.id);
       if (isNaN(id)) {
@@ -224,7 +225,7 @@ export function registerCentralSettingsRoutes(app: Express) {
     }
   });
 
-  app.get("/api/settings/scope-categories", (req: Request, res: Response) => {
+  app.get("/api/settings/scope-categories", requireAdmin, (req: Request, res: Response) => {
     res.json(DIV10_SCOPE_CATEGORIES);
   });
 
@@ -232,7 +233,7 @@ export function registerCentralSettingsRoutes(app: Express) {
   // Bulk Import Routes
   // =====================================================
 
-  app.post("/api/settings/vendors/bulk-import", async (req: Request, res: Response) => {
+  app.post("/api/settings/vendors/bulk-import", requireAdmin, async (req: Request, res: Response) => {
     try {
       const rows = req.body.rows;
       if (!Array.isArray(rows) || rows.length === 0) {
@@ -270,7 +271,7 @@ export function registerCentralSettingsRoutes(app: Express) {
     }
   });
 
-  app.post("/api/settings/products/bulk-import", async (req: Request, res: Response) => {
+  app.post("/api/settings/products/bulk-import", requireAdmin, async (req: Request, res: Response) => {
     try {
       const rows = req.body.rows;
       if (!Array.isArray(rows) || rows.length === 0) {
@@ -310,7 +311,7 @@ export function registerCentralSettingsRoutes(app: Express) {
     }
   });
 
-  app.post("/api/scope-dictionaries/bulk-import", async (req: Request, res: Response) => {
+  app.post("/api/scope-dictionaries/bulk-import", requireAdmin, async (req: Request, res: Response) => {
     try {
       const rows = req.body.rows;
       if (!Array.isArray(rows) || rows.length === 0) {

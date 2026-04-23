@@ -6,6 +6,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { ThemeProvider } from "@/lib/theme";
 import { TestModeProvider } from "@/lib/testMode";
 import { AuthProvider, useAuth } from "@/lib/auth";
+import { useFeatureAccess } from "@/hooks/use-feature-access";
 import { Header } from "@/components/Header";
 import { Loader2 } from "lucide-react";
 import HomePage from "@/pages/HomePage";
@@ -41,6 +42,14 @@ function AdminRoute({ component: Component }: { component: React.ComponentType }
   return <Component />;
 }
 
+function SettingsRoute({ component: Component }: { component: React.ComponentType }) {
+  const { isAdmin, isLoading } = useAuth();
+  const { hasFeature, isLoading: featuresLoading } = useFeatureAccess();
+  if (isLoading || featuresLoading) return null;
+  if (!isAdmin && !hasFeature("settings-regions")) return <HomePage />;
+  return <Component />;
+}
+
 function Router() {
   return (
     <Switch>
@@ -48,7 +57,7 @@ function Router() {
       <Route path="/home" component={HomePage} />
       <Route path="/planparser" component={PlanParserPage} />
       <Route path="/quoteparser" component={QuoteParserPage} />
-      <Route path="/settings">{() => <AdminRoute component={CentralSettingsPage} />}</Route>
+      <Route path="/settings">{() => <SettingsRoute component={CentralSettingsPage} />}</Route>
       <Route path="/project-start" component={ProjectStartPage} />
       <Route path="/projects/:id" component={ProjectDetailPage} />
       <Route path="/tools/bc-sync-table">{() => <AdminRoute component={ProjectLogPage} />}</Route>

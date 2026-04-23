@@ -6,7 +6,7 @@ import {
   Loader2, FlaskConical,
   TableProperties, Sparkles, Users, Activity, FileBarChart,
   FolderOpenDot, Check, PackageCheck, Shield, Calculator, Link2, Mail, Paperclip,
-  BookOpen, LifeBuoy
+  BookOpen, LifeBuoy, MapPin
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
@@ -113,6 +113,15 @@ const tools: ToolTile[] = [
     available: true,
     isExternal: true,
     feature: "procurement-process",
+  },
+  {
+    id: "regions",
+    title: "Regions / Airport Codes",
+    description: "Manage regional codes, names, aliases & self-perform estimators",
+    icon: MapPin,
+    href: "/settings",
+    available: true,
+    feature: "settings-regions",
   },
   {
     id: "helpcenter",

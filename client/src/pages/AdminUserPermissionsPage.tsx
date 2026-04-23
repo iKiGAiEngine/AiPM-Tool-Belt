@@ -33,6 +33,7 @@ const FEATURE_LABELS: Record<string, string> = {
   "estimating-module": "Estimating Module",
   "rfq-vendor-lookup": "RFQ Vendor Lookup (Approved Mfrs)",
   "procurement-process": "Procurement Process",
+  "settings-regions": "Settings — Regions Tab Only",
 };
 
 export function AdminUserPermissionsPage() {
