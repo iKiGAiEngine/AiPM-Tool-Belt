@@ -326,3 +326,24 @@ export async function requireAdmin(req: Request, res: Response, next: NextFuncti
   }
   next();
 }
+
+export function requireAdminOrFeature(feature: string) {
+  return async function (req: Request, res: Response, next: NextFunction) {
+    const userId = (req.session as any)?.userId;
+    if (!userId) {
+      return res.status(401).json({ message: "Authentication required" });
+    }
+    const [user] = await db.select().from(users).where(eq(users.id, userId));
+    if (!user || !user.isActive) {
+      req.session.destroy(() => {});
+      return res.status(401).json({ message: "Account is deactivated" });
+    }
+    if (user.role === "admin") return next();
+    const { storage } = await import("./storage");
+    const features = await storage.getUserFeatureAccess(user.id);
+    if (!features.includes(feature as any)) {
+      return res.status(403).json({ message: "Access denied" });
+    }
+    next();
+  };
+}

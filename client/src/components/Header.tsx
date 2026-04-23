@@ -163,6 +163,7 @@ export function Header() {
   const { user, isAdmin, logout } = useAuth();
   const { hasFeature } = useFeatureAccess();
   const canSettingsRegions = hasFeature("settings-regions");
+  const canSettingsFull = hasFeature("central-settings");
   const isHome = location === "/";
   const [changePwOpen, setChangePwOpen] = useState(false);
 
@@ -250,9 +251,9 @@ export function Header() {
               />
             </label>
           )}
-          {(isAdmin || canSettingsRegions) && (
+          {(isAdmin || canSettingsFull || canSettingsRegions) && (
             <Link href="/settings">
-              <Button variant="ghost" size="icon" title={isAdmin ? "Settings" : "Regions"} data-testid="link-settings">
+              <Button variant="ghost" size="icon" title={isAdmin || canSettingsFull ? "Settings" : "Regions"} data-testid="link-settings">
                 <Settings className="h-4 w-4" />
               </Button>
             </Link>

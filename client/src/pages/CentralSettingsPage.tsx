@@ -23,7 +23,8 @@ import { Lock } from "lucide-react";
 export default function CentralSettingsPage() {
   const { isAdmin } = useAuth();
   const { hasFeature } = useFeatureAccess();
-  const regionsOnly = !isAdmin && hasFeature("settings-regions");
+  const hasFullSettings = isAdmin || hasFeature("central-settings");
+  const regionsOnly = !hasFullSettings && hasFeature("settings-regions");
   const [activeTab, setActiveTab] = useState(regionsOnly ? "regions" : "vendors");
 
   useEffect(() => {

@@ -28,7 +28,7 @@ const FEATURE_LABELS: Record<string, string> = {
   "plan-parser": "Plan Parser",
   "bc-sync": "BuildingConnected Sync",
   "draft-review": "Draft Review",
-  "central-settings": "Central Settings",
+  "central-settings": "Central Settings (Full Access)",
   "project-start": "Project Start",
   "estimating-module": "Estimating Module",
   "rfq-vendor-lookup": "RFQ Vendor Lookup (Approved Mfrs)",

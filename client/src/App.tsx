@@ -46,7 +46,7 @@ function SettingsRoute({ component: Component }: { component: React.ComponentTyp
   const { isAdmin, isLoading } = useAuth();
   const { hasFeature, isLoading: featuresLoading } = useFeatureAccess();
   if (isLoading || featuresLoading) return null;
-  if (!isAdmin && !hasFeature("settings-regions")) return <HomePage />;
+  if (!isAdmin && !hasFeature("central-settings") && !hasFeature("settings-regions")) return <HomePage />;
   return <Component />;
 }
 

@@ -6,7 +6,7 @@ import {
   Loader2, FlaskConical,
   TableProperties, Sparkles, Users, Activity, FileBarChart,
   FolderOpenDot, Check, PackageCheck, Shield, Calculator, Link2, Mail, Paperclip,
-  BookOpen, LifeBuoy, MapPin
+  BookOpen, LifeBuoy, MapPin, Settings as SettingsIcon
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
@@ -113,6 +113,15 @@ const tools: ToolTile[] = [
     available: true,
     isExternal: true,
     feature: "procurement-process",
+  },
+  {
+    id: "settings",
+    title: "Settings",
+    description: "Vendors, products, scopes, regions, templates, spec extractor & email templates",
+    icon: SettingsIcon,
+    href: "/settings",
+    available: true,
+    feature: "central-settings",
   },
   {
     id: "regions",
@@ -548,6 +557,7 @@ export default function HomePage() {
 
             // Hide tile entirely if the user lacks the required feature (admins always see everything)
             if (!isAdmin && tool.feature && !hasFeature(tool.feature)) return null;
+            if (tool.id === "regions" && (isAdmin || hasFeature("central-settings"))) return null;
 
             if (isDisabled || (isComingSoon && isAdminRestricted)) {
               return (
