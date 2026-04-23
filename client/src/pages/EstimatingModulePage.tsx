@@ -4422,10 +4422,10 @@ ${html}
                             setOpenRfqExtraNotes("");
                             setShowOpenRfq(true);
                           }}
-                          className="text-xs px-2 py-1 rounded flex items-center gap-1"
-                          style={{ background: "var(--gold)15", border: "1px solid var(--gold)40", color: "var(--gold)" }}
+                          className="text-xs px-3 py-1.5 rounded-md flex items-center gap-1.5 font-semibold transition-all hover:brightness-110"
+                          style={{ background: "linear-gradient(135deg, var(--gold), #c9962f)", border: "1px solid var(--gold)", color: "#1a1a1a", boxShadow: "0 2px 8px rgba(212,175,55,0.25)" }}
                           data-testid="button-open-rfq">
-                          <Send className="w-3 h-3" /> Open RFQ
+                          <Send className="w-3.5 h-3.5" /> Open RFQ
                         </button>
                       </div>
 
@@ -6847,8 +6847,20 @@ ${html}
                 <div style={{ display: "flex", flexDirection: "column", minHeight: 0 }}>
                   <span className="text-xs font-semibold mb-1" style={{ color: "var(--text-secondary)" }}>Send to</span>
                   <div className="flex gap-2 mb-2">
-                    <button onClick={() => setOpenRfqVendorMode("existing")} className="text-xs px-3 py-1 rounded flex-1" style={{ background: openRfqVendorMode === "existing" ? "var(--gold)15" : "var(--bg3)", border: `1px solid ${openRfqVendorMode === "existing" ? "var(--gold)40" : "var(--border-ds)"}`, color: openRfqVendorMode === "existing" ? "var(--gold)" : "var(--text-secondary)" }} data-testid="button-open-rfq-mode-existing">Existing vendor</button>
-                    <button onClick={() => setOpenRfqVendorMode("new")} className="text-xs px-3 py-1 rounded flex-1" style={{ background: openRfqVendorMode === "new" ? "var(--gold)15" : "var(--bg3)", border: `1px solid ${openRfqVendorMode === "new" ? "var(--gold)40" : "var(--border-ds)"}`, color: openRfqVendorMode === "new" ? "var(--gold)" : "var(--text-secondary)" }} data-testid="button-open-rfq-mode-new">One-time vendor</button>
+                    <button
+                      onClick={() => setOpenRfqVendorMode("existing")}
+                      className="text-xs px-3 py-1.5 rounded flex-1 font-semibold transition-all"
+                      style={openRfqVendorMode === "existing"
+                        ? { background: "var(--gold)", border: "1px solid var(--gold)", color: "#1a1a1a", boxShadow: "0 2px 6px rgba(212,175,55,0.35)" }
+                        : { background: "var(--bg3)", border: "1px solid var(--border-ds)", color: "var(--text-muted)" }}
+                      data-testid="button-open-rfq-mode-existing">Existing vendor</button>
+                    <button
+                      onClick={() => setOpenRfqVendorMode("new")}
+                      className="text-xs px-3 py-1.5 rounded flex-1 font-semibold transition-all"
+                      style={openRfqVendorMode === "new"
+                        ? { background: "var(--gold)", border: "1px solid var(--gold)", color: "#1a1a1a", boxShadow: "0 2px 6px rgba(212,175,55,0.35)" }
+                        : { background: "var(--bg3)", border: "1px solid var(--border-ds)", color: "var(--text-muted)" }}
+                      data-testid="button-open-rfq-mode-new">One-time vendor</button>
                   </div>
 
                   {openRfqVendorMode === "existing" ? (
