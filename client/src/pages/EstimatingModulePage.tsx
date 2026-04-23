@@ -4400,37 +4400,26 @@ ${html}
                           )}
                         </label>
                         <span className="text-[10px]" style={{ color: "var(--text-muted)" }}>(override only affects RFQ emails — proposal log is not changed)</span>
+                        <div className="ml-auto">
+                          <button
+                            onClick={() => {
+                              setOpenRfqSelectedItemIds(new Set(catLineItems.map(i => String(i.id))));
+                              setOpenRfqExistingVendorIds(new Set());
+                              setOpenRfqVendorMode("existing");
+                              setOpenRfqVendorSearch("");
+                              setOpenRfqOnlyDirect(false);
+                              setOpenRfqNewVendorName("");
+                              setOpenRfqNewVendorEmail("");
+                              setOpenRfqExtraNotes("");
+                              setShowOpenRfq(true);
+                            }}
+                            className="text-xs px-3 py-1.5 rounded-md flex items-center gap-1.5 font-semibold transition-all hover:brightness-110"
+                            style={{ background: "linear-gradient(135deg, var(--gold), #c9962f)", border: "1px solid var(--gold)", color: "#1a1a1a", boxShadow: "0 2px 8px rgba(212,175,55,0.25)" }}
+                            data-testid="button-open-rfq">
+                            <Send className="w-3.5 h-3.5" /> Open RFQ
+                          </button>
+                        </div>
                       </div>
-                      {/* Toolbar: view toggle + Open RFQ */}
-                      {/* Group by Vendor toggle hidden until vendor-grouped flow is finalized */}
-                      <div className="flex items-center justify-end mb-3 gap-2 flex-wrap">
-                        <button
-                          onClick={() => {
-                            setOpenRfqSelectedItemIds(new Set(catLineItems.map(i => String(i.id))));
-                            setOpenRfqExistingVendorIds(new Set());
-                            setOpenRfqVendorMode("existing");
-                            setOpenRfqVendorSearch("");
-                            setOpenRfqOnlyDirect(false);
-                            setOpenRfqNewVendorName("");
-                            setOpenRfqNewVendorEmail("");
-                            setOpenRfqExtraNotes("");
-                            setShowOpenRfq(true);
-                          }}
-                          className="text-xs px-3 py-1.5 rounded-md flex items-center gap-1.5 font-semibold transition-all hover:brightness-110"
-                          style={{ background: "linear-gradient(135deg, var(--gold), #c9962f)", border: "1px solid var(--gold)", color: "#1a1a1a", boxShadow: "0 2px 8px rgba(212,175,55,0.25)" }}
-                          data-testid="button-open-rfq">
-                          <Send className="w-3.5 h-3.5" /> Open RFQ
-                        </button>
-                      </div>
-
-                      <p className="text-xs mb-3" style={{ color: "var(--text-muted)" }}>
-                        {rfqGroupByVendor
-                          ? "One card per eligible vendor — manufacturers and line items they can quote are grouped into a single email."
-                          : "Generate RFQ emails for approved manufacturers and any others found on line items. Vendor contact emails are auto-filled when available."}
-                      </p>
-                      {combined.length === 0 && (
-                        <p className="text-xs" style={{ color: "var(--text-muted)" }}>No manufacturers yet. Add an approved manufacturer above or assign manufacturers to line items, or use Open RFQ for ad-hoc requests.</p>
-                      )}
 
                       {/* ── Vendor-grouped view ── */}
                       {(() => {
@@ -4486,72 +4475,7 @@ ${html}
                         );
                       })}
 
-                      {/* ── Per-manufacturer view (default) ── */}
-                      {!rfqGroupByVendor && combined.map(({ name, approved, discoveredMfrId }) => {
-                        const rfq = generateRfqEmail(name);
-                        // Build full contact list eligible for this scope's RFQ.
-                        // Eligible if: vendor passes both scope and manufacturer-tag tests
-                        // (untagged scopes/mfrs = "covers everything").
-                        const eligibleContacts: Array<{ id: number; name: string; role?: string | null; email: string | null; isPrimary: boolean; vendorName: string }> = [];
-                        const source: { mfrId: number; vendors: ApprovedMfr["vendors"] } | null = approved
-                          ? { mfrId: approved.manufacturerId, vendors: approved.vendors }
-                          : (discoveredMfrId ? (() => {
-                              const d = discoveredMfrs.find(x => x.manufacturerId === discoveredMfrId);
-                              return d ? { mfrId: d.manufacturerId, vendors: d.vendors } : null;
-                            })() : null);
-                        if (source) {
-                          for (const v of source.vendors) {
-                            const scopesOk = !v.scopes || v.scopes.length === 0 || v.scopes.includes(activeCat);
-                            // Loosened: only the scope tag gates eligibility.
-                            if (!scopesOk) continue;
-                            for (const c of v.contacts) {
-                              eligibleContacts.push({ id: c.id, name: c.name, role: c.role, email: c.email, isPrimary: c.isPrimary, vendorName: v.vendorName });
-                            }
-                          }
-                        }
-                        const eligibleCount = eligibleContacts.length;
-                        if (eligibleCount === 0) return null;
-                        return (
-                          <div key={name} className="mb-3 p-3 rounded-lg" style={{ background: "var(--bg3)", border: "1px solid var(--border-ds)" }} data-testid={`rfq-card-${name}`}>
-                            <div className="flex items-center justify-between mb-2">
-                              <div className="flex items-center gap-2">
-                                <span className="text-xs font-semibold" style={{ color: "var(--gold)" }}>{name}</span>
-                                {approved && <Badge className="text-[10px]" style={{ background: "var(--gold)15", color: "var(--gold)", border: "1px solid var(--gold)40" }}>Approved</Badge>}
-                                {approved?.isBasisOfDesign && <Badge className="text-[10px]" style={{ background: "#22c55e20", color: "#22c55e", border: "1px solid #22c55e40" }}>BOD</Badge>}
-                                <span className="text-[10px]" style={{ color: "var(--text-muted)" }}>{eligibleCount} eligible contact{eligibleCount === 1 ? "" : "s"}</span>
-                              </div>
-                              <div className="flex gap-2">
-                                <button onClick={() => { navigator.clipboard.writeText(rfq.body); logRfq(name, "copy"); toast({ title: "Copied", description: "RFQ body copied to clipboard." }); }}
-                                  className="text-xs px-2 py-1 rounded flex items-center gap-1" style={{ background: "var(--bg-card)", border: "1px solid var(--border-ds)", color: "var(--text-secondary)" }}
-                                  data-testid={`button-copy-rfq-${name}`}>
-                                  <Copy className="w-3 h-3" /> Copy
-                                </button>
-                                <button
-                                  onClick={() => {
-                                    setRfqPickerMfr(name);
-                                    // Pre-check all eligible contacts (fresh on every open)
-                                    setRfqSelectedContactIds(new Set(eligibleContacts.map(c => c.id)));
-                                  }}
-                                  disabled={eligibleCount === 0}
-                                  className="text-xs px-2 py-1 rounded flex items-center gap-1"
-                                  style={{ background: "var(--gold)15", border: "1px solid var(--gold)40", color: "var(--gold)", opacity: eligibleCount === 0 ? 0.5 : 1, cursor: eligibleCount === 0 ? "not-allowed" : "pointer" }}
-                                  title={eligibleCount === 0 ? "No eligible contacts — tag contacts in Vendor DB" : "Pick recipients and send RFQ"}
-                                  data-testid={`button-pick-recipients-${name}`}>
-                                  <Send className="w-3 h-3" /> Pick Recipients & Send
-                                </button>
-                              </div>
-                            </div>
-                            <pre className="text-xs whitespace-pre-wrap" style={{ color: "var(--text-muted)", maxHeight: 120, overflow: "hidden" }}>
-                              {rfq.body.slice(0, 200)}...
-                            </pre>
-                          </div>
-                        );
-                      })}
-                      {catLineItems.filter(i => !i.mfr).length > 0 && (
-                        <p className="text-xs mt-2" style={{ color: "var(--text-muted)" }}>
-                          {catLineItems.filter(i => !i.mfr).length} item(s) have no manufacturer assigned.
-                        </p>
-                      )}
+                      {/* Per-manufacturer RFQ cards hidden — use Open RFQ above for ad-hoc sends */}
                     </div>
                   );
                 })()}
