@@ -7,6 +7,7 @@ import {
   proposalLogEntries, estimateSpecSections, users,
   vendorQuoteLineItems, vendorQuoteToEstimateLineItemMap,
   mfrManufacturers,
+  rfqLog, insertRfqLogSchema,
 } from "@shared/schema";
 import OpenAI from "openai";
 import multer from "multer";
@@ -286,6 +287,32 @@ async function getFullEstimate(estimateId: number) {
 }
 
 export function registerEstimateRoutes(app: Express) {
+
+  // ─── RFQ Log ───
+  app.post("/api/rfq-log", async (req: Request, res: Response) => {
+    try {
+      const userId = (req.session as any)?.userId ?? null;
+      const parsed = insertRfqLogSchema.parse({ ...req.body, userId });
+      const [row] = await db.insert(rfqLog).values(parsed).returning();
+      res.json(row);
+    } catch (e: any) {
+      res.status(400).json({ message: e?.message || "Invalid RFQ log entry" });
+    }
+  });
+
+  app.get("/api/rfq-log", async (req: Request, res: Response) => {
+    try {
+      const estimateId = parseInt(String(req.query.estimateId || ""));
+      const scopeId = String(req.query.scopeId || "");
+      if (isNaN(estimateId) || !scopeId) return res.status(400).json({ message: "estimateId and scopeId required" });
+      const rows = await db.select().from(rfqLog)
+        .where(and(eq(rfqLog.estimateId, estimateId), eq(rfqLog.scopeId, scopeId)))
+        .orderBy(desc(rfqLog.sentAt));
+      res.json(rows);
+    } catch (e: any) {
+      res.status(500).json({ message: e?.message || "Failed to load RFQ log" });
+    }
+  });
 
   // GET /api/proposal-log/entry/:id — get a single proposal log entry
   app.get("/api/proposal-log/entry/:id", async (req: Request, res: Response) => {

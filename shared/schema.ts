@@ -1337,6 +1337,22 @@ export const insertEstimateLineItemSchema = createInsertSchema(estimateLineItems
 export type InsertEstimateLineItem = z.infer<typeof insertEstimateLineItemSchema>;
 export type EstimateLineItem = typeof estimateLineItems.$inferSelect;
 
+export const rfqLog = pgTable("rfq_log", {
+  id: serial("id").primaryKey(),
+  estimateId: integer("estimate_id").notNull(),
+  scopeId: varchar("scope_id", { length: 50 }).notNull(),
+  scopeLabel: varchar("scope_label", { length: 200 }).notNull(),
+  manufacturerName: varchar("manufacturer_name", { length: 300 }).notNull(),
+  projectName: varchar("project_name", { length: 500 }).notNull(),
+  sentBy: varchar("sent_by", { length: 200 }).notNull(),
+  userId: integer("user_id"),
+  action: varchar("action", { length: 20 }).notNull(),
+  sentAt: timestamp("sent_at").notNull().defaultNow(),
+});
+export const insertRfqLogSchema = createInsertSchema(rfqLog).omit({ id: true, sentAt: true });
+export type InsertRfqLog = z.infer<typeof insertRfqLogSchema>;
+export type RfqLog = typeof rfqLog.$inferSelect;
+
 export const estimateSpecSections = pgTable("estimate_spec_sections", {
   id: serial("id").primaryKey(),
   estimateId: integer("estimate_id").notNull(),

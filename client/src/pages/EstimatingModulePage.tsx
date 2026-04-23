@@ -579,6 +579,11 @@ function EstimatingModuleInner() {
   const [openRfqSelectedItemIds, setOpenRfqSelectedItemIds] = useState<Set<string>>(new Set());
   const [openRfqExtraNotes, setOpenRfqExtraNotes] = useState("");
 
+  // ── RFQ response date overrides (per scope) and log expansion ──
+  const [responseNeededByByCat, setResponseNeededByByCat] = useState<Record<string, string>>({});
+  const [rfqLogExpandAll, setRfqLogExpandAll] = useState(false);
+  const [rfqLogCollapsed, setRfqLogCollapsed] = useState(false);
+
   // ── Dirty tracking ──
   const [isDirty, setIsDirty] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -2067,6 +2072,37 @@ ${html}
     onSuccess: () => invalidateApprovedMfrs(),
   });
 
+  // ── RFQ Log: query and create mutation ──
+  const { data: rfqLogEntries = [] } = useQuery<Array<{ id: number; manufacturerName: string; sentBy: string; sentAt: string; projectName: string; scopeLabel: string; action: string }>>({
+    queryKey: ["/api/rfq-log", estimateId, activeCat],
+    queryFn: async () => {
+      if (!estimateId || !activeCat) return [];
+      const r = await fetch(`/api/rfq-log?estimateId=${estimateId}&scopeId=${encodeURIComponent(activeCat)}`, { credentials: "include" });
+      if (!r.ok) return [];
+      return r.json();
+    },
+    enabled: !!estimateId && !!activeCat,
+  });
+  const logRfqMutation = useMutation({
+    mutationFn: async (payload: { manufacturerName: string; action: "copy" | "email" }) => {
+      const catLabel = ALL_SCOPES.find(s => s.id === activeCat)?.label || activeCat;
+      const sentBy = user?.displayName || user?.username || user?.email || "NBS Estimating";
+      return apiRequest("POST", "/api/rfq-log", {
+        estimateId,
+        scopeId: activeCat,
+        scopeLabel: catLabel,
+        manufacturerName: payload.manufacturerName,
+        projectName: proposalEntry?.projectName || "",
+        sentBy,
+        action: payload.action,
+      });
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["/api/rfq-log", estimateId, activeCat] }),
+  });
+  const logRfq = useCallback((manufacturerName: string, action: "copy" | "email") => {
+    logRfqMutation.mutate({ manufacturerName: manufacturerName || "(unspecified)", action });
+  }, [logRfqMutation]);
+
   const createMfrInline = useCallback(async () => {
     const name = newMfrName.trim();
     if (!name) return;
@@ -2097,6 +2133,28 @@ ${html}
     return x === y || x.includes(y) || y.includes(x);
   }, []);
 
+  // ── RFQ email helpers ──
+  const formatItemsTable = useCallback((items: { name: string; model?: string | null; qty: number; uom?: string | null }[]) => {
+    if (items.length === 0) return "  TBD — see attached plans and specs";
+    const COLS = { desc: 32, model: 16, qty: 6, unit: 6 };
+    const pad = (s: string, w: number) => (s.length >= w ? s.slice(0, w - 1) + "…" : s + " ".repeat(w - s.length));
+    const sep = "-".repeat(COLS.desc + COLS.model + COLS.qty + COLS.unit + 9);
+    const header = `${pad("Item Description", COLS.desc)} | ${pad("Model #", COLS.model)} | ${pad("Qty", COLS.qty)} | ${pad("Unit", COLS.unit)}`;
+    const rows = items.map(i => `${pad(i.name || "", COLS.desc)} | ${pad(i.model || "", COLS.model)} | ${pad(String(i.qty ?? ""), COLS.qty)} | ${pad(i.uom || "EA", COLS.unit)}`);
+    return [sep, header, sep, ...rows, sep].join("\n");
+  }, []);
+
+  const buildShipToBlock = useCallback(() => {
+    const projectName = proposalEntry?.projectName || "";
+    const addr = (proposalEntry?.projectAddress || "").trim();
+    if (!addr) return `Ship To:\n${projectName}\n[Address not on file — please add to project record]`;
+    return `Ship To:\n${projectName}\n${addr}`;
+  }, [proposalEntry]);
+
+  const effectiveDueDate = useCallback((scopeId: string) => {
+    return responseNeededByByCat[scopeId] || proposalEntry?.dueDate || "";
+  }, [responseNeededByByCat, proposalEntry]);
+
   // ── RFQ email ──
   const generateRfqEmail = useCallback((mfr: string) => {
     const catLabel = ALL_SCOPES.find(s => s.id === activeCat)?.label || activeCat;
@@ -2104,9 +2162,9 @@ ${html}
     const catItems = lineItems.filter(i => i.category === activeCat && i.mfr && namesMatch(i.mfr, mfr));
     const estimatorName = user?.displayName || user?.username || user?.email || "NBS Estimating";
     const subject = `${proposalEntry?.projectName || ""} — ${catLabel}`;
-    const itemLines = catItems.length > 0
-      ? catItems.map(i => `  - ${i.name}${i.model ? ` (${i.model})` : ""} — Qty: ${i.qty}`).join("\n")
-      : "  - TBD — see attached plans and specs";
+    const itemsTable = formatItemsTable(catItems);
+    const dueDate = effectiveDueDate(activeCat);
+    const shipTo = buildShipToBlock();
 
     // Spec requirements block (if saved spec data exists for this scope)
     const specRef = specSectionForScope(activeCat);
@@ -2130,9 +2188,9 @@ ${html}
       }
     }
 
-    const body = `Dear ${mfr} Sales Team,\n\nNational Building Specialties is requesting pricing for the following Division 10 items on the project below.\n\nPROJECT: ${proposalEntry?.projectName || ""}\nGC: ${proposalEntry?.gcEstimateLead || ""}\nBID DUE: ${proposalEntry?.dueDate || ""}\nNBS ESTIMATE #: ${estimateData?.estimateNumber || ""}${specBlock}\n\nITEMS REQUESTED:\n${itemLines}\n\nPlease provide:\n  1. MATERIAL ONLY unit pricing (NO labor or installation)\n  2. Freight cost to jobsite\n  3. Lead time / availability\n  4. Indicate if pricing includes or excludes sales tax\n\nIMPORTANT: NBS is a FURNISH ONLY subcontractor.\n\nPlease respond by: ${proposalEntry?.dueDate || "bid due date"}\n\nThank you,\n${estimatorName}\nNational Building Specialties`;
+    const body = `Dear ${mfr} Sales Team,\n\nNational Building Specialties is requesting pricing for the following Division 10 items on the project below.\n\nPROJECT: ${proposalEntry?.projectName || ""}\nGC: ${proposalEntry?.gcEstimateLead || ""}\nBID DUE: ${dueDate}\nNBS ESTIMATE #: ${estimateData?.estimateNumber || ""}\n\n${shipTo}${specBlock}\n\nITEMS REQUESTED:\n${itemsTable}\n\nPlease provide:\n  1. MATERIAL ONLY unit pricing (NO labor or installation)\n  2. Freight cost to jobsite\n  3. Lead time / availability\n  4. Indicate if pricing includes or excludes sales tax\n\nPricing Needed By: ${dueDate || "bid due date"}\n\nThank you,\n${estimatorName}\nNational Building Specialties`;
     return { mfr, subject, body };
-  }, [lineItems, activeCat, proposalEntry, estimateData, user, specSectionForScope]);
+  }, [lineItems, activeCat, proposalEntry, estimateData, user, specSectionForScope, formatItemsTable, buildShipToBlock, effectiveDueDate]);
 
   // ── Proposal letter text ──
   const proposalText = useMemo(() => {
@@ -4308,6 +4366,32 @@ ${html}
 
                   return (
                     <div className="mt-2 p-4 rounded-lg" style={{ background: "var(--bg-card)", border: "1px solid var(--border-ds)" }}>
+                      {/* Bid Due / Vendor Response Override */}
+                      <div className="mb-3 p-3 rounded flex items-center gap-4 flex-wrap" style={{ background: "var(--bg3)", border: "1px solid var(--border-ds)" }} data-testid="rfq-due-date-row">
+                        <div className="text-xs" style={{ color: "var(--text-muted)" }}>
+                          Bid Due Date: <span style={{ color: "var(--text-secondary)", fontWeight: 600 }} data-testid="text-rfq-bid-due">{proposalEntry?.dueDate || "—"}</span>
+                        </div>
+                        <label className="flex items-center gap-2 text-xs" style={{ color: "var(--text-secondary)" }}>
+                          Vendor Response Needed By:
+                          <input
+                            type="date"
+                            value={responseNeededByByCat[activeCat] ?? (proposalEntry?.dueDate || "")}
+                            onChange={e => setResponseNeededByByCat(prev => ({ ...prev, [activeCat]: e.target.value }))}
+                            className="text-xs px-2 py-1 rounded"
+                            style={{ background: "var(--bg-card)", border: "1px solid var(--border-ds)", color: "var(--text)" }}
+                            data-testid="input-rfq-response-needed-by"
+                          />
+                          {responseNeededByByCat[activeCat] && responseNeededByByCat[activeCat] !== (proposalEntry?.dueDate || "") && (
+                            <button
+                              onClick={() => setResponseNeededByByCat(prev => { const n = { ...prev }; delete n[activeCat]; return n; })}
+                              className="text-[10px] underline"
+                              style={{ color: "var(--text-muted)" }}
+                              data-testid="button-clear-rfq-override"
+                            >reset</button>
+                          )}
+                        </label>
+                        <span className="text-[10px]" style={{ color: "var(--text-muted)" }}>(override only affects RFQ emails — proposal log is not changed)</span>
+                      </div>
                       {/* Toolbar: view toggle + Open RFQ */}
                       <div className="flex items-center justify-between mb-3 gap-2 flex-wrap">
                         <div className="flex items-center gap-3">
@@ -4423,7 +4507,7 @@ ${html}
                                 <span className="text-[10px]" style={{ color: "var(--text-muted)" }}>{eligibleCount} eligible contact{eligibleCount === 1 ? "" : "s"}</span>
                               </div>
                               <div className="flex gap-2">
-                                <button onClick={() => { navigator.clipboard.writeText(rfq.body); toast({ title: "Copied", description: "RFQ body copied to clipboard." }); }}
+                                <button onClick={() => { navigator.clipboard.writeText(rfq.body); logRfq(name, "copy"); toast({ title: "Copied", description: "RFQ body copied to clipboard." }); }}
                                   className="text-xs px-2 py-1 rounded flex items-center gap-1" style={{ background: "var(--bg-card)", border: "1px solid var(--border-ds)", color: "var(--text-secondary)" }}
                                   data-testid={`button-copy-rfq-${name}`}>
                                   <Copy className="w-3 h-3" /> Copy
@@ -4457,6 +4541,67 @@ ${html}
                     </div>
                   );
                 })()}
+
+                {/* RFQ Sent Log — current scope only */}
+                <div className="mt-4 p-4 rounded-lg" style={{ background: "var(--bg-card)", border: "1px solid var(--border-ds)" }} data-testid="card-rfq-log">
+                  <div className="flex items-center justify-between mb-2">
+                    <button
+                      type="button"
+                      onClick={() => setRfqLogCollapsed(v => !v)}
+                      className="flex items-center gap-2"
+                      data-testid="button-rfq-log-collapse"
+                    >
+                      {rfqLogCollapsed ? <ChevronRight className="w-3 h-3" style={{ color: "var(--gold)" }} /> : <ChevronDown className="w-3 h-3" style={{ color: "var(--gold)" }} />}
+                      <FileText className="w-3 h-3" style={{ color: "var(--gold)" }} />
+                      <span className="text-sm font-semibold" style={{ color: "var(--text)" }}>RFQ Log</span>
+                      <span className="text-[10px]" style={{ color: "var(--text-muted)" }}>
+                        {ALL_SCOPES.find(s => s.id === activeCat)?.label || activeCat} · {rfqLogEntries.length} entr{rfqLogEntries.length === 1 ? "y" : "ies"}
+                      </span>
+                    </button>
+                    {!rfqLogCollapsed && rfqLogEntries.length > 10 && (
+                      <button
+                        onClick={() => setRfqLogExpandAll(v => !v)}
+                        className="text-[11px] underline"
+                        style={{ color: "var(--gold)" }}
+                        data-testid="button-rfq-log-toggle-all"
+                      >{rfqLogExpandAll ? `Show recent 10` : `View all (${rfqLogEntries.length})`}</button>
+                    )}
+                  </div>
+                  {!rfqLogCollapsed && (rfqLogEntries.length === 0 ? (
+                    <p className="text-xs" style={{ color: "var(--text-muted)" }}>No RFQs sent for this scope yet. Copy or open an RFQ above to start logging.</p>
+                  ) : (
+                    <div className="overflow-x-auto rounded" style={{ border: "1px solid var(--border-ds)" }}>
+                      <table className="w-full text-xs" style={{ minWidth: 640 }}>
+                        <thead style={{ background: "var(--bg3)" }}>
+                          <tr style={{ color: "var(--text-muted)", textAlign: "left" }}>
+                            <th className="px-2 py-1.5 font-semibold">Manufacturer</th>
+                            <th className="px-2 py-1.5 font-semibold">Sent By</th>
+                            <th className="px-2 py-1.5 font-semibold">Date &amp; Time</th>
+                            <th className="px-2 py-1.5 font-semibold">Project</th>
+                            <th className="px-2 py-1.5 font-semibold">Scope</th>
+                            <th className="px-2 py-1.5 font-semibold text-center">Action</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {(rfqLogExpandAll ? rfqLogEntries : rfqLogEntries.slice(0, 10)).map(r => (
+                            <tr key={r.id} style={{ borderTop: "1px solid var(--border-ds)40", color: "var(--text-secondary)" }} data-testid={`row-rfq-log-${r.id}`}>
+                              <td className="px-2 py-1.5" style={{ color: "var(--text)" }}>{r.manufacturerName}</td>
+                              <td className="px-2 py-1.5">{r.sentBy}</td>
+                              <td className="px-2 py-1.5 whitespace-nowrap">{new Date(r.sentAt).toLocaleString()}</td>
+                              <td className="px-2 py-1.5">{r.projectName}</td>
+                              <td className="px-2 py-1.5">{r.scopeLabel}</td>
+                              <td className="px-2 py-1.5 text-center">
+                                <span style={{ fontSize: 9, fontWeight: 700, padding: "1px 6px", borderRadius: 3, background: r.action === "email" ? "rgba(91,141,239,0.15)" : "rgba(201,168,76,0.15)", color: r.action === "email" ? "#5B8DEF" : "var(--gold)" }}>
+                                  {r.action.toUpperCase()}
+                                </span>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  ))}
+                </div>
               </div>
 
               {/* OH/Fee/Esc — collapsible markups bar (sits just above the Line Items Checklist) */}
@@ -6341,6 +6486,7 @@ ${html}
           }
           const rfq = generateRfqEmail(mfrName);
           const mailto = `mailto:${encodeURIComponent(selectedEmails.join(","))}?subject=${encodeURIComponent(rfq.subject)}&body=${encodeURIComponent(rfq.body)}`;
+          logRfq(mfrName, "email");
           window.location.href = mailto;
           setRfqPickerMfr(null);
         };
@@ -6478,11 +6624,10 @@ ${html}
 
         // Build consolidated email body grouped by manufacturer
         const subject = `${proposalEntry?.projectName || ""} — ${catLabel} — ${group.manufacturers.map(m => m.name).join(", ")}`;
+        const dueDate = effectiveDueDate(activeCat);
+        const shipTo = buildShipToBlock();
         const mfrBlocks = group.manufacturers.map(m => {
-          const lines = m.items.length > 0
-            ? m.items.map(i => `  - ${i.name}${i.model ? ` (${i.model})` : ""} — Qty: ${i.qty}`).join("\n")
-            : "  - TBD — see attached plans and specs";
-          return `${m.name.toUpperCase()}:\n${lines}`;
+          return `${m.name.toUpperCase()}:\n${formatItemsTable(m.items)}`;
         }).join("\n\n");
         const specRef = specSectionForScope(activeCat);
         let specBlock = "";
@@ -6492,11 +6637,12 @@ ${html}
           if (specRef.substitutionPolicy) sl.push(`SUBSTITUTION POLICY: "${specRef.substitutionPolicy}"`);
           if (sl.length > 0) specBlock = `\n\nSPECIFICATION REQUIREMENTS:\n${sl.join("\n")}`;
         }
-        const body = `Dear ${group.vendorName} Team,\n\nNational Building Specialties is requesting pricing for the following Division 10 items on the project below. We understand you can quote multiple manufacturer lines we need on this job, so we've consolidated them into a single request.\n\nPROJECT: ${proposalEntry?.projectName || ""}\nGC: ${proposalEntry?.gcEstimateLead || ""}\nBID DUE: ${proposalEntry?.dueDate || ""}\nNBS ESTIMATE #: ${estimateData?.estimateNumber || ""}${specBlock}\n\nITEMS REQUESTED (grouped by manufacturer):\n\n${mfrBlocks}\n\nPlease provide:\n  1. MATERIAL ONLY unit pricing (NO labor or installation)\n  2. Freight cost to jobsite\n  3. Lead time / availability\n  4. Indicate if pricing includes or excludes sales tax\n\nIMPORTANT: NBS is a FURNISH ONLY subcontractor.\n\nPlease respond by: ${proposalEntry?.dueDate || "bid due date"}\n\nThank you,\n${estimatorName}\nNational Building Specialties`;
+        const body = `Dear ${group.vendorName} Team,\n\nNational Building Specialties is requesting pricing for the following Division 10 items on the project below. We understand you can quote multiple manufacturer lines we need on this job, so we've consolidated them into a single request.\n\nPROJECT: ${proposalEntry?.projectName || ""}\nGC: ${proposalEntry?.gcEstimateLead || ""}\nBID DUE: ${dueDate}\nNBS ESTIMATE #: ${estimateData?.estimateNumber || ""}\n\n${shipTo}${specBlock}\n\nITEMS REQUESTED (grouped by manufacturer):\n\n${mfrBlocks}\n\nPlease provide:\n  1. MATERIAL ONLY unit pricing (NO labor or installation)\n  2. Freight cost to jobsite\n  3. Lead time / availability\n  4. Indicate if pricing includes or excludes sales tax\n\nPricing Needed By: ${dueDate || "bid due date"}\n\nThank you,\n${estimatorName}\nNational Building Specialties`;
 
         const sendNow = () => {
           if (selectedEmails.length === 0) { toast({ title: "No recipients selected", description: "Tick at least one contact.", variant: "destructive" }); return; }
           const mailto = `mailto:${encodeURIComponent(selectedEmails.join(","))}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+          group.manufacturers.forEach(m => logRfq(m.name, "email"));
           window.location.href = mailto;
           setRfqVendorPicker(null);
         };
@@ -6593,12 +6739,12 @@ ${html}
           : sortedBaseVendors.slice(0, 50);
 
         const subject = `${proposalEntry?.projectName || ""} — ${catLabel}${vendorName ? ` — ${vendorName}` : ""}`;
-        const itemLines = selectedItems.length > 0
-          ? selectedItems.map(i => `  - ${i.name}${i.model ? ` (${i.model})` : ""}${i.mfr ? ` [${i.mfr}]` : ""} — Qty: ${i.qty}`).join("\n")
-          : "  - TBD — see attached plans and specs";
+        const dueDate = effectiveDueDate(activeCat);
+        const shipTo = buildShipToBlock();
+        const itemsTable = formatItemsTable(selectedItems);
         const notesBlock = openRfqExtraNotes.trim() ? `\n\nADDITIONAL NOTES:\n${openRfqExtraNotes.trim()}` : "";
         const greeting = vendorName ? `Dear ${vendorName} Team` : "Hello";
-        const body = `${greeting},\n\nNational Building Specialties is requesting pricing for the following Division 10 items on the project below.\n\nPROJECT: ${proposalEntry?.projectName || ""}\nGC: ${proposalEntry?.gcEstimateLead || ""}\nBID DUE: ${proposalEntry?.dueDate || ""}\nNBS ESTIMATE #: ${estimateData?.estimateNumber || ""}\nSCOPE: ${catLabel}\n\nITEMS REQUESTED:\n${itemLines}${notesBlock}\n\nPlease provide:\n  1. MATERIAL ONLY unit pricing (NO labor or installation)\n  2. Freight cost to jobsite\n  3. Lead time / availability\n  4. Indicate if pricing includes or excludes sales tax\n\nIMPORTANT: NBS is a FURNISH ONLY subcontractor.\n\nPlease respond by: ${proposalEntry?.dueDate || "bid due date"}\n\nThank you,\n${estimatorName}\nNational Building Specialties`;
+        const body = `${greeting},\n\nNational Building Specialties is requesting pricing for the following Division 10 items on the project below.\n\nPROJECT: ${proposalEntry?.projectName || ""}\nGC: ${proposalEntry?.gcEstimateLead || ""}\nBID DUE: ${dueDate}\nNBS ESTIMATE #: ${estimateData?.estimateNumber || ""}\nSCOPE: ${catLabel}\n\n${shipTo}\n\nITEMS REQUESTED:\n${itemsTable}${notesBlock}\n\nPlease provide:\n  1. MATERIAL ONLY unit pricing (NO labor or installation)\n  2. Freight cost to jobsite\n  3. Lead time / availability\n  4. Indicate if pricing includes or excludes sales tax\n\nPricing Needed By: ${dueDate || "bid due date"}\n\nThank you,\n${estimatorName}\nNational Building Specialties`;
 
         const canSend = (openRfqVendorMode === "existing" ? !!openRfqSelectedVendor : !!vendorName) && recipientEmails.length > 0;
         const sendNow = () => {
@@ -6607,6 +6753,9 @@ ${html}
             return;
           }
           const mailto = `mailto:${encodeURIComponent(recipientEmails.join(","))}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+          const mfrNames = Array.from(new Set(selectedItems.map(i => i.mfr).filter(Boolean))) as string[];
+          if (mfrNames.length === 0) logRfq(vendorName || "(open RFQ)", "email");
+          else mfrNames.forEach(m => logRfq(m, "email"));
           window.location.href = mailto;
           setShowOpenRfq(false);
         };
