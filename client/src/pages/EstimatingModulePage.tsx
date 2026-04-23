@@ -6777,17 +6777,22 @@ ${html}
             toast({ title: "Cannot send", description: "Pick at least one vendor with an email and at least one line item.", variant: "destructive" });
             return;
           }
-          // Open one email per vendor, with a small delay so the OS / mail client can handle each.
-          sendableTargets.forEach((t, idx) => {
+          // Open one mailto per vendor synchronously inside the user gesture so the
+          // browser doesn't strip subsequent ones (setTimeout + location.href killed
+          // every email after the first). Anchor clicks survive popup blockers.
+          sendableTargets.forEach((t) => {
             const subj = buildSubject(t.vendorName);
             const bod = buildBody(t.vendorName);
             const mailto = `mailto:${encodeURIComponent(t.emails.join(","))}?subject=${encodeURIComponent(subj)}&body=${encodeURIComponent(bod)}`;
-            setTimeout(() => {
-              if (idx === 0) window.location.href = mailto;
-              else window.open(mailto, "_blank");
-              logRfq(t.vendorName, "email", t.emails);
-            }, idx * 400);
+            const a = document.createElement("a");
+            a.href = mailto;
+            a.rel = "noopener";
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            logRfq(t.vendorName, "email", t.emails);
           });
+          toast({ title: `${sendableTargets.length} RFQ${sendableTargets.length === 1 ? "" : "s"} opened`, description: "One email window per vendor. Check your mail client." });
           setShowOpenRfq(false);
         };
 
