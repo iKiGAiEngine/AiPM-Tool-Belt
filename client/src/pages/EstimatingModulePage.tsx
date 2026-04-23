@@ -6753,9 +6753,8 @@ ${html}
             return;
           }
           const mailto = `mailto:${encodeURIComponent(recipientEmails.join(","))}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-          const mfrNames = Array.from(new Set(selectedItems.map(i => i.mfr).filter(Boolean))) as string[];
-          if (mfrNames.length === 0) logRfq(vendorName || "(open RFQ)", "email");
-          else mfrNames.forEach(m => logRfq(m, "email"));
+          const recipientLabel = (vendorName || "").trim() || "(open RFQ)";
+          logRfq(recipientLabel, "email");
           window.location.href = mailto;
           setShowOpenRfq(false);
         };
