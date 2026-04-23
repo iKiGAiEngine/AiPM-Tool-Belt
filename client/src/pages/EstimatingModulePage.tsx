@@ -2099,8 +2099,8 @@ ${html}
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ["/api/rfq-log", estimateId, activeCat] }),
   });
-  const logRfq = useCallback((manufacturerName: string, action: "copy" | "email") => {
-    logRfqMutation.mutate({ manufacturerName: manufacturerName || "(unspecified)", action });
+  const logRfq = useCallback((manufacturerName: string, action: "copy" | "email", recipientEmails: string[] = []) => {
+    logRfqMutation.mutate({ manufacturerName: manufacturerName || "(unspecified)", action, recipientEmails });
   }, [logRfqMutation]);
 
   const createMfrInline = useCallback(async () => {
@@ -4575,6 +4575,7 @@ ${html}
                         <thead style={{ background: "var(--bg3)" }}>
                           <tr style={{ color: "var(--text-muted)", textAlign: "left" }}>
                             <th className="px-2 py-1.5 font-semibold">Manufacturer</th>
+                            <th className="px-2 py-1.5 font-semibold">Sent To</th>
                             <th className="px-2 py-1.5 font-semibold">Sent By</th>
                             <th className="px-2 py-1.5 font-semibold">Date &amp; Time</th>
                             <th className="px-2 py-1.5 font-semibold">Project</th>
@@ -4586,6 +4587,9 @@ ${html}
                           {(rfqLogExpandAll ? rfqLogEntries : rfqLogEntries.slice(0, 10)).map(r => (
                             <tr key={r.id} style={{ borderTop: "1px solid var(--border-ds)40", color: "var(--text-secondary)" }} data-testid={`row-rfq-log-${r.id}`}>
                               <td className="px-2 py-1.5" style={{ color: "var(--text)" }}>{r.manufacturerName}</td>
+                              <td className="px-2 py-1.5" style={{ wordBreak: "break-all" }}>
+                                {(r.recipientEmails && r.recipientEmails.length > 0) ? r.recipientEmails.join(", ") : <span style={{ color: "var(--text-muted)" }}>—</span>}
+                              </td>
                               <td className="px-2 py-1.5">{r.sentBy}</td>
                               <td className="px-2 py-1.5 whitespace-nowrap">{new Date(r.sentAt).toLocaleString()}</td>
                               <td className="px-2 py-1.5">{r.projectName}</td>
@@ -6486,7 +6490,7 @@ ${html}
           }
           const rfq = generateRfqEmail(mfrName);
           const mailto = `mailto:${encodeURIComponent(selectedEmails.join(","))}?subject=${encodeURIComponent(rfq.subject)}&body=${encodeURIComponent(rfq.body)}`;
-          logRfq(mfrName, "email");
+          logRfq(mfrName, "email", selectedEmails);
           window.location.href = mailto;
           setRfqPickerMfr(null);
         };
@@ -6642,7 +6646,7 @@ ${html}
         const sendNow = () => {
           if (selectedEmails.length === 0) { toast({ title: "No recipients selected", description: "Tick at least one contact.", variant: "destructive" }); return; }
           const mailto = `mailto:${encodeURIComponent(selectedEmails.join(","))}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-          group.manufacturers.forEach(m => logRfq(m.name, "email"));
+          group.manufacturers.forEach(m => logRfq(m.name, "email", selectedEmails));
           window.location.href = mailto;
           setRfqVendorPicker(null);
         };
@@ -6754,7 +6758,7 @@ ${html}
           }
           const mailto = `mailto:${encodeURIComponent(recipientEmails.join(","))}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
           const recipientLabel = (vendorName || "").trim() || "(open RFQ)";
-          logRfq(recipientLabel, "email");
+          logRfq(recipientLabel, "email", recipientEmails);
           window.location.href = mailto;
           setShowOpenRfq(false);
         };

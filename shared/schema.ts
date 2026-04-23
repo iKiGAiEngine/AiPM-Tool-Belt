@@ -1347,6 +1347,7 @@ export const rfqLog = pgTable("rfq_log", {
   sentBy: varchar("sent_by", { length: 200 }).notNull(),
   userId: integer("user_id"),
   action: varchar("action", { length: 20 }).notNull(),
+  recipientEmails: text("recipient_emails").array().notNull().default(sql`ARRAY[]::text[]`),
   sentAt: timestamp("sent_at").notNull().defaultNow(),
 });
 export const insertRfqLogSchema = createInsertSchema(rfqLog).omit({ id: true, sentAt: true });
