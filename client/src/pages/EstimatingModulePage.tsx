@@ -2250,7 +2250,6 @@ ${html}
   <p ${PB}>${escapeHtml(opts.intro)}</p>
   <table style="border-collapse: collapse; margin: 0 0 11pt 0; ${F}">
     ${infoRow("PROJECT", opts.projectName)}
-    ${infoRow("GC", opts.gc)}
     ${infoRow("BID DUE", opts.dueDate)}
     ${infoRow("NBS ESTIMATE #", opts.estimateNumber)}
     ${infoRow("SCOPE", opts.scope)}
