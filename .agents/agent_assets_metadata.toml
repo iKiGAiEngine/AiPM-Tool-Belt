@@ -24,6 +24,12 @@ uri = "file://attached_assets/favicon_options/toolbelt_option4_buckle.png"
 type = "image"
 title = "generated_image"
 
+[[generated]]
+id = "27mbkCbjVwbDe3ogRyPHx"
+uri = "file://attached_assets/favicon_options/toolbelt_option3_hardhat_ai_v2.png"
+type = "image"
+title = "generated_image"
+
 [[outputs]]
 id = "qBPM5mXi7QIdHGZuoR3zl"
 uri = "file://AiPM_Productivity_Report.md"
@@ -53,3 +59,9 @@ id = "sxr10vHR8VSqB9rdsH-C_"
 uri = "file://attached_assets/favicon_options/toolbelt_option4_buckle.png"
 type = "image"
 title = "Option 4 — Tool Belt Buckle"
+
+[[outputs]]
+id = "oNtFxt1BpBgJGTCqxUPGy"
+uri = "file://attached_assets/favicon_options/toolbelt_option3_hardhat_ai_v2.png"
+type = "image"
+title = "Hard Hat + AI — Larger"
