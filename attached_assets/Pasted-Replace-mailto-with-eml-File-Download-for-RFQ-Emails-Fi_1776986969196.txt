@@ -1,0 +1,116 @@
+Replace mailto: with .eml File Download for RFQ Emails
+Find the function responsible for generating and sending RFQ emails in the procurement module. It currently builds a mailto: URL and opens it via window.location.href or window.open. Replace the entire output method with an .eml file download using the following approach:
+
+1. Build an HTML email body instead of a plain text string
+Replace the plain text body with an HTML string. Use inline styles only — no external CSS, no <style> blocks. Structure:
+html<html>
+<body style="font-family: Calibri, Arial, sans-serif; font-size: 14pt; color: #000000; margin: 0; padding: 20px;">
+
+  <p>Dear [Vendor Name] Team,</p>
+
+  <p>National Building Specialties is requesting pricing for the following 
+  Division 10 items on the project below.</p>
+
+  <table style="border-collapse: collapse; width: 100%; margin: 0;">
+    <tr>
+      <td style="padding: 4px 0;"><strong>PROJECT:</strong></td>
+      <td style="padding: 4px 8px;">[Project Name]</td>
+    </tr>
+    <tr>
+      <td style="padding: 4px 0;"><strong>GC:</strong></td>
+      <td style="padding: 4px 8px;">[GC Name]</td>
+    </tr>
+    <tr>
+      <td style="padding: 4px 0;"><strong>BID DUE:</strong></td>
+      <td style="padding: 4px 8px;">[Bid Due Date]</td>
+    </tr>
+    <tr>
+      <td style="padding: 4px 0;"><strong>NBS ESTIMATE #:</strong></td>
+      <td style="padding: 4px 8px;">[Estimate Number]</td>
+    </tr>
+    <tr>
+      <td style="padding: 4px 0;"><strong>SCOPE:</strong></td>
+      <td style="padding: 4px 8px;">[Scope]</td>
+    </tr>
+  </table>
+
+  <br/>
+
+  <p><strong>ITEMS REQUESTED:</strong></p>
+
+  <table style="border-collapse: collapse; width: 100%; font-size: 14pt;">
+    <thead>
+      <tr style="background-color: #1a1a2e; color: #ffffff;">
+        <th style="border: 1px solid #999; padding: 8px 10px; text-align: center; width: 40px;">#</th>
+        <th style="border: 1px solid #999; padding: 8px 10px; text-align: left;">Description</th>
+        <th style="border: 1px solid #999; padding: 8px 10px; text-align: left; width: 140px;">Model #</th>
+        <th style="border: 1px solid #999; padding: 8px 10px; text-align: center; width: 60px;">Qty</th>
+        <th style="border: 1px solid #999; padding: 8px 10px; text-align: center; width: 60px;">Unit</th>
+      </tr>
+    </thead>
+    <tbody>
+      [ITEM ROWS — see below]
+    </tbody>
+  </table>
+
+  <br/>
+
+  <p><strong>Please provide:</strong></p>
+  <ol style="font-size: 14pt;">
+    <li>MATERIAL ONLY unit pricing (NO labor or installation)</li>
+    <li>Freight cost to jobsite</li>
+    <li>Lead time / availability</li>
+    <li>Indicate if pricing includes or excludes sales tax</li>
+  </ol>
+
+  <p><strong>Pricing Needed By:</strong> [Bid Due Date]</p>
+
+  <p>Thank you,<br/>
+  [User Full Name]<br/>
+  National Building Specialties</p>
+
+</body>
+</html>
+Item rows — generate one <tr> per line item:
+jsconst itemRows = items.map((item, i) => `
+  <tr style="background-color: ${i % 2 === 0 ? '#f9f9f9' : '#ffffff'};">
+    <td style="border: 1px solid #ccc; padding: 7px 10px; text-align: center;">${i + 1}</td>
+    <td style="border: 1px solid #ccc; padding: 7px 10px;">${item.description.replace(/;?\s*$/, '').trim()}</td>
+    <td style="border: 1px solid #ccc; padding: 7px 10px;">${item.model || '—'}</td>
+    <td style="border: 1px solid #ccc; padding: 7px 10px; text-align: center;">${item.quantity}</td>
+    <td style="border: 1px solid #ccc; padding: 7px 10px; text-align: center;">${item.unit || 'EA'}</td>
+  </tr>
+`).join('');
+
+2. Build the .eml file string
+jsconst emlContent = [
+  `To: ${vendorEmail}`,
+  `Subject: ${emailSubject}`,
+  `MIME-Version: 1.0`,
+  `Content-Type: text/html; charset=UTF-8`,
+  ``,
+  htmlBody
+].join('\r\n');
+
+3. Trigger the file download
+Replace the window.location.href = mailto:... line with:
+jsconst blob = new Blob([emlContent], { type: 'message/rfc822' });
+const url = URL.createObjectURL(blob);
+const a = document.createElement('a');
+a.href = url;
+a.download = `RFQ_${projectName}_${vendorName}.eml`.replace(/\s+/g, '_');
+document.body.appendChild(a);
+a.click();
+document.body.removeChild(a);
+URL.revokeObjectURL(url);
+
+4. Update the button label
+Change the send button text from "Send RFQ" or "Open in Outlook" to "Download RFQ Draft" so the user knows to expect a file download rather than Outlook opening automatically.
+
+Do not change:
+
+Any data gathering, project lookup, vendor selection, or line item logic
+The modal or UI flow that precedes the send action
+Any other module outside of the RFQ email generation function
+
+After implementing, test by generating one RFQ, downloading the .eml, and double-clicking it. Verify Outlook opens a formatted draft with the correct recipient, subject, HTML table, and 14pt font.

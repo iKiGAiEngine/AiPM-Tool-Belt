@@ -2169,6 +2169,130 @@ ${html}
     return [SEP, header, SEP, ...rows, SEP].join("\n");
   }, []);
 
+  // ── HTML email helpers (for .eml file download) ──
+  const escapeHtml = useCallback((s: string) => {
+    return String(s ?? "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;");
+  }, []);
+
+  const formatItemsTableHtml = useCallback((items: { name: string; model?: string | null; qty: number; uom?: string | null }[]) => {
+    if (items.length === 0) {
+      return `<p style="font-style: italic; color: #555;">TBD — see attached plans and specs</p>`;
+    }
+    const rows = items.map((item, i) => {
+      const model = (item.model || "").trim();
+      let desc = (item.name || "").trim();
+      if (model) {
+        const re = new RegExp(`\\s*\\b${model.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b\\s*`, "gi");
+        desc = desc.replace(re, " ").replace(/\s{2,}/g, " ").trim();
+      }
+      desc = desc.replace(/;?\s*$/, "").trim() || "(unnamed item)";
+      const bg = i % 2 === 0 ? "#f9f9f9" : "#ffffff";
+      return `
+        <tr style="background-color: ${bg};">
+          <td style="border: 1px solid #ccc; padding: 7px 10px; text-align: center;">${i + 1}</td>
+          <td style="border: 1px solid #ccc; padding: 7px 10px;">${escapeHtml(desc)}</td>
+          <td style="border: 1px solid #ccc; padding: 7px 10px;">${model ? escapeHtml(model) : "&mdash;"}</td>
+          <td style="border: 1px solid #ccc; padding: 7px 10px; text-align: center;">${escapeHtml(String(item.qty ?? ""))}</td>
+          <td style="border: 1px solid #ccc; padding: 7px 10px; text-align: center;">${escapeHtml((item.uom || "EA").trim())}</td>
+        </tr>`;
+    }).join("");
+    return `
+      <table style="border-collapse: collapse; width: 100%; font-size: 14pt;">
+        <thead>
+          <tr style="background-color: #1a1a2e; color: #ffffff;">
+            <th style="border: 1px solid #999; padding: 8px 10px; text-align: center; width: 40px;">#</th>
+            <th style="border: 1px solid #999; padding: 8px 10px; text-align: left;">Description</th>
+            <th style="border: 1px solid #999; padding: 8px 10px; text-align: left; width: 140px;">Model #</th>
+            <th style="border: 1px solid #999; padding: 8px 10px; text-align: center; width: 60px;">Qty</th>
+            <th style="border: 1px solid #999; padding: 8px 10px; text-align: center; width: 60px;">Unit</th>
+          </tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>`;
+  }, [escapeHtml]);
+
+  const buildRfqHtmlBody = useCallback((opts: {
+    greeting: string;
+    intro: string;
+    projectName: string;
+    gc: string;
+    dueDate: string;
+    estimateNumber: string;
+    scope: string;
+    shipTo: string; // plain text, will be rendered with <br/>
+    specHtml?: string; // pre-built HTML or empty
+    itemsHtml: string; // pre-built table or grouped tables
+    notes?: string; // optional plain-text notes
+    estimatorName: string;
+  }) => {
+    const infoRow = (label: string, val: string) => `
+      <tr>
+        <td style="padding: 4px 0;"><strong>${escapeHtml(label)}:</strong></td>
+        <td style="padding: 4px 8px;">${escapeHtml(val)}</td>
+      </tr>`;
+    const shipToHtml = opts.shipTo
+      ? `<p style="margin: 0 0 12px 0; white-space: pre-line;">${escapeHtml(opts.shipTo)}</p>`
+      : "";
+    const notesHtml = opts.notes && opts.notes.trim()
+      ? `<p><strong>Additional Notes:</strong><br/>${escapeHtml(opts.notes.trim()).replace(/\n/g, "<br/>")}</p>`
+      : "";
+    return `<html>
+<body style="font-family: Calibri, Arial, sans-serif; font-size: 14pt; color: #000000; margin: 0; padding: 20px;">
+  <p>${escapeHtml(opts.greeting)},</p>
+  <p>${escapeHtml(opts.intro)}</p>
+  <table style="border-collapse: collapse; margin: 0 0 12px 0;">
+    ${infoRow("PROJECT", opts.projectName)}
+    ${infoRow("GC", opts.gc)}
+    ${infoRow("BID DUE", opts.dueDate)}
+    ${infoRow("NBS ESTIMATE #", opts.estimateNumber)}
+    ${infoRow("SCOPE", opts.scope)}
+  </table>
+  ${shipToHtml}
+  ${opts.specHtml || ""}
+  <p><strong>ITEMS REQUESTED:</strong></p>
+  ${opts.itemsHtml}
+  ${notesHtml}
+  <br/>
+  <p><strong>Please provide:</strong></p>
+  <ol style="font-size: 14pt;">
+    <li>MATERIAL ONLY unit pricing (NO labor or installation)</li>
+    <li>Freight cost to jobsite</li>
+    <li>Lead time / availability</li>
+    <li>Indicate if pricing includes or excludes sales tax</li>
+  </ol>
+  <p><strong>Pricing Needed By:</strong> ${escapeHtml(opts.dueDate || "bid due date")}</p>
+  <p>Thank you,<br/>
+  ${escapeHtml(opts.estimatorName)}<br/>
+  National Building Specialties</p>
+</body>
+</html>`;
+  }, [escapeHtml]);
+
+  const downloadRfqEml = useCallback((opts: { to: string[]; subject: string; html: string; filename: string }) => {
+    const eml = [
+      `To: ${opts.to.join(", ")}`,
+      `Subject: ${opts.subject}`,
+      `MIME-Version: 1.0`,
+      `Content-Type: text/html; charset=UTF-8`,
+      ``,
+      opts.html,
+    ].join("\r\n");
+    const blob = new Blob([eml], { type: "message/rfc822" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = (opts.filename || "RFQ_Draft").replace(/[^\w.\-]+/g, "_").replace(/_+/g, "_") + ".eml";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }, []);
+
   const buildShipToBlock = useCallback(() => {
     const projectName = proposalEntry?.projectName || "";
     const addr = (proposalEntry?.projectAddress || "").trim();
@@ -6443,9 +6567,30 @@ ${html}
             return;
           }
           const rfq = generateRfqEmail(mfrName);
-          const mailto = `mailto:${encodeURIComponent(selectedEmails.join(","))}?subject=${encodeURIComponent(rfq.subject)}&body=${encodeURIComponent(rfq.body)}`;
+          const catLabel = ALL_SCOPES.find(s => s.id === activeCat)?.label || activeCat;
+          const catItems = lineItems.filter(i => i.category === activeCat && i.mfr && namesMatch(i.mfr, mfrName));
+          const estimatorName = user?.displayName || user?.username || user?.email || "NBS Estimating";
+          const dueDate = effectiveDueDate(activeCat);
+          const html = buildRfqHtmlBody({
+            greeting: `Dear ${mfrName} Sales Team`,
+            intro: "National Building Specialties is requesting pricing for the following Division 10 items on the project below.",
+            projectName: proposalEntry?.projectName || "",
+            gc: proposalEntry?.gcEstimateLead || "",
+            dueDate,
+            estimateNumber: estimateData?.estimateNumber || "",
+            scope: catLabel,
+            shipTo: buildShipToBlock(),
+            itemsHtml: formatItemsTableHtml(catItems),
+            estimatorName,
+          });
+          downloadRfqEml({
+            to: selectedEmails,
+            subject: rfq.subject,
+            html,
+            filename: `RFQ_${proposalEntry?.projectName || "Project"}_${mfrName}`,
+          });
           logRfq(mfrName, "email", selectedEmails);
-          window.location.href = mailto;
+          toast({ title: "RFQ draft downloaded", description: "Open the .eml file to launch a formatted Outlook draft." });
           setRfqPickerMfr(null);
         };
         const catLabel = ALL_SCOPES.find(s => s.id === activeCat)?.label || activeCat;
@@ -6520,7 +6665,7 @@ ${html}
                     className="text-xs px-4 py-2 rounded flex items-center gap-1 font-semibold"
                     style={{ background: "var(--gold)", color: "#000", opacity: selectedEmails.length === 0 ? 0.5 : 1 }}
                     data-testid="button-send-rfq">
-                    <Send className="w-3 h-3" /> Open in Email
+                    <Send className="w-3 h-3" /> Download RFQ Draft
                   </button>
                 </div>
               </div>
@@ -6599,9 +6744,30 @@ ${html}
 
         const sendNow = () => {
           if (selectedEmails.length === 0) { toast({ title: "No recipients selected", description: "Tick at least one contact.", variant: "destructive" }); return; }
-          const mailto = `mailto:${encodeURIComponent(selectedEmails.join(","))}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+          // Build grouped HTML: one items table per manufacturer
+          const itemsHtml = group.manufacturers.map(m => {
+            return `<p style="margin: 12px 0 4px 0;"><strong>${escapeHtml(m.name.toUpperCase())}</strong></p>${formatItemsTableHtml(m.items)}`;
+          }).join("");
+          const html = buildRfqHtmlBody({
+            greeting: `Dear ${group.vendorName} Team`,
+            intro: "National Building Specialties is requesting pricing for the following Division 10 items on the project below. We understand you can quote multiple manufacturer lines we need on this job, so we've consolidated them into a single request.",
+            projectName: proposalEntry?.projectName || "",
+            gc: proposalEntry?.gcEstimateLead || "",
+            dueDate,
+            estimateNumber: estimateData?.estimateNumber || "",
+            scope: catLabel,
+            shipTo,
+            itemsHtml,
+            estimatorName,
+          });
+          downloadRfqEml({
+            to: selectedEmails,
+            subject,
+            html,
+            filename: `RFQ_${proposalEntry?.projectName || "Project"}_${group.vendorName}`,
+          });
           group.manufacturers.forEach(m => logRfq(m.name, "email", selectedEmails));
-          window.location.href = mailto;
+          toast({ title: "RFQ draft downloaded", description: "Open the .eml file to launch a formatted Outlook draft." });
           setRfqVendorPicker(null);
         };
 
@@ -6648,7 +6814,7 @@ ${html}
                 <div className="flex gap-2">
                   <button onClick={() => setRfqVendorPicker(null)} className="text-xs px-4 py-2 rounded" style={{ background: "var(--bg3)", color: "var(--text-secondary)" }} data-testid="button-cancel-rfq-vendor-picker">Cancel</button>
                   <button onClick={sendNow} disabled={selectedEmails.length === 0} className="text-xs px-4 py-2 rounded flex items-center gap-1 font-semibold" style={{ background: "var(--gold)", color: "#000", opacity: selectedEmails.length === 0 ? 0.5 : 1 }} data-testid="button-send-rfq-vendor">
-                    <Send className="w-3 h-3" /> Open in Email
+                    <Send className="w-3 h-3" /> Download RFQ Draft
                   </button>
                 </div>
               </div>
@@ -6722,9 +6888,25 @@ ${html}
         const allSent = sendableTargets.length > 0 && sendableTargets.every(t => openRfqSentVendorKeys.has(t.vendorName));
         const sendOneVendor = (t: SendTarget) => {
           const subj = buildSubject(t.vendorName);
-          const bod = buildBody(t.vendorName);
-          const mailto = `mailto:${encodeURIComponent(t.emails.join(","))}?subject=${encodeURIComponent(subj)}&body=${encodeURIComponent(bod)}`;
-          window.location.href = mailto;
+          const html = buildRfqHtmlBody({
+            greeting: t.vendorName ? `Dear ${t.vendorName} Team` : "Hello",
+            intro: "National Building Specialties is requesting pricing for the following Division 10 items on the project below.",
+            projectName: proposalEntry?.projectName || "",
+            gc: proposalEntry?.gcEstimateLead || "",
+            dueDate,
+            estimateNumber: estimateData?.estimateNumber || "",
+            scope: catLabel,
+            shipTo,
+            itemsHtml: formatItemsTableHtml(selectedItems),
+            notes: openRfqExtraNotes,
+            estimatorName,
+          });
+          downloadRfqEml({
+            to: t.emails,
+            subject: subj,
+            html,
+            filename: `RFQ_${proposalEntry?.projectName || "Project"}_${t.vendorName || "Vendor"}`,
+          });
           logRfq(t.vendorName, "email", t.emails);
           setOpenRfqSentVendorKeys(prev => { const n = new Set(prev); n.add(t.vendorName); return n; });
         };
@@ -6910,7 +7092,7 @@ ${html}
                   <>
                     <div className="flex items-center justify-between mb-2">
                       <span className="text-xs font-semibold" style={{ color: "var(--text-secondary)" }}>
-                        Click each vendor to open that email ({openRfqSentVendorKeys.size}/{sendableTargets.length} sent)
+                        Click each vendor to download that RFQ draft ({openRfqSentVendorKeys.size}/{sendableTargets.length} sent)
                       </span>
                       <span className="text-[10px]" style={{ color: "var(--text-muted)" }}>{selectedItems.length} item{selectedItems.length === 1 ? "" : "s"}</span>
                     </div>
