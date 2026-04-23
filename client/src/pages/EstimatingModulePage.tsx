@@ -578,6 +578,7 @@ function EstimatingModuleInner() {
   const [openRfqNewVendorEmail, setOpenRfqNewVendorEmail] = useState("");
   const [openRfqSelectedItemIds, setOpenRfqSelectedItemIds] = useState<Set<string>>(new Set());
   const [openRfqExtraNotes, setOpenRfqExtraNotes] = useState("");
+  const [openRfqSentVendorKeys, setOpenRfqSentVendorKeys] = useState<Set<string>>(new Set());
 
   // ── RFQ response date overrides (per scope) and log expansion ──
   const [responseNeededByByCat, setResponseNeededByByCat] = useState<Record<string, string>>({});
@@ -6772,28 +6773,14 @@ ${html}
 
         const sendableTargets = sendTargets.filter(t => t.emails.length > 0);
         const canSend = sendableTargets.length > 0 && selectedItems.length > 0;
-        const sendNow = () => {
-          if (!canSend) {
-            toast({ title: "Cannot send", description: "Pick at least one vendor with an email and at least one line item.", variant: "destructive" });
-            return;
-          }
-          // Open one mailto per vendor synchronously inside the user gesture so the
-          // browser doesn't strip subsequent ones (setTimeout + location.href killed
-          // every email after the first). Anchor clicks survive popup blockers.
-          sendableTargets.forEach((t) => {
-            const subj = buildSubject(t.vendorName);
-            const bod = buildBody(t.vendorName);
-            const mailto = `mailto:${encodeURIComponent(t.emails.join(","))}?subject=${encodeURIComponent(subj)}&body=${encodeURIComponent(bod)}`;
-            const a = document.createElement("a");
-            a.href = mailto;
-            a.rel = "noopener";
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            logRfq(t.vendorName, "email", t.emails);
-          });
-          toast({ title: `${sendableTargets.length} RFQ${sendableTargets.length === 1 ? "" : "s"} opened`, description: "One email window per vendor. Check your mail client." });
-          setShowOpenRfq(false);
+        const allSent = sendableTargets.length > 0 && sendableTargets.every(t => openRfqSentVendorKeys.has(t.vendorName));
+        const sendOneVendor = (t: SendTarget) => {
+          const subj = buildSubject(t.vendorName);
+          const bod = buildBody(t.vendorName);
+          const mailto = `mailto:${encodeURIComponent(t.emails.join(","))}?subject=${encodeURIComponent(subj)}&body=${encodeURIComponent(bod)}`;
+          window.location.href = mailto;
+          logRfq(t.vendorName, "email", t.emails);
+          setOpenRfqSentVendorKeys(prev => { const n = new Set(prev); n.add(t.vendorName); return n; });
         };
 
         return (
@@ -6965,14 +6952,52 @@ ${html}
                 </div>
               </details>
 
-              <div className="flex justify-between items-center gap-2 mt-3">
-                <span className="text-xs" style={{ color: "var(--text-muted)" }}>{selectedItems.length} item{selectedItems.length === 1 ? "" : "s"} · {sendableTargets.length} email{sendableTargets.length === 1 ? "" : "s"}</span>
-                <div className="flex gap-2">
-                  <button onClick={() => setShowOpenRfq(false)} className="text-xs px-4 py-2 rounded" style={{ background: "var(--bg3)", color: "var(--text-secondary)" }} data-testid="button-cancel-open-rfq">Cancel</button>
-                  <button onClick={sendNow} disabled={!canSend} className="text-xs px-4 py-2 rounded flex items-center gap-1 font-semibold" style={{ background: "var(--gold)", color: "#000", opacity: canSend ? 1 : 0.5 }} data-testid="button-send-open-rfq">
-                    <Send className="w-3 h-3" /> Open in Email
-                  </button>
-                </div>
+              <div className="mt-3 pt-3" style={{ borderTop: "1px solid var(--border-ds)" }}>
+                {!canSend ? (
+                  <div className="flex justify-between items-center gap-2">
+                    <span className="text-xs" style={{ color: "var(--text-muted)" }}>
+                      {selectedItems.length} item{selectedItems.length === 1 ? "" : "s"} · pick at least one vendor with an email
+                    </span>
+                    <button onClick={() => setShowOpenRfq(false)} className="text-xs px-4 py-2 rounded" style={{ background: "var(--bg3)", color: "var(--text-secondary)" }} data-testid="button-cancel-open-rfq">Cancel</button>
+                  </div>
+                ) : (
+                  <>
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-xs font-semibold" style={{ color: "var(--text-secondary)" }}>
+                        Click each vendor to open that email ({openRfqSentVendorKeys.size}/{sendableTargets.length} sent)
+                      </span>
+                      <span className="text-[10px]" style={{ color: "var(--text-muted)" }}>{selectedItems.length} item{selectedItems.length === 1 ? "" : "s"}</span>
+                    </div>
+                    <div className="flex flex-wrap gap-2 mb-3">
+                      {sendableTargets.map((t) => {
+                        const sent = openRfqSentVendorKeys.has(t.vendorName);
+                        return (
+                          <button
+                            key={t.vendorName}
+                            onClick={() => sendOneVendor(t)}
+                            className="text-xs px-3 py-2 rounded flex items-center gap-1.5 font-semibold transition-all"
+                            style={sent
+                              ? { background: "var(--bg3)", border: "1px solid #2a7a3e", color: "#5fbd7c" }
+                              : { background: "var(--gold)", border: "1px solid var(--gold)", color: "#1a1a1a", boxShadow: "0 2px 6px rgba(212,175,55,0.35)" }}
+                            data-testid={`button-send-open-rfq-${t.vendorName}`}
+                          >
+                            {sent ? <span style={{ fontSize: 14 }}>✓</span> : <Send className="w-3 h-3" />}
+                            {t.vendorName}
+                            {sent && <span className="text-[10px] font-normal opacity-80">(sent — click again to resend)</span>}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <p className="text-[10px] mb-2" style={{ color: "var(--text-muted)" }}>
+                      Browsers only allow one email window per click. Click each vendor button to open its email — the page won't navigate away.
+                    </p>
+                    <div className="flex justify-end gap-2">
+                      <button onClick={() => { setOpenRfqSentVendorKeys(new Set()); setShowOpenRfq(false); }} className="text-xs px-4 py-2 rounded" style={{ background: "var(--bg3)", color: "var(--text-secondary)" }} data-testid="button-cancel-open-rfq">
+                        {allSent ? "Done" : "Close"}
+                      </button>
+                    </div>
+                  </>
+                )}
               </div>
             </div>
           </div>
