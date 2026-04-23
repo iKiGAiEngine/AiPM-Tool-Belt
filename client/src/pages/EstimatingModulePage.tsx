@@ -565,6 +565,7 @@ function EstimatingModuleInner() {
 
   // ── RFQ View Mode + Vendor-Group Picker ──
   const [rfqGroupByVendor, setRfqGroupByVendor] = useState(false);
+  void setRfqGroupByVendor;
   const [rfqVendorPicker, setRfqVendorPicker] = useState<number | null>(null);
   const [rfqVendorPickerContactIds, setRfqVendorPickerContactIds] = useState<Set<number>>(new Set());
 
@@ -4401,16 +4402,8 @@ ${html}
                         <span className="text-[10px]" style={{ color: "var(--text-muted)" }}>(override only affects RFQ emails — proposal log is not changed)</span>
                       </div>
                       {/* Toolbar: view toggle + Open RFQ */}
-                      <div className="flex items-center justify-between mb-3 gap-2 flex-wrap">
-                        <div className="flex items-center gap-3">
-                          <label className="flex items-center gap-1.5 text-xs cursor-pointer" style={{ color: "var(--text-secondary)" }}>
-                            <input type="checkbox" checked={rfqGroupByVendor} onChange={() => setRfqGroupByVendor(v => !v)} style={{ accentColor: "var(--gold)" }} data-testid="toggle-rfq-group-by-vendor" />
-                            Group by Vendor
-                          </label>
-                          <span className="text-[10px]" style={{ color: "var(--text-muted)" }}>
-                            {rfqGroupByVendor ? `${vendorGroups.length} vendor${vendorGroups.length === 1 ? "" : "s"}` : `${combined.length} mfr${combined.length === 1 ? "" : "s"}`}
-                          </span>
-                        </div>
+                      {/* Group by Vendor toggle hidden until vendor-grouped flow is finalized */}
+                      <div className="flex items-center justify-end mb-3 gap-2 flex-wrap">
                         <button
                           onClick={() => {
                             setOpenRfqSelectedItemIds(new Set(catLineItems.map(i => String(i.id))));
