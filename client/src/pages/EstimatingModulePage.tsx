@@ -2230,22 +2230,25 @@ ${html}
     notes?: string; // optional plain-text notes
     estimatorName: string;
   }) => {
+    const F = `font-family: Calibri, Arial, sans-serif; font-size: 11pt; line-height: 1.15; color: #000000;`;
+    const P = `style="${F} margin: 0;"`;
+    const PB = `style="${F} margin: 0 0 11pt 0;"`; // paragraph with single blank-line gap after
     const infoRow = (label: string, val: string) => `
       <tr>
-        <td style="padding: 4px 0;"><strong>${escapeHtml(label)}:</strong></td>
-        <td style="padding: 4px 8px;">${escapeHtml(val)}</td>
+        <td style="${F} padding: 0; vertical-align: top; white-space: nowrap;"><strong>${escapeHtml(label)}:</strong></td>
+        <td style="${F} padding: 0 0 0 8px; vertical-align: top;">${escapeHtml(val)}</td>
       </tr>`;
     const shipToHtml = opts.shipTo
-      ? `<p style="margin: 0 0 12px 0; white-space: pre-line;">${escapeHtml(opts.shipTo)}</p>`
+      ? `<p style="${F} margin: 0 0 11pt 0; white-space: pre-line;">${escapeHtml(opts.shipTo)}</p>`
       : "";
     const notesHtml = opts.notes && opts.notes.trim()
-      ? `<p><strong>Additional Notes:</strong><br/>${escapeHtml(opts.notes.trim()).replace(/\n/g, "<br/>")}</p>`
+      ? `<p ${PB.replace('style="', 'style="')}><strong>Additional Notes:</strong><br/>${escapeHtml(opts.notes.trim()).replace(/\n/g, "<br/>")}</p>`
       : "";
     return `<html>
-<body style="font-family: Calibri, Arial, sans-serif; font-size: 11pt; color: #000000; margin: 0; padding: 20px;">
-  <p>${escapeHtml(opts.greeting)},</p>
-  <p>${escapeHtml(opts.intro)}</p>
-  <table style="border-collapse: collapse; margin: 0 0 12px 0;">
+<body style="${F} margin: 0; padding: 20px;">
+  <p ${PB}>${escapeHtml(opts.greeting)},</p>
+  <p ${PB}>${escapeHtml(opts.intro)}</p>
+  <table style="border-collapse: collapse; margin: 0 0 11pt 0; ${F}">
     ${infoRow("PROJECT", opts.projectName)}
     ${infoRow("GC", opts.gc)}
     ${infoRow("BID DUE", opts.dueDate)}
@@ -2254,19 +2257,19 @@ ${html}
   </table>
   ${shipToHtml}
   ${opts.specHtml || ""}
-  <p><strong>ITEMS REQUESTED:</strong></p>
+  <p style="${F} margin: 0 0 4pt 0;"><strong>ITEMS REQUESTED:</strong></p>
   ${opts.itemsHtml}
+  <div style="height: 11pt;"></div>
   ${notesHtml}
-  <br/>
-  <p><strong>Please provide:</strong></p>
-  <ol style="font-size: 11pt;">
+  <p style="${F} margin: 0 0 4pt 0;"><strong>Please provide:</strong></p>
+  <ol style="${F} margin: 0 0 11pt 0; padding-left: 24pt;">
     <li>MATERIAL ONLY unit pricing (NO labor or installation)</li>
     <li>Freight cost to jobsite</li>
     <li>Lead time / availability</li>
     <li>Indicate if pricing includes or excludes sales tax</li>
   </ol>
-  <p><strong>Pricing Needed By:</strong> ${escapeHtml(opts.dueDate || "bid due date")}</p>
-  <p>Thank you,<br/>
+  <p ${PB}><strong>Pricing Needed By:</strong> ${escapeHtml(opts.dueDate || "bid due date")}</p>
+  <p ${P}>Thank you,<br/>
   ${escapeHtml(opts.estimatorName)}<br/>
   National Building Specialties</p>
 </body>
