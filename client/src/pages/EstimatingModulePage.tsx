@@ -2202,7 +2202,7 @@ ${html}
         </tr>`;
     }).join("");
     return `
-      <table style="border-collapse: collapse; width: 100%; font-size: 14pt;">
+      <table style="border-collapse: collapse; width: 100%; font-size: 11pt;">
         <thead>
           <tr style="background-color: #1a1a2e; color: #ffffff;">
             <th style="border: 1px solid #999; padding: 8px 10px; text-align: center; width: 40px;">#</th>
@@ -2242,7 +2242,7 @@ ${html}
       ? `<p><strong>Additional Notes:</strong><br/>${escapeHtml(opts.notes.trim()).replace(/\n/g, "<br/>")}</p>`
       : "";
     return `<html>
-<body style="font-family: Calibri, Arial, sans-serif; font-size: 14pt; color: #000000; margin: 0; padding: 20px;">
+<body style="font-family: Calibri, Arial, sans-serif; font-size: 11pt; color: #000000; margin: 0; padding: 20px;">
   <p>${escapeHtml(opts.greeting)},</p>
   <p>${escapeHtml(opts.intro)}</p>
   <table style="border-collapse: collapse; margin: 0 0 12px 0;">
@@ -2259,7 +2259,7 @@ ${html}
   ${notesHtml}
   <br/>
   <p><strong>Please provide:</strong></p>
-  <ol style="font-size: 14pt;">
+  <ol style="font-size: 11pt;">
     <li>MATERIAL ONLY unit pricing (NO labor or installation)</li>
     <li>Freight cost to jobsite</li>
     <li>Lead time / availability</li>
@@ -2275,6 +2275,7 @@ ${html}
 
   const downloadRfqEml = useCallback((opts: { to: string[]; subject: string; html: string; filename: string }) => {
     const eml = [
+      `X-Unsent: 1`,
       `To: ${opts.to.join(", ")}`,
       `Subject: ${opts.subject}`,
       `MIME-Version: 1.0`,
