@@ -2192,24 +2192,26 @@ ${html}
       }
       desc = desc.replace(/;?\s*$/, "").trim() || "(unnamed item)";
       const bg = i % 2 === 0 ? "#f9f9f9" : "#ffffff";
+      const cell = `font-family: Calibri, Arial, sans-serif; font-size: 11pt; border: 1px solid #ccc; padding: 5px 8px;`;
       return `
         <tr style="background-color: ${bg};">
-          <td style="border: 1px solid #ccc; padding: 7px 10px; text-align: center;">${i + 1}</td>
-          <td style="border: 1px solid #ccc; padding: 7px 10px;">${escapeHtml(desc)}</td>
-          <td style="border: 1px solid #ccc; padding: 7px 10px;">${model ? escapeHtml(model) : "&mdash;"}</td>
-          <td style="border: 1px solid #ccc; padding: 7px 10px; text-align: center;">${escapeHtml(String(item.qty ?? ""))}</td>
-          <td style="border: 1px solid #ccc; padding: 7px 10px; text-align: center;">${escapeHtml((item.uom || "EA").trim())}</td>
+          <td style="${cell} text-align: center;">${i + 1}</td>
+          <td style="${cell}">${escapeHtml(desc)}</td>
+          <td style="${cell}">${model ? escapeHtml(model) : "&mdash;"}</td>
+          <td style="${cell} text-align: center;">${escapeHtml(String(item.qty ?? ""))}</td>
+          <td style="${cell} text-align: center;">${escapeHtml((item.uom || "EA").trim())}</td>
         </tr>`;
     }).join("");
+    const headCell = `font-family: Calibri, Arial, sans-serif; font-size: 11pt; border: 1px solid #999; padding: 6px 8px;`;
     return `
-      <table style="border-collapse: collapse; width: 100%; font-size: 11pt;">
+      <table style="border-collapse: collapse; width: 100%; font-family: Calibri, Arial, sans-serif; font-size: 11pt;">
         <thead>
           <tr style="background-color: #1a1a2e; color: #ffffff;">
-            <th style="border: 1px solid #999; padding: 8px 10px; text-align: center; width: 40px;">#</th>
-            <th style="border: 1px solid #999; padding: 8px 10px; text-align: left;">Description</th>
-            <th style="border: 1px solid #999; padding: 8px 10px; text-align: left; width: 140px;">Model #</th>
-            <th style="border: 1px solid #999; padding: 8px 10px; text-align: center; width: 60px;">Qty</th>
-            <th style="border: 1px solid #999; padding: 8px 10px; text-align: center; width: 60px;">Unit</th>
+            <th style="${headCell} text-align: center; width: 40px;">#</th>
+            <th style="${headCell} text-align: left;">Description</th>
+            <th style="${headCell} text-align: left; width: 140px;">Model #</th>
+            <th style="${headCell} text-align: center; width: 60px;">Qty</th>
+            <th style="${headCell} text-align: center; width: 60px;">Unit</th>
           </tr>
         </thead>
         <tbody>${rows}</tbody>
@@ -2238,8 +2240,12 @@ ${html}
         <td style="${F} padding: 0; vertical-align: top; white-space: nowrap;"><strong>${escapeHtml(label)}:</strong></td>
         <td style="${F} padding: 0 0 0 8px; vertical-align: top;">${escapeHtml(val)}</td>
       </tr>`;
-    const shipToHtml = opts.shipTo
-      ? `<p style="${F} margin: 0 0 11pt 0; white-space: pre-line;">${escapeHtml(opts.shipTo)}</p>`
+    const shipToRow = opts.shipTo
+      ? `
+      <tr>
+        <td style="${F} padding: 0; vertical-align: top; white-space: nowrap;"><strong>SHIP TO:</strong></td>
+        <td style="${F} padding: 0 0 0 8px; vertical-align: top;">${escapeHtml(opts.shipTo)}</td>
+      </tr>`
       : "";
     const notesHtml = opts.notes && opts.notes.trim()
       ? `<p ${PB.replace('style="', 'style="')}><strong>Additional Notes:</strong><br/>${escapeHtml(opts.notes.trim()).replace(/\n/g, "<br/>")}</p>`
@@ -2253,8 +2259,8 @@ ${html}
     ${infoRow("BID DUE", opts.dueDate)}
     ${infoRow("NBS ESTIMATE #", opts.estimateNumber)}
     ${infoRow("SCOPE", opts.scope)}
+    ${shipToRow}
   </table>
-  ${shipToHtml}
   ${opts.specHtml || ""}
   <p style="${F} margin: 0 0 4pt 0;"><strong>ITEMS REQUESTED:</strong></p>
   ${opts.itemsHtml}
@@ -2297,10 +2303,8 @@ ${html}
   }, []);
 
   const buildShipToBlock = useCallback(() => {
-    const projectName = proposalEntry?.projectName || "";
     const addr = (proposalEntry?.projectAddress || "").trim();
-    if (!addr) return `Ship To:\n${projectName}\n[Address not on file — please add to project record]`;
-    return `Ship To:\n${projectName}\n${addr}`;
+    return addr || "[Address not on file — please add to project record]";
   }, [proposalEntry]);
 
   const effectiveDueDate = useCallback((scopeId: string) => {
