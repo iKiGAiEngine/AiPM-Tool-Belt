@@ -18,7 +18,7 @@ import {
   searchProducts,
 } from "./centralSettingsStorage";
 import { getAllScopeDictionaries, createScopeDictionary, getAllRegions, createRegion, updateRegion } from "./scopeDictionaryStorage";
-import { requireAdminOrFeature } from "./authRoutes";
+import { requireAdmin, requireAdminOrFeature } from "./authRoutes";
 import ExcelJS from "exceljs";
 
 export function registerCentralSettingsRoutes(app: Express) {
@@ -68,7 +68,7 @@ export function registerCentralSettingsRoutes(app: Express) {
     }
   });
 
-  app.post("/api/settings/vendors", requireAdminOrFeature("central-settings"), async (req: Request, res: Response) => {
+  app.post("/api/settings/vendors", requireAdmin, async (req: Request, res: Response) => {
     try {
       const parsed = insertVendorSchema.safeParse(req.body);
       if (!parsed.success) {
@@ -103,7 +103,7 @@ export function registerCentralSettingsRoutes(app: Express) {
     }
   });
 
-  app.delete("/api/settings/vendors/:id", requireAdminOrFeature("central-settings"), async (req: Request, res: Response) => {
+  app.delete("/api/settings/vendors/:id", requireAdmin, async (req: Request, res: Response) => {
     try {
       const id = parseInt(req.params.id);
       if (isNaN(id)) {
@@ -233,7 +233,7 @@ export function registerCentralSettingsRoutes(app: Express) {
   // Bulk Import Routes
   // =====================================================
 
-  app.post("/api/settings/vendors/bulk-import", requireAdminOrFeature("central-settings"), async (req: Request, res: Response) => {
+  app.post("/api/settings/vendors/bulk-import", requireAdmin, async (req: Request, res: Response) => {
     try {
       const rows = req.body.rows;
       if (!Array.isArray(rows) || rows.length === 0) {
@@ -353,7 +353,7 @@ export function registerCentralSettingsRoutes(app: Express) {
     }
   });
 
-  app.post("/api/regions/bulk-import", async (req: Request, res: Response) => {
+  app.post("/api/regions/bulk-import", requireAdmin, async (req: Request, res: Response) => {
     try {
       const rows = req.body.rows;
       if (!Array.isArray(rows) || rows.length === 0) {

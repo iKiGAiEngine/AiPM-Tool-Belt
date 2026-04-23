@@ -131,6 +131,7 @@ export default function CentralSettingsPage() {
 }
 
 function VendorSection() {
+  const { isAdmin } = useAuth();
   const { toast } = useToast();
   const [searchQuery, setSearchQuery] = useState("");
   const [editingVendor, setEditingVendor] = useState<Vendor | null>(null);
@@ -170,16 +171,18 @@ function VendorSection() {
               Manage vendor information and quote parsing patterns
             </CardDescription>
           </div>
-          <div className="flex items-center gap-2">
-            <Button variant="outline" onClick={() => setIsImportOpen(true)} data-testid="button-import-vendors">
-              <FileUp className="w-4 h-4 mr-2" />
-              Import
-            </Button>
-            <Button onClick={() => setIsAddDialogOpen(true)} data-testid="button-add-vendor">
-              <Plus className="w-4 h-4 mr-2" />
-              Add Vendor
-            </Button>
-          </div>
+          {isAdmin && (
+            <div className="flex items-center gap-2">
+              <Button variant="outline" onClick={() => setIsImportOpen(true)} data-testid="button-import-vendors">
+                <FileUp className="w-4 h-4 mr-2" />
+                Import
+              </Button>
+              <Button onClick={() => setIsAddDialogOpen(true)} data-testid="button-add-vendor">
+                <Plus className="w-4 h-4 mr-2" />
+                Add Vendor
+              </Button>
+            </div>
+          )}
         </div>
       </CardHeader>
       <CardContent>
@@ -241,18 +244,20 @@ function VendorSection() {
                   >
                     <Pencil className="w-4 h-4" />
                   </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => {
-                      if (confirm("Delete this vendor?")) {
-                        deleteMutation.mutate(vendor.id);
-                      }
-                    }}
-                    data-testid={`button-delete-vendor-${vendor.id}`}
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </Button>
+                  {isAdmin && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => {
+                        if (confirm("Delete this vendor?")) {
+                          deleteMutation.mutate(vendor.id);
+                        }
+                      }}
+                      data-testid={`button-delete-vendor-${vendor.id}`}
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
+                  )}
                 </div>
               </div>
             ))}
@@ -1268,6 +1273,7 @@ function ScopeDictionaryDialog({ open, onOpenChange, scopeDict, mode }: ScopeDic
 }
 
 function RegionSection() {
+  const { isAdmin } = useAuth();
   const { toast } = useToast();
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [editingRegion, setEditingRegion] = useState<Region | null>(null);
@@ -1332,16 +1338,18 @@ function RegionSection() {
               Manage region codes used in project naming (e.g., LAX, DFW, ORD)
             </CardDescription>
           </div>
-          <div className="flex items-center gap-2">
-            <Button variant="outline" onClick={() => setIsImportOpen(true)} data-testid="button-import-regions">
-              <FileUp className="w-4 h-4 mr-2" />
-              Import
-            </Button>
-            <Button onClick={() => setIsAddDialogOpen(true)} data-testid="button-add-region">
-              <Plus className="w-4 h-4 mr-2" />
-              Add Region
-            </Button>
-          </div>
+          {isAdmin && (
+            <div className="flex items-center gap-2">
+              <Button variant="outline" onClick={() => setIsImportOpen(true)} data-testid="button-import-regions">
+                <FileUp className="w-4 h-4 mr-2" />
+                Import
+              </Button>
+              <Button onClick={() => setIsAddDialogOpen(true)} data-testid="button-add-region">
+                <Plus className="w-4 h-4 mr-2" />
+                Add Region
+              </Button>
+            </div>
+          )}
         </div>
       </CardHeader>
       <CardContent>
@@ -1380,18 +1388,20 @@ function RegionSection() {
                   >
                     <Pencil className="w-4 h-4" />
                   </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => {
-                      if (confirm("Delete this region?")) {
-                        deleteMutation.mutate(region.id);
-                      }
-                    }}
-                    data-testid={`button-delete-region-${region.id}`}
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </Button>
+                  {isAdmin && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => {
+                        if (confirm("Delete this region?")) {
+                          deleteMutation.mutate(region.id);
+                        }
+                      }}
+                      data-testid={`button-delete-region-${region.id}`}
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
+                  )}
                 </div>
               </div>
             ))}

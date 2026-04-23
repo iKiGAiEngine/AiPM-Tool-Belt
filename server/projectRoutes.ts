@@ -5,6 +5,7 @@ import path from "path";
 import JSZip from "jszip";
 import { PDFDocument, PDFDict, PDFString, PDFArray, PDFName, PDFNull, PDFNumber } from "pdf-lib";
 import { insertScopeDictionarySchema, insertRegionSchema, PLAN_PARSER_SCOPES } from "@shared/schema";
+import { requireAdmin } from "./authRoutes";
 import {
   getAllScopeDictionaries,
   getActiveScopeDictionaries,
@@ -269,7 +270,7 @@ export function registerProjectRoutes(app: Express) {
     }
   });
 
-  app.post("/api/regions", async (req: Request, res: Response) => {
+  app.post("/api/regions", requireAdmin, async (req: Request, res: Response) => {
     try {
       const parsed = insertRegionSchema.safeParse(req.body);
       if (!parsed.success) {
@@ -309,7 +310,7 @@ export function registerProjectRoutes(app: Express) {
     }
   });
 
-  app.delete("/api/regions/:id", async (req: Request, res: Response) => {
+  app.delete("/api/regions/:id", requireAdmin, async (req: Request, res: Response) => {
     try {
       const id = parseInt(req.params.id);
       if (isNaN(id)) return res.status(400).json({ message: "Invalid ID" });
