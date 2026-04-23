@@ -4447,14 +4447,14 @@ ${html}
                         const hiddenVendorCount = vendorGroups.length - visibleVendorGroups.length;
                         if (!rfqGroupByVendor) return null;
                         return (
-                          <>
+                          <div style={{ display: "contents" }}>
                             {combined.length > 0 && visibleVendorGroups.length === 0 && (
                               <p className="text-xs" style={{ color: "var(--text-muted)" }}>No eligible vendors with contacts for this scope. Tag vendors in the Vendor Database with the active scope, or use Open RFQ above for ad-hoc requests.</p>
                             )}
                             {hiddenVendorCount > 0 && (
                               <p className="text-[10px] mb-2" style={{ color: "var(--text-muted)" }}>{hiddenVendorCount} vendor card{hiddenVendorCount === 1 ? "" : "s"} hidden (no contacts).</p>
                             )}
-                          </>
+                          </div>
                         );
                       })()}
                       {rfqGroupByVendor && vendorGroups.filter(g => g.contacts.length > 0).map(g => {
