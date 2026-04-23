@@ -1,8 +1,55 @@
 uploads = []
-generated = []
+
+[[generated]]
+id = "j3VAz7fjByfZ1yUdVUvRc"
+uri = "file://attached_assets/favicon_options/toolbelt_option1_belt.png"
+type = "image"
+title = "generated_image"
+
+[[generated]]
+id = "5Zme9OhZanWpKq8DhPfZt"
+uri = "file://attached_assets/favicon_options/toolbelt_option2_crossed_tools.png"
+type = "image"
+title = "generated_image"
+
+[[generated]]
+id = "MErJoXRN-qM-GW_SFCVC9"
+uri = "file://attached_assets/favicon_options/toolbelt_option3_hardhat_ai.png"
+type = "image"
+title = "generated_image"
+
+[[generated]]
+id = "s_P8zZJMn4i4moGFSMbp_"
+uri = "file://attached_assets/favicon_options/toolbelt_option4_buckle.png"
+type = "image"
+title = "generated_image"
 
 [[outputs]]
 id = "qBPM5mXi7QIdHGZuoR3zl"
 uri = "file://AiPM_Productivity_Report.md"
 type = "text"
 title = "AiPM Tool Belt — Productivity & Backlog Report"
+
+[[outputs]]
+id = "_hSk2ap4_gxpZ7op6ci7U"
+uri = "file://attached_assets/favicon_options/toolbelt_option1_belt.png"
+type = "image"
+title = "Option 1 — Tool Belt Silhouette"
+
+[[outputs]]
+id = "461-QRM-CXX4PP-AbEAn2"
+uri = "file://attached_assets/favicon_options/toolbelt_option2_crossed_tools.png"
+type = "image"
+title = "Option 2 — Crossed Hammer & Wrench"
+
+[[outputs]]
+id = "p39XKH4nVvN17AM-Vt1ii"
+uri = "file://attached_assets/favicon_options/toolbelt_option3_hardhat_ai.png"
+type = "image"
+title = "Option 3 — Hard Hat + AI Circuit"
+
+[[outputs]]
+id = "sxr10vHR8VSqB9rdsH-C_"
+uri = "file://attached_assets/favicon_options/toolbelt_option4_buckle.png"
+type = "image"
+title = "Option 4 — Tool Belt Buckle"
