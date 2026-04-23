@@ -2145,18 +2145,28 @@ ${html}
   // ── RFQ email helpers ──
   const formatItemsTable = useCallback((items: { name: string; model?: string | null; qty: number; uom?: string | null }[]) => {
     if (items.length === 0) return "  TBD — see attached plans and specs";
-    // One line per item, proportional-font friendly (Calibri/Arial/etc).
-    // Format:  1. Item Description  —  Model: B-5120  —  Qty: 20 EA
-    return items.map((i, idx) => {
-      const num = `${idx + 1}.`.padEnd(3, " ");
-      const name = (i.name || "").trim() || "(unnamed item)";
+    // Monospace-aligned plain-text table for mailto: bodies.
+    // Columns: # (3 + period) | Desc 36 | Model 16 | Qty 6 (right) | Unit
+    const SEP = "-".repeat(70);
+    const header = `     ${"Description".padEnd(36)}${"Model #".padEnd(16)}${"Qty".padStart(6)}   Unit`;
+    const rows = items.map((i, idx) => {
+      const num = String(idx + 1);
       const model = (i.model || "").trim();
-      const qty = `${i.qty ?? ""} ${(i.uom || "EA").trim()}`.trim();
-      const parts = [`${num} ${name}`];
-      if (model) parts.push(`Model: ${model}`);
-      parts.push(`Qty: ${qty}`);
-      return parts.join("  —  ");
-    }).join("\n");
+      // Strip the model number out of the description if it already appears there
+      let desc = (i.name || "").trim();
+      if (model) {
+        const re = new RegExp(`\\s*\\b${model.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b\\s*`, "gi");
+        desc = desc.replace(re, " ").replace(/\s{2,}/g, " ").trim();
+      }
+      if (!desc) desc = "(unnamed item)";
+      // Truncate to column widths to keep alignment
+      const dCol = desc.length > 36 ? desc.slice(0, 35) + "…" : desc;
+      const mCol = model.length > 16 ? model.slice(0, 15) + "…" : model;
+      const qty = String(i.qty ?? "");
+      const unit = (i.uom || "EA").trim();
+      return `${num.padStart(3)}. ${dCol.padEnd(36)}${mCol.padEnd(16)}${qty.padStart(6)}   ${unit}`;
+    });
+    return [SEP, header, SEP, ...rows, SEP].join("\n");
   }, []);
 
   const buildShipToBlock = useCallback(() => {
