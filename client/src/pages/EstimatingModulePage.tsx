@@ -2084,7 +2084,7 @@ ${html}
     enabled: !!estimateId && !!activeCat,
   });
   const logRfqMutation = useMutation({
-    mutationFn: async (payload: { manufacturerName: string; action: "copy" | "email" }) => {
+    mutationFn: async (payload: { manufacturerName: string; action: "copy" | "email"; recipientEmails: string[] }) => {
       const catLabel = ALL_SCOPES.find(s => s.id === activeCat)?.label || activeCat;
       const sentBy = user?.displayName || user?.username || user?.email || "NBS Estimating";
       return apiRequest("POST", "/api/rfq-log", {
@@ -2095,6 +2095,7 @@ ${html}
         projectName: proposalEntry?.projectName || "",
         sentBy,
         action: payload.action,
+        recipientEmails: payload.recipientEmails || [],
       });
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ["/api/rfq-log", estimateId, activeCat] }),
