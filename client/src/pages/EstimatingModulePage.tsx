@@ -6949,7 +6949,7 @@ ${html}
               </details>
 
               <div className="flex justify-between items-center gap-2 mt-3">
-                <span className="text-xs" style={{ color: "var(--text-muted)" }}>{selectedItems.length} item{selectedItems.length === 1 ? "" : "s"} · {recipientEmails.length} recipient{recipientEmails.length === 1 ? "" : "s"}</span>
+                <span className="text-xs" style={{ color: "var(--text-muted)" }}>{selectedItems.length} item{selectedItems.length === 1 ? "" : "s"} · {sendableTargets.length} email{sendableTargets.length === 1 ? "" : "s"}</span>
                 <div className="flex gap-2">
                   <button onClick={() => setShowOpenRfq(false)} className="text-xs px-4 py-2 rounded" style={{ background: "var(--bg3)", color: "var(--text-secondary)" }} data-testid="button-cancel-open-rfq">Cancel</button>
                   <button onClick={sendNow} disabled={!canSend} className="text-xs px-4 py-2 rounded flex items-center gap-1 font-semibold" style={{ background: "var(--gold)", color: "#000", opacity: canSend ? 1 : 0.5 }} data-testid="button-send-open-rfq">
