@@ -3403,18 +3403,33 @@ async function recreateFolder(oi){
   const entry = data[oi];
   if(!entry || !entry._serverDbId){ showToast('Cannot re-create folder: no server record.', 'error'); return; }
   const projName = entry.projectName || 'this project';
-  if(!confirm(`Re-create the project bid folder for "${projName}"?\n\nExisting files will be preserved; only missing template files and stamping will be applied.`)) return;
-  showToast('Re-creating bid folder\u2026');
+  if(!confirm(`Download a fresh project bid folder (.zip) for "${projName}"?\n\nThe zip will contain the standard folder structure plus a stamped estimate template.`)) return;
+  showToast('Building bid folder zip\u2026');
   try{
     const res = await fetch(`/api/proposal-log/${entry._serverDbId}/recreate-folder`, {
-      method:'POST', credentials:'include', headers:{'Content-Type':'application/json'}
+      method:'POST', credentials:'include', headers:{'Accept':'application/zip'}
     });
-    const body = await res.json().catch(()=>({}));
-    if(!res.ok){ showToast(body?.message || `Failed (${res.status})`, 'error'); return; }
-    showToast('Bid folder re-created.');
+    if(!res.ok){
+      let msg = `Failed (${res.status})`;
+      try { const body = await res.json(); if(body && body.message) msg = body.message; } catch(_){}
+      showToast(msg, 'error');
+      return;
+    }
+    // Pull the suggested filename out of the Content-Disposition header.
+    let filename = `${(entry.region||'').toUpperCase()} - ${entry.projectName||'Project'}.zip`;
+    const cd = res.headers.get('Content-Disposition') || '';
+    const m = cd.match(/filename\s*=\s*"?([^";]+)"?/i);
+    if(m && m[1]) filename = m[1];
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = filename;
+    document.body.appendChild(a); a.click();
+    setTimeout(()=>{ document.body.removeChild(a); URL.revokeObjectURL(url); }, 100);
+    showToast('Bid folder downloaded.');
   }catch(err){
     console.error('recreateFolder error:', err);
-    showToast('Network error re-creating folder.', 'error');
+    showToast('Network error downloading folder.', 'error');
   }
 }
 

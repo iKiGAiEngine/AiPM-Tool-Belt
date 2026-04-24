@@ -2668,7 +2668,8 @@ export function registerProjectRoutes(app: Express) {
   });
 
   // Re-create project bid folder for an existing proposal log entry.
-  // Useful when the folder was missed during initial project creation, or to refresh template files.
+  // Builds the standard folder structure + stamped estimate template in memory
+  // and streams the result back as a downloadable .zip file.
   app.post("/api/proposal-log/:id/recreate-folder", async (req: Request, res: Response) => {
     try {
       const id = parseInt(req.params.id);
@@ -2686,39 +2687,37 @@ export function registerProjectRoutes(app: Express) {
       const safeName = sanitizeForWindows(projectName);
       const regionCode = region.toUpperCase();
       const folderName = `${regionCode} - ${safeName}`;
-      const projectDir = path.join(PROJECTS_DIR, folderName);
 
-      ensureDir(PROJECTS_DIR);
-      const folderAlreadyExists = fs.existsSync(projectDir);
-      ensureDir(projectDir);
+      const outZip = new JSZip();
+      const rootFolder = outZip.folder(folderName);
+      if (!rootFolder) {
+        return res.status(500).json({ message: "Failed to create zip root folder" });
+      }
 
-      let extractedCount = 0;
+      // Copy folder template contents under the project root (stripping the
+      // "0000_Standard Folders" wrapper present in some template versions).
       const activeFolderTemplate = await getActiveFolderTemplate();
       const folderZipBuffer = activeFolderTemplate ? await getFolderTemplateFileBuffer(activeFolderTemplate) : null;
       if (activeFolderTemplate && folderZipBuffer) {
-        const zip = await JSZip.loadAsync(folderZipBuffer);
-        for (const [relativePath, zipEntry] of Object.entries(zip.files)) {
+        const tmpl = await JSZip.loadAsync(folderZipBuffer);
+        for (const [relativePath, zipEntry] of Object.entries(tmpl.files)) {
           const parts = relativePath.split("/");
           if (parts[0] === "0000_Standard Folders" || parts[0] === "0000_Standard Folder") {
             parts.shift();
           }
           const outputPath = parts.join("/");
           if (!outputPath) continue;
-          const fullPath = path.join(projectDir, outputPath);
           if (zipEntry.dir) {
-            ensureDir(fullPath);
+            rootFolder.folder(outputPath);
           } else {
-            ensureDir(path.dirname(fullPath));
-            // Don't overwrite existing files — re-create only fills in missing pieces.
-            if (!fs.existsSync(fullPath)) {
-              const content = await zipEntry.async("nodebuffer");
-              fs.writeFileSync(fullPath, content);
-              extractedCount++;
-            }
+            const content = await zipEntry.async("nodebuffer");
+            rootFolder.file(outputPath, content);
           }
         }
       }
 
+      // Always ensure the canonical bid subfolders exist, even if the template
+      // didn't include them.
       const requiredSubfolders = [
         "Estimate Folder/Bid Documents/Plans",
         "Estimate Folder/Bid Documents/Specs",
@@ -2726,67 +2725,56 @@ export function registerProjectRoutes(app: Express) {
         "Estimate Folder/Estimate",
       ];
       for (const sub of requiredSubfolders) {
-        ensureDir(path.join(projectDir, sub));
+        rootFolder.folder(sub);
       }
 
-      let estimateFilename: string | null = null;
+      // Stamp the estimate template with project info and place it in
+      // Estimate Folder/Estimate/.
       let estimateStamped = false;
       const activeEstimateTemplate = await getActiveEstimateTemplate();
       const estimateBuffer = activeEstimateTemplate ? await getEstimateTemplateFileBuffer(activeEstimateTemplate) : null;
       if (activeEstimateTemplate && estimateBuffer) {
         try {
-          const workbook = new ExcelJS.Workbook();
-          await workbook.xlsx.load(estimateBuffer);
-          const summarySheet = workbook.getWorksheet("Summary") || workbook.worksheets[0];
-          if (summarySheet) {
-            if (safeName) summarySheet.getCell("B1").value = safeName;
-            if (entry.dueDate) summarySheet.getCell("B2").value = entry.dueDate;
-            if (entry.projectAddress) summarySheet.getCell("B4").value = entry.projectAddress;
-            if (entry.gcEstimateLead) summarySheet.getCell("B6").value = entry.gcEstimateLead;
-            if (entry.anticipatedStart) summarySheet.getCell("B12").value = entry.anticipatedStart;
-            if (entry.anticipatedFinish) summarySheet.getCell("B13").value = entry.anticipatedFinish;
-          }
+          const ext = path.extname(activeEstimateTemplate.originalFilename || activeEstimateTemplate.filePath) || ".xlsx";
           const dueParts = (entry.dueDate || "").split("-");
           const formattedDueDate = dueParts.length >= 3 ? `${dueParts[1]}.${dueParts[2]}.${dueParts[0].slice(2)}` : "TBD";
-          const ext = path.extname(activeEstimateTemplate.originalFilename || activeEstimateTemplate.filePath) || ".xlsx";
-          estimateFilename = `${safeName} - NBS Estimate - ${formattedDueDate}${ext}`;
-          const estimatePath = path.join(projectDir, "Estimate Folder", "Estimate", estimateFilename);
-          // Don't overwrite an existing estimate file — the estimator may have edits in it.
-          if (!fs.existsSync(estimatePath)) {
-            if (ext === ".xlsm") {
-              fs.writeFileSync(estimatePath, estimateBuffer);
-            } else {
-              await workbook.xlsx.writeFile(estimatePath);
+          const estimateFilename = `${safeName} - NBS Estimate - ${formattedDueDate}${ext}`;
+
+          let outputBuffer: Buffer;
+          if (ext === ".xlsm") {
+            // ExcelJS strips macros; preserve the .xlsm template as-is.
+            outputBuffer = estimateBuffer;
+          } else {
+            const workbook = new ExcelJS.Workbook();
+            await workbook.xlsx.load(estimateBuffer);
+            const summarySheet = workbook.getWorksheet("Summary") || workbook.worksheets[0];
+            if (summarySheet) {
+              if (safeName) summarySheet.getCell("B1").value = safeName;
+              if (entry.dueDate) summarySheet.getCell("B2").value = entry.dueDate;
+              if (entry.projectAddress) summarySheet.getCell("B4").value = entry.projectAddress;
+              if (entry.gcEstimateLead) summarySheet.getCell("B6").value = entry.gcEstimateLead;
+              if (entry.anticipatedStart) summarySheet.getCell("B12").value = entry.anticipatedStart;
+              if (entry.anticipatedFinish) summarySheet.getCell("B13").value = entry.anticipatedFinish;
             }
-            estimateStamped = true;
+            const arrBuf = await workbook.xlsx.writeBuffer();
+            outputBuffer = Buffer.from(arrBuf);
           }
+
+          rootFolder.file(`Estimate Folder/Estimate/${estimateFilename}`, outputBuffer);
+          estimateStamped = true;
         } catch (err) {
           console.error("[RecreateFolder] Failed to stamp estimate template:", err);
         }
       }
 
-      // Update project record's folderPath if it's linked but missing it.
-      if (entry.projectDbId) {
-        try {
-          const project = await getProjectById(entry.projectDbId);
-          if (project && (!project.folderPath || project.folderPath !== projectDir)) {
-            await db.update(projects).set({ folderPath: projectDir }).where(eq(projects.id, project.id));
-          }
-        } catch (err) {
-          console.warn("[RecreateFolder] Could not update project folderPath:", err);
-        }
-      }
+      const zipBuffer = await outZip.generateAsync({ type: "nodebuffer", compression: "DEFLATE", compressionOptions: { level: 6 } });
 
-      console.log(`[RecreateFolder] Re-created folder for proposal log #${id} → ${folderName} (existed=${folderAlreadyExists}, files=${extractedCount}, estimate=${estimateStamped})`);
-      res.json({
-        success: true,
-        folderName,
-        folderPath: projectDir,
-        folderAlreadyExists,
-        filesAdded: extractedCount,
-        estimateFile: estimateFilename,
-        estimateStamped,
-      });
+      console.log(`[RecreateFolder] Streamed bid folder zip for proposal log #${id} → ${folderName}.zip (estimate=${estimateStamped}, bytes=${zipBuffer.length})`);
+
+      res.setHeader("Content-Type", "application/zip");
+      res.setHeader("Content-Disposition", `attachment; filename="${folderName}.zip"`);
+      res.setHeader("Content-Length", String(zipBuffer.length));
+      res.end(zipBuffer);
     } catch (error) {
       console.error("Failed to recreate project folder:", error);
       res.status(500).json({ message: "Failed to recreate project folder" });
