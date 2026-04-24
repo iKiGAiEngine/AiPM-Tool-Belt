@@ -1007,7 +1007,7 @@ export default function ProjectLogPage() {
                       {viewTab === "drafts" && isAdmin && (
                         <th className="text-left py-3 px-3 font-semibold text-xs tracking-wide uppercase" style={{ color: "var(--gold)" }}>Actions</th>
                       )}
-                      {isAdmin && viewTab !== "drafts" && (
+                      {viewTab !== "drafts" && (
                         <th className="text-center py-3 px-2 font-semibold text-xs tracking-wide uppercase" style={{ color: "var(--gold)" }} data-testid="th-folder">Folder</th>
                       )}
                     </tr>
@@ -1321,7 +1321,7 @@ export default function ProjectLogPage() {
                               </div>
                             )}
                           </td>
-                          {isAdmin && viewTab !== "drafts" && (
+                          {viewTab !== "drafts" && (
                             <td className="py-3 px-2 text-center" data-testid={`cell-folder-${entry.id}`}>
                               <Button
                                 variant="ghost"

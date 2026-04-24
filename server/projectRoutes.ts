@@ -2669,7 +2669,7 @@ export function registerProjectRoutes(app: Express) {
 
   // Re-create project bid folder for an existing proposal log entry.
   // Useful when the folder was missed during initial project creation, or to refresh template files.
-  app.post("/api/proposal-log/:id/recreate-folder", requireAdmin, async (req: Request, res: Response) => {
+  app.post("/api/proposal-log/:id/recreate-folder", async (req: Request, res: Response) => {
     try {
       const id = parseInt(req.params.id);
       if (isNaN(id)) return res.status(400).json({ message: "Invalid proposal log id" });
