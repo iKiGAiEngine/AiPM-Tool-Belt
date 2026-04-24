@@ -2192,26 +2192,26 @@ ${html}
       }
       desc = desc.replace(/;?\s*$/, "").trim() || "(unnamed item)";
       const bg = i % 2 === 0 ? "#f9f9f9" : "#ffffff";
-      const cell = `font-family: Calibri, Arial, sans-serif; font-size: 11pt; border: 1px solid #ccc; padding: 5px 8px;`;
+      const cell = `font-family: Calibri, Arial, sans-serif; font-size: 11pt; border: 1px solid #ccc; padding: 4px 8px; vertical-align: top;`;
       return `
         <tr style="background-color: ${bg};">
-          <td style="${cell} text-align: center;">${i + 1}</td>
-          <td style="${cell}">${escapeHtml(desc)}</td>
-          <td style="${cell}">${model ? escapeHtml(model) : "&mdash;"}</td>
-          <td style="${cell} text-align: center;">${escapeHtml(String(item.qty ?? ""))}</td>
-          <td style="${cell} text-align: center;">${escapeHtml((item.uom || "EA").trim())}</td>
+          <td style="${cell} text-align: center; white-space: nowrap;">${i + 1}</td>
+          <td style="${cell} word-wrap: break-word; overflow-wrap: break-word;">${escapeHtml(desc)}</td>
+          <td style="${cell} white-space: nowrap;">${model ? escapeHtml(model) : "&mdash;"}</td>
+          <td style="${cell} text-align: center; white-space: nowrap;">${escapeHtml(String(item.qty ?? ""))}</td>
+          <td style="${cell} text-align: center; white-space: nowrap;">${escapeHtml((item.uom || "EA").trim())}</td>
         </tr>`;
     }).join("");
-    const headCell = `font-family: Calibri, Arial, sans-serif; font-size: 11pt; border: 1px solid #999; padding: 6px 8px;`;
+    const headCell = `font-family: Calibri, Arial, sans-serif; font-size: 11pt; border: 1px solid #999; padding: 5px 8px;`;
     return `
-      <table style="border-collapse: collapse; width: 100%; font-family: Calibri, Arial, sans-serif; font-size: 11pt;">
+      <table style="border-collapse: collapse; width: auto; max-width: 560px; table-layout: auto; font-family: Calibri, Arial, sans-serif; font-size: 11pt;">
         <thead>
           <tr style="background-color: #1a1a2e; color: #ffffff;">
-            <th style="${headCell} text-align: center; width: 40px;">#</th>
+            <th style="${headCell} text-align: center;">#</th>
             <th style="${headCell} text-align: left;">Description</th>
-            <th style="${headCell} text-align: left; width: 140px;">Model #</th>
-            <th style="${headCell} text-align: center; width: 60px;">Qty</th>
-            <th style="${headCell} text-align: center; width: 60px;">Unit</th>
+            <th style="${headCell} text-align: left;">Model #</th>
+            <th style="${headCell} text-align: center;">Qty</th>
+            <th style="${headCell} text-align: center;">Unit</th>
           </tr>
         </thead>
         <tbody>${rows}</tbody>
