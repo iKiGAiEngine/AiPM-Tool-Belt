@@ -1326,8 +1326,8 @@ export default function ProjectLogPage() {
                               <Button
                                 variant="ghost"
                                 size="sm"
-                                className="h-7 w-7 p-0"
-                                style={{ color: "var(--text-dim)" }}
+                                className="h-8 w-8 p-0 hover:bg-[color-mix(in_srgb,var(--gold)_15%,transparent)]"
+                                style={{ color: "var(--gold)" }}
                                 title="Re-create project bid folder (fills in any missing template files; does not overwrite existing files)"
                                 disabled={recreateFolderMutation.isPending && recreateFolderMutation.variables === entry.id}
                                 onClick={(e) => {
