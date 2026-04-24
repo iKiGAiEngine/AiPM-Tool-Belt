@@ -1,0 +1,547 @@
+# AiPM Admin Dashboard + Support Chatbot - Replit Build Prompt
+
+## Overview
+
+Build two connected features for AiPM:
+
+- **Part A: Admin Dashboard** - a command center for Haley to monitor system health, user feedback, project pipeline issues, and chatbot activity
+- **Part B: Support Chatbot** - a user-facing chat widget that logs bugs/suggestions, answers how-to questions from SOPs, and feeds into the Admin Dashboard
+
+Build Part A’s database and backend first, then Part B, because Part B writes to tables Part A reads from.
+
+## IMPORTANT - Existing stack (confirmed)
+
+- React + TypeScript frontend
+- Express backend
+- PostgreSQL via Drizzle ORM, connected through `pg` driver with `DATABASE_URL`
+- Sessions via `connect-pg-simple`
+- **Schema file is `shared/schema.ts`** - add all new tables there, then run `npm run db:push`
+- File storage: **Postgres `bytea` columns**, NOT Replit Object Storage, NOT S3. Follow the existing pattern:
+  - Use `multer.memoryStorage()` to capture uploads
+  - Store the resulting `Buffer` directly in a `bytea` column
+  - Working example: `server/vendorDatabaseRoutes.ts:13-14`
+- Email service: SendGrid via `@sendgrid/mail`, wrapped in `server/emailService.ts`
+  - API key secret: `SENDGRID_API_KEY` (user will add this separately)
+  - FROM address: `EMAIL_FROM` env var, default `no-reply@aipmapp.com`
+  - Reuse the existing email service - do NOT create a new one
+- Deployment: Autoscale - do NOT rely on local filesystem or in-process cron jobs
+- Claude API already configured, reuse the existing integration pattern
+- Existing auth system with session management + 401 session-expiry handling via QueryClient hooks
+- SOP Help Center already exists in the database
+- Proposal Log exists with statuses including “Draft” and “Estimating”
+
+## Access control
+
+- Admin Dashboard is gated to Haley’s user account ONLY (via `is_admin = true` flag on users table)
+- Support Chatbot is available to all authenticated users
+
+-----
+
+# PART A: ADMIN DASHBOARD
+
+## A1: Database schema additions
+
+Add these tables to `shared/schema.ts`. Follow the existing Drizzle patterns in that file (including `createInsertSchema`, insert types, select types). After editing, run `npm run db:push` (use `--force` if prompted).
+
+### `system_errors` table
+
+```
+- id (uuid, primary key, default random)
+- error_type (text) - 'api_error', 'db_error', 'validation_error', 'auth_error', 'frontend_error'
+- error_message (text)
+- stack_trace (text, nullable)
+- endpoint (text, nullable)
+- user_id (uuid, foreign key to users.id, nullable)
+- page_url (text, nullable)
+- metadata (jsonb, default '{}')
+- occurrence_count (integer, default 1)
+- first_seen_at (timestamp, default now)
+- last_seen_at (timestamp, default now)
+- status (text enum: 'new', 'investigating', 'resolved', 'ignored', default 'new')
+- priority (text enum: 'low', 'medium', 'high', 'critical', default 'medium')
+- admin_notes (text, nullable)
+```
+
+### `feedback_submissions` table
+
+```
+- id (uuid, primary key, default random)
+- user_id (uuid, foreign key to users.id)
+- user_email (text)
+- submission_type (text enum: 'bug', 'suggestion', 'question', 'other')
+- title (text)
+- description (text)
+- conversation_log (jsonb)
+- page_url (text, nullable)
+- status (text enum: 'new', 'in_progress', 'resolved', 'wont_fix', default 'new')
+- priority (text enum: 'low', 'medium', 'high', default 'medium')
+- admin_notes (text, nullable)
+- created_at (timestamp, default now)
+- updated_at (timestamp, default now)
+- resolved_at (timestamp, nullable)
+```
+
+### `feedback_screenshots` table
+
+Stores screenshot images as bytea, same pattern as existing file uploads.
+
+```
+- id (uuid, primary key, default random)
+- submission_id (uuid, foreign key to feedback_submissions.id, nullable - nullable because screenshot is uploaded before submission is finalized)
+- session_id (uuid, foreign key to chat_sessions.id)
+- file_data (bytea)
+- mime_type (text) - e.g. 'image/png', 'image/jpeg'
+- file_size (integer, bytes)
+- created_at (timestamp, default now)
+```
+
+### `chat_sessions` table
+
+```
+- id (uuid, primary key, default random)
+- user_id (uuid, foreign key to users.id)
+- started_at (timestamp, default now)
+- ended_at (timestamp, nullable)
+- messages (jsonb, default '[]') - array of {role, content, timestamp}
+- resulted_in_submission_id (uuid, foreign key to feedback_submissions.id, nullable)
+- topic_category (text, nullable) - AI-generated label
+- sop_ids_referenced (jsonb, default '[]') - array of SOP ids pulled during session
+```
+
+### Add to existing `users` table
+
+```
+- is_admin (boolean, default false, not null)
+```
+
+After migration, run a one-time SQL update to set Haley’s user record:
+
+```sql
+UPDATE users SET is_admin = true WHERE email = 'haley.kruse@nationalbuildingspecialties.com';
+```
+
+### Add to existing proposal_log_entries table (if not already present)
+
+Check `shared/schema.ts` first. If these columns don’t exist on the Proposal Log table, add them:
+
+```
+- estimated_start_date (timestamp, nullable)
+- estimated_end_date (timestamp, nullable)
+- status_changed_at (timestamp, default now) - updated whenever status changes
+```
+
+If they DO exist, skip. Add a trigger or hook in existing status-change code to update `status_changed_at` automatically.
+
+Run `npm run db:push` after all changes.
+
+-----
+
+## A2: Backend error capturing
+
+Create a global Express error-handling middleware that writes to `system_errors`.
+
+Place in `server/middleware/errorLogger.ts` (or wherever existing middleware lives - match the project structure).
+
+Behavior:
+
+1. Register as the LAST middleware in `server/index.ts` so it catches all uncaught errors
+1. When an error hits the middleware:
+- Look for identical recent error: same `error_type` + `error_message` + `endpoint` within last 24 hours
+- If found: increment `occurrence_count`, update `last_seen_at`
+- If not found: create new record with status=‘new’
+- Priority logic: auth errors = ‘high’, db errors = ‘high’, validation errors = ‘low’, anything else = ‘medium’
+1. ALWAYS pass the original error response to the user - never let logging break the response
+1. Also `console.error` for real-time dev visibility
+
+Frontend error reporter:
+
+- Endpoint: `POST /api/errors/frontend`
+- Accepts: `{ error_message, stack_trace, page_url, metadata }`
+- Writes to `system_errors` with `error_type='frontend_error'`
+- Add a React error boundary at the root of the app that POSTs unhandled errors to this endpoint
+
+-----
+
+## A3: Admin Dashboard frontend
+
+Create a new route: `/admin`
+
+Access gate: use existing auth hooks. If user is not authenticated OR `user.is_admin !== true`, redirect to `/home`. Do NOT leak any admin data in network responses for non-admins - enforce on the backend too.
+
+Layout (single page, scrollable, top to bottom):
+
+### Section 1: “Today’s Command Center”
+
+Roll-up card at the top. Shows counts with clickable items that scroll to the relevant section below.
+
+Items:
+
+- `[N] critical or high-priority system errors` → Section 2
+- `[N] new bug reports from users` → Section 2
+- `[N] new feature suggestions` → Section 3
+- `[N] projects missing start/end dates` → Section 5
+- `[N] projects stuck in Draft >7 days` → Section 5
+- `[N] chatbot sessions where AI couldn't answer` → Section 4
+
+Each line shows count. If count = 0, show greyed out with a checkmark.
+
+### Section 2: “System Issues” (merged feed)
+
+Merges `system_errors` + `feedback_submissions` where `submission_type='bug'` into a single list.
+
+Table columns: Source icon (auto vs user), Priority pill, Title, Affected Users count, Last Seen, Status pill, Actions
+Filters: Priority, Status, Source (auto/user/both), date range, search
+Default sort: priority desc, then last_seen_at desc
+Default filter: status IN (‘new’, ‘investigating’)
+Click row → detail modal
+
+Detail modal:
+
+- Full error message or description
+- Stack trace (collapsible, for auto-detected)
+- Conversation log (collapsible, for user-reported)
+- Screenshots inline (fetched from `feedback_screenshots` table)
+- Editable status dropdown
+- Editable priority dropdown
+- Admin notes textarea (saves on blur)
+- “Mark Resolved” button
+
+### Section 3: “Chatbot Requests” (feedback - non-bugs)
+
+Pulls from `feedback_submissions` where `submission_type IN ('suggestion', 'question', 'other')`.
+
+Table: Type pill, Priority pill, Title, User, Date, Status pill
+Filters: Type, Status, Priority, search
+Default sort: created_at desc
+Default filter: status = ‘new’
+Detail modal: same pattern as Section 2
+
+### Section 4: “Chatbot Usage Report”
+
+Pulls from `chat_sessions` table.
+
+Cards / lists:
+
+- **Total sessions** (number + week-over-week delta)
+- **Most common topics** (bar chart of `topic_category` counts, last 30 days)
+- **Top referenced SOPs** (list of SOP IDs with hit counts from `sop_ids_referenced`)
+- **Sessions that ended without submitting** (list - users who just asked questions)
+- **Sessions where AI said “I don’t know”** (detect by searching messages for phrases like “I don’t have an SOP” - these are SOP gaps)
+- **Active users** (user list with session counts, last 30 days)
+
+Date range selector: last 7 / 30 / 90 days
+
+Use Recharts for the bar chart (already in the stack if not, it’s fine to add).
+
+### Section 5: “New Projects Monitor”
+
+Pulls from `proposal_log_entries` (or whatever table Proposal Log uses - check `shared/schema.ts` first) where:
+
+- status IN (‘Draft’, ‘Estimating’)
+- AND status_changed_at within last 30 days
+
+Table: PV#, Project Name, GC, Status, Est Start, Est End, Flags, Age in Status, Actions
+Flag pills:
+
+- “Missing Start Date” if `estimated_start_date` is null
+- “Missing End Date” if `estimated_end_date` is null
+- “Stuck in Draft” if status = ‘Draft’ AND `status_changed_at` > 7 days ago
+  Filters: Status, Has Flags (yes/no), search
+  Default filter: Has Flags = ‘yes’
+  Default sort: age desc
+  Click row → open existing Proposal Log detail view for that project
+
+-----
+
+## A4: Admin Dashboard API endpoints
+
+All require `user.is_admin === true`. Return 403 otherwise.
+
+- `GET /api/admin/dashboard/summary` - returns Command Center counts
+- `GET /api/admin/system-issues` - merged error + user bug list, accepts filters
+- `PATCH /api/admin/system-issues/:id` - updates status/priority/notes (dispatch based on source: system_errors vs feedback_submissions)
+- `GET /api/admin/feedback` - feedback submissions with filters
+- `PATCH /api/admin/feedback/:id` - update feedback
+- `GET /api/admin/chatbot-analytics?range=7|30|90` - usage report data
+- `GET /api/admin/new-projects` - projects with flag calculations
+
+-----
+
+# PART B: SUPPORT CHATBOT
+
+## B1: Chat widget (frontend)
+
+Placement: in the top navigation row, between the Users icon and the Notifications bell icon. Use `MessageCircle` from `lucide-react`. Match existing gold tone and icon sizing.
+
+Only render when user is authenticated.
+
+On click: slide-in panel from right.
+
+- 400px wide desktop, full-width mobile
+- Full viewport height
+- Executive Suite theme: black bg, gold accents, Playfair Display headers, Rajdhani body
+- Header: “AiPM Support” + close X button
+- Body: scrollable chat
+- Footer: text input + send button + paperclip icon
+
+Features:
+
+- User messages gold-tinted right-aligned
+- AI messages dark-tinted left-aligned
+- Three-dot typing indicator while AI thinks
+- Clipboard paste (Ctrl+V / Cmd+V) on input field: capture image blob → upload → show thumbnail
+- Auto-scroll to bottom
+- Persist `sessionId` in sessionStorage (resume on refresh)
+- On panel close or tab close: call `/api/chat/end-session` to set `ended_at` and trigger topic categorization
+
+-----
+
+## B2: Screenshot upload (Replit-specific)
+
+**IMPORTANT**: Store screenshots in the `feedback_screenshots` table as `bytea`, following the existing Multer + bytea pattern.
+
+Endpoint: `POST /api/chat/upload-screenshot`
+
+- Use `multer.memoryStorage()` with 10MB limit
+- Accept `image/png`, `image/jpeg`, `image/webp`
+- Insert `req.file.buffer` into `feedback_screenshots.file_data`, plus mime_type and file_size
+- Require `sessionId` in request body - link screenshot to chat session immediately
+- Return: `{ screenshotId, url }` where url is a served endpoint like `/api/chat/screenshot/:id`
+
+Serving endpoint: `GET /api/chat/screenshot/:id`
+
+- Reads `file_data` from DB, sets Content-Type from `mime_type`, streams the buffer
+
+When submission is finalized, update the screenshot row’s `submission_id` to link it.
+
+Screenshots are NOT sent to Claude API. Only a text note like “User attached screenshot” goes into the conversation context.
+
+-----
+
+## B3: Chatbot API endpoints
+
+### `POST /api/chat/message`
+
+- Receives: `{ sessionId, message, pageUrl, hasScreenshot }`
+- Returns: `{ reply, sessionId, shouldSubmit, submissionDraft }`
+- If no sessionId provided, create new `chat_sessions` record
+- Run SOP retrieval (see B5)
+- Call Claude API with system prompt + full conversation history + sop_context
+- Append user message and AI reply to `chat_sessions.messages`
+- Parse `<submit>` JSON block from AI reply if present, return as `submissionDraft`
+
+### `POST /api/chat/submit`
+
+- Receives: `{ sessionId, submissionDraft, screenshotIds, pageUrl }`
+- Create `feedback_submissions` record from submissionDraft
+- Link `chat_sessions.resulted_in_submission_id`
+- Update each screenshot in `feedback_screenshots` to set `submission_id`
+- Trigger email to Haley via existing `server/emailService.ts` (see B6)
+- Return: `{ submissionId, success }`
+
+### `POST /api/chat/upload-screenshot`
+
+See B2.
+
+### `POST /api/chat/end-session`
+
+- Receives: `{ sessionId }`
+- Set `ended_at` on chat_sessions
+- Trigger topic categorization (see B7) async - don’t block response
+
+### `GET /api/chat/screenshot/:id`
+
+See B2.
+
+All require authenticated user.
+
+-----
+
+## B4: AI system prompt
+
+Send as system prompt on every Claude API call:
+
+```
+You are the AiPM Support Assistant, an AI helper inside the AiPM platform (a custom project management tool for National Building Specialties, a Division 10 specialty subcontractor).
+
+Your three jobs:
+1. COLLECT FEEDBACK - bug reports, feature suggestions, or complaints
+2. ANSWER HOW-TO QUESTIONS - using SOP content provided in context
+3. ANSWER BID/PROPOSAL QUESTIONS - only from information the user tells you (you do NOT have access to the bid database)
+
+How to decide which job:
+Read the user's first message. If unclear, ask: "Is this a bug report, a feature suggestion, or a how-to question?"
+
+Rules for collecting feedback:
+- Ask ONE clarifying question at a time
+- For bugs, always ask for: (1) what page they were on, (2) what they were trying to do, (3) what happened vs. what they expected, (4) a screenshot (tell them to paste with Ctrl+V)
+- For suggestions, ask: (1) what problem does this solve, (2) how often does it come up, (3) any examples
+- When you have enough info, summarize in 2-3 sentences and ask: "Ready to submit this to Haley?"
+- On confirmation, respond with a JSON block wrapped in <submit> tags:
+  <submit>
+  {
+    "type": "bug" | "suggestion" | "question" | "other",
+    "title": "Short summary under 80 chars",
+    "description": "Full details with all context",
+    "priority": "low" | "medium" | "high"
+  }
+  </submit>
+
+Rules for answering how-to questions:
+- You will be given relevant SOP excerpts in context
+- Answer ONLY from those excerpts - do not invent procedures
+- If SOPs don't cover it, say: "I don't have an SOP for that. Want me to log this as a question for Haley?"
+- Keep answers short and step-by-step
+
+Rules for bid/proposal questions:
+- You do NOT have direct access to bid data
+- If user asks about a specific bid, ask them to paste the relevant info (PV number, status, dates)
+- Help them interpret what they paste, but don't invent data
+
+Tone:
+- Professional but warm, like a helpful coworker
+- Industry fluency OK: PV#, OH&P, buyout, submittal, Div 10, CSI, WIP
+- Never condescending
+
+Priority levels:
+- high: blocks user from working, data loss, security issue
+- medium: annoying but has workaround
+- low: nice-to-have, cosmetic
+```
+
+-----
+
+## B5: SOP retrieval
+
+Before every Claude API call in `/api/chat/message`:
+
+1. Run PostgreSQL full-text search against the SOP Help Center table using the user’s latest message
+1. Use `to_tsvector` on SOP title + body columns, `plainto_tsquery` on user message
+1. Pull top 5 matches (ordered by `ts_rank`)
+1. Append to API call as context:
+
+```
+<sop_context>
+[SOP 1 Title]
+[SOP 1 Body]
+
+[SOP 2 Title]
+[SOP 2 Body]
+</sop_context>
+```
+
+1. Track SOP IDs in `chat_sessions.sop_ids_referenced` (append unique IDs, don’t overwrite)
+1. If no matches, send without sop_context - AI will ask clarifying questions or say it doesn’t know
+
+-----
+
+## B6: Email notification on feedback submission
+
+Reuse `server/emailService.ts`. Add a new helper function following the existing pattern (like `sendOtpEmail`, `sendProjectWonEmail`):
+
+```
+sendFeedbackNotification({ submissionId, type, priority, title, description, userEmail, pageUrl, screenshotUrls })
+```
+
+Internally calls `sgMail.send({ to, from, subject, text, html })`.
+
+- TO: `haley.kruse@nationalbuildingspecialties.com` (store in env var `ADMIN_EMAIL` for flexibility)
+- FROM: `EMAIL_FROM` (existing env var, already `no-reply@aipmapp.com`)
+- Subject: `[AiPM Feedback] {priority} - {title}`
+- HTML body: submission type, user email, description, page URL, screenshot links (to `/api/chat/screenshot/:id`), timestamp, deep link to `/admin`
+
+If `SENDGRID_API_KEY` is not set, existing fallback in emailService will log to console instead of sending. Feedback still saves to DB regardless.
+
+-----
+
+## B7: Topic categorization
+
+When a chat session ends:
+
+1. Async (don’t block the end-session response), send the full conversation to Claude API with this prompt:
+
+```
+Categorize this conversation with a short label (3-6 words). Examples: "Proposal Log Question", "Bug Report - Vendor Database", "SOP Lookup - Takeoff", "Feature Suggestion - Reporting". Respond with ONLY the label, no explanation.
+```
+
+1. Store returned label in `chat_sessions.topic_category`
+1. This feeds Section 4 of the Admin Dashboard
+
+-----
+
+# BUILD ORDER
+
+Do in order, test after each step:
+
+1. **A1**: Schema additions to `shared/schema.ts` + `npm run db:push` + run Haley’s admin SQL update
+1. **A2**: Backend error capturing middleware + frontend error boundary + `/api/errors/frontend` endpoint
+1. **A3 shell**: Admin Dashboard route with auth gate and empty section placeholders
+1. **B1**: Chat widget UI with hardcoded replies (no API yet) - just prove the UI works
+1. **B3 + B4**: Chat API endpoint with Claude integration (no SOP yet)
+1. **B2**: Screenshot upload + serving endpoint
+1. **B5**: SOP retrieval with Postgres full-text search
+1. **B3 submit + B6**: Submit flow + SendGrid email via existing emailService
+1. **A4**: Admin Dashboard API endpoints
+1. **A3 sections 1-5**: Fill in all Admin Dashboard sections with real data
+1. **B7**: Topic categorization on session end
+1. **Final testing**: Run full checklist below
+
+-----
+
+# TESTING CHECKLIST
+
+**Admin Dashboard**
+
+- [ ] Non-admins redirected from /admin
+- [ ] Command Center shows accurate counts
+- [ ] Clicking Command Center item scrolls to right section
+- [ ] System Issues shows both auto-errors and user bugs merged
+- [ ] All filters work
+- [ ] Status/priority updates persist
+- [ ] New Projects shows flags for missing start/end dates
+- [ ] Chatbot Usage analytics populate correctly
+
+**Chatbot**
+
+- [ ] Icon appears only when logged in
+- [ ] Chat panel opens and closes cleanly
+- [ ] Clipboard paste uploads screenshot to DB as bytea, thumbnail displays
+- [ ] Serving endpoint returns image correctly
+- [ ] AI asks one clarifying question at a time
+- [ ] AI asks for screenshot on bug reports
+- [ ] Submit creates feedback_submissions record
+- [ ] Email fires via SendGrid (or logs to console if key missing)
+- [ ] Submission appears in Admin Dashboard
+- [ ] SOP search pulls relevant SOPs
+- [ ] AI says “I don’t have an SOP for that” when nothing matches
+- [ ] Topic categorization runs on session end
+
+**Integration**
+
+- [ ] Backend error auto-captured appears in Admin Dashboard
+- [ ] User bug submission appears in same merged feed
+- [ ] Screenshots stored as bytea, retrieved via serving endpoint
+- [ ] Sessions where AI said “I don’t know” flagged in analytics
+
+-----
+
+# ENVIRONMENT VARIABLES CHECKLIST
+
+Confirm these are in Replit Secrets before deploying:
+
+- `DATABASE_URL` (existing)
+- `SENDGRID_API_KEY` (user must add - emails log to console without this)
+- `EMAIL_FROM` (existing, `no-reply@aipmapp.com`)
+- `ADMIN_EMAIL` (new - set to `haley.kruse@nationalbuildingspecialties.com`)
+- Claude API key (existing)
+
+-----
+
+# NOTES FOR REPLIT AGENT
+
+- Do NOT create new file-storage utilities - use the existing `multer.memoryStorage()` + bytea pattern from `server/vendorDatabaseRoutes.ts:13-14`
+- Do NOT create a new email service - extend existing `server/emailService.ts`
+- Do NOT write files to the local filesystem (`data/` folder) for persistent data - Autoscale deployment won’t persist these
+- All schema changes go in `shared/schema.ts`, then `npm run db:push`
+- Match the existing code style in the project - don’t introduce new patterns
+- If any existing column/table already exists that conflicts with what’s requested here, ASK before modifying
