@@ -116,7 +116,7 @@ const tools: ToolTile[] = [
   },
   {
     id: "settings",
-    title: "Settings",
+    title: "Regional Contacts",
     description: "Vendors, products, scopes, regions, templates, spec extractor & email templates",
     icon: SettingsIcon,
     href: "/settings",
