@@ -1204,6 +1204,7 @@ const COL_DEFS = [
   {key:'filePath',       label:'File Path',           w:90,  filter:'none'},
   {key:'selfPerformEstimator', label:'SP Estimator',    w:120, filter:'text'},
   {key:'_screenshot',    label:'Source',              w:110, filter:'none'},
+  {key:'_folder',        label:'Folder',              w:70,  filter:'none'},
   {key:'_actions',       label:'',                    w:70,  filter:'none'},
 ];
 
@@ -1354,7 +1355,7 @@ function buildHeaders() {
     const def = getColDef(key);
     if(!def) return;
     const w = layout.widths[key] || def.w;
-    const isSpecial = key==='_actions' || key==='_screenshot';
+    const isSpecial = key==='_actions' || key==='_screenshot' || key==='_folder';
 
     const th = document.createElement('th');
     th.dataset.col = key;
@@ -1390,6 +1391,8 @@ function buildHeaders() {
       }
     } else if(key==='_screenshot') {
       th.innerHTML='<div class="th-inner" style="cursor:default;font-size:11px">Source</div>';
+    } else if(key==='_folder') {
+      th.innerHTML='<div class="th-inner" style="cursor:default;font-size:11px;text-align:center">Folder</div>';
     }
 
     hr.appendChild(th);
@@ -1439,6 +1442,10 @@ function buildRows() {
   tbody.innerHTML = filtered.map((p,fi)=>{
     const oi=data.indexOf(p);
     const cells = visKeys.map(key=>{
+      if(key==='_folder') {
+        if(!p._serverDbId) return `<td style="text-align:center"></td>`;
+        return `<td style="text-align:center"><button class="btn-row" onclick="recreateFolder(${oi})" title="Re-create project bid folder" style="color:var(--gold);border-color:var(--gold-dim);font-size:14px;line-height:1">&#128194;+</button></td>`;
+      }
       if(key==='_actions') {
         if(mode==='leadership') return `<td></td>`;
         if(p._pendingDeletion){
@@ -3390,6 +3397,25 @@ async function pushLocalEntriesToServer(entries){
     if(matched>0)save();
     console.log(`[Import] Pushed ${createdArr.length} entries to server, matched ${matched} locally`);
   }catch(err){console.warn('Failed to push imported entries to server:',err);}
+}
+
+async function recreateFolder(oi){
+  const entry = data[oi];
+  if(!entry || !entry._serverDbId){ showToast('Cannot re-create folder: no server record.', 'error'); return; }
+  const projName = entry.projectName || 'this project';
+  if(!confirm(`Re-create the project bid folder for "${projName}"?\n\nExisting files will be preserved; only missing template files and stamping will be applied.`)) return;
+  showToast('Re-creating bid folder\u2026');
+  try{
+    const res = await fetch(`/api/proposal-log/${entry._serverDbId}/recreate-folder`, {
+      method:'POST', credentials:'include', headers:{'Content-Type':'application/json'}
+    });
+    const body = await res.json().catch(()=>({}));
+    if(!res.ok){ showToast(body?.message || `Failed (${res.status})`, 'error'); return; }
+    showToast('Bid folder re-created.');
+  }catch(err){
+    console.error('recreateFolder error:', err);
+    showToast('Network error re-creating folder.', 'error');
+  }
 }
 
 function showToast(msg, type){
