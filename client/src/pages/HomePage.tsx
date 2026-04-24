@@ -117,7 +117,7 @@ const tools: ToolTile[] = [
   {
     id: "settings",
     title: "Regional Contacts",
-    description: "Manage regional estimators, project managers & key personnel by region",
+    description: "Manage Self Perform Champions, Estimators, and GC Contacts by Region",
     icon: SettingsIcon,
     href: "/settings",
     available: true,
