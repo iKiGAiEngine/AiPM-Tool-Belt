@@ -1444,7 +1444,7 @@ function buildRows() {
     const cells = visKeys.map(key=>{
       if(key==='_folder') {
         if(!p._serverDbId) return `<td style="text-align:center"></td>`;
-        return `<td style="text-align:center"><button class="btn-row" onclick="recreateFolder(${oi})" title="Re-create project bid folder" style="color:var(--gold);border-color:var(--gold-dim);font-size:14px;line-height:1">&#128194;+</button></td>`;
+        return `<td style="text-align:center"><button onclick="recreateFolder(${oi})" title="Re-create project bid folder" style="background:none;border:none;padding:2px 4px;cursor:pointer;font-size:18px;line-height:1;color:var(--gold);opacity:.85;transition:opacity .15s,transform .15s" onmouseover="this.style.opacity='1';this.style.transform='scale(1.15)'" onmouseout="this.style.opacity='.85';this.style.transform='scale(1)'">&#128194;</button></td>`;
       }
       if(key==='_actions') {
         if(mode==='leadership') return `<td></td>`;
