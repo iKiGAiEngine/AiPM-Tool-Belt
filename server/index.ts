@@ -113,14 +113,6 @@ app.use((req, res, next) => {
     });
   }
 
-  app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
-    const status = err.status || err.statusCode || 500;
-    const message = err.message || "Internal Server Error";
-
-    res.status(status).json({ message });
-    throw err;
-  });
-
   app.use("/tools", express.static(path.join(process.cwd(), "public", "tools"), {
     setHeaders: (res) => {
       res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
@@ -147,6 +139,34 @@ app.use((req, res, next) => {
     const { setupVite } = await import("./vite");
     await setupVite(httpServer, app);
   }
+
+  // Error-handling middleware MUST be registered last so it catches errors
+  // raised by any preceding middleware (API routes, static, vite catch-all).
+  const { captureError: captureRouteError } = await import("./errorCapture");
+  app.use((err: any, req: Request, res: Response, _next: NextFunction) => {
+    const status = err.status || err.statusCode || 500;
+    const message = err.message || "Internal Server Error";
+
+    if (status >= 500) {
+      void captureRouteError({
+        errorType: "backend_uncaught",
+        errorMessage: message,
+        stackTrace: err?.stack ?? null,
+        endpoint: `${req.method} ${req.path}`,
+        userId: (req.session as any)?.userId ?? null,
+        pageUrl: req.get("referer") ?? null,
+        metadata: {
+          status,
+          name: err?.name,
+        },
+      });
+      console.error(`[error-middleware] ${req.method} ${req.path} → ${status}:`, err?.message, err?.stack);
+    }
+
+    if (!res.headersSent) {
+      res.status(status).json({ message });
+    }
+  });
 
   // ALWAYS serve the app on the port specified in the environment variable PORT
   // Other ports are firewalled. Default to 5000 if not specified.
