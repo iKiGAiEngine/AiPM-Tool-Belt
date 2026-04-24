@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect, useRef } from "react";
 import { Link } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { ArrowLeft, Search, ChevronUp, ChevronDown, FileSpreadsheet, FileText, FlaskConical, Archive, Link2, CheckCircle2, RefreshCw, Check, X, FileEdit, Pencil, Download, FolderOpen, Loader2, MessageSquare, ListChecks, History, Calculator, Camera } from "lucide-react";
+import { ArrowLeft, Search, ChevronUp, ChevronDown, FileSpreadsheet, FileText, FlaskConical, Archive, Link2, CheckCircle2, RefreshCw, Check, X, FileEdit, Pencil, Download, FolderOpen, FolderPlus, Loader2, MessageSquare, ListChecks, History, Calculator, Camera } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -210,6 +210,23 @@ export default function ProjectLogPage() {
       return res.json();
     },
     placeholderData: (prev) => prev,
+  });
+
+  const recreateFolderMutation = useMutation({
+    mutationFn: async (id: number) => {
+      const res = await apiRequest("POST", `/api/proposal-log/${id}/recreate-folder`);
+      return res as unknown as { folderName: string; folderAlreadyExists: boolean; filesAdded: number; estimateStamped: boolean };
+    },
+    onSuccess: (data) => {
+      const verb = data.folderAlreadyExists ? "Refreshed" : "Created";
+      const detail = data.folderAlreadyExists
+        ? `Filled in ${data.filesAdded} missing file${data.filesAdded === 1 ? "" : "s"}${data.estimateStamped ? " and stamped a fresh estimate workbook" : ""}.`
+        : `Project folder created with template files${data.estimateStamped ? " and a stamped estimate workbook" : ""}.`;
+      toast({ title: `${verb} bid folder`, description: `${data.folderName} — ${detail}` });
+    },
+    onError: (err: any) => {
+      toast({ title: "Could not re-create folder", description: err?.message || "An error occurred", variant: "destructive" });
+    },
   });
 
   const rejectDraftMutation = useMutation({
@@ -990,6 +1007,9 @@ export default function ProjectLogPage() {
                       {viewTab === "drafts" && isAdmin && (
                         <th className="text-left py-3 px-3 font-semibold text-xs tracking-wide uppercase" style={{ color: "var(--gold)" }}>Actions</th>
                       )}
+                      {isAdmin && viewTab !== "drafts" && (
+                        <th className="text-center py-3 px-2 font-semibold text-xs tracking-wide uppercase" style={{ color: "var(--gold)" }} data-testid="th-folder">Folder</th>
+                      )}
                     </tr>
                   </thead>
                   <tbody>
@@ -1301,6 +1321,30 @@ export default function ProjectLogPage() {
                               </div>
                             )}
                           </td>
+                          {isAdmin && viewTab !== "drafts" && (
+                            <td className="py-3 px-2 text-center" data-testid={`cell-folder-${entry.id}`}>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-7 w-7 p-0"
+                                style={{ color: "var(--text-dim)" }}
+                                title="Re-create project bid folder (fills in any missing template files; does not overwrite existing files)"
+                                disabled={recreateFolderMutation.isPending && recreateFolderMutation.variables === entry.id}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  if (!confirm(`Re-create the bid folder for "${entry.projectName}"?\n\nThis adds missing template folders/files. Existing files in the project folder will NOT be overwritten.`)) return;
+                                  recreateFolderMutation.mutate(entry.id);
+                                }}
+                                data-testid={`button-recreate-folder-${entry.id}`}
+                              >
+                                {recreateFolderMutation.isPending && recreateFolderMutation.variables === entry.id ? (
+                                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                ) : (
+                                  <FolderPlus className="h-3.5 w-3.5" />
+                                )}
+                              </Button>
+                            </td>
+                          )}
                           {viewTab === "drafts" && isAdmin && (
                             <td className="py-3 px-3">
                               {isDraft && !isDeleted && (
