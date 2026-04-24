@@ -663,7 +663,7 @@ export default function ProjectLogPage() {
             </Button>
           </Link>
           <div className="flex-1">
-            <h1 className="text-2xl font-heading font-semibold" style={{ color: "var(--text)" }}>BC Sync Table</h1>
+            <h1 className="text-2xl font-heading font-semibold" style={{ color: "var(--text)" }}>Proposal Log Dashboard</h1>
             <p className="text-sm" style={{ color: "var(--text-dim)" }}>
               {viewTab === "changes"
                 ? "Immutable audit trail of all field-level edits"
