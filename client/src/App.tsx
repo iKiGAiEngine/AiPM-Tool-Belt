@@ -23,6 +23,7 @@ import ForgotPasswordPage from "@/pages/ForgotPasswordPage";
 import ResetPasswordPage from "@/pages/ResetPasswordPage";
 import ForcePasswordChangePage from "@/pages/ForcePasswordChangePage";
 import AdminPage from "@/pages/AdminPage";
+import AdminDashboardPage from "@/pages/AdminDashboardPage";
 import AuditLogPage from "@/pages/AuditLogPage";
 import SubmittalBuilderPage from "@/submittal-builder/SubmittalBuilderPage";
 import VendorDatabasePage from "@/pages/VendorDatabasePage";
@@ -39,6 +40,13 @@ const PUBLIC_PATHS = ["/forgot-password", "/reset-password"];
 function AdminRoute({ component: Component }: { component: React.ComponentType }) {
   const { isAdmin } = useAuth();
   if (!isAdmin) return <HomePage />;
+  return <Component />;
+}
+
+function AdminDashboardRoute({ component: Component }: { component: React.ComponentType }) {
+  const { canAccessAdminDashboard, isLoading } = useAuth();
+  if (isLoading) return null;
+  if (!canAccessAdminDashboard) return <HomePage />;
   return <Component />;
 }
 
@@ -64,7 +72,7 @@ function Router() {
       <Route path="/project-log">{() => { window.location.replace("/tools/bc-sync-table"); return null; }}</Route>
       <Route path="/schedule-converter" component={ScheduleConverterPage} />
       <Route path="/spec-extractor" component={SpecExtractorPage} />
-      <Route path="/admin">{() => <AdminRoute component={AdminPage} />}</Route>
+      <Route path="/admin">{() => <AdminDashboardRoute component={AdminDashboardPage} />}</Route>
       <Route path="/admin/audit">{() => <AdminRoute component={AuditLogPage} />}</Route>
       <Route path="/admin/permissions">{() => <AdminRoute component={AdminUserPermissionsPage} />}</Route>
       <Route path="/admin/proposal-change-log">{() => <AdminRoute component={ProposalChangeLogPage} />}</Route>

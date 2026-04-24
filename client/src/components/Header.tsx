@@ -160,7 +160,7 @@ function ChangePasswordDialog({ open, onClose }: { open: boolean; onClose: () =>
 export function Header() {
   const [location, navigate] = useLocation();
   const { isTestMode, toggleTestMode } = useTestMode();
-  const { user, isAdmin, logout } = useAuth();
+  const { user, isAdmin, canAccessAdminDashboard, logout } = useAuth();
   const { hasFeature } = useFeatureAccess();
   const canSettingsRegions = hasFeature("settings-regions");
   const canSettingsFull = hasFeature("central-settings");
@@ -258,7 +258,7 @@ export function Header() {
               </Button>
             </Link>
           )}
-          {isAdmin && (
+          {canAccessAdminDashboard && (
             <Link href="/admin">
               <Button variant="ghost" size="icon" title="Admin" data-testid="link-admin">
                 <Shield className="h-4 w-4" />

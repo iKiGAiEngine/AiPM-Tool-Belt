@@ -1,0 +1,44 @@
+Good catches on both. Answers:
+Nav links: Option X.
+Add an “Admin Tools” link strip at the top of the new Admin Dashboard (above the Command Center section). Include buttons/links to:
+	•	/admin/audit labeled “Audit Log”
+	•	/admin/permissions labeled “Permissions”
+	•	/admin/proposal-change-log labeled “Proposal Change Log”
+	•	/admin/estimator-analytics labeled “Estimator Analytics”
+Style it cleanly in the Executive Suite theme — small horizontal nav strip, gold borders, Rajdhani font. Don’t let it compete visually with the Command Center below.
+Auth gate: Option Q with a data fix.
+	1.	Do NOT alter existing useAuth().isAdmin (leaves all sub-pages working exactly as today).
+	2.	Add a new flag in useAuth() called canAccessAdminDashboard that returns user.is_admin === true.
+	3.	Gate the new /admin landing strictly on canAccessAdminDashboard.
+	4.	Add is_admin to the /api/auth/me payload and AuthUser TypeScript interface.
+To resolve the Haley access mismatch:
+	5.	Run this SQL: UPDATE users SET role = 'admin' WHERE id = 3;
+This gives Haley role = 'admin' AND is_admin = true, so she passes both gates — the new dashboard AND all existing sub-pages. Show me the row after the update to confirm both flags are true.
+	6.	Also run the previously-specified SQL: UPDATE users SET is_admin = true WHERE id = 18; for test-admin.
+Rules still in effect:
+	1.	Follow 12-step build order exactly.
+	2.	One step per turn.
+	3.	No proposing alternatives.
+	4.	No describing next steps in your own words.
+	5.	STOP and ask if anything is ambiguous.
+Now proceed with Step 3 scope:
+	1.	Run both SQL updates. Show me both rows after.
+	2.	Add is_admin to /api/auth/me payload and AuthUser interface.
+	3.	Add canAccessAdminDashboard flag to useAuth().
+	4.	Replace /admin landing component with new Admin Dashboard skeleton.
+	5.	Gate new dashboard on canAccessAdminDashboard.
+	6.	Build 5 empty placeholder sections: Today’s Command Center, System Issues, Chatbot Requests, Chatbot Usage Report, New Projects Monitor.
+	7.	Add “Admin Tools” nav strip at top of new dashboard linking to 4 existing sub-pages.
+	8.	Apply Executive Suite theme throughout.
+	9.	Add admin nav link in the global header that only renders when canAccessAdminDashboard === true.
+Do NOT:
+	•	Modify any /admin/* sub-routes or their components
+	•	Alter existing isAdmin logic or role === "admin" checks anywhere
+	•	Build any /api/admin/* endpoints
+	•	Populate placeholder sections with real data
+Acceptance criteria:
+	•	Haley (id=3) after SQL updates: sees admin nav link, accesses new dashboard, can click through “Admin Tools” strip to reach all 4 existing sub-pages.
+	•	test-admin (id=18) after SQL update: same access as Haley.
+	•	Any user with is_admin = false is redirected away from /admin.
+	•	Existing sub-routes /admin/audit, /admin/permissions, /admin/proposal-change-log, /admin/estimator-analytics function identically to before.
+Stop after Step 3. Wait for my approval before Step 4.
