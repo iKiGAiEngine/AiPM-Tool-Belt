@@ -831,6 +831,7 @@ export const users = pgTable("users", {
   dashboardScope: varchar("dashboard_scope", { length: 30 }).default("my_projects"),
   dashboardLayout: varchar("dashboard_layout", { length: 30 }).default("estimator"),
   assignedRegion: varchar("assigned_region", { length: 100 }),
+  isAdmin: boolean("is_admin").notNull().default(false),
 });
 
 export const insertUserSchema = createInsertSchema(users).omit({ id: true, createdAt: true, lastLoginAt: true });
@@ -953,10 +954,13 @@ export const proposalLogEntries = pgTable("proposal_log_entries", {
     notes?: string;
   }>>().default([]),
   duplicateOverrideNote: text("duplicate_override_note"),
+  estimatedStartDate: timestamp("estimated_start_date"),
+  estimatedEndDate: timestamp("estimated_end_date"),
+  statusChangedAt: timestamp("status_changed_at").notNull().defaultNow(),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
-export const insertProposalLogEntrySchema = createInsertSchema(proposalLogEntries).omit({ id: true, createdAt: true });
+export const insertProposalLogEntrySchema = createInsertSchema(proposalLogEntries).omit({ id: true, createdAt: true, statusChangedAt: true });
 export type InsertProposalLogEntry = z.infer<typeof insertProposalLogEntrySchema>;
 export type ProposalLogEntry = typeof proposalLogEntries.$inferSelect;
 
@@ -1547,3 +1551,82 @@ export const estimateActivityEvents = pgTable("estimate_activity_events", {
 export const insertEstimateActivityEventSchema = createInsertSchema(estimateActivityEvents).omit({ id: true, createdAt: true });
 export type InsertEstimateActivityEvent = z.infer<typeof insertEstimateActivityEventSchema>;
 export type EstimateActivityEvent = typeof estimateActivityEvents.$inferSelect;
+
+// Bytea custom type for binary file storage (matches existing template/quote pattern)
+const screenshotBytea = customType<{ data: Buffer; driverData: Buffer }>({
+  dataType() { return "bytea"; },
+});
+
+// === Admin Dashboard / Support Chatbot tables ===
+// New tables use UUID primary keys (varchar with gen_random_uuid default).
+// Foreign keys to users.id remain integer to match existing serial PK.
+
+// Feedback submissions (bug/suggestion/question/other) — populated via chatbot
+export const feedbackSubmissions = pgTable("feedback_submissions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: integer("user_id").notNull().references(() => users.id),
+  userEmail: text("user_email").notNull(),
+  submissionType: text("submission_type").notNull(),
+  title: text("title").notNull(),
+  description: text("description").notNull(),
+  conversationLog: jsonb("conversation_log").$type<Array<{ role: string; content: string; timestamp: string }>>().default([]),
+  pageUrl: text("page_url"),
+  status: text("status").notNull().default("new"),
+  priority: text("priority").notNull().default("medium"),
+  adminNotes: text("admin_notes"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  resolvedAt: timestamp("resolved_at"),
+});
+export const insertFeedbackSubmissionSchema = createInsertSchema(feedbackSubmissions).omit({ id: true, createdAt: true, updatedAt: true, resolvedAt: true });
+export type InsertFeedbackSubmission = z.infer<typeof insertFeedbackSubmissionSchema>;
+export type FeedbackSubmission = typeof feedbackSubmissions.$inferSelect;
+
+// Chat sessions — one per user-initiated chatbot conversation
+export const chatSessions = pgTable("chat_sessions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: integer("user_id").notNull().references(() => users.id),
+  startedAt: timestamp("started_at").notNull().defaultNow(),
+  endedAt: timestamp("ended_at"),
+  messages: jsonb("messages").$type<Array<{ role: string; content: string; timestamp: string }>>().default([]),
+  resultedInSubmissionId: varchar("resulted_in_submission_id").references(() => feedbackSubmissions.id),
+  topicCategory: text("topic_category"),
+});
+export const insertChatSessionSchema = createInsertSchema(chatSessions).omit({ id: true, startedAt: true });
+export type InsertChatSession = z.infer<typeof insertChatSessionSchema>;
+export type ChatSession = typeof chatSessions.$inferSelect;
+
+// Screenshots attached to chat sessions (and optionally finalized submissions)
+export const feedbackScreenshots = pgTable("feedback_screenshots", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  submissionId: varchar("submission_id").references(() => feedbackSubmissions.id),
+  sessionId: varchar("session_id").notNull().references(() => chatSessions.id),
+  fileData: screenshotBytea("file_data").notNull(),
+  mimeType: text("mime_type").notNull(),
+  fileSize: integer("file_size").notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+export const insertFeedbackScreenshotSchema = createInsertSchema(feedbackScreenshots).omit({ id: true, createdAt: true });
+export type InsertFeedbackScreenshot = z.infer<typeof insertFeedbackScreenshotSchema>;
+export type FeedbackScreenshot = typeof feedbackScreenshots.$inferSelect;
+
+// System errors — auto-captured by global error middleware + frontend reporter
+export const systemErrors = pgTable("system_errors", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  errorType: text("error_type").notNull(),
+  errorMessage: text("error_message").notNull(),
+  stackTrace: text("stack_trace"),
+  endpoint: text("endpoint"),
+  userId: integer("user_id").references(() => users.id),
+  pageUrl: text("page_url"),
+  metadata: jsonb("metadata").$type<Record<string, any>>().default({}),
+  occurrenceCount: integer("occurrence_count").notNull().default(1),
+  firstSeenAt: timestamp("first_seen_at").notNull().defaultNow(),
+  lastSeenAt: timestamp("last_seen_at").notNull().defaultNow(),
+  status: text("status").notNull().default("new"),
+  priority: text("priority").notNull().default("medium"),
+  adminNotes: text("admin_notes"),
+});
+export const insertSystemErrorSchema = createInsertSchema(systemErrors).omit({ id: true, firstSeenAt: true, lastSeenAt: true, occurrenceCount: true });
+export type InsertSystemError = z.infer<typeof insertSystemErrorSchema>;
+export type SystemError = typeof systemErrors.$inferSelect;
