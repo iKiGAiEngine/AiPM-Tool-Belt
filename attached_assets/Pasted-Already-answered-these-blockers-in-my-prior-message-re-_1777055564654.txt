@@ -1,0 +1,36 @@
+Already answered these blockers in my prior message — re-sending with explicit clarity.
+Blocker 1: Option B with clarification.
+Replace the component currently rendered at the /admin landing page with the new Admin Dashboard shell.
+Do NOT delete or modify:
+	•	/admin/audit (audit log sub-page) — stays intact
+	•	/admin/permissions (permissions sub-page) — stays intact
+	•	/admin/proposal-change-log (change log sub-page) — stays intact
+	•	/admin/estimator-analytics (estimator analytics sub-page) — stays intact
+	•	Any other existing /admin/* sub-route
+Only the /admin landing component changes. All existing sub-routes must continue to function exactly as they do today. If removing the old AdminPage component would break a sub-route, tell me BEFORE making any changes.
+Your phrasing “the user/role/audit features get dropped” was incorrect. They are not being dropped. Only the landing page rendered at exactly /admin is being replaced.
+Blocker 2: Option I, plus flip test-admin.
+	1.	Add is_admin (boolean) to the /api/auth/me response payload.
+	2.	Add is_admin to the AuthUser TypeScript interface.
+	3.	Gate the new admin dashboard strictly on user.is_admin === true.
+	4.	Do NOT alter or remove existing role === "admin" logic anywhere — it stays in place for existing admin sub-pages.
+	5.	Run UPDATE users SET is_admin = true WHERE id = 18; to flip test-admin@aipmapp.com so dev login keeps working. Show me the row after the update to confirm.
+Rules still in effect:
+	1.	Follow 12-step build order exactly. No reordering.
+	2.	One step per turn.
+	3.	No proposing alternatives.
+	4.	No describing next steps in your own words.
+	5.	STOP and ask if anything is ambiguous.
+Now proceed with Step 3 scope as defined:
+	1.	Replace /admin landing component with new Admin Dashboard skeleton.
+	2.	Gate strictly on user.is_admin === true.
+	3.	Build 5 empty placeholder sections: Today’s Command Center, System Issues, Chatbot Requests, Chatbot Usage Report, New Projects Monitor.
+	4.	Apply Executive Suite theme: black background, gold accents, Playfair Display for headers, Rajdhani for body.
+	5.	Add admin nav link that only renders when user.is_admin === true.
+Do NOT build any /api/admin/* endpoints. Do NOT build feedback/chat backend. Do NOT populate sections with real data.
+Acceptance criteria:
+	•	Haley (id=3) sees admin nav link → clicks → new dashboard loads with 5 placeholder sections.
+	•	test-admin (id=18) sees admin nav link and can access /admin after is_admin flip.
+	•	Any user with is_admin = false is redirected away from /admin.
+	•	Existing /admin/audit, /admin/permissions, /admin/proposal-change-log, /admin/estimator-analytics still function unchanged.
+Stop after Step 3. Wait for my approval before Step 4.
