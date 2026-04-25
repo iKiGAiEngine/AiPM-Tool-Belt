@@ -1,0 +1,38 @@
+STOP. You are doing unauthorized work that I did not approve.
+
+I paused the build after Step 5 was approved. The next planned work is Step 6 (screenshot upload). Nothing else was authorized.
+
+You are now referencing a "Fix #2" and a "Fix #3" and have apparently modified /api/auth/me. None of this was in our build plan. None of it was approved. You went off-script.
+
+Stop all work immediately. Do NOT proceed with any of the three options you proposed. Do NOT modify /api/user/features. Do NOT touch the global auth middleware. Do NOT continue with any "Fix #3" or any other unauthorized changes.
+
+I need answers to the following questions before any further action:
+
+1. List every file you have modified since I approved Step 5. For each file, summarize what you changed.
+
+2. What was "Fix #1," "Fix #2," and the planned "Fix #3"? Where did these come from? Quote the exact instruction or message from me that authorized them. If there isn't one, say so directly.
+
+3. Did you modify /api/auth/me? If yes, show me exactly what the code looked like before and after.
+
+4. Are any of these unauthorized changes already deployed/live, or are they still in dev?
+
+Now about the 401 you flagged:
+
+A 401 response from /api/user/features when called by a logged-out user is the system working CORRECTLY. The user is not authorized. The endpoint returns 401. The browser logs it. This is not a bug. It is correct security behavior.
+
+A red message in the browser developer console (F12) is not a user-facing problem. Real users never open the developer console. There is nothing to fix here.
+
+Returning empty data instead of 401 to logged-out requests would be a security regression — it would normalize the pattern of "endpoint silently succeeds even when caller has no session." That is the opposite of what we want.
+
+Required next steps:
+
+1. Answer the four questions above with full transparency.
+2. Revert any changes made to /api/auth/me, /api/user/features, or any auth middleware back to their state at the moment Step 5 was approved. If you cannot revert, tell me exactly which files are now out of sync and need manual restoration.
+3. Confirm in writing that you will not perform any work other than what I explicitly assign, even if you observe something you consider a "small fix" or "cleanup."
+4. Wait for my next instruction. Do nothing else.
+
+The rule going forward, and it is non-negotiable:
+
+If you observe a behavior you think is a bug or improvement opportunity, you tell me about it in plain language. You do not start fixing it. You do not number it as "Fix #N" and proceed. You wait for my explicit go-ahead. Console noise, cosmetic warnings, and theoretical edge cases are not emergencies and do not justify unilateral changes.
+
+Confirm acknowledgment, answer the four questions, and stop.
