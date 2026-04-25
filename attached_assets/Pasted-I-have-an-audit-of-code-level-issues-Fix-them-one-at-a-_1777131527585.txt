@@ -1,0 +1,26 @@
+I have an audit of code-level issues. Fix them one at a time in this exact order. After each fix, stop and wait for me to confirm before moving to the next one. Do NOT batch them.
+Rules for every fix:
+	•	Smallest possible change
+	•	Don’t refactor unrelated code
+	•	Don’t “improve” anything I didn’t ask about
+	•	Don’t touch styling, layout, or the Executive Suite theme
+	•	After the fix, tell me in plain English: (1) what file you changed, (2) what you changed, (3) how I verify it works from the UI or browser
+Fix #1 — Clean server shutdown (SIGTERM handler)
+In server/index.ts, add SIGTERM and SIGINT handlers that call httpServer.close() before the process exits, so the workflow doesn’t hit EADDRINUSE on restart. Don’t change any other server logic.
+Stop here and wait for me to say “next.”
+Fix #2 — Quiet the 401 on /api/auth/me
+The browser console prints a red 401 error on every page load when signed out. Change /api/auth/me to return 200 with { user: null } instead of 401 when there’s no session. Make sure any frontend code that checks the response still works correctly with the new shape (treat null user as logged-out). Don’t change auth behavior anywhere else.
+Stop here and wait for me to say “next.”
+Fix #3 — Dead guard on View Estimate button
+In client/src/pages/ProjectLogPage.tsx around line 1065, the guard viewTab !== "changes" is always true because viewTab is typed as "active" | "all" | "drafts" | "deleted". Figure out the original intent: is this guard supposed to hide the badge on a specific tab, or is it dead code? Tell me what you found before changing anything, then make the smallest fix.
+Stop here and wait for me to say “next.”
+Fix #4 — Replace window.location.href with router navigation
+Four spots use window.location.href = "..." and cause full page reloads. Swap each one for setLocation(...) from wouter:
+	•	client/src/pages/HomePage.tsx:611
+	•	client/src/pages/ProjectLogPage.tsx:202
+	•	client/src/pages/EstimatingModulePage.tsx:2382
+	•	client/src/pages/EstimatingModulePage.tsx:2494
+Only change those four lines (plus the wouter import if needed). Don’t touch anything else on those pages.
+Stop here and wait for me to say “smoke test.”
+Final smoke test (only when I say so)
+Restart the app and confirm: it starts cleanly with no port conflict, no new console errors, and these pages all load — Home, Project Log, Proposal Log, Buyout Tracker, Estimating Module, Dashboard. Report any issue before I touch anything.
