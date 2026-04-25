@@ -264,7 +264,7 @@ export function registerAuthRoutes(app: Express) {
         return res.status(401).json({ message: "Not authenticated" });
       }
 
-      res.json({ user: { id: user.id, email: user.email, role: user.role, displayName: user.displayName, initials: user.initials, username: user.username, dashboardScope: user.dashboardScope, dashboardLayout: user.dashboardLayout, assignedRegion: user.assignedRegion, mustChangePassword: user.mustChangePassword, isAdmin: user.isAdmin === true } });
+      res.json({ user: { id: user.id, email: user.email, role: user.role, displayName: user.displayName, initials: user.initials, username: user.username, dashboardScope: user.dashboardScope, dashboardLayout: user.dashboardLayout, assignedRegion: user.assignedRegion, mustChangePassword: user.mustChangePassword, is_admin: user.isAdmin === true } });
     } catch (error) {
       res.status(500).json({ message: "Failed to get user info" });
     }

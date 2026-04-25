@@ -10,7 +10,7 @@ interface AuthUser {
   initials?: string | null;
   username?: string | null;
   mustChangePassword?: boolean;
-  isAdmin?: boolean;
+  is_admin?: boolean;
 }
 
 interface AuthContextType {
@@ -65,7 +65,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         isLoading,
         isAuthenticated: !!user,
         isAdmin: user?.role === "admin",
-        canAccessAdminDashboard: user?.isAdmin === true,
+        canAccessAdminDashboard: user?.is_admin === true,
         mustChangePassword: !!user?.mustChangePassword,
         logout: () => logoutMutation.mutate(),
       }}

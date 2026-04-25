@@ -1,4 +1,4 @@
-import { Link } from "wouter";
+import { useLocation } from "wouter";
 import {
   ShieldCheck,
   ScrollText,
@@ -60,6 +60,48 @@ const SECTIONS = [
   },
 ];
 
+function AdminToolButton({
+  href,
+  label,
+  icon: Icon,
+  testId,
+}: {
+  href: string;
+  label: string;
+  icon: typeof ShieldCheck;
+  testId: string;
+}) {
+  const [, setLocation] = useLocation();
+  return (
+    <button
+      type="button"
+      data-testid={testId}
+      onClick={() => setLocation(href)}
+      className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-sm transition-colors focus:outline-none focus-visible:ring-1 focus-visible:ring-[var(--gold-light)]"
+      style={{
+        color: "#e6d8a8",
+        border: "1px solid transparent",
+        background: "transparent",
+        fontFamily: RAJDHANI,
+        cursor: "pointer",
+      }}
+      onMouseEnter={(e) => {
+        e.currentTarget.style.borderColor = "var(--border-gold)";
+        e.currentTarget.style.background = "rgba(168,137,46,0.08)";
+        e.currentTarget.style.color = "var(--gold-light)";
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.borderColor = "transparent";
+        e.currentTarget.style.background = "transparent";
+        e.currentTarget.style.color = "#e6d8a8";
+      }}
+    >
+      <Icon className="h-3.5 w-3.5" />
+      {label}
+    </button>
+  );
+}
+
 export default function AdminDashboardPage() {
   return (
     <div
@@ -110,30 +152,8 @@ export default function AdminDashboardPage() {
             Admin Tools
           </span>
           <div className="flex flex-wrap gap-1">
-            {ADMIN_TOOLS.map(({ href, label, icon: Icon, testId }) => (
-              <Link key={href} href={href} data-testid={testId}>
-                <a
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-sm transition-colors"
-                  style={{
-                    color: "#e6d8a8",
-                    border: "1px solid transparent",
-                    fontFamily: RAJDHANI,
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.borderColor = "var(--border-gold)";
-                    e.currentTarget.style.background = "rgba(168,137,46,0.08)";
-                    e.currentTarget.style.color = "var(--gold-light)";
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.borderColor = "transparent";
-                    e.currentTarget.style.background = "transparent";
-                    e.currentTarget.style.color = "#e6d8a8";
-                  }}
-                >
-                  <Icon className="h-3.5 w-3.5" />
-                  {label}
-                </a>
-              </Link>
+            {ADMIN_TOOLS.map((tool) => (
+              <AdminToolButton key={tool.href} {...tool} />
             ))}
           </div>
         </nav>

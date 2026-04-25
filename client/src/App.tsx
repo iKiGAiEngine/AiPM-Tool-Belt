@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { Switch, Route, useLocation } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
@@ -45,8 +46,13 @@ function AdminRoute({ component: Component }: { component: React.ComponentType }
 
 function AdminDashboardRoute({ component: Component }: { component: React.ComponentType }) {
   const { canAccessAdminDashboard, isLoading } = useAuth();
-  if (isLoading) return null;
-  if (!canAccessAdminDashboard) return <HomePage />;
+  const [, setLocation] = useLocation();
+  useEffect(() => {
+    if (!isLoading && !canAccessAdminDashboard) {
+      setLocation("/");
+    }
+  }, [isLoading, canAccessAdminDashboard, setLocation]);
+  if (isLoading || !canAccessAdminDashboard) return null;
   return <Component />;
 }
 
