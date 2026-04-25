@@ -1090,6 +1090,7 @@ export const mfrManufacturers = pgTable("mfr_manufacturers", {
   contactPhone: varchar("contact_phone", { length: 50 }),
   address: text("address"),
   notes: text("notes"),
+  scopes: text("scopes").array(),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });

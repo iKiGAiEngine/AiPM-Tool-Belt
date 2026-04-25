@@ -76,6 +76,7 @@ export function registerVendorDatabaseRoutes(app: Express) {
         contactPhone: req.body?.contactPhone || null,
         address: req.body?.address || null,
         notes: req.body?.notes || null,
+        scopes: Array.isArray(req.body?.scopes) ? req.body.scopes : null,
       }).returning();
       res.status(201).json(row);
     } catch (err: any) {
@@ -138,6 +139,7 @@ export function registerVendorDatabaseRoutes(app: Express) {
       if (req.body?.contactPhone !== undefined) updates.contactPhone = req.body.contactPhone || null;
       if (req.body?.address !== undefined) updates.address = req.body.address || null;
       if (req.body?.notes !== undefined) updates.notes = req.body.notes || null;
+      if (req.body?.scopes !== undefined) updates.scopes = Array.isArray(req.body.scopes) ? req.body.scopes : null;
       const [row] = await db.update(mfrManufacturers).set(updates).where(eq(mfrManufacturers.id, id)).returning();
       if (!row) return res.status(404).json({ message: "Not found" });
       // Sync the cached `mfr` text on line items so display stays in sync after rename

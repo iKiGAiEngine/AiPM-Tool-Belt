@@ -12,7 +12,7 @@ import {
 
 // ---- Types ----
 interface MfrContact { id: number; vendorId: number; name: string | null; role: string | null; email: string | null; phone: string | null; territory: string | null; isPrimary: boolean | null; notes: string | null; }
-interface MfrManufacturerRow { id: number; name: string; website?: string | null; primaryContact?: string | null; contactEmail?: string | null; contactPhone?: string | null; address?: string | null; notes?: string | null; }
+interface MfrManufacturerRow { id: number; name: string; website?: string | null; primaryContact?: string | null; contactEmail?: string | null; contactPhone?: string | null; address?: string | null; notes?: string | null; scopes?: string[] | null; }
 interface MfrProduct { id: number; vendorId: number; model: string | null; description: string | null; csiCode: string | null; listPrice: string | null; unit: string | null; notes: string | null; }
 interface MfrPricing { discountTier: string | null; paymentTerms: string | null; notes: string | null; }
 interface MfrLogistics { avgLeadTimeDays: number | null; shipsFrom: string | null; freightNotes: string | null; }
@@ -23,7 +23,7 @@ interface MfrVendorSummary { id: number; name: string; category: string | null; 
 interface MfrVendorFull extends MfrVendorSummary { notes: string | null; contacts: MfrContact[]; products: MfrProduct[]; pricing: MfrPricing | null; logistics: MfrLogistics | null; taxInfo: MfrTaxInfo | null; certs: MfrResaleCert[]; files: MfrFile[]; }
 interface DashboardData { totalVendors: number; w9OnFile: number; w9Missing: number; certsTotal: number; certsSent: number; certsConfirmed: number; certsExpiring: number; certsExpired: number; certsNotSent: number; vendorsNoCerts: { id: number; name: string }[]; }
 
-const CATEGORIES = ["Toilet Accessories", "Partitions", "Lockers", "Appliances", "Plumbing Fixtures", "Fire Protection", "Division 10 Specialties", "Doors & Hardware", "Signage", "Postal Specialties", "Visual Display", "Flagpoles", "Other"];
+const CATEGORIES = ["Toilet Accessories", "Partitions", "Lockers", "Appliances", "Fire Protection", "Postal Specialties", "Visual Display Units", "Flagpoles", "Other"];
 
 // Scope tags for contacts. Mirrors ALL_SCOPES in EstimatingModulePage so contacts
 // can be tagged with the scope category they cover for RFQ recipient picking.
@@ -277,6 +277,87 @@ function ManufacturerTagPicker({ manufacturers, selectedIds, onChange }: { manuf
               {m.name}
             </button>
           ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ---- Suggested Manufacturers (for Add Vendor flow, based on scope-tag overlap) ----
+function SuggestedManufacturersPanel({
+  allMfrs,
+  vendorScopes,
+  selectedIds,
+  onAdd,
+  onRemove,
+}: {
+  allMfrs: MfrManufacturerRow[];
+  vendorScopes: string[];
+  selectedIds: number[];
+  onAdd: (id: number) => void;
+  onRemove: (id: number) => void;
+}) {
+  const suggestions = useMemo(() => {
+    if (vendorScopes.length === 0) return [];
+    const scopeSet = new Set(vendorScopes);
+    return allMfrs
+      .map(m => {
+        const mScopes = m.scopes || [];
+        const overlap = mScopes.filter(s => scopeSet.has(s));
+        return { mfr: m, overlap };
+      })
+      .filter(x => x.overlap.length > 0)
+      .sort((a, b) => b.overlap.length - a.overlap.length || a.mfr.name.localeCompare(b.mfr.name));
+  }, [allMfrs, vendorScopes]);
+
+  if (vendorScopes.length === 0) {
+    return (
+      <div style={{ padding: 12, borderRadius: 6, border: "1px dashed var(--border-ds)", background: "var(--bg-card)", fontSize: 12, color: "var(--text-dim)", marginBottom: 12 }} data-testid="panel-suggested-mfrs-empty">
+        Pick scope tags above to see suggested manufacturers for this vendor.
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ padding: 12, borderRadius: 6, border: "1px solid var(--border-ds)", background: "var(--bg-card)", marginBottom: 12 }} data-testid="panel-suggested-mfrs">
+      <div style={{ fontSize: 12, fontWeight: 700, color: "var(--text-primary)", marginBottom: 8, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <span>Suggested Manufacturers</span>
+        <span style={{ fontSize: 11, fontWeight: 400, color: "var(--text-dim)" }}>{suggestions.length} match{suggestions.length === 1 ? "" : "es"}</span>
+      </div>
+      {suggestions.length === 0 ? (
+        <div style={{ fontSize: 12, color: "var(--text-dim)" }}>
+          No manufacturers tagged with these scopes yet. Tag manufacturers in the Manufacturers tab to see them here.
+        </div>
+      ) : (
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+          {suggestions.map(({ mfr, overlap }) => {
+            const isSelected = selectedIds.includes(mfr.id);
+            return (
+              <button
+                key={mfr.id}
+                type="button"
+                onClick={() => isSelected ? onRemove(mfr.id) : onAdd(mfr.id)}
+                title={`Matches: ${overlap.join(", ")}`}
+                style={{
+                  padding: "4px 10px",
+                  borderRadius: 14,
+                  fontSize: 11,
+                  fontWeight: 600,
+                  cursor: "pointer",
+                  background: isSelected ? "rgba(76,175,125,0.15)" : "transparent",
+                  border: isSelected ? "1px solid rgba(76,175,125,0.5)" : "1px solid var(--border-ds)",
+                  color: isSelected ? "#4CAF7D" : "var(--text-secondary)",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 4,
+                }}
+                data-testid={`suggested-mfr-${mfr.id}`}
+              >
+                {isSelected ? "✓ " : "+ "}{mfr.name}
+                <span style={{ fontSize: 10, opacity: 0.7 }}>({overlap.length})</span>
+              </button>
+            );
+          })}
         </div>
       )}
     </div>
@@ -945,7 +1026,9 @@ export default function VendorDatabasePage() {
   const [categoryFilter, setCategoryFilter] = useState("");
   const [showAddVendor, setShowAddVendor] = useState(false);
   const [showExcelUpload, setShowExcelUpload] = useState(false);
-  const [newVendor, setNewVendor] = useState({ name: "", category: "", website: "", notes: "" });
+  const [newVendor, setNewVendor] = useState({ name: "", category: "", website: "", notes: "", scopes: [] as string[], manufacturerIds: [] as number[] });
+
+  const { data: allMfrs = [] } = useQuery<MfrManufacturerRow[]>({ queryKey: ["/api/mfr/manufacturers"] });
 
   const { data: vendorsRaw, isLoading } = useQuery<MfrVendorSummary[]>({
     queryKey: ["/api/mfr/vendors", search, categoryFilter],
@@ -985,7 +1068,7 @@ export default function VendorDatabasePage() {
       }
       qc.invalidateQueries({ queryKey: ["/api/mfr/vendors"] });
       setShowAddVendor(false);
-      setNewVendor({ name: "", category: "", website: "", notes: "" });
+      setNewVendor({ name: "", category: "", website: "", notes: "", scopes: [], manufacturerIds: [] });
       setSelectedVendorId(v.id);
       toast({ title: "Vendor created" });
     } catch (e: any) {
@@ -1097,7 +1180,19 @@ export default function VendorDatabasePage() {
                 <Field label="Category"><InpSelect value={newVendor.category} onChange={(v) => setNewVendor({ ...newVendor, category: v })} options={CATEGORIES} /></Field>
                 <Field label="Website"><InpText value={newVendor.website} onChange={(v) => setNewVendor({ ...newVendor, website: v })} placeholder="https://" /></Field>
               </div>
-              <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+              <div style={{ marginBottom: 12 }}>
+                <Field label="Scope Tags (which scope categories this vendor covers)">
+                  <ScopeTagPicker selected={newVendor.scopes} onChange={(s) => setNewVendor({ ...newVendor, scopes: s })} />
+                </Field>
+              </div>
+              <SuggestedManufacturersPanel
+                allMfrs={allMfrs}
+                vendorScopes={newVendor.scopes}
+                selectedIds={newVendor.manufacturerIds}
+                onAdd={(id) => setNewVendor({ ...newVendor, manufacturerIds: [...newVendor.manufacturerIds, id] })}
+                onRemove={(id) => setNewVendor({ ...newVendor, manufacturerIds: newVendor.manufacturerIds.filter(x => x !== id) })}
+              />
+              <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 12 }}>
                 <Btn label="Cancel" onClick={() => setShowAddVendor(false)} />
                 <Btn label="Create Vendor" variant="gold" onClick={createVendor} />
               </div>
@@ -1163,9 +1258,9 @@ export default function VendorDatabasePage() {
 }
 
 // ---- Manufacturers Tab ----
-interface MfrStatRow { id: number; name: string; website: string | null; primaryContact: string | null; contactEmail: string | null; contactPhone: string | null; address: string | null; notes: string | null; vendorCount: number; lineItemCount: number; approvedCount: number; }
+interface MfrStatRow { id: number; name: string; website: string | null; primaryContact: string | null; contactEmail: string | null; contactPhone: string | null; address: string | null; notes: string | null; scopes: string[] | null; vendorCount: number; lineItemCount: number; approvedCount: number; }
 
-const EMPTY_MFR_FORM = { name: "", website: "", primaryContact: "", contactEmail: "", contactPhone: "", address: "", notes: "" };
+const EMPTY_MFR_FORM = { name: "", website: "", primaryContact: "", contactEmail: "", contactPhone: "", address: "", notes: "", scopes: [] as string[] };
 
 function ManufacturersTab() {
   const { toast } = useToast();
@@ -1253,7 +1348,7 @@ function ManufacturersTab() {
   const openEdit = (m: MfrStatRow) => {
     setModalMode("edit");
     setModalId(m.id);
-    setMfrForm({ name: m.name, website: m.website || "", primaryContact: m.primaryContact || "", contactEmail: m.contactEmail || "", contactPhone: m.contactPhone || "", address: m.address || "", notes: m.notes || "" });
+    setMfrForm({ name: m.name, website: m.website || "", primaryContact: m.primaryContact || "", contactEmail: m.contactEmail || "", contactPhone: m.contactPhone || "", address: m.address || "", notes: m.notes || "", scopes: m.scopes || [] });
     setModalOpen(true);
   };
 
@@ -1373,6 +1468,9 @@ function ManufacturersTab() {
               </Field>
               <Field label="Notes">
                 <textarea style={{ ...inputStyleLocal, minHeight: 72, resize: "vertical" }} value={mfrForm.notes} onChange={(e) => setMfrForm({ ...mfrForm, notes: e.target.value })} placeholder="Internal notes…" data-testid="input-mfr-notes" />
+              </Field>
+              <Field label="Scope Tags (which scope categories this manufacturer makes products for)">
+                <ScopeTagPicker selected={mfrForm.scopes} onChange={(s) => setMfrForm({ ...mfrForm, scopes: s })} />
               </Field>
             </div>
             <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 20 }}>
