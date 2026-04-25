@@ -30,6 +30,7 @@ import { registerEstimateRoutes } from "./estimateRoutes";
 import { registerEstimateAnalyticsRoutes } from "./estimateAnalyticsRoutes";
 import { registerScopeManufacturerRoutes } from "./scopeManufacturerRoutes";
 import { registerErrorRoutes } from "./errorRoutes";
+import { registerChatRoutes } from "./chatRoutes";
 import { auditLog } from "./auditService";
 import { db } from "./db";
 import { users as usersTable } from "@shared/schema";
@@ -75,6 +76,7 @@ export async function registerRoutes(
 
   registerAuthRoutes(app);
   registerErrorRoutes(app);
+  registerChatRoutes(app);
 
   // Get current user's feature access
   app.get("/api/user/features", async (req: Request, res: Response) => {

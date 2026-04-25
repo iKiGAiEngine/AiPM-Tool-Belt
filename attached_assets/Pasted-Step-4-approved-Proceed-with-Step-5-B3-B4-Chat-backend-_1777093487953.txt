@@ -1,0 +1,159 @@
+Step 4 approved. Proceed with Step 5: B3 + B4 — Chat backend with OpenAI integration.
+
+This step makes the chatbot real. The frontend widget already exists from Step 4. This step adds the backend API endpoints, the OpenAI integration, conversation persistence to the database, and replaces the hardcoded reply with real AI responses.
+
+Reuse the existing OpenAI integration pattern from existing AiPM tools (Spec Extractor, Schedule Converter, Quote Extraction). Use GPT-4o-mini. Reuse the OPENAI_API_KEY secret. Do NOT install Anthropic SDK or any new AI packages.
+
+Build scope:
+
+1. Backend endpoint: POST /api/chat/message
+
+Receives from frontend:
+{
+sessionId: string | null,
+message: string,
+pageUrl: string | null,
+hasScreenshot: boolean
+}
+
+Behavior:
+
+- If sessionId is null or not found in chat_sessions table, create a new chat_sessions row with user_id from the authenticated session and started_at = now. Return the new sessionId.
+- If sessionId exists, load the existing chat_sessions row.
+- Append the new user message to chat_sessions.messages as { role: “user”, content: message, timestamp: now }
+- Call OpenAI API (GPT-4o-mini) with:
+  - The system prompt (defined below)
+  - The full conversation history from chat_sessions.messages
+- Append the AI’s response to chat_sessions.messages as { role: “assistant”, content: reply, timestamp: now }
+- Persist updated chat_sessions row
+- Parse AI response for a <submit>…</submit> block. If found, extract the JSON inside and return as submissionDraft.
+
+Returns to frontend:
+{
+reply: string,
+sessionId: string,
+shouldSubmit: boolean,
+submissionDraft: { type, title, description, priority } | null
+}
+
+Authentication required: must use the existing auth middleware. Reject unauthenticated requests with 401.
+
+1. System prompt for OpenAI
+
+Use this exact system prompt:
+
+You are the AiPM Support Assistant, an AI helper inside the AiPM platform (a custom project management tool for National Building Specialties, a Division 10 specialty subcontractor).
+
+Your three jobs:
+
+1. COLLECT FEEDBACK — bug reports, feature suggestions, or complaints
+1. ANSWER HOW-TO QUESTIONS — using general reasoning since SOP content is not yet available
+1. ANSWER BID/PROPOSAL QUESTIONS — only from information the user tells you (you do NOT have access to the bid database)
+
+How to decide which job:
+Read the user’s first message. If unclear, ask: “Is this a bug report, a feature suggestion, or a how-to question?”
+
+Rules for collecting feedback:
+
+- Ask ONE clarifying question at a time
+- For bugs, always ask for: (1) what page they were on, (2) what they were trying to do, (3) what happened vs. what they expected, (4) a screenshot (tell them to paste with Ctrl+V)
+- For suggestions, ask: (1) what problem does this solve, (2) how often does it come up, (3) any examples
+- When you have enough info, summarize in 2-3 sentences and ask: “Ready to submit this to Haley?”
+- On confirmation, respond with a JSON block wrapped in <submit> tags:
+  <submit>
+  {
+  “type”: “bug” | “suggestion” | “question” | “other”,
+  “title”: “Short summary under 80 chars”,
+  “description”: “Full details with all context”,
+  “priority”: “low” | “medium” | “high”
+  }
+  </submit>
+
+Rules for answering how-to questions:
+
+- You do NOT have access to company SOPs yet
+- For any AiPM-specific or NBS-specific how-to question (like “how do I mark a bid awarded” or “what’s our OH&P split”), respond: “I don’t have an SOP for that yet. Want me to log this as a question for Haley?”
+- For general construction industry questions, you may answer from general knowledge with a note like “This is general industry info, not NBS-specific.”
+- Keep answers short and step-by-step
+
+Rules for bid/proposal questions:
+
+- You do NOT have direct access to bid data
+- If user asks about a specific bid, ask them to paste the relevant info (PV number, status, dates)
+- Help them interpret what they paste, but don’t invent data
+
+Tone:
+
+- Professional but warm, like a helpful coworker
+- Industry fluency OK: PV#, OH&P, buyout, submittal, Div 10, CSI, WIP
+- Never condescending
+
+Priority levels:
+
+- high: blocks user from working, data loss, security issue
+- medium: annoying but has workaround
+- low: nice-to-have, cosmetic
+
+1. Frontend updates to SupportChatWidget.tsx
+
+Replace the hardcoded reply behavior with real API calls:
+
+- On send, POST to /api/chat/message with the message, current sessionId from sessionStorage, and pageUrl (window.location.pathname)
+- Show typing indicator while waiting for response
+- On response: append AI reply to message list, update sessionId in sessionStorage if it changed
+- If shouldSubmit is true, the frontend should display the AI’s summary message (already in the reply text) but do NOT yet wire up the actual submit button — submission flow is Step 7. For now, just render the message normally; the user’s “yes, submit” reply will be a regular message that the AI handles.
+- On API error (network failure, 500, etc.), show a friendly error message in the chat: “Sorry, I had trouble responding. Please try again.”
+- Disable the send button while a request is in flight
+
+1. Database persistence
+
+Use the existing chat_sessions table from Step 1. The messages column is jsonb — store as an array of { role, content, timestamp } objects.
+
+1. OpenAI configuration
+
+- Model: gpt-4o-mini
+- Temperature: 0.7 (slightly conversational but not too random)
+- Max tokens per response: 500 (enough for a paragraph + clarifying question, not enough to ramble)
+- Set a 30-second timeout on the OpenAI call
+
+If OpenAI is rate-limited or errors out, return a 503 response with a generic error message. The frontend shows the error message in the chat.
+
+Do NOT:
+
+- Build the submit flow (POST /api/chat/submit). That’s Step 7.
+- Build screenshot upload. That’s Step 6.
+- Build any admin endpoints.
+- Build SOP retrieval (we decided to skip this entirely).
+- Add topic categorization yet. That’s Step 11.
+- Build email notifications. That’s part of Step 7.
+
+Mandatory testing rule still in effect:
+
+Before reporting back, you MUST verify in the live app at mobile viewport (375px wide):
+
+1. Open chat, send a message, confirm a real OpenAI reply comes back (not the hardcoded “I’ll be fully connected” text)
+1. Verify the conversation persists across panel close/reopen and across page refresh (sessionStorage on the frontend, chat_sessions table on the backend)
+1. Send a bug report flow: “I have a bug” → AI asks clarifying questions → user provides answers → AI eventually wraps it in a <submit> JSON block. Confirm the JSON parses correctly server-side.
+1. Send a how-to flow: “How do I create a new project?” → AI should respond with the “I don’t have an SOP for that yet” pattern.
+1. Send a general construction question: “What does CSI 10 28 00 mean?” → AI should answer from general knowledge with the “general industry info, not NBS-specific” disclaimer.
+1. Verify chat_sessions rows are being created and updated in the database — query and show me one example row showing user message + assistant reply in the messages array.
+1. Confirm the OpenAI request fires (you can see this in your server logs).
+
+Document each verification step in your response with what you actually saw.
+
+Files expected to change:
+
+- New: server/chatRoutes.ts (or similar) — the POST /api/chat/message endpoint
+- New: server/chatService.ts (or similar) — the OpenAI integration logic
+- Edit: server/routes.ts — register the new chat routes
+- Edit: client/src/components/SupportChatWidget.tsx — replace hardcoded reply with API call
+
+Rules still in effect:
+
+1. Follow 12-step build order exactly.
+1. One step per turn.
+1. No proposing alternatives.
+1. No describing next steps in your own words.
+1. STOP and ask if anything is ambiguous.
+
+Stop after Step 5 is reported and verified. Wait for my approval before Step 6.

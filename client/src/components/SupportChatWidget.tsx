@@ -7,8 +7,8 @@ const RAJDHANI = "'Rajdhani', sans-serif";
 
 const GREETING =
   "Hi! I'm the AiPM Support Assistant. I can help you with three things: reporting bugs, suggesting features, or answering how-to questions. What can I help you with?";
-const HARDCODED_REPLY =
-  "Thanks for your message. I'll be fully connected in the next build step.";
+const ERROR_REPLY =
+  "Sorry, I had trouble responding. Please try again.";
 
 const SESSION_ID_KEY = "aipm-chat-session-id";
 const MESSAGES_KEY = "aipm-chat-messages";
@@ -112,7 +112,7 @@ export function SupportChatWidget() {
     }
   }, [open, mounted]);
 
-  const handleSend = () => {
+  const handleSend = async () => {
     const text = inputText.trim();
     if (!text || isTyping) return;
     const userMsg: ChatMessage = {
@@ -124,16 +124,53 @@ export function SupportChatWidget() {
     setMessages((prev) => [...prev, userMsg]);
     setInputText("");
     setIsTyping(true);
-    window.setTimeout(() => {
+    try {
+      const res = await fetch("/api/chat/message", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          sessionId: sessionIdRef.current,
+          message: text,
+          pageUrl: typeof window !== "undefined" ? window.location.pathname : null,
+          hasScreenshot: false,
+        }),
+      });
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}`);
+      }
+      const data = (await res.json()) as {
+        reply: string;
+        sessionId: string;
+        shouldSubmit: boolean;
+        submissionDraft: unknown;
+      };
+      if (data.sessionId && data.sessionId !== sessionIdRef.current) {
+        sessionIdRef.current = data.sessionId;
+        try {
+          sessionStorage.setItem(SESSION_ID_KEY, data.sessionId);
+        } catch {
+          /* ignore */
+        }
+      }
       const aiMsg: ChatMessage = {
         id: newId(),
         role: "assistant",
-        text: HARDCODED_REPLY,
+        text: data.reply || ERROR_REPLY,
         ts: Date.now(),
       };
       setMessages((prev) => [...prev, aiMsg]);
+    } catch (err) {
+      const aiMsg: ChatMessage = {
+        id: newId(),
+        role: "assistant",
+        text: ERROR_REPLY,
+        ts: Date.now(),
+      };
+      setMessages((prev) => [...prev, aiMsg]);
+    } finally {
       setIsTyping(false);
-    }, 1000);
+    }
   };
 
   const handlePaste = (e: React.ClipboardEvent<HTMLInputElement>) => {
