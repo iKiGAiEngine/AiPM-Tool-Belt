@@ -200,6 +200,8 @@ export function Header() {
             </span>
           </Link>
 
+          {user && <SupportChatWidget />}
+
           {activeToolRoute && (
             <>
               <div className="h-5 w-px" style={{ background: "var(--border-ds)" }} />
@@ -273,7 +275,6 @@ export function Header() {
               </Button>
             </Link>
           )}
-          {user && <SupportChatWidget />}
           <NotificationBell />
           <ThemeToggle />
           <div className="flex items-center gap-1">
