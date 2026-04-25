@@ -16,6 +16,7 @@ import { useFeatureAccess } from "@/hooks/use-feature-access";
 import { cn } from "@/lib/utils";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { NotificationBell } from "@/components/NotificationBell";
+import { SupportChatWidget } from "@/components/SupportChatWidget";
 import { useToast } from "@/hooks/use-toast";
 import type { Project } from "@shared/schema";
 
@@ -272,6 +273,7 @@ export function Header() {
               </Button>
             </Link>
           )}
+          {user && <SupportChatWidget />}
           <NotificationBell />
           <ThemeToggle />
           <div className="flex items-center gap-1">

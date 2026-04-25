@@ -1,0 +1,50 @@
+Copy-paste reply starts here:
+Step 3 approved. All 8 admin tool sub-routes load and function correctly. Edit dialog confirmed working.
+Proceed with Step 4: B1 — Chat Widget UI with hardcoded replies.
+Reference the build spec for full B1 details. Specifically:
+Placement:
+	•	Add a chat bubble icon in the top navigation row (Header.tsx)
+	•	Positioned between the Users icon (line 271) and the NotificationBell icon (line 275)
+	•	Use MessageCircle icon from lucide-react
+	•	Match the existing gold tone and icon sizing of other nav icons
+	•	Only render the icon when user is authenticated
+On click:
+	•	Open a slide-in panel from the right side of the screen
+	•	400px wide on desktop, full-width on mobile
+	•	Full viewport height
+	•	Executive Suite theme: black background, gold accents, Playfair Display for headers, Rajdhani for body
+	•	Header: “AiPM Support” title with a close (X) button on the right
+	•	Body: scrollable chat message area
+	•	Footer: text input field + send button + paperclip icon for screenshot paste
+Hardcoded behavior (no API calls in this step):
+	•	When the panel opens for the first time, show a hardcoded greeting message from the AI: “Hi! I’m the AiPM Support Assistant. I can help you with three things: reporting bugs, suggesting features, or answering how-to questions. What can I help you with?”
+	•	When the user types a message and hits send, show the user’s message in a gold-tinted right-aligned bubble
+	•	After 1-second delay, show a hardcoded AI response: “Thanks for your message. I’ll be fully connected in the next build step.” in a dark-tinted left-aligned bubble
+	•	Include a typing indicator (three pulsing dots) during the 1-second delay
+	•	Auto-scroll to bottom on new message
+Other requirements:
+	•	Persist sessionId in sessionStorage (generate a new one when panel first opens, reuse on refresh)
+	•	Clipboard paste handler in input field — for THIS step, just log the paste event to console; actual upload is Step 6
+	•	Close button collapses the panel; reopening it preserves the conversation
+Do NOT:
+	•	Make any API calls
+	•	Build any backend endpoints
+	•	Connect to OpenAI
+	•	Build screenshot upload (that’s Step 6)
+	•	Build the submit flow (that’s Step 7)
+	•	Build any database persistence for sessions yet
+Acceptance criteria:
+	•	Chat bubble icon visible in nav between Users and Notifications icons (only when logged in)
+	•	Click icon → panel slides in from right
+	•	Greeting message displays automatically
+	•	Type a message, hit send → user message appears, typing indicator shows for 1 second, hardcoded AI reply appears
+	•	Close button collapses panel
+	•	Reopen panel → previous messages still visible
+	•	Refreshing the browser → previous messages still visible (sessionStorage)
+Rules still in effect:
+	1.	Follow 12-step build order exactly.
+	2.	One step per turn.
+	3.	No proposing alternatives.
+	4.	No describing next steps in your own words.
+	5.	STOP and ask if anything is ambiguous.
+Stop after Step 4 is reported. Wait for my approval before Step 5.
