@@ -221,7 +221,7 @@ function UserFormDialog({
   );
 }
 
-export default function AdminPage() {
+export function AdminUsersSection() {
   const { toast } = useToast();
   const [formOpen, setFormOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
@@ -355,25 +355,9 @@ export default function AdminPage() {
   };
 
   return (
-    <div className="min-h-[calc(100vh-4rem)] bg-background">
-      <div className="max-w-5xl mx-auto px-6 py-8">
-        <div className="mb-8">
-          <div className="flex items-center justify-between gap-4 flex-wrap mb-2">
-            <div className="flex items-center gap-3">
-              <Link href="/">
-                <Button variant="ghost" size="icon" data-testid="button-back-home">
-                  <ArrowLeft className="w-4 h-4" />
-                </Button>
-              </Link>
-              <Shield className="w-5 h-5" style={{ color: "var(--gold)" }} />
-              <h1 className="text-2xl font-heading font-semibold text-foreground">Admin Dashboard</h1>
-            </div>
-          </div>
-          <p className="text-muted-foreground ml-12">Manage users, profiles, and access control.</p>
-        </div>
-
-        {/* Logs & Audit Center — Admin Only */}
-        <Card className="card-accent-bar mb-6">
+    <>
+      {/* Logs & Audit Center — Admin Only (legacy link strip; the new /admin dashboard owns this surface) */}
+      <Card className="card-accent-bar mb-6 hidden">
           <div className="p-4 border-b">
             <div className="flex items-center gap-2">
               <FileText className="w-4 h-4" style={{ color: "var(--gold)" }} />
@@ -637,9 +621,6 @@ export default function AdminPage() {
             </Table>
           </div>
         </Card>
-      </div>
-
-      <BackupRestoreSection />
 
       {formOpen && (
         <UserFormDialog
@@ -651,11 +632,11 @@ export default function AdminPage() {
           editUser={editingUser}
         />
       )}
-    </div>
+    </>
   );
 }
 
-function BackupRestoreSection() {
+export function BackupRestoreSection() {
   const { toast } = useToast();
   const [downloading, setDownloading] = useState(false);
   const [restoreFile, setRestoreFile] = useState<File | null>(null);

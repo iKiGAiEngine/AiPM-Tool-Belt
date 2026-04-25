@@ -1,0 +1,32 @@
+Step 3 is NOT approved. There’s a regression I need fixed before moving on.
+The old AdminPage component had inline functionality that wasn’t behind separate routes. When you replaced the component, this functionality became inaccessible from the UI:
+	1.	User Management — the user list with Add User, Edit User, Delete All Inactive, Set Temp Password for All. This was the primary user-management surface.
+	2.	Feature Access — control which tools each user can access.
+	3.	Database Backup / Restore — Download Backup, table count display, Select Backup File for restore.
+	4.	Changelog — app version history.
+The data is still in the database. Only the UI surfaces are gone. Restore them.
+Approach: Option 2 — extract each into its own sub-route.
+For each missing tool, create a new sub-route that renders the original UI, then add it to the Admin Tools strip on the new dashboard.
+Specifically:
+	•	Create /admin/users — renders the original user-management UI (Add User, Edit, Delete Inactive, Set Temp Password, the user table)
+	•	Create /admin/feature-access — renders the original Feature Access UI
+	•	Create /admin/backup — renders the original Database Backup / Restore UI
+	•	Create /admin/changelog — renders the original Changelog UI
+These should reuse the existing component code from the old AdminPage, just split into separate routes. Do NOT rewrite the functionality — extract the existing JSX and logic into individual page components.
+Update the Admin Tools strip on the new /admin dashboard to include all 8 sub-route links:
+	•	Users
+	•	Feature Access
+	•	Audit Log (existing)
+	•	Permissions (existing)
+	•	Proposal Change Log (existing)
+	•	Estimator Analytics (existing)
+	•	Database Backup
+	•	Changelog
+Use the same gating as the existing sub-routes (role === "admin").
+Do NOT change anything in the new dashboard’s 5 placeholder sections (Command Center, System Issues, Chatbot Requests, Chatbot Usage Report, New Projects Monitor). They stay as placeholders.
+Acceptance criteria:
+	•	All previously-working admin functionality from the old AdminPage is reachable from the new dashboard’s Admin Tools strip.
+	•	Visiting each sub-route shows the same UI it would have shown before Step 3.
+	•	New dashboard’s 5 placeholder sections remain unchanged.
+When done, give me the updated Step 3 report listing what files changed and the full list of working sub-routes. I will manually re-test as Haley.
+Stop after these fixes are applied. Wait for my approval before Step 4.

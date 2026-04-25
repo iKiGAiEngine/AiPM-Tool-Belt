@@ -23,8 +23,9 @@ import LoginPage from "@/pages/LoginPage";
 import ForgotPasswordPage from "@/pages/ForgotPasswordPage";
 import ResetPasswordPage from "@/pages/ResetPasswordPage";
 import ForcePasswordChangePage from "@/pages/ForcePasswordChangePage";
-import AdminPage from "@/pages/AdminPage";
 import AdminDashboardPage from "@/pages/AdminDashboardPage";
+import AdminUsersPage from "@/pages/AdminUsersPage";
+import AdminBackupPage from "@/pages/AdminBackupPage";
 import AuditLogPage from "@/pages/AuditLogPage";
 import SubmittalBuilderPage from "@/submittal-builder/SubmittalBuilderPage";
 import VendorDatabasePage from "@/pages/VendorDatabasePage";
@@ -79,10 +80,14 @@ function Router() {
       <Route path="/schedule-converter" component={ScheduleConverterPage} />
       <Route path="/spec-extractor" component={SpecExtractorPage} />
       <Route path="/admin">{() => <AdminDashboardRoute component={AdminDashboardPage} />}</Route>
+      <Route path="/admin/users">{() => <AdminRoute component={AdminUsersPage} />}</Route>
+      <Route path="/admin/feature-access">{() => <AdminRoute component={AdminUserPermissionsPage} />}</Route>
       <Route path="/admin/audit">{() => <AdminRoute component={AuditLogPage} />}</Route>
       <Route path="/admin/permissions">{() => <AdminRoute component={AdminUserPermissionsPage} />}</Route>
       <Route path="/admin/proposal-change-log">{() => <AdminRoute component={ProposalChangeLogPage} />}</Route>
       <Route path="/admin/estimator-analytics">{() => <AdminRoute component={AdminEstimatorAnalyticsPage} />}</Route>
+      <Route path="/admin/backup">{() => <AdminRoute component={AdminBackupPage} />}</Route>
+      <Route path="/admin/changelog">{() => <AdminRoute component={ChangelogPage} />}</Route>
       <Route path="/changelog">{() => <AdminRoute component={ChangelogPage} />}</Route>
       <Route path="/submittal-builder" component={SubmittalBuilderPage} />
       <Route path="/vendor-database" component={VendorDatabasePage} />

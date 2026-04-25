@@ -10,16 +10,23 @@ import {
   Activity,
   FolderPlus,
   LayoutDashboard,
+  KeyRound,
+  HardDrive,
+  BookOpen,
 } from "lucide-react";
 
 const PLAYFAIR = "'Playfair Display', serif";
 const RAJDHANI = "'Rajdhani', sans-serif";
 
 const ADMIN_TOOLS = [
+  { href: "/admin/users", label: "Users", icon: Users, testId: "link-admin-tool-users" },
+  { href: "/admin/feature-access", label: "Feature Access", icon: KeyRound, testId: "link-admin-tool-feature-access" },
   { href: "/admin/audit", label: "Audit Log", icon: ScrollText, testId: "link-admin-tool-audit" },
-  { href: "/admin/permissions", label: "Permissions", icon: Users, testId: "link-admin-tool-permissions" },
+  { href: "/admin/permissions", label: "Permissions", icon: ShieldCheck, testId: "link-admin-tool-permissions" },
   { href: "/admin/proposal-change-log", label: "Proposal Change Log", icon: ClipboardList, testId: "link-admin-tool-proposal-change-log" },
   { href: "/admin/estimator-analytics", label: "Estimator Analytics", icon: BarChart3, testId: "link-admin-tool-estimator-analytics" },
+  { href: "/admin/backup", label: "Database Backup", icon: HardDrive, testId: "link-admin-tool-backup" },
+  { href: "/admin/changelog", label: "Changelog", icon: BookOpen, testId: "link-admin-tool-changelog" },
 ];
 
 const SECTIONS = [
