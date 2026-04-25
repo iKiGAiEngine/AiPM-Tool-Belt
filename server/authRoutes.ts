@@ -255,13 +255,13 @@ export function registerAuthRoutes(app: Express) {
     try {
       const userId = (req.session as any)?.userId;
       if (!userId) {
-        return res.status(401).json({ message: "Not authenticated" });
+        return res.json({ user: null });
       }
 
       const [user] = await db.select().from(users).where(eq(users.id, userId));
       if (!user || !user.isActive) {
         (req.session as any).userId = null;
-        return res.status(401).json({ message: "Not authenticated" });
+        return res.json({ user: null });
       }
 
       res.json({ user: { id: user.id, email: user.email, role: user.role, displayName: user.displayName, initials: user.initials, username: user.username, dashboardScope: user.dashboardScope, dashboardLayout: user.dashboardLayout, assignedRegion: user.assignedRegion, mustChangePassword: user.mustChangePassword, is_admin: user.isAdmin === true } });
