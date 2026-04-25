@@ -1440,12 +1440,12 @@ function ManufacturersTab() {
       {/* Add / Edit Manufacturer Modal */}
       {modalOpen && (
         <div onClick={() => setModalOpen(false)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
-          <div onClick={(e) => e.stopPropagation()} style={{ background: "var(--bg-elev)", border: "1px solid var(--border-ds)", borderRadius: 10, padding: 24, width: "100%", maxWidth: 560 }} data-testid="modal-mfr-form">
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+          <div onClick={(e) => e.stopPropagation()} style={{ background: "var(--bg-card)", border: "1px solid var(--border-ds)", borderRadius: 10, padding: 24, width: "100%", maxWidth: 560, maxHeight: "90vh", display: "flex", flexDirection: "column" }} data-testid="modal-mfr-form">
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20, flexShrink: 0 }}>
               <div style={{ fontSize: 15, fontWeight: 700, color: "var(--text-primary)" }}>{modalMode === "add" ? "Add Manufacturer" : "Edit Manufacturer"}</div>
               <button onClick={() => setModalOpen(false)} style={{ background: "none", border: "none", color: "var(--text-dim)", cursor: "pointer" }}><X size={16} /></button>
             </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 12, overflowY: "auto", flex: 1, minHeight: 0, paddingRight: 4 }}>
               <Field label="Name *">
                 <input style={inputStyleLocal} value={mfrForm.name} onChange={(e) => setMfrForm({ ...mfrForm, name: e.target.value })} placeholder="e.g. Bobrick Washroom Equipment" autoFocus data-testid="input-mfr-name" />
               </Field>
