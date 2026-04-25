@@ -60,6 +60,7 @@ function newId(): string {
 
 export function SupportChatWidget() {
   const [open, setOpen] = useState(false);
+  const [mounted, setMounted] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>(() => loadMessages());
   const [inputText, setInputText] = useState("");
   const [isTyping, setIsTyping] = useState(false);
@@ -85,8 +86,13 @@ export function SupportChatWidget() {
       }
       return prev;
     });
-    setOpen(true);
-    setTimeout(() => inputRef.current?.focus(), 250);
+    setMounted(true);
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        setOpen(true);
+        setTimeout(() => inputRef.current?.focus(), 250);
+      });
+    });
   };
 
   useEffect(() => {
@@ -94,10 +100,17 @@ export function SupportChatWidget() {
   }, [messages]);
 
   useEffect(() => {
-    if (scrollRef.current) {
+    if (mounted && open && scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
-  }, [messages, isTyping, open]);
+  }, [messages, isTyping, open, mounted]);
+
+  useEffect(() => {
+    if (mounted && !open) {
+      const t = window.setTimeout(() => setMounted(false), 320);
+      return () => window.clearTimeout(t);
+    }
+  }, [open, mounted]);
 
   const handleSend = () => {
     const text = inputText.trim();
@@ -149,6 +162,7 @@ export function SupportChatWidget() {
         <MessageCircle className="h-4 w-4" />
       </Button>
 
+      {mounted && (
       <div
         className={`fixed top-0 right-0 h-screen z-50 w-full sm:w-[400px] transition-transform duration-300 ease-in-out ${
           open ? "translate-x-0" : "translate-x-full"
@@ -274,10 +288,10 @@ export function SupportChatWidget() {
               title="Paste a screenshot (coming soon)"
               data-testid="button-support-chat-paperclip"
               onClick={handlePaperclipClick}
-              style={{ color: "#e6d8a8" }}
-              className="shrink-0"
+              style={{ color: "#C9A84C" }}
+              className="shrink-0 h-11 w-11"
             >
-              <Paperclip className="h-4 w-4" />
+              <Paperclip className="h-5 w-5" />
             </Button>
             <input
               ref={inputRef}
@@ -286,11 +300,11 @@ export function SupportChatWidget() {
               onChange={(e) => setInputText(e.target.value)}
               onPaste={handlePaste}
               placeholder="Type your message..."
-              className="flex-1 px-3 py-2 text-sm rounded-md outline-none"
+              className="flex-1 h-11 px-3 text-sm rounded-md outline-none placeholder:text-[#8A8A9A] focus:ring-2 focus:ring-[#C9A84C]/40"
               style={{
-                background: "rgba(255,255,255,0.04)",
-                border: "1px solid var(--border-gold)",
-                color: "#f5f5f5",
+                background: "#1C1C22",
+                border: "1px solid #C9A84C",
+                color: "#E8E8EC",
                 fontFamily: RAJDHANI,
               }}
               data-testid="input-support-chat-message"
@@ -300,18 +314,21 @@ export function SupportChatWidget() {
               size="icon"
               disabled={!inputText.trim() || isTyping}
               data-testid="button-support-chat-send"
-              className="shrink-0"
+              className="shrink-0 h-11 w-11 disabled:opacity-100"
               style={{
-                background:
-                  "linear-gradient(180deg, var(--gold), var(--gold-dim))",
+                background: !inputText.trim() || isTyping
+                  ? "linear-gradient(180deg, #8B6E2A, #5A4715)"
+                  : "linear-gradient(180deg, #C9A84C, #8B6E2A)",
                 color: "#000",
+                border: "1px solid #8B6E2A",
               }}
             >
-              <Send className="h-4 w-4" />
+              <Send className="h-5 w-5" />
             </Button>
           </form>
         </div>
       </div>
+      )}
     </>
   );
 }

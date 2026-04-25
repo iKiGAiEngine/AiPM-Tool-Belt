@@ -1,0 +1,60 @@
+Step 4 still has 2 visual bugs that need fixing before approval. Both are CSS issues confirmed by the user on mobile.
+
+Bug 1: Input field area is visually empty.
+
+User reports: “I don’t see where I’d type a message” and confirms “I see a bottom row but it looks empty.”
+
+The input row is rendering (DOM-wise) but the user cannot see its contents. Likely causes:
+
+- Input field background and border are too close to panel background color (input invisible against panel)
+- Placeholder text is missing or set to a color that blends with input background
+- Send button and paperclip icon are styled in a color that disappears against the input row background
+- Input field has color: transparent or similar regression
+
+Required fix:
+
+1. Input field must have a visibly distinct background from the panel - use AiPM’s standard input field styling (look at how other AiPM forms render text inputs, e.g., in the user-management page or the proposal log filters)
+1. Input field must have a visible border (gold or AiPM’s standard input border)
+1. Add visible placeholder text: placeholder=“Type your message…”
+1. Placeholder text color must have sufficient contrast - use AiPM’s standard muted text color
+1. Send button must be clearly visible - use a gold-gradient or solid gold button with contrasting text/icon, matching how other primary action buttons in AiPM look
+1. Paperclip icon must have a visible color (gold, matching other inline icons in the chat header)
+1. Verify on mobile viewport (375px width) that all three elements are visible and properly sized for touch targets (minimum 44px height)
+
+Bug 2: Panel does not fully hide when closed.
+
+User reports: “If it’s collapsed, if I move the screen to the right, I can see it trying to hide on that side of the screen.”
+
+The slide-out animation moves the panel off the viewport but the panel still exists in the layout, causing horizontal scroll/overflow. The user can scroll right and see the closed panel sitting just off-screen.
+
+Required fix:
+
+1. After the slide-out animation completes, the panel must be fully removed from the visual layout (use display: none, visibility: hidden, or unmount the panel from the DOM)
+1. The body and main page container must have overflow-x: hidden to prevent any phantom horizontal scrolling
+1. Verify on mobile that scrolling right does NOT reveal the closed panel
+
+Recommended approach: use a state like isAnimatingOut - when user clicks close, run the slide animation, then on animation end set the panel to display: none (or unmount it). When user reopens, mount it first, then run the slide-in animation.
+
+Mandatory testing rule still in effect:
+
+Before reporting back, you MUST:
+
+1. Open the live app on a mobile viewport (375px wide, simulated in Playwright or dev tools)
+1. Click the chat icon - verify panel opens
+1. Verify the input field, paperclip, and send button are clearly visible with their colors documented
+1. Type a test message and confirm it sends correctly
+1. Close the panel - verify it disappears completely
+1. Scroll right on the page - verify the closed panel cannot be seen anywhere
+
+Document each verification step in your response with what you actually saw. Do not report success unless you visually confirmed each step.
+
+Do NOT:
+
+- Move forward to Step 5
+- Touch any file outside SupportChatWidget.tsx
+- Add new functionality
+- Change icon placement or panel architecture
+
+Files to change: only SupportChatWidget.tsx and possibly global CSS for overflow-x: hidden on body if needed.
+
+Stop after these fixes and report back.
