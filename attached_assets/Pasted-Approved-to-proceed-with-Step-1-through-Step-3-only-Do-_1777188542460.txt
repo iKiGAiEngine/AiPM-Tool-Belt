@@ -1,0 +1,82 @@
+Approved to proceed with Step 1 through Step 3 only.
+
+Do not run git pull.
+Do not run git push.
+Do not apply the stash.
+Do not redeploy.
+Do not modify production.
+Do not run a database migration.
+Do not change auth/session/login behavior.
+Do not modify ManufacturerCombo behavior.
+Do not build Group-by-Vendor in this pass.
+Do not clean up Group-by-Vendor code in this pass.
+
+Approved scope:
+
+Step 1:
+Add the read-only endpoint:
+GET /api/estimates/:id/scopes/:scope/rfq-used-vendor-ids
+
+Purpose:
+Return vendor IDs previously used for RFQs on this estimate and active scope by matching rfq_log.recipient_emails to mfr_contacts.email and then mfr_contacts.vendor_id.
+
+Rules:
+- No schema changes.
+- No migrations.
+- Read-only query only.
+- Must be behind the existing authenticated API flow.
+- Must return JSON.
+- Must fail safely with an empty list if no matches.
+
+Step 2:
+Update the Open RFQ vendor picker only.
+
+Default order:
+1. Vendors previously used for RFQs on this estimate + active scope
+2. Vendors tagged for the active scope
+3. Vendors linked/tagged to the relevant manufacturer IDs from selected line items
+4. Other vendors only when “Show all vendors” is enabled
+
+Within each group, sort alphabetically by vendor name.
+
+Default view:
+Only show groups 1–3.
+
+Add:
+- “Show all vendors” toggle
+- Count of hidden vendors, if simple
+- Helper text explaining the sort order
+
+Search behavior:
+- By default, search only within the filtered list.
+- When Show all vendors is enabled, search all vendors.
+
+Step 3:
+Add a simple search field to the Per-Manufacturer RFQ Recipient Picker.
+
+Rules:
+- Keep the existing scope eligibility filter.
+- Search should only visually filter displayed vendors/contacts.
+- Do not change which contacts are pre-selected.
+- Do not change send behavior.
+
+Testing required:
+1. Restart workflow if needed after server route addition.
+2. Confirm login still works.
+3. Confirm POST /api/auth/login still returns JSON.
+4. Confirm the new rfq-used-vendor-ids endpoint returns JSON.
+5. Confirm Estimating Module opens.
+6. Confirm Open RFQ in Toilet Accessories does not show unrelated vendors by default.
+7. Confirm Show all vendors reveals the full vendor list.
+8. Confirm search works in filtered mode.
+9. Confirm search works in Show all vendors mode.
+10. Confirm Per-Manufacturer Recipient Picker search works without changing pre-checked contacts.
+
+After implementation, return:
+- Files changed
+- Summary of changes
+- Test results
+- Any issues
+- Whether a future rfq_log.vendor_id improvement is still recommended
+
+Do not proceed beyond Step 3 without approval.

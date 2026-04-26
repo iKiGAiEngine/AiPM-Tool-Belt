@@ -580,6 +580,13 @@ function EstimatingModuleInner() {
   const [openRfqSelectedItemIds, setOpenRfqSelectedItemIds] = useState<Set<string>>(new Set());
   const [openRfqExtraNotes, setOpenRfqExtraNotes] = useState("");
   const [openRfqSentVendorKeys, setOpenRfqSentVendorKeys] = useState<Set<string>>(new Set());
+  // Scope-aware default vendor filter for Open RFQ. Off = show only ranks A/B/C
+  // (RFQ-used + scope-tagged + relevant-mfr-tagged). On = show every vendor in DB.
+  const [openRfqShowAll, setOpenRfqShowAll] = useState(false);
+  // Visual-only search inside the Per-Manufacturer RFQ Recipient Picker.
+  const [rfqPickerSearch, setRfqPickerSearch] = useState("");
+  // Reset the picker's visual search whenever the picker opens for a different manufacturer (or closes).
+  useEffect(() => { setRfqPickerSearch(""); }, [rfqPickerMfr]);
 
   // ── RFQ response date overrides (per scope) and log expansion ──
   const [responseNeededByByCat, setResponseNeededByByCat] = useState<Record<string, string>>({});
@@ -2029,7 +2036,15 @@ ${html}
   });
 
   // Vendors list (for Open RFQ ad-hoc picker). Loaded on demand when modal opens.
-  type VendorListItem = { id: number; name: string; category?: string | null; manufacturerDirect?: boolean | null };
+  // Includes scopes / manufacturerIds tag arrays so the picker can rank by relevance.
+  type VendorListItem = {
+    id: number;
+    name: string;
+    category?: string | null;
+    manufacturerDirect?: boolean | null;
+    scopes?: string[] | null;
+    manufacturerIds?: number[] | null;
+  };
   const { data: allVendorsForRfq = [] } = useQuery<VendorListItem[]>({
     queryKey: ["/api/mfr/vendors", "open-rfq-list"],
     queryFn: async () => {
@@ -2038,6 +2053,22 @@ ${html}
       return res.json();
     },
     enabled: showOpenRfq,
+  });
+
+  // Vendor IDs previously used for an RFQ on this estimate + active scope.
+  // Used to give those vendors top priority (rank A) in the Open RFQ picker.
+  const { data: rfqUsedVendorIdsList = [] } = useQuery<number[]>({
+    queryKey: ["/api/estimates", estimateId, "scopes", activeCat, "rfq-used-vendor-ids"],
+    queryFn: async () => {
+      if (!estimateId || !activeCat) return [];
+      const res = await fetch(
+        `/api/estimates/${estimateId}/scopes/${encodeURIComponent(activeCat)}/rfq-used-vendor-ids`,
+        { credentials: "include" }
+      );
+      if (!res.ok) return [];
+      return res.json();
+    },
+    enabled: !!estimateId && !!activeCat,
   });
 
   // Selected vendors' full records (with contacts), loaded when picked in Open RFQ.
@@ -6601,6 +6632,25 @@ ${html}
           setRfqPickerMfr(null);
         };
         const catLabel = ALL_SCOPES.find(s => s.id === activeCat)?.label || activeCat;
+        // Visual-only search filter: narrows which vendors/contacts are *displayed*.
+        // Does NOT change `groups`, `allEligibleIds`, `allChecked`, `toggleAll`, `toggleGroup`,
+        // or `selectedEmails` — pre-checked contacts and send behavior are unaffected.
+        // The per-vendor "select all" checkbox always operates on the FULL group
+        // (`original.contacts`), never on the search-filtered subset, so toggling
+        // a vendor row during a search still reflects every contact for that vendor.
+        const pickerSearchLower = rfqPickerSearch.trim().toLowerCase();
+        const visibleGroups: { original: typeof groups[number]; visibleContacts: typeof groups[number]["contacts"] }[] = pickerSearchLower
+          ? groups.flatMap(g => {
+              if (g.vendorName.toLowerCase().includes(pickerSearchLower)) return [{ original: g, visibleContacts: g.contacts }];
+              const matchingContacts = g.contacts.filter(c =>
+                (c.name || "").toLowerCase().includes(pickerSearchLower) ||
+                (c.email || "").toLowerCase().includes(pickerSearchLower)
+              );
+              return matchingContacts.length > 0 ? [{ original: g, visibleContacts: matchingContacts }] : [];
+            })
+          : groups.map(g => ({ original: g, visibleContacts: g.contacts }));
+        const visibleContactCount = visibleGroups.reduce((n, vg) => n + vg.visibleContacts.length, 0);
+        const totalContactCount = groups.reduce((n, g) => n + g.contacts.length, 0);
         return (
           <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: "rgba(0,0,0,0.6)" }}
             onClick={e => { if (e.target === e.currentTarget) setRfqPickerMfr(null); }}>
@@ -6620,15 +6670,31 @@ ${html}
                 </div>
               ) : (
                 <>
-                  <div className="flex items-center justify-between mt-3 mb-2">
+                  <input
+                    value={rfqPickerSearch}
+                    onChange={e => setRfqPickerSearch(e.target.value)}
+                    placeholder="Filter vendors or contacts by name/email…"
+                    className="w-full text-xs p-2 rounded mt-3"
+                    style={{ background: "var(--bg3)", border: "1px solid var(--border-ds)", color: "var(--text)" }}
+                    data-testid="input-rfq-picker-search"
+                  />
+                  <div className="flex items-center justify-between mt-2 mb-2">
                     <label className="flex items-center gap-2 text-xs cursor-pointer" style={{ color: "var(--text-secondary)" }}>
                       <input type="checkbox" checked={allChecked} ref={el => { if (el) el.indeterminate = someChecked && !allChecked; }} onChange={toggleAll} style={{ accentColor: "var(--gold)" }} />
                       Select all ({allEligibleIds.length})
                     </label>
-                    <span className="text-xs" style={{ color: "var(--text-muted)" }}>{rfqSelectedContactIds.size} selected</span>
+                    <span className="text-xs" style={{ color: "var(--text-muted)" }}>
+                      {pickerSearchLower
+                        ? <>Showing {visibleContactCount} of {totalContactCount} contact{totalContactCount === 1 ? "" : "s"} · {rfqSelectedContactIds.size} selected</>
+                        : <>{rfqSelectedContactIds.size} selected</>}
+                    </span>
                   </div>
                   <div className="overflow-y-auto rounded" style={{ background: "var(--bg3)", border: "1px solid var(--border-ds)", flex: 1 }}>
-                    {groups.map(g => {
+                    {visibleGroups.length === 0 && (
+                      <div className="p-3 text-xs" style={{ color: "var(--text-muted)" }} data-testid="text-rfq-picker-no-match">No vendors or contacts match.</div>
+                    )}
+                    {visibleGroups.map(({ original: g, visibleContacts }) => {
+                      // Selection logic always uses the FULL group, not the search subset.
                       const groupIds = g.contacts.map(c => c.id);
                       const groupAll = groupIds.every(id => rfqSelectedContactIds.has(id));
                       const groupSome = groupIds.some(id => rfqSelectedContactIds.has(id));
@@ -6640,9 +6706,9 @@ ${html}
                               {g.vendorName}
                               {g.manufacturerDirect && <span style={{ fontSize: 9, fontWeight: 700, padding: "1px 6px", borderRadius: 3, background: "rgba(91,141,239,0.15)", color: "#5B8DEF" }} title="Manufacturer Direct" data-testid={`badge-direct-picker-${g.vendorId}`}>DIRECT</span>}
                             </label>
-                            <span className="text-[10px]" style={{ color: "var(--text-muted)" }}>{g.contacts.length} contact{g.contacts.length === 1 ? "" : "s"}</span>
+                            <span className="text-[10px]" style={{ color: "var(--text-muted)" }}>{visibleContacts.length === g.contacts.length ? `${g.contacts.length} contact${g.contacts.length === 1 ? "" : "s"}` : `${visibleContacts.length} of ${g.contacts.length} shown`}</span>
                           </div>
-                          {g.contacts.map(c => (
+                          {visibleContacts.map(c => (
                             <label key={c.id} className="flex items-center gap-3 px-5 py-2 cursor-pointer hover:bg-[var(--bg-card)]" style={{ borderTop: "1px solid var(--border-ds)20" }} data-testid={`row-rfq-contact-${c.id}`}>
                               <input type="checkbox" checked={rfqSelectedContactIds.has(c.id)} onChange={() => toggleOne(c.id)} style={{ accentColor: "var(--gold)" }} />
                               <div style={{ flex: 1, minWidth: 0 }}>
@@ -6863,18 +6929,50 @@ ${html}
           if (oneTimeName) sendTargets = [{ vendorName: oneTimeName, emails: oneTimeEmail ? [oneTimeEmail] : [] }];
         }
 
-        // Filter the searchable existing-vendor list
+        // ── Vendor relevance ranking for the existing-vendor picker ──
+        // A) RFQ-used for this estimate+scope, B) tagged for active scope,
+        // C) tagged to a manufacturer that appears on the user's selected line items
+        // (or all line items in this scope if nothing is checked yet), D) other.
+        // Default view shows only A/B/C; "Show all vendors" reveals D.
+        const rfqUsedVendorIdsSet = new Set<number>(rfqUsedVendorIdsList);
+        const mfrIdSource = selectedItems.length > 0 ? selectedItems : catLineItems;
+        const relevantMfrIds = new Set<number>(
+          mfrIdSource
+            .map((i: any) => i?.manufacturerId)
+            .filter((id: any): id is number => typeof id === "number" && id > 0)
+        );
+        const rankVendor = (v: VendorListItem): 1 | 2 | 3 | 4 => {
+          if (rfqUsedVendorIdsSet.has(v.id)) return 1;
+          if (Array.isArray(v.scopes) && v.scopes.includes(activeCat)) return 2;
+          if (
+            relevantMfrIds.size > 0 &&
+            Array.isArray(v.manufacturerIds) &&
+            v.manufacturerIds.some(id => relevantMfrIds.has(id))
+          ) return 3;
+          return 4;
+        };
+
         const vendorSearchLower = openRfqVendorSearch.trim().toLowerCase();
         const baseVendors = openRfqOnlyDirect
           ? allVendorsForRfq.filter(v => !!v.manufacturerDirect)
           : allVendorsForRfq;
-        const sortedBaseVendors = [...baseVendors].sort((a, b) => {
-          if (!!a.manufacturerDirect !== !!b.manufacturerDirect) return a.manufacturerDirect ? -1 : 1;
-          return a.name.localeCompare(b.name);
+        const ranked = baseVendors.map(v => ({ v, rank: rankVendor(v) }));
+        const visibleByRank = openRfqShowAll ? ranked : ranked.filter(r => r.rank <= 3);
+        const sortedRanked = [...visibleByRank].sort((a, b) => {
+          if (a.rank !== b.rank) return a.rank - b.rank;
+          if (!!a.v.manufacturerDirect !== !!b.v.manufacturerDirect) return a.v.manufacturerDirect ? -1 : 1;
+          return a.v.name.localeCompare(b.v.name);
         });
-        const filteredVendors = vendorSearchLower
-          ? sortedBaseVendors.filter(v => v.name.toLowerCase().includes(vendorSearchLower)).slice(0, 50)
-          : sortedBaseVendors.slice(0, 50);
+        const searchedRanked = vendorSearchLower
+          ? sortedRanked.filter(r => r.v.name.toLowerCase().includes(vendorSearchLower))
+          : sortedRanked;
+        const filteredVendors = searchedRanked.slice(0, 50).map(r => r.v);
+        const hiddenByRank = openRfqShowAll ? 0 : ranked.filter(r => r.rank === 4).length;
+        const rankCountsVisible = {
+          a: visibleByRank.filter(r => r.rank === 1).length,
+          b: visibleByRank.filter(r => r.rank === 2).length,
+          c: visibleByRank.filter(r => r.rank === 3).length,
+        };
 
         const dueDate = effectiveDueDate(activeCat);
         const shipTo = buildShipToBlock();
@@ -6990,11 +7088,29 @@ ${html}
                       <input
                         value={openRfqVendorSearch}
                         onChange={e => setOpenRfqVendorSearch(e.target.value)}
-                        placeholder="Search vendor by name…"
+                        placeholder={openRfqShowAll ? "Search all vendors by name…" : "Search relevant vendors by name…"}
                         className="w-full text-xs p-2 rounded mb-2"
                         style={{ background: "var(--bg3)", border: "1px solid var(--border-ds)", color: "var(--text)" }}
                         data-testid="input-open-rfq-vendor-search"
                       />
+                      <p className="text-[10px] mb-2" style={{ color: "var(--text-muted)" }} data-testid="text-open-rfq-sort-help">
+                        Sorted by: previously used → scope-tagged → manufacturer-tagged{openRfqShowAll ? " → other" : ""}.
+                      </p>
+                      <label className="flex items-center gap-1.5 text-xs cursor-pointer mb-2" style={{ color: "var(--text-secondary)" }}>
+                        <input
+                          type="checkbox"
+                          checked={openRfqShowAll}
+                          onChange={() => setOpenRfqShowAll(v => !v)}
+                          style={{ accentColor: "var(--gold)" }}
+                          data-testid="toggle-open-rfq-show-all"
+                        />
+                        Show all vendors
+                        {!openRfqShowAll && hiddenByRank > 0 && (
+                          <span className="text-[10px]" style={{ color: "var(--text-muted)" }} data-testid="text-open-rfq-hidden-count">
+                            ({hiddenByRank} hidden)
+                          </span>
+                        )}
+                      </label>
                       <label className="flex items-center gap-1.5 text-xs cursor-pointer mb-2" style={{ color: "var(--text-secondary)" }}>
                         <input
                           type="checkbox"

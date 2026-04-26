@@ -1,12 +1,12 @@
 import type { Express, Request, Response } from "express";
 import { db } from "./db";
-import { eq, and, desc } from "drizzle-orm";
+import { eq, and, desc, sql } from "drizzle-orm";
 import {
   estimates, estimateLineItems, estimateQuotes, estimateBreakoutGroups,
   estimateBreakoutAllocations, estimateVersions, estimateReviewComments, ohApprovalLog,
   proposalLogEntries, estimateSpecSections, users,
   vendorQuoteLineItems, vendorQuoteToEstimateLineItemMap,
-  mfrManufacturers,
+  mfrManufacturers, mfrContacts,
   rfqLog, insertRfqLogSchema,
 } from "@shared/schema";
 import OpenAI from "openai";
@@ -311,6 +311,48 @@ export function registerEstimateRoutes(app: Express) {
       res.json(rows);
     } catch (e: any) {
       res.status(500).json({ message: e?.message || "Failed to load RFQ log" });
+    }
+  });
+
+  // GET — vendor IDs previously used for RFQs on this estimate + scope.
+  // Joins rfq_log.recipient_emails (text[]) ↔ mfr_contacts.email (case-insensitive)
+  // ↔ mfr_contacts.vendor_id. Read-only; returns [] safely when no matches.
+  app.get("/api/estimates/:id/scopes/:scope/rfq-used-vendor-ids", async (req: Request, res: Response) => {
+    try {
+      const estimateId = parseInt(req.params.id);
+      const scopeId = String(req.params.scope || "");
+      if (isNaN(estimateId) || !scopeId) {
+        return res.status(400).json({ message: "Valid estimateId and scope required" });
+      }
+
+      const logRows = await db
+        .select({ recipientEmails: rfqLog.recipientEmails })
+        .from(rfqLog)
+        .where(and(eq(rfqLog.estimateId, estimateId), eq(rfqLog.scopeId, scopeId)));
+
+      const emails = new Set<string>();
+      for (const row of logRows) {
+        for (const e of (row.recipientEmails || [])) {
+          const v = (e || "").trim().toLowerCase();
+          if (v) emails.add(v);
+        }
+      }
+
+      if (emails.size === 0) return res.json([]);
+
+      const emailArr = Array.from(emails);
+      const matched = await db
+        .select({ vendorId: mfrContacts.vendorId })
+        .from(mfrContacts)
+        .where(sql`LOWER(TRIM(${mfrContacts.email})) = ANY(${emailArr}::text[])`);
+
+      const vendorIds = Array.from(new Set(matched.map(r => r.vendorId).filter((v): v is number => typeof v === "number")));
+      res.json(vendorIds);
+    } catch (err: any) {
+      // Best-effort priority signal — fail safely with [] so the UI just falls back
+      // to scope-tag / mfr-tag rank ordering instead of breaking the picker.
+      console.error("[rfq-used-vendor-ids GET]", err);
+      res.json([]);
     }
   });
 
