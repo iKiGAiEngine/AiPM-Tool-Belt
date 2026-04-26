@@ -583,6 +583,10 @@ function EstimatingModuleInner() {
   // Scope-aware default vendor filter for Open RFQ. Off = show only ranks A/B/C
   // (RFQ-used + scope-tagged + relevant-mfr-tagged). On = show every vendor in DB.
   const [openRfqShowAll, setOpenRfqShowAll] = useState(false);
+  // ── New Vendor Quote vendor picker (mobile-friendly, scope-aware) ──
+  // Same A/B/C ranking as Open RFQ; D (other) hidden behind toggle.
+  const [showAllVendorsInQuote, setShowAllVendorsInQuote] = useState(false);
+  const [vendorSuggestionsOpen, setVendorSuggestionsOpen] = useState(false);
   // Visual-only search inside the Per-Manufacturer RFQ Recipient Picker.
   const [rfqPickerSearch, setRfqPickerSearch] = useState("");
   // Reset the picker's visual search whenever the picker opens for a different manufacturer (or closes).
@@ -2052,7 +2056,8 @@ ${html}
       if (!res.ok) return [];
       return res.json();
     },
-    enabled: showOpenRfq,
+    // Loaded for both the Open RFQ picker AND the New Vendor Quote vendor picker.
+    enabled: showOpenRfq || showNewQuote,
   });
 
   // Vendor IDs previously used for an RFQ on this estimate + active scope.
@@ -2070,6 +2075,23 @@ ${html}
     },
     enabled: !!estimateId && !!activeCat,
   });
+
+  // ── Scope-aware vendor ranking helper (shared by Open RFQ + New Vendor Quote picker) ──
+  // 1) RFQ-used for this estimate+scope, 2) tagged for active scope,
+  // 3) tagged to a manufacturer relevant to the user's items, 4) other.
+  const rankVendorByScope = (
+    v: VendorListItem,
+    opts: { rfqUsedSet: Set<number>; scope: string; relevantMfrSet: Set<number> }
+  ): 1 | 2 | 3 | 4 => {
+    if (opts.rfqUsedSet.has(v.id)) return 1;
+    if (Array.isArray(v.scopes) && v.scopes.includes(opts.scope)) return 2;
+    if (
+      opts.relevantMfrSet.size > 0 &&
+      Array.isArray(v.manufacturerIds) &&
+      v.manufacturerIds.some(id => opts.relevantMfrSet.has(id))
+    ) return 3;
+    return 4;
+  };
 
   // Selected vendors' full records (with contacts), loaded when picked in Open RFQ.
   const selectedVendorIdList = useMemo(() => Array.from(openRfqExistingVendorIds), [openRfqExistingVendorIds]);
@@ -3617,11 +3639,78 @@ ${html}
                   <div className="mt-3 p-3 rounded-lg" style={{ background: "var(--bg3)", border: "1px dashed #a855f740" }}>
                     <p className="text-xs font-semibold mb-2" style={{ color: "var(--text-secondary)" }}>New Vendor Quote</p>
                     <div className="grid grid-cols-3 gap-3 mb-3">
-                      <div className="flex flex-col gap-1">
+                      <div className="flex flex-col gap-1" style={{ position: "relative" }}>
                         <label className="text-xs font-medium" style={{ color: "var(--text-muted)" }}>Vendor Name</label>
-                        <input data-testid="input-quote-vendor" value={newQuote.vendor} onChange={e => setNewQuote(p => ({ ...p, vendor: e.target.value }))}
-                          placeholder="e.g. Acme Supply Co." className="text-xs px-2 py-1.5 rounded"
+                        <input data-testid="input-quote-vendor" value={newQuote.vendor}
+                          onChange={e => { setNewQuote(p => ({ ...p, vendor: e.target.value })); setVendorSuggestionsOpen(true); }}
+                          onFocus={() => setVendorSuggestionsOpen(true)}
+                          onBlur={() => { setTimeout(() => setVendorSuggestionsOpen(false), 150); }}
+                          autoComplete="off"
+                          placeholder="Search vendors or type new…" className="text-xs px-2 py-1.5 rounded"
                           style={{ background: "var(--bg2)", border: "1px solid var(--border-ds)", color: "var(--text)" }} />
+                        {vendorSuggestionsOpen && (() => {
+                          const rfqUsedSet = new Set<number>(rfqUsedVendorIdsList);
+                          const relevantMfrSet = new Set<number>(
+                            catLineItems
+                              .map(i => i.manufacturerId)
+                              .filter((id): id is number => typeof id === "number" && id > 0)
+                          );
+                          const ranked = allVendorsForRfq.map(v => ({
+                            v,
+                            rank: rankVendorByScope(v, { rfqUsedSet, scope: activeCat, relevantMfrSet }),
+                          }));
+                          const visibleByRank = showAllVendorsInQuote ? ranked : ranked.filter(r => r.rank <= 3);
+                          const sorted = [...visibleByRank].sort((a, b) => {
+                            if (a.rank !== b.rank) return a.rank - b.rank;
+                            if (!!a.v.manufacturerDirect !== !!b.v.manufacturerDirect) return a.v.manufacturerDirect ? -1 : 1;
+                            return a.v.name.localeCompare(b.v.name);
+                          });
+                          const q = newQuote.vendor.trim().toLowerCase();
+                          const filtered = (q ? sorted.filter(r => r.v.name.toLowerCase().includes(q)) : sorted).slice(0, 50);
+                          const hiddenCount = showAllVendorsInQuote ? 0 : ranked.filter(r => r.rank === 4).length;
+                          return (
+                            <div className="absolute left-0 right-0 z-20 rounded shadow-lg"
+                              style={{ top: "100%", marginTop: 4, background: "var(--bg-card)", border: "1px solid var(--border-ds)", maxHeight: 280, display: "flex", flexDirection: "column" }}
+                              data-testid="dropdown-quote-vendor-suggestions">
+                              <div className="flex items-center justify-between gap-2 px-2 py-1.5 text-[11px]"
+                                style={{ borderBottom: "1px solid var(--border-ds)", color: "var(--text-muted)", background: "var(--bg3)" }}>
+                                <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>RFQ-used → scope → mfr{showAllVendorsInQuote ? " → other" : ""}</span>
+                                <label className="flex items-center gap-1 cursor-pointer whitespace-nowrap"
+                                  style={{ color: "var(--text-secondary)" }}
+                                  onMouseDown={e => e.preventDefault()}>
+                                  <input type="checkbox" checked={showAllVendorsInQuote}
+                                    onChange={e => setShowAllVendorsInQuote(e.target.checked)}
+                                    style={{ accentColor: "var(--gold)" }}
+                                    data-testid="checkbox-quote-vendor-show-all" />
+                                  Show all{!showAllVendorsInQuote && hiddenCount > 0 ? ` (+${hiddenCount})` : ""}
+                                </label>
+                              </div>
+                              <div style={{ overflowY: "auto", flex: 1 }}>
+                                {filtered.length === 0 ? (
+                                  <div className="px-3 py-3 text-xs" style={{ color: "var(--text-muted)" }} data-testid="text-quote-vendor-no-matches">
+                                    {q
+                                      ? <>No matches — keep typing to add "<span style={{ color: "var(--text)" }}>{newQuote.vendor.trim()}</span>" as a new vendor.</>
+                                      : "No vendors available."}
+                                  </div>
+                                ) : (
+                                  filtered.map(r => (
+                                    <button key={r.v.id} type="button"
+                                      onMouseDown={e => { e.preventDefault(); setNewQuote(p => ({ ...p, vendor: r.v.name })); setVendorSuggestionsOpen(false); }}
+                                      className="w-full text-left px-3 py-2.5 text-xs flex items-center gap-2 hover:bg-[var(--bg3)]"
+                                      style={{ borderBottom: "1px solid var(--border-ds)40", color: "var(--text)", minHeight: 40 }}
+                                      data-testid={`option-quote-vendor-${r.v.id}`}>
+                                      <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.v.name}</span>
+                                      {r.rank === 1 && <span style={{ fontSize: 9, fontWeight: 700, padding: "1px 5px", borderRadius: 3, background: "rgba(34,197,94,0.15)", color: "#22c55e" }}>RFQ SENT</span>}
+                                      {r.rank === 2 && <span style={{ fontSize: 9, fontWeight: 700, padding: "1px 5px", borderRadius: 3, background: "rgba(201,168,76,0.15)", color: "var(--gold)" }}>SCOPE</span>}
+                                      {r.rank === 3 && <span style={{ fontSize: 9, fontWeight: 700, padding: "1px 5px", borderRadius: 3, background: "rgba(168,85,247,0.15)", color: "#a855f7" }}>MFR</span>}
+                                      {r.v.manufacturerDirect && <span style={{ fontSize: 9, fontWeight: 700, padding: "1px 5px", borderRadius: 3, background: "rgba(91,141,239,0.15)", color: "#5B8DEF" }}>DIRECT</span>}
+                                    </button>
+                                  ))
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })()}
                       </div>
                       <div className="flex flex-col gap-1">
                         <label className="text-xs font-medium" style={{ color: "var(--text-muted)" }}>Note / Description</label>
@@ -6941,16 +7030,8 @@ ${html}
             .map((i: any) => i?.manufacturerId)
             .filter((id: any): id is number => typeof id === "number" && id > 0)
         );
-        const rankVendor = (v: VendorListItem): 1 | 2 | 3 | 4 => {
-          if (rfqUsedVendorIdsSet.has(v.id)) return 1;
-          if (Array.isArray(v.scopes) && v.scopes.includes(activeCat)) return 2;
-          if (
-            relevantMfrIds.size > 0 &&
-            Array.isArray(v.manufacturerIds) &&
-            v.manufacturerIds.some(id => relevantMfrIds.has(id))
-          ) return 3;
-          return 4;
-        };
+        const rankVendor = (v: VendorListItem): 1 | 2 | 3 | 4 =>
+          rankVendorByScope(v, { rfqUsedSet: rfqUsedVendorIdsSet, scope: activeCat, relevantMfrSet: relevantMfrIds });
 
         const vendorSearchLower = openRfqVendorSearch.trim().toLowerCase();
         const baseVendors = openRfqOnlyDirect

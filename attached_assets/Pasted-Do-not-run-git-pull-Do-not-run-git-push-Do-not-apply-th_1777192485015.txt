@@ -1,0 +1,86 @@
+Do not run git pull.
+Do not run git push.
+Do not apply the stash.
+Do not redeploy.
+Do not modify production.
+Do not change auth/session/login behavior.
+Do not modify ManufacturerCombo.
+Do not modify Open RFQ behavior except for extracting/reusing helper logic if needed.
+Do not update documentation unless I approve.
+Do not commit until I approve.
+
+Issue:
+On mobile, when creating a New Vendor Quote in the Estimating Module, the Vendor Name field does not populate from the vendors that were sent RFQs for that active scope of work.
+
+Evidence:
+In client/src/pages/EstimatingModulePage.tsx, the New Vendor Quote form around line 3618 uses a plain input:
+
+data-testid="input-quote-vendor"
+value={newQuote.vendor}
+onChange={e => setNewQuote(p => ({ ...p, vendor: e.target.value }))}
+
+It is not connected to the RFQ-used vendor list or the scope-aware vendor priority logic.
+
+Also, the allVendorsForRfq query around line 2048 is currently enabled only when showOpenRfq is true:
+
+enabled: showOpenRfq
+
+That means the vendor list may not be loaded when showNewQuote is open.
+
+Goal:
+Update the New Vendor Quote Vendor Name field so it becomes a mobile-friendly searchable vendor picker/autocomplete that prioritizes vendors already sent RFQs for the current estimate and active scope.
+
+Required behavior:
+1. When showNewQuote is open, the vendor list should be available.
+2. The Vendor Name field should still allow free typing/manual vendor entry.
+3. The picker/autocomplete should suggest vendors in this priority order:
+   A. Vendors previously sent RFQs for this estimate + active scope
+   B. Vendors tagged for the active scope
+   C. Vendors linked/tagged to relevant manufacturers in the active scope, if available
+   D. Other vendors only if the user enables “Show all vendors”
+4. Default view should show only A–C.
+5. Add a small “Show all vendors” toggle or button near the New Vendor Quote vendor field.
+6. When a user taps/selects a vendor suggestion, it should populate newQuote.vendor with that vendor name.
+7. The existing addQuote function should continue to post vendor: newQuote.vendor.trim().
+8. Do not force vendorId into the quote record unless the existing quote schema already supports it.
+9. Keep the field mobile-friendly:
+   - input should remain large enough to tap
+   - suggestions should appear directly below the field
+   - list should not be tiny on mobile
+   - use max height with scrolling if needed
+10. If no matching vendor is found, the user should still be able to type a new vendor manually and create the quote.
+
+Implementation guidance:
+- Reuse the existing allVendorsForRfq list if possible.
+- Change its enabled condition from only showOpenRfq to something like:
+  enabled: showOpenRfq || showNewQuote
+  if that is the safest approach.
+- Reuse the existing rfqUsedVendorIdsList query if possible.
+- Reuse or extract the same vendor ranking logic used by Open RFQ if it already exists.
+- If the Open RFQ ranking helper is currently inline, create a small shared local helper inside EstimatingModulePage.tsx, but keep the change limited and low risk.
+- For New Vendor Quote relevant manufacturer IDs, use active scope line items with manufacturerId where possible.
+- If that is too risky, use only RFQ-used + scope-tagged vendors for this pass and report that manufacturer-linked ranking can be improved later.
+- Do not break the existing AI extraction behavior that can auto-fill data.vendor into newQuote.vendor.
+
+Testing:
+1. Login still works.
+2. POST /api/auth/login still returns JSON.
+3. Estimating Module opens.
+4. Open a scope such as Toilet Accessories.
+5. Click + Manual / New Vendor Quote.
+6. Confirm the Vendor Name field shows RFQ-used vendors for that estimate/scope first.
+7. Confirm scope-tagged vendors show next.
+8. Confirm unrelated vendors are hidden by default.
+9. Confirm “Show all vendors” reveals the full vendor list.
+10. Confirm typing filters the suggestions.
+11. Confirm tapping a suggestion populates the Vendor Name field.
+12. Confirm manually typing a brand-new vendor still allows Create Quote.
+13. Confirm Create Quote still creates a quote with the selected/typed vendor name.
+14. Confirm Open RFQ still works after the change.
+
+Return a report with:
+- Files changed
+- Summary of exact behavior added
+- Test results
+- Whether any schema change was needed
+- Any remaining limitations
