@@ -102,6 +102,7 @@ interface Quote {
   latestExtractionJson: any | null;
   latestError: string | null;
   processingMetadataJson: any | null;
+  rfqLogId: number | null;
 }
 
 interface VendorQuoteLineItemRow {
@@ -655,7 +656,7 @@ function EstimatingModuleInner() {
   const [pasteText, setPasteText] = useState("");
   const [aiParsing, setAiParsing] = useState(false);
   const [parsedQuote, setParsedQuote] = useState<any>(null);
-  const [newQuote, setNewQuote] = useState({ vendor: "", note: "", freight: 0, taxIncluded: false, pricingMode: "per_item", lumpSumTotal: 0, materialTotalCost: "" });
+  const [newQuote, setNewQuote] = useState<{ vendor: string; note: string; freight: number; taxIncluded: boolean; pricingMode: string; lumpSumTotal: number; materialTotalCost: string; rfqLogId: number | null }>({ vendor: "", note: "", freight: 0, taxIncluded: false, pricingMode: "per_item", lumpSumTotal: 0, materialTotalCost: "", rfqLogId: null });
   const [newQuoteFile, setNewQuoteFile] = useState<File | null>(null);
   const [extractingTotal, setExtractingTotal] = useState(false);
   const [aiExtractNote, setAiExtractNote] = useState<string | null>(null);
@@ -1343,10 +1344,11 @@ function EstimatingModuleInner() {
         freight: String(newQuote.freight), taxIncluded: newQuote.taxIncluded,
         pricingMode: newQuote.pricingMode, lumpSumTotal: String(newQuote.lumpSumTotal),
         materialTotalCost: mtc != null && !isNaN(mtc) ? mtc : null,
+        rfqLogId: newQuote.rfqLogId,
       });
       let q = await r.json();
       setQuotes(prev => [...prev, q]);
-      setNewQuote({ vendor: "", note: "", freight: 0, taxIncluded: false, pricingMode: "per_item", lumpSumTotal: 0, materialTotalCost: "" });
+      setNewQuote({ vendor: "", note: "", freight: 0, taxIncluded: false, pricingMode: "per_item", lumpSumTotal: 0, materialTotalCost: "", rfqLogId: null });
       setNewQuoteFile(null);
       setAiExtractNote(null);
       setShowNewQuote(false);
@@ -2134,7 +2136,7 @@ ${html}
   });
 
   // ── RFQ Log: query and create mutation ──
-  const { data: rfqLogEntries = [] } = useQuery<Array<{ id: number; manufacturerName: string; sentBy: string; sentAt: string; projectName: string; scopeLabel: string; action: string }>>({
+  const { data: rfqLogEntries = [] } = useQuery<Array<{ id: number; manufacturerName: string; sentBy: string; sentAt: string; projectName: string; scopeLabel: string; action: string; recipientEmails: string[] }>>({
     queryKey: ["/api/rfq-log", estimateId, activeCat],
     queryFn: async () => {
       if (!estimateId || !activeCat) return [];
@@ -2164,6 +2166,29 @@ ${html}
   const logRfq = useCallback((manufacturerName: string, action: "copy" | "email", recipientEmails: string[] = []) => {
     logRfqMutation.mutate({ manufacturerName: manufacturerName || "(unspecified)", action, recipientEmails });
   }, [logRfqMutation]);
+
+  // ── RFQ recipient pairs (vendor + manufacturer combos) for the New Vendor Quote dropdown.
+  // One entry per (rfq_log row × resolved recipient). Selecting a pair binds the new
+  // quote to a specific rfq_log_id so the RFQ Log can show a precise per-row "Quote
+  // received" indicator. Only fetched while the New Vendor Quote panel is open.
+  type RfqRecipientPair = {
+    rfqLogId: number;
+    manufacturerName: string;
+    recipientEmail: string;
+    vendorId: number | null;
+    vendorName: string | null;
+    sentAt: string;
+  };
+  const { data: rfqRecipientPairs = [] } = useQuery<RfqRecipientPair[]>({
+    queryKey: ["/api/estimates", estimateId, "scopes", activeCat, "rfq-recipient-pairs"],
+    queryFn: async () => {
+      if (!estimateId || !activeCat) return [];
+      const r = await fetch(`/api/estimates/${estimateId}/scopes/${encodeURIComponent(activeCat)}/rfq-recipient-pairs`, { credentials: "include" });
+      if (!r.ok) return [];
+      return r.json();
+    },
+    enabled: !!estimateId && !!activeCat && showNewQuote,
+  });
 
   const createMfrInline = useCallback(async () => {
     const name = newMfrName.trim();
@@ -3642,13 +3667,36 @@ ${html}
                       <div className="flex flex-col gap-1" style={{ position: "relative" }}>
                         <label className="text-xs font-medium" style={{ color: "var(--text-muted)" }}>Vendor Name</label>
                         <input data-testid="input-quote-vendor" value={newQuote.vendor}
-                          onChange={e => { setNewQuote(p => ({ ...p, vendor: e.target.value })); setVendorSuggestionsOpen(true); }}
+                          onChange={e => { setNewQuote(p => ({ ...p, vendor: e.target.value, rfqLogId: null })); setVendorSuggestionsOpen(true); }}
                           onFocus={() => setVendorSuggestionsOpen(true)}
                           onBlur={() => { setTimeout(() => setVendorSuggestionsOpen(false), 150); }}
                           autoComplete="off"
-                          placeholder="Search vendors or type new…" className="text-xs px-2 py-1.5 rounded"
+                          placeholder="Pick from RFQs sent or type new…" className="text-xs px-2 py-1.5 rounded"
                           style={{ background: "var(--bg2)", border: "1px solid var(--border-ds)", color: "var(--text)" }} />
+                        {/* Bound-pair indicator: shows the manufacturer this quote is tied to once the user picks an RFQ recipient. */}
+                        {newQuote.rfqLogId != null && (() => {
+                          const pair = rfqRecipientPairs.find(p => p.rfqLogId === newQuote.rfqLogId);
+                          return (
+                            <div style={{ fontSize: 10, color: "#22c55e", marginTop: 2 }} data-testid="badge-quote-rfq-tie">
+                              ✓ Tied to RFQ for {pair?.manufacturerName || "this scope"}
+                              {' · '}
+                              <button type="button"
+                                onMouseDown={e => { e.preventDefault(); setNewQuote(p => ({ ...p, rfqLogId: null })); }}
+                                style={{ color: "var(--text-muted)", textDecoration: "underline" }}
+                                data-testid="button-quote-rfq-untie">untie</button>
+                            </div>
+                          );
+                        })()}
                         {vendorSuggestionsOpen && (() => {
+                          const q = newQuote.vendor.trim().toLowerCase();
+                          // Top section — RFQ recipient pairs (vendor + manufacturer combos)
+                          const filteredPairs = q
+                            ? rfqRecipientPairs.filter(p =>
+                                ((p.vendorName || p.recipientEmail).toLowerCase().includes(q)) ||
+                                p.manufacturerName.toLowerCase().includes(q)
+                              )
+                            : rfqRecipientPairs;
+                          // Bottom section — existing scope/mfr-ranked vendor list (free-typing fallback)
                           const rfqUsedSet = new Set<number>(rfqUsedVendorIdsList);
                           const relevantMfrSet = new Set<number>(
                             catLineItems
@@ -3665,16 +3713,16 @@ ${html}
                             if (!!a.v.manufacturerDirect !== !!b.v.manufacturerDirect) return a.v.manufacturerDirect ? -1 : 1;
                             return a.v.name.localeCompare(b.v.name);
                           });
-                          const q = newQuote.vendor.trim().toLowerCase();
-                          const filtered = (q ? sorted.filter(r => r.v.name.toLowerCase().includes(q)) : sorted).slice(0, 50);
+                          const filteredRanked = (q ? sorted.filter(r => r.v.name.toLowerCase().includes(q)) : sorted).slice(0, 50);
                           const hiddenCount = showAllVendorsInQuote ? 0 : ranked.filter(r => r.rank === 4).length;
+                          const totalShown = filteredPairs.length + filteredRanked.length;
                           return (
                             <div className="absolute left-0 right-0 z-20 rounded shadow-lg"
-                              style={{ top: "100%", marginTop: 4, background: "var(--bg-card)", border: "1px solid var(--border-ds)", maxHeight: 280, display: "flex", flexDirection: "column" }}
+                              style={{ top: "100%", marginTop: 4, background: "var(--bg-card)", border: "1px solid var(--border-ds)", maxHeight: 320, display: "flex", flexDirection: "column" }}
                               data-testid="dropdown-quote-vendor-suggestions">
                               <div className="flex items-center justify-between gap-2 px-2 py-1.5 text-[11px]"
                                 style={{ borderBottom: "1px solid var(--border-ds)", color: "var(--text-muted)", background: "var(--bg3)" }}>
-                                <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>RFQ-used → scope → mfr{showAllVendorsInQuote ? " → other" : ""}</span>
+                                <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>RFQ recipients → other vendors{showAllVendorsInQuote ? " → all" : ""}</span>
                                 <label className="flex items-center gap-1 cursor-pointer whitespace-nowrap"
                                   style={{ color: "var(--text-secondary)" }}
                                   onMouseDown={e => e.preventDefault()}>
@@ -3686,26 +3734,70 @@ ${html}
                                 </label>
                               </div>
                               <div style={{ overflowY: "auto", flex: 1 }}>
-                                {filtered.length === 0 ? (
+                                {/* Section 1: RFQ recipient pairs (vendor + manufacturer combos) */}
+                                {filteredPairs.length > 0 && (
+                                  <>
+                                    <div className="px-3 py-1 text-[10px] uppercase tracking-wider font-semibold"
+                                      style={{ color: "var(--text-muted)", background: "var(--bg3)", borderBottom: "1px solid var(--border-ds)40" }}
+                                      data-testid="header-quote-vendor-rfq-section">
+                                      From RFQs sent · {filteredPairs.length}
+                                    </div>
+                                    {filteredPairs.map(p => (
+                                      <button key={`pair-${p.rfqLogId}-${p.vendorId ?? p.recipientEmail}`} type="button"
+                                        onMouseDown={e => {
+                                          e.preventDefault();
+                                          setNewQuote(prev => ({
+                                            ...prev,
+                                            vendor: (p.vendorName || p.recipientEmail),
+                                            rfqLogId: p.rfqLogId,
+                                          }));
+                                          setVendorSuggestionsOpen(false);
+                                        }}
+                                        className="w-full text-left px-3 py-2 text-xs flex items-center gap-2 hover:bg-[var(--bg3)]"
+                                        style={{ borderBottom: "1px solid var(--border-ds)40", color: "var(--text)", minHeight: 44 }}
+                                        data-testid={`option-quote-rfq-pair-${p.rfqLogId}-${p.vendorId ?? "email"}`}>
+                                        <span style={{ flex: 1, minWidth: 0 }}>
+                                          <span style={{ display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                            {p.vendorName || p.recipientEmail}
+                                          </span>
+                                          <span style={{ display: "block", fontSize: 10, color: "var(--text-muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                            for {p.manufacturerName} · {new Date(p.sentAt).toLocaleDateString()}
+                                          </span>
+                                        </span>
+                                        <span style={{ fontSize: 9, fontWeight: 700, padding: "1px 5px", borderRadius: 3, background: "rgba(34,197,94,0.15)", color: "#22c55e" }}>RFQ</span>
+                                      </button>
+                                    ))}
+                                  </>
+                                )}
+                                {/* Section 2: Other vendors (free-typing fallback list) */}
+                                {filteredRanked.length > 0 && (
+                                  <>
+                                    <div className="px-3 py-1 text-[10px] uppercase tracking-wider font-semibold"
+                                      style={{ color: "var(--text-muted)", background: "var(--bg3)", borderBottom: "1px solid var(--border-ds)40" }}
+                                      data-testid="header-quote-vendor-other-section">
+                                      Other vendors · {filteredRanked.length}
+                                    </div>
+                                    {filteredRanked.map(r => (
+                                      <button key={`vendor-${r.v.id}`} type="button"
+                                        onMouseDown={e => { e.preventDefault(); setNewQuote(p => ({ ...p, vendor: r.v.name, rfqLogId: null })); setVendorSuggestionsOpen(false); }}
+                                        className="w-full text-left px-3 py-2.5 text-xs flex items-center gap-2 hover:bg-[var(--bg3)]"
+                                        style={{ borderBottom: "1px solid var(--border-ds)40", color: "var(--text)", minHeight: 40 }}
+                                        data-testid={`option-quote-vendor-${r.v.id}`}>
+                                        <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.v.name}</span>
+                                        {r.rank === 1 && <span style={{ fontSize: 9, fontWeight: 700, padding: "1px 5px", borderRadius: 3, background: "rgba(34,197,94,0.15)", color: "#22c55e" }}>RFQ SENT</span>}
+                                        {r.rank === 2 && <span style={{ fontSize: 9, fontWeight: 700, padding: "1px 5px", borderRadius: 3, background: "rgba(201,168,76,0.15)", color: "var(--gold)" }}>SCOPE</span>}
+                                        {r.rank === 3 && <span style={{ fontSize: 9, fontWeight: 700, padding: "1px 5px", borderRadius: 3, background: "rgba(168,85,247,0.15)", color: "#a855f7" }}>MFR</span>}
+                                        {r.v.manufacturerDirect && <span style={{ fontSize: 9, fontWeight: 700, padding: "1px 5px", borderRadius: 3, background: "rgba(91,141,239,0.15)", color: "#5B8DEF" }}>DIRECT</span>}
+                                      </button>
+                                    ))}
+                                  </>
+                                )}
+                                {totalShown === 0 && (
                                   <div className="px-3 py-3 text-xs" style={{ color: "var(--text-muted)" }} data-testid="text-quote-vendor-no-matches">
                                     {q
                                       ? <>No matches — keep typing to add "<span style={{ color: "var(--text)" }}>{newQuote.vendor.trim()}</span>" as a new vendor.</>
                                       : "No vendors available."}
                                   </div>
-                                ) : (
-                                  filtered.map(r => (
-                                    <button key={r.v.id} type="button"
-                                      onMouseDown={e => { e.preventDefault(); setNewQuote(p => ({ ...p, vendor: r.v.name })); setVendorSuggestionsOpen(false); }}
-                                      className="w-full text-left px-3 py-2.5 text-xs flex items-center gap-2 hover:bg-[var(--bg3)]"
-                                      style={{ borderBottom: "1px solid var(--border-ds)40", color: "var(--text)", minHeight: 40 }}
-                                      data-testid={`option-quote-vendor-${r.v.id}`}>
-                                      <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.v.name}</span>
-                                      {r.rank === 1 && <span style={{ fontSize: 9, fontWeight: 700, padding: "1px 5px", borderRadius: 3, background: "rgba(34,197,94,0.15)", color: "#22c55e" }}>RFQ SENT</span>}
-                                      {r.rank === 2 && <span style={{ fontSize: 9, fontWeight: 700, padding: "1px 5px", borderRadius: 3, background: "rgba(201,168,76,0.15)", color: "var(--gold)" }}>SCOPE</span>}
-                                      {r.rank === 3 && <span style={{ fontSize: 9, fontWeight: 700, padding: "1px 5px", borderRadius: 3, background: "rgba(168,85,247,0.15)", color: "#a855f7" }}>MFR</span>}
-                                      {r.v.manufacturerDirect && <span style={{ fontSize: 9, fontWeight: 700, padding: "1px 5px", borderRadius: 3, background: "rgba(91,141,239,0.15)", color: "#5B8DEF" }}>DIRECT</span>}
-                                    </button>
-                                  ))
                                 )}
                               </div>
                             </div>
@@ -4785,11 +4877,16 @@ ${html}
                             <th className="px-2 py-1.5 font-semibold">Date &amp; Time</th>
                             <th className="px-2 py-1.5 font-semibold">Project</th>
                             <th className="px-2 py-1.5 font-semibold">Scope</th>
+                            <th className="px-2 py-1.5 font-semibold text-center">Quote</th>
                             <th className="px-2 py-1.5 font-semibold text-center">Action</th>
                           </tr>
                         </thead>
                         <tbody>
-                          {(rfqLogExpandAll ? rfqLogEntries : rfqLogEntries.slice(0, 10)).map(r => (
+                          {(rfqLogExpandAll ? rfqLogEntries : rfqLogEntries.slice(0, 10)).map(r => {
+                            // Tie quotes back to this RFQ row via rfq_log_id (precise — won't false-positive
+                            // when one vendor was RFQ'd for multiple manufacturers in the same scope).
+                            const matchingQuotes = quotes.filter(q => q.rfqLogId === r.id);
+                            return (
                             <tr key={r.id} style={{ borderTop: "1px solid var(--border-ds)40", color: "var(--text-secondary)" }} data-testid={`row-rfq-log-${r.id}`}>
                               <td className="px-2 py-1.5" style={{ color: "var(--text)" }}>{r.manufacturerName}</td>
                               <td className="px-2 py-1.5" style={{ wordBreak: "break-all" }}>
@@ -4799,13 +4896,25 @@ ${html}
                               <td className="px-2 py-1.5 whitespace-nowrap">{new Date(r.sentAt).toLocaleString()}</td>
                               <td className="px-2 py-1.5">{r.projectName}</td>
                               <td className="px-2 py-1.5">{r.scopeLabel}</td>
+                              <td className="px-2 py-1.5 text-center" data-testid={`cell-rfq-log-quote-${r.id}`}>
+                                {matchingQuotes.length === 0 ? (
+                                  <span style={{ color: "var(--text-muted)" }}>—</span>
+                                ) : (
+                                  <span title={matchingQuotes.map(q => q.vendor).join(", ")}
+                                    style={{ fontSize: 9, fontWeight: 700, padding: "1px 6px", borderRadius: 3, background: "rgba(34,197,94,0.15)", color: "#22c55e", whiteSpace: "nowrap" }}
+                                    data-testid={`badge-rfq-log-quote-received-${r.id}`}>
+                                    ✓ {matchingQuotes.length === 1 ? matchingQuotes[0].vendor : `${matchingQuotes.length} QUOTES`}
+                                  </span>
+                                )}
+                              </td>
                               <td className="px-2 py-1.5 text-center">
                                 <span style={{ fontSize: 9, fontWeight: 700, padding: "1px 6px", borderRadius: 3, background: r.action === "email" ? "rgba(91,141,239,0.15)" : "rgba(201,168,76,0.15)", color: r.action === "email" ? "#5B8DEF" : "var(--gold)" }}>
                                   {r.action.toUpperCase()}
                                 </span>
                               </td>
                             </tr>
-                          ))}
+                            );
+                          })}
                         </tbody>
                       </table>
                     </div>

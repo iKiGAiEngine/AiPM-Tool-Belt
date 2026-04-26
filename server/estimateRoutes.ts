@@ -6,7 +6,7 @@ import {
   estimateBreakoutAllocations, estimateVersions, estimateReviewComments, ohApprovalLog,
   proposalLogEntries, estimateSpecSections, users,
   vendorQuoteLineItems, vendorQuoteToEstimateLineItemMap,
-  mfrManufacturers, mfrContacts,
+  mfrManufacturers, mfrContacts, mfrVendors,
   rfqLog, insertRfqLogSchema,
 } from "@shared/schema";
 import OpenAI from "openai";
@@ -352,6 +352,114 @@ export function registerEstimateRoutes(app: Express) {
       // Best-effort priority signal — fail safely with [] so the UI just falls back
       // to scope-tag / mfr-tag rank ordering instead of breaking the picker.
       console.error("[rfq-used-vendor-ids GET]", err);
+      res.json([]);
+    }
+  });
+
+  // GET — vendor + manufacturer pairs derived from the RFQ log for an
+  // estimate+scope. Used by the New Vendor Quote dropdown to surface "the
+  // people we already RFQ'd for this scope" first, and to capture the
+  // originating rfq_log_id on the resulting quote so the RFQ Log can show a
+  // precise per-row "Quote received" indicator.
+  //
+  // Returns one entry per (rfq_log row × recipient email):
+  //   { rfqLogId, manufacturerName, recipientEmail,
+  //     vendorId | null, vendorName | null, sentAt }
+  //
+  // Recipient email is resolved against mfr_contacts → mfr_vendors. Emails
+  // with no contact match are still returned (vendorId/vendorName = null) so
+  // the user can still pick the row and tie the quote back to its RFQ.
+  // Fails safely with [] on any error.
+  app.get("/api/estimates/:id/scopes/:scope/rfq-recipient-pairs", async (req: Request, res: Response) => {
+    try {
+      const estimateId = parseInt(req.params.id);
+      const scopeId = String(req.params.scope || "");
+      if (isNaN(estimateId) || !scopeId) {
+        return res.status(400).json({ message: "Valid estimateId and scope required" });
+      }
+
+      const logRows = await db
+        .select({
+          id: rfqLog.id,
+          manufacturerName: rfqLog.manufacturerName,
+          recipientEmails: rfqLog.recipientEmails,
+          sentAt: rfqLog.sentAt,
+        })
+        .from(rfqLog)
+        .where(and(eq(rfqLog.estimateId, estimateId), eq(rfqLog.scopeId, scopeId)))
+        .orderBy(desc(rfqLog.sentAt));
+
+      // Collect the unique set of recipient emails we need to resolve.
+      const allEmails = new Set<string>();
+      for (const row of logRows) {
+        for (const e of (row.recipientEmails || [])) {
+          const v = (e || "").trim().toLowerCase();
+          if (v) allEmails.add(v);
+        }
+      }
+
+      // email → { vendorId, vendorName } lookup table.
+      const lookup = new Map<string, { vendorId: number; vendorName: string }>();
+      if (allEmails.size > 0) {
+        const emailArr = Array.from(allEmails);
+        const matched = await db
+          .select({
+            email: mfrContacts.email,
+            vendorId: mfrContacts.vendorId,
+            vendorName: mfrVendors.name,
+          })
+          .from(mfrContacts)
+          .leftJoin(mfrVendors, eq(mfrContacts.vendorId, mfrVendors.id))
+          .where(sql`LOWER(TRIM(${mfrContacts.email})) = ANY(${emailArr}::text[])`);
+
+        for (const m of matched) {
+          const key = (m.email || "").trim().toLowerCase();
+          if (!key || m.vendorId == null) continue;
+          // First win — multiple contacts under one vendor share the same vendor id/name.
+          if (!lookup.has(key)) {
+            lookup.set(key, { vendorId: m.vendorId, vendorName: m.vendorName || "" });
+          }
+        }
+      }
+
+      // Expand rfqLog rows into one pair per recipient email, dedupe by
+      // (rfqLogId, vendorId|email) so the same vendor isn't listed twice when
+      // multiple of their contacts received the same RFQ.
+      const seen = new Set<string>();
+      const pairs: Array<{
+        rfqLogId: number;
+        manufacturerName: string;
+        recipientEmail: string;
+        vendorId: number | null;
+        vendorName: string | null;
+        sentAt: Date;
+      }> = [];
+
+      for (const row of logRows) {
+        for (const raw of (row.recipientEmails || [])) {
+          const email = (raw || "").trim();
+          if (!email) continue;
+          const lc = email.toLowerCase();
+          const hit = lookup.get(lc);
+          // Dedupe key: same rfqLog row + same vendor (or same email if no vendor).
+          const dedupeKey = `${row.id}::${hit ? `v${hit.vendorId}` : `e${lc}`}`;
+          if (seen.has(dedupeKey)) continue;
+          seen.add(dedupeKey);
+
+          pairs.push({
+            rfqLogId: row.id,
+            manufacturerName: row.manufacturerName,
+            recipientEmail: email,
+            vendorId: hit?.vendorId ?? null,
+            vendorName: hit?.vendorName ?? null,
+            sentAt: row.sentAt,
+          });
+        }
+      }
+
+      res.json(pairs);
+    } catch (err: any) {
+      console.error("[rfq-recipient-pairs GET]", err);
       res.json([]);
     }
   });

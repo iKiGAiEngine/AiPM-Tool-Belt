@@ -1,7 +1,25 @@
 import { z } from "zod";
-import { pgTable, serial, text, timestamp, jsonb, boolean, integer, varchar, unique, customType, numeric } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, timestamp, jsonb, boolean, integer, varchar, unique, customType, numeric, json, index } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { sql } from "drizzle-orm";
+
+// External tables not owned by this schema file but present in the database.
+// These stubs exist so `db:push` does NOT propose dropping them. Do not remove.
+//   - `session` is managed by connect-pg-simple (Express session store).
+//   - `system_settings` is a runtime key/value bag used by app code.
+export const dbSession = pgTable("session", {
+  sid: varchar("sid").primaryKey(),
+  sess: json("sess").notNull(),
+  expire: timestamp("expire", { mode: "date" }).notNull(),
+}, (table) => ({
+  expireIdx: index("IDX_session_expire").on(table.expire),
+}));
+
+export const systemSettings = pgTable("system_settings", {
+  key: varchar("key", { length: 100 }).primaryKey(),
+  value: text("value").notNull(),
+  updatedAt: timestamp("updated_at", { mode: "date" }).notNull().defaultNow(),
+});
 
 export const processingStatusSchema = z.enum(["idle", "processing", "complete", "error"]);
 export type ProcessingStatus = z.infer<typeof processingStatusSchema>;
@@ -1431,6 +1449,11 @@ export const estimateQuotes = pgTable("estimate_quotes", {
   latestExtractionJson: jsonb("latest_extraction_json"),
   latestError: text("latest_error"),
   processingMetadataJson: jsonb("processing_metadata_json"),
+  // Optional FK back to the RFQ log entry this quote responds to.
+  // Nullable: walk-in / cold quotes have no originating RFQ. Used by the
+  // RFQ Log "Quote received" indicator to tie a quote to a specific
+  // (manufacturer, vendor-recipient) RFQ row instead of name-matching.
+  rfqLogId: integer("rfq_log_id"),
 });
 
 export const insertEstimateQuoteSchema = createInsertSchema(estimateQuotes).omit({ id: true, createdAt: true });
