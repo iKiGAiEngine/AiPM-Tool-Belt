@@ -1047,7 +1047,10 @@ export type InsertProposalChangeLog = typeof proposalChangeLog.$inferInsert;
 
 export const mfrVendors = pgTable("mfr_vendors", {
   id: serial("id").primaryKey(),
-  name: varchar("name", { length: 255 }).notNull(),
+  name: varchar("name", { length: 255 }).notNull(), // legacy — kept for back-compat; populated alongside legalName
+  legalName: varchar("legal_name", { length: 255 }), // full official company name (will become NOT NULL in follow-up after backfill)
+  shortCode: varchar("short_code", { length: 10 }), // unique abbreviation (uppercased); will become NOT NULL in follow-up
+  aliases: text("aliases").array(), // alternate names for incoming-email/bid matching
   category: varchar("category", { length: 100 }),
   website: varchar("website", { length: 500 }),
   materials: text("materials"), // Comma-separated material types (e.g., "Solid Plastic, Phenolic, Metal")
@@ -1083,7 +1086,10 @@ export type InsertMfrContactInput = z.infer<typeof insertMfrContactSchema>;
 
 export const mfrManufacturers = pgTable("mfr_manufacturers", {
   id: serial("id").primaryKey(),
-  name: varchar("name", { length: 255 }).notNull().unique(),
+  name: varchar("name", { length: 255 }).notNull().unique(), // legacy — kept for back-compat; populated alongside legalName
+  legalName: varchar("legal_name", { length: 255 }), // full official manufacturer name (will become NOT NULL in follow-up after backfill)
+  shortCode: varchar("short_code", { length: 10 }), // unique abbreviation (uppercased); will become NOT NULL in follow-up
+  aliases: text("aliases").array(), // alternate names for incoming-email/bid matching
   website: varchar("website", { length: 500 }),
   primaryContact: varchar("primary_contact", { length: 255 }),
   contactEmail: varchar("contact_email", { length: 255 }),

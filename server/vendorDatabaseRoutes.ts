@@ -6,6 +6,7 @@ import {
   mfrLogistics, mfrTaxInfo, mfrResaleCerts, mfrFiles,
   mfrManufacturers, mfrVendorManufacturers,
 } from "@shared/schema";
+import { normalizeAliases } from "@shared/vendorNames";
 import { eq, ilike, or, sql } from "drizzle-orm";
 import * as xlsx from "xlsx";
 import ExcelJS from "exceljs";
@@ -64,12 +65,24 @@ export function registerVendorDatabaseRoutes(app: Express) {
     try {
       const name = String(req.body?.name || "").trim();
       if (!name) return res.status(400).json({ message: "Name required" });
+      // Naming fields (legalName falls back to name; shortCode auto-uppercased; aliases trimmed)
+      const legalName = String(req.body?.legalName || name).trim() || name;
+      const shortCodeRaw = String(req.body?.shortCode || "").trim();
+      const shortCode = shortCodeRaw ? shortCodeRaw.toUpperCase() : null;
+      const aliases = normalizeAliases(req.body?.aliases);
       // De-dupe: case-insensitive name match
       const existing = await db.select().from(mfrManufacturers);
       const dup = existing.find(m => m.name.toLowerCase() === name.toLowerCase());
       if (dup) return res.status(200).json(dup); // idempotent — return existing
+      // Uniqueness check on shortCode (case-insensitive)
+      if (shortCode && existing.some(m => (m.shortCode || "").toUpperCase() === shortCode)) {
+        return res.status(409).json({ message: `Short code "${shortCode}" is already used by another manufacturer.` });
+      }
       const [row] = await db.insert(mfrManufacturers).values({
         name,
+        legalName,
+        shortCode,
+        aliases,
         website: req.body?.website || null,
         primaryContact: req.body?.primaryContact || null,
         contactEmail: req.body?.contactEmail || null,
@@ -140,6 +153,22 @@ export function registerVendorDatabaseRoutes(app: Express) {
       if (req.body?.address !== undefined) updates.address = req.body.address || null;
       if (req.body?.notes !== undefined) updates.notes = req.body.notes || null;
       if (req.body?.scopes !== undefined) updates.scopes = Array.isArray(req.body.scopes) ? req.body.scopes : null;
+      if (req.body?.legalName !== undefined) updates.legalName = req.body.legalName ? String(req.body.legalName).trim() : null;
+      if (req.body?.shortCode !== undefined) {
+        const sc = String(req.body.shortCode || "").trim().toUpperCase();
+        if (sc) {
+          const others = await db.select().from(mfrManufacturers);
+          if (others.some(m => m.id !== id && (m.shortCode || "").toUpperCase() === sc)) {
+            return res.status(409).json({ message: `Short code "${sc}" is already used by another manufacturer.` });
+          }
+          updates.shortCode = sc;
+        } else {
+          updates.shortCode = null;
+        }
+      }
+      if (req.body?.aliases !== undefined) {
+        updates.aliases = normalizeAliases(req.body.aliases);
+      }
       const [row] = await db.update(mfrManufacturers).set(updates).where(eq(mfrManufacturers.id, id)).returning();
       if (!row) return res.status(404).json({ message: "Not found" });
       // Sync the cached `mfr` text on line items so display stays in sync after rename
@@ -302,9 +331,24 @@ export function registerVendorDatabaseRoutes(app: Express) {
 
   app.post("/api/mfr/vendors", async (req: Request, res: Response) => {
     try {
-      const { name, category, website, notes, tags, scopes, manufacturerIds, manufacturerDirect } = req.body;
+      const { name, category, website, notes, tags, scopes, manufacturerIds, manufacturerDirect, legalName, shortCode, aliases } = req.body;
+      const cleanName = String(name || "").trim();
+      if (!cleanName) return res.status(400).json({ error: "Name required" });
+      const cleanLegal = String(legalName || cleanName).trim() || cleanName;
+      const sc = String(shortCode || "").trim().toUpperCase();
+      const cleanAliases = normalizeAliases(aliases);
+      // Uniqueness on shortCode (case-insensitive) across vendors
+      if (sc) {
+        const existing = await db.select().from(mfrVendors);
+        if (existing.some(v => (v.shortCode || "").toUpperCase() === sc)) {
+          return res.status(409).json({ error: `Short code "${sc}" is already used by another vendor.` });
+        }
+      }
       const [vendor] = await db.insert(mfrVendors).values({
-        name, category, website, notes,
+        name: cleanName, category, website, notes,
+        legalName: cleanLegal,
+        shortCode: sc || null,
+        aliases: cleanAliases,
         tags: tags || [],
         scopes: Array.isArray(scopes) ? scopes : null,
         manufacturerIds: Array.isArray(manufacturerIds) ? manufacturerIds.map((n: any) => Number(n)).filter((n: number) => Number.isFinite(n)) : null,
@@ -318,17 +362,43 @@ export function registerVendorDatabaseRoutes(app: Express) {
 
   app.put("/api/mfr/vendors/:id", async (req: Request, res: Response) => {
     try {
-      const { name, category, website, notes, tags, scopes, manufacturerIds, manufacturerDirect } = req.body;
+      const id = Number(req.params.id);
+      const { name, category, website, notes, tags, scopes, manufacturerIds, manufacturerDirect, legalName, shortCode, aliases } = req.body;
+      const updates: Record<string, any> = {
+        category, website, notes,
+        tags: tags || [],
+        scopes: Array.isArray(scopes) ? scopes : null,
+        manufacturerIds: Array.isArray(manufacturerIds) ? manufacturerIds.map((n: any) => Number(n)).filter((n: number) => Number.isFinite(n)) : null,
+        manufacturerDirect: !!manufacturerDirect,
+        updatedAt: new Date(),
+      };
+      // Name: only update if provided; trim and require non-empty
+      if (name !== undefined) {
+        const cleanName = String(name ?? "").trim();
+        if (!cleanName) return res.status(400).json({ error: "Name cannot be empty" });
+        updates.name = cleanName;
+      }
+      if (legalName !== undefined) updates.legalName = legalName ? String(legalName).trim() : null;
+      if (shortCode !== undefined) {
+        const sc = String(shortCode || "").trim().toUpperCase();
+        if (sc) {
+          const others = await db.select().from(mfrVendors);
+          if (others.some(v => v.id !== id && (v.shortCode || "").toUpperCase() === sc)) {
+            return res.status(409).json({ error: `Short code "${sc}" is already used by another vendor.` });
+          }
+          updates.shortCode = sc;
+        } else {
+          updates.shortCode = null;
+        }
+      }
+      if (aliases !== undefined) {
+        updates.aliases = Array.isArray(aliases)
+          ? aliases.map((a: any) => String(a || "").trim()).filter((a: string) => a.length > 0)
+          : null;
+      }
       const [updated] = await db.update(mfrVendors)
-        .set({
-          name, category, website, notes,
-          tags: tags || [],
-          scopes: Array.isArray(scopes) ? scopes : null,
-          manufacturerIds: Array.isArray(manufacturerIds) ? manufacturerIds.map((n: any) => Number(n)).filter((n: number) => Number.isFinite(n)) : null,
-          manufacturerDirect: !!manufacturerDirect,
-          updatedAt: new Date(),
-        })
-        .where(eq(mfrVendors.id, Number(req.params.id)))
+        .set(updates)
+        .where(eq(mfrVendors.id, id))
         .returning();
       res.json(updated);
     } catch (err: any) {

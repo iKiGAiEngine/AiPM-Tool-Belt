@@ -12,14 +12,14 @@ import {
 
 // ---- Types ----
 interface MfrContact { id: number; vendorId: number; name: string | null; role: string | null; email: string | null; phone: string | null; territory: string | null; isPrimary: boolean | null; notes: string | null; }
-interface MfrManufacturerRow { id: number; name: string; website?: string | null; primaryContact?: string | null; contactEmail?: string | null; contactPhone?: string | null; address?: string | null; notes?: string | null; scopes?: string[] | null; }
+interface MfrManufacturerRow { id: number; name: string; legalName?: string | null; shortCode?: string | null; aliases?: string[] | null; website?: string | null; primaryContact?: string | null; contactEmail?: string | null; contactPhone?: string | null; address?: string | null; notes?: string | null; scopes?: string[] | null; }
 interface MfrProduct { id: number; vendorId: number; model: string | null; description: string | null; csiCode: string | null; listPrice: string | null; unit: string | null; notes: string | null; }
 interface MfrPricing { discountTier: string | null; paymentTerms: string | null; notes: string | null; }
 interface MfrLogistics { avgLeadTimeDays: number | null; shipsFrom: string | null; freightNotes: string | null; }
 interface MfrTaxInfo { ein: string | null; w9OnFile: boolean | null; w9ReceivedDate: string | null; is1099Eligible: boolean | null; taxExempt: boolean | null; exemptionType: string | null; exemptionCertNumber: string | null; nexusStates: string[] | null; taxNotes: string | null; }
 interface MfrResaleCert { id: number; vendorId: number; vendorName?: string; state: string; certType: string | null; certNumber: string | null; issueDate: string | null; expirationDate: string | null; sent: boolean | null; dateSent: string | null; contactSentTo: string | null; vendorConfirmed: boolean | null; confirmationDate: string | null; blanket: boolean | null; projectName: string | null; notes: string | null; status: string; }
 interface MfrFile { id: number; fileType: string | null; originalName: string | null; mimeType: string | null; sizeBytes: number | null; uploadedBy: string | null; uploadedAt: string; notes: string | null; }
-interface MfrVendorSummary { id: number; name: string; category: string | null; website: string | null; tags: string[]; scopes: string[] | null; manufacturerIds: number[] | null; manufacturerDirect: boolean | null; contactCount: number; productCount: number; certCount: number; w9OnFile: boolean; hasExpiredCert: boolean; hasExpiringCert: boolean; }
+interface MfrVendorSummary { id: number; name: string; legalName?: string | null; shortCode?: string | null; aliases?: string[] | null; category: string | null; website: string | null; tags: string[]; scopes: string[] | null; manufacturerIds: number[] | null; manufacturerDirect: boolean | null; contactCount: number; productCount: number; certCount: number; w9OnFile: boolean; hasExpiredCert: boolean; hasExpiringCert: boolean; }
 interface MfrVendorFull extends MfrVendorSummary { notes: string | null; contacts: MfrContact[]; products: MfrProduct[]; pricing: MfrPricing | null; logistics: MfrLogistics | null; taxInfo: MfrTaxInfo | null; certs: MfrResaleCert[]; files: MfrFile[]; }
 interface DashboardData { totalVendors: number; w9OnFile: number; w9Missing: number; certsTotal: number; certsSent: number; certsConfirmed: number; certsExpiring: number; certsExpired: number; certsNotSent: number; vendorsNoCerts: { id: number; name: string }[]; }
 
@@ -364,6 +364,114 @@ function SuggestedManufacturersPanel({
   );
 }
 
+// ---- Naming Fields Info Panel (collapsible quick-guide for legal name / short code / aliases) ----
+function NamingFieldsInfoPanel({ storageKey, kind }: { storageKey: string; kind: "vendor" | "manufacturer" }) {
+  const [open, setOpen] = useState(() => {
+    if (typeof window === "undefined") return true;
+    const seen = window.localStorage.getItem(storageKey);
+    return seen !== "1"; // default open the first time, collapsed thereafter
+  });
+  const toggle = () => {
+    setOpen(o => {
+      const next = !o;
+      try { window.localStorage.setItem(storageKey, "1"); } catch {}
+      return next;
+    });
+  };
+  const subject = kind === "vendor" ? "vendor" : "manufacturer";
+  return (
+    <div style={{ border: "1px solid var(--gold)", borderRadius: 8, background: "rgba(201,168,76,0.06)", marginBottom: 12 }} data-testid={`info-naming-${kind}`}>
+      <button
+        type="button"
+        onClick={toggle}
+        style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", background: "transparent", border: "none", cursor: "pointer", textAlign: "left" }}
+        data-testid={`button-toggle-naming-info-${kind}`}
+      >
+        <span style={{ fontSize: 16 }}>📘</span>
+        <span style={{ flex: 1, fontFamily: "var(--font-heading)", fontSize: 13, fontWeight: 700, color: "var(--gold)", letterSpacing: "0.02em" }}>Naming Fields — Quick Guide</span>
+        {open ? <ChevronDown size={14} color="var(--gold)" /> : <ChevronRight size={14} color="var(--gold)" />}
+      </button>
+      {open && (
+        <div style={{ padding: "0 14px 14px 14px", fontFamily: "var(--font-body)", fontSize: 12, lineHeight: 1.55, color: "var(--text-secondary)" }}>
+          <p style={{ margin: "0 0 10px 0" }}>Each {subject} has three name fields. They serve different jobs, so fill all three out:</p>
+          <p style={{ margin: "0 0 6px 0" }}><strong style={{ color: "var(--text-primary)" }}>Legal Name</strong> — The full official company name.<br/>Example: <em>Pacific Building Specialties, Inc.</em><br/>Used on formal documents like proposals, contracts, and POs.</p>
+          <p style={{ margin: "10px 0 6px 0" }}><strong style={{ color: "var(--text-primary)" }}>Short Code</strong> — The abbreviation your team uses day-to-day. Pick one and stick with it.<br/>Example: <em>PBS</em><br/>Used automatically in RFQ subject lines, file names, dashboards, and dropdowns.</p>
+          <p style={{ margin: "10px 0 6px 0" }}><strong style={{ color: "var(--text-primary)" }}>Aliases</strong> — Every other way this {subject} might show up in emails, bid invites, or quotes. Add as many as you need.<br/>Example: <em>Pacific Bldg Specialties, Pac Building, PacBuilding Spec</em><br/>Used behind the scenes to match incoming emails and bid invites back to the right {subject} — even when the sender spells the name differently.</p>
+          <p style={{ margin: "10px 0 4px 0", color: "var(--text-primary)", fontWeight: 600 }}>Rule of thumb:</p>
+          <ul style={{ margin: "0 0 8px 18px", padding: 0 }}>
+            <li>Short Code = what <em>we</em> write</li>
+            <li>Aliases = what <em>they</em> might write</li>
+          </ul>
+          <p style={{ margin: 0, fontStyle: "italic", color: "var(--text-dim)" }}>Always include the legal name and short code in the aliases list too, so matching catches every variation.</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ---- Alias Chip Input (free-form text → chips on Enter/comma; click × to remove) ----
+function AliasChipInput({ aliases, onChange, testId }: { aliases: string[]; onChange: (a: string[]) => void; testId?: string }) {
+  const [draft, setDraft] = useState("");
+  const commit = (raw: string) => {
+    const cleaned = raw.split(",").map(s => s.trim()).filter(s => s.length > 0);
+    if (cleaned.length === 0) return;
+    const next = [...aliases];
+    for (const a of cleaned) {
+      if (!next.some(x => x.toLowerCase() === a.toLowerCase())) next.push(a);
+    }
+    onChange(next);
+    setDraft("");
+  };
+  const removeAt = (idx: number) => {
+    const next = aliases.slice();
+    next.splice(idx, 1);
+    onChange(next);
+  };
+  return (
+    <div
+      style={{ display: "flex", flexWrap: "wrap", gap: 6, padding: "6px 8px", border: "1px solid var(--border-ds)", borderRadius: 6, background: "var(--bg-card)", minHeight: 36, alignItems: "center" }}
+      onClick={(e) => {
+        const input = (e.currentTarget.querySelector("input") as HTMLInputElement | null);
+        input?.focus();
+      }}
+      data-testid={testId || "alias-chip-input"}
+    >
+      {aliases.map((a, i) => (
+        <span key={`${a}-${i}`} style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "3px 8px", borderRadius: 12, background: "rgba(201,168,76,0.14)", border: "1px solid var(--gold)", color: "var(--text-primary)", fontSize: 11, fontFamily: "var(--font-body)" }} data-testid={`chip-alias-${i}`}>
+          {a}
+          <button type="button" onClick={(e) => { e.stopPropagation(); removeAt(i); }} style={{ background: "none", border: "none", color: "var(--text-dim)", cursor: "pointer", padding: 0, display: "flex" }} data-testid={`button-remove-alias-${i}`} aria-label={`Remove ${a}`}>
+            <X size={11} />
+          </button>
+        </span>
+      ))}
+      <input
+        type="text"
+        value={draft}
+        onChange={(e) => {
+          const v = e.target.value;
+          if (v.endsWith(",")) {
+            commit(v.slice(0, -1));
+          } else {
+            setDraft(v);
+          }
+        }}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") {
+            e.preventDefault();
+            if (draft.trim()) commit(draft);
+          } else if (e.key === "Backspace" && draft === "" && aliases.length > 0) {
+            removeAt(aliases.length - 1);
+          }
+        }}
+        onBlur={() => { if (draft.trim()) commit(draft); }}
+        placeholder={aliases.length === 0 ? "Type an alias and press Enter or comma…" : ""}
+        style={{ flex: 1, minWidth: 140, border: "none", outline: "none", background: "transparent", color: "var(--text-primary)", fontSize: 12, fontFamily: "var(--font-body)", padding: "2px 0" }}
+        data-testid="input-alias-draft"
+      />
+    </div>
+  );
+}
+
 // ---- Excel Upload Modal ----
 function ExcelUploadModal({ onClose, onSuccess }: { onClose: () => void; onSuccess: () => void }) {
   const [dragging, setDragging] = useState(false);
@@ -460,7 +568,7 @@ function VendorDetail({ vendorId, onBack, qc }: { vendorId: number; onBack: () =
     },
   });
 
-  const [form, setForm] = useState({ name: "", category: "", website: "", notes: "", tags: [] as string[], scopes: [] as string[], manufacturerIds: [] as number[], manufacturerDirect: false });
+  const [form, setForm] = useState({ name: "", legalName: "", shortCode: "", aliases: [] as string[], category: "", website: "", notes: "", tags: [] as string[], scopes: [] as string[], manufacturerIds: [] as number[], manufacturerDirect: false });
   const [pricingForm, setPricingForm] = useState({ discountTier: "", paymentTerms: "", notes: "" });
   const [logisticsForm, setLogisticsForm] = useState({ avgLeadTimeDays: "", shipsFrom: "", freightNotes: "" });
   const [taxForm, setTaxForm] = useState({ ein: "", w9OnFile: false, w9ReceivedDate: "", is1099Eligible: false, taxExempt: false, exemptionType: "", exemptionCertNumber: "", nexusStates: [] as string[], taxNotes: "" });
@@ -480,7 +588,7 @@ function VendorDetail({ vendorId, onBack, qc }: { vendorId: number; onBack: () =
 
   useMemo(() => {
     if (vendor && !initialized) {
-      setForm({ name: vendor.name, category: vendor.category || "", website: vendor.website || "", notes: vendor.notes || "", tags: vendor.tags || [], scopes: vendor.scopes || [], manufacturerIds: vendor.manufacturerIds || [], manufacturerDirect: !!vendor.manufacturerDirect });
+      setForm({ name: vendor.name, legalName: vendor.legalName || vendor.name || "", shortCode: vendor.shortCode || "", aliases: vendor.aliases || [], category: vendor.category || "", website: vendor.website || "", notes: vendor.notes || "", tags: vendor.tags || [], scopes: vendor.scopes || [], manufacturerIds: vendor.manufacturerIds || [], manufacturerDirect: !!vendor.manufacturerDirect });
       setPricingForm({ discountTier: vendor.pricing?.discountTier || "", paymentTerms: vendor.pricing?.paymentTerms || "", notes: vendor.pricing?.notes || "" });
       setLogisticsForm({ avgLeadTimeDays: String(vendor.logistics?.avgLeadTimeDays || ""), shipsFrom: vendor.logistics?.shipsFrom || "", freightNotes: vendor.logistics?.freightNotes || "" });
       setTaxForm({ ein: vendor.taxInfo?.ein || "", w9OnFile: !!vendor.taxInfo?.w9OnFile, w9ReceivedDate: vendor.taxInfo?.w9ReceivedDate || "", is1099Eligible: !!vendor.taxInfo?.is1099Eligible, taxExempt: !!vendor.taxInfo?.taxExempt, exemptionType: vendor.taxInfo?.exemptionType || "", exemptionCertNumber: vendor.taxInfo?.exemptionCertNumber || "", nexusStates: vendor.taxInfo?.nexusStates || [], taxNotes: vendor.taxInfo?.taxNotes || "" });
@@ -611,11 +719,19 @@ function VendorDetail({ vendorId, onBack, qc }: { vendorId: number; onBack: () =
 
       {/* General Info */}
       <Section title="General Info" icon={Building2}>
+        <NamingFieldsInfoPanel storageKey="aipm.naming-info-seen.vendor-edit" kind="vendor" />
         <div style={grid2}>
-          <Field label="Vendor Name"><InpText value={form.name} onChange={(v) => setForm({ ...form, name: v })} /></Field>
+          <Field label="Display Name"><InpText value={form.name} onChange={(v) => setForm({ ...form, name: v })} /></Field>
+          <Field label="Legal Name"><InpText value={form.legalName} onChange={(v) => setForm({ ...form, legalName: v })} placeholder="Pacific Building Specialties, Inc." /></Field>
+          <Field label="Short Code"><InpText value={form.shortCode} onChange={(v) => setForm({ ...form, shortCode: v.toUpperCase().slice(0, 10) })} placeholder="e.g. PBS" /></Field>
           <Field label="Category"><InpSelect value={form.category} onChange={(v) => setForm({ ...form, category: v })} options={CATEGORIES} /></Field>
           <Field label="Website"><InpText value={form.website} onChange={(v) => setForm({ ...form, website: v })} placeholder="https://" /></Field>
           <Field label="Tags"><TagInput tags={form.tags} onChange={(t) => setForm({ ...form, tags: t })} /></Field>
+        </div>
+        <div style={{ marginTop: 12 }}>
+          <Field label="Aliases (alternate names this vendor may appear as in incoming emails or bid invites)">
+            <AliasChipInput aliases={form.aliases} onChange={(a) => setForm({ ...form, aliases: a })} testId="input-vendor-aliases" />
+          </Field>
         </div>
         <div style={{ marginTop: 12 }}>
           <Field label="Scope Tags (which scope categories this vendor covers)">
@@ -1026,7 +1142,7 @@ export default function VendorDatabasePage() {
   const [categoryFilter, setCategoryFilter] = useState("");
   const [showAddVendor, setShowAddVendor] = useState(false);
   const [showExcelUpload, setShowExcelUpload] = useState(false);
-  const [newVendor, setNewVendor] = useState({ name: "", category: "", website: "", notes: "", scopes: [] as string[], manufacturerIds: [] as number[] });
+  const [newVendor, setNewVendor] = useState({ name: "", legalName: "", shortCode: "", aliases: [] as string[], category: "", website: "", notes: "", scopes: [] as string[], manufacturerIds: [] as number[] });
 
   const { data: allMfrs = [] } = useQuery<MfrManufacturerRow[]>({ queryKey: ["/api/mfr/manufacturers"] });
 
@@ -1068,7 +1184,7 @@ export default function VendorDatabasePage() {
       }
       qc.invalidateQueries({ queryKey: ["/api/mfr/vendors"] });
       setShowAddVendor(false);
-      setNewVendor({ name: "", category: "", website: "", notes: "", scopes: [], manufacturerIds: [] });
+      setNewVendor({ name: "", legalName: "", shortCode: "", aliases: [], category: "", website: "", notes: "", scopes: [], manufacturerIds: [] });
       setSelectedVendorId(v.id);
       toast({ title: "Vendor created" });
     } catch (e: any) {
@@ -1175,8 +1291,18 @@ export default function VendorDatabasePage() {
           {showAddVendor && (
             <div style={{ padding: 16, borderRadius: 10, border: "1px solid var(--gold)", background: "rgba(201,168,76,0.05)", marginBottom: 16 }}>
               <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text-primary)", marginBottom: 12 }}>New Vendor</div>
+              <NamingFieldsInfoPanel storageKey="aipm.naming-info-seen.vendor" kind="vendor" />
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12, marginBottom: 12 }}>
-                <Field label="Vendor Name *"><InpText value={newVendor.name} onChange={(v) => setNewVendor({ ...newVendor, name: v })} placeholder="e.g. Bobrick" /></Field>
+                <Field label="Display Name *"><InpText value={newVendor.name} onChange={(v) => setNewVendor({ ...newVendor, name: v })} placeholder="e.g. PBS" /></Field>
+                <Field label="Legal Name"><InpText value={newVendor.legalName} onChange={(v) => setNewVendor({ ...newVendor, legalName: v })} placeholder="Pacific Building Specialties, Inc." /></Field>
+                <Field label="Short Code *"><InpText value={newVendor.shortCode} onChange={(v) => setNewVendor({ ...newVendor, shortCode: v.toUpperCase().slice(0, 10) })} placeholder="e.g. PBS" /></Field>
+              </div>
+              <div style={{ marginBottom: 12 }}>
+                <Field label="Aliases (alternate names this vendor may appear as in incoming emails or bid invites)">
+                  <AliasChipInput aliases={newVendor.aliases} onChange={(a) => setNewVendor({ ...newVendor, aliases: a })} testId="input-newvendor-aliases" />
+                </Field>
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 12 }}>
                 <Field label="Category"><InpSelect value={newVendor.category} onChange={(v) => setNewVendor({ ...newVendor, category: v })} options={CATEGORIES} /></Field>
                 <Field label="Website"><InpText value={newVendor.website} onChange={(v) => setNewVendor({ ...newVendor, website: v })} placeholder="https://" /></Field>
               </div>
@@ -1258,9 +1384,9 @@ export default function VendorDatabasePage() {
 }
 
 // ---- Manufacturers Tab ----
-interface MfrStatRow { id: number; name: string; website: string | null; primaryContact: string | null; contactEmail: string | null; contactPhone: string | null; address: string | null; notes: string | null; scopes: string[] | null; vendorCount: number; lineItemCount: number; approvedCount: number; }
+interface MfrStatRow { id: number; name: string; legalName: string | null; shortCode: string | null; aliases: string[] | null; website: string | null; primaryContact: string | null; contactEmail: string | null; contactPhone: string | null; address: string | null; notes: string | null; scopes: string[] | null; vendorCount: number; lineItemCount: number; approvedCount: number; }
 
-const EMPTY_MFR_FORM = { name: "", website: "", primaryContact: "", contactEmail: "", contactPhone: "", address: "", notes: "", scopes: [] as string[] };
+const EMPTY_MFR_FORM = { name: "", legalName: "", shortCode: "", aliases: [] as string[], website: "", primaryContact: "", contactEmail: "", contactPhone: "", address: "", notes: "", scopes: [] as string[] };
 
 function ManufacturersTab() {
   const { toast } = useToast();
@@ -1348,7 +1474,7 @@ function ManufacturersTab() {
   const openEdit = (m: MfrStatRow) => {
     setModalMode("edit");
     setModalId(m.id);
-    setMfrForm({ name: m.name, website: m.website || "", primaryContact: m.primaryContact || "", contactEmail: m.contactEmail || "", contactPhone: m.contactPhone || "", address: m.address || "", notes: m.notes || "", scopes: m.scopes || [] });
+    setMfrForm({ name: m.name, legalName: m.legalName || m.name || "", shortCode: m.shortCode || "", aliases: m.aliases || [], website: m.website || "", primaryContact: m.primaryContact || "", contactEmail: m.contactEmail || "", contactPhone: m.contactPhone || "", address: m.address || "", notes: m.notes || "", scopes: m.scopes || [] });
     setModalOpen(true);
   };
 
@@ -1446,9 +1572,21 @@ function ManufacturersTab() {
               <button onClick={() => setModalOpen(false)} style={{ background: "none", border: "none", color: "var(--text-dim)", cursor: "pointer" }}><X size={16} /></button>
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 12, overflowY: "auto", flex: 1, minHeight: 0, paddingRight: 4 }}>
-              <Field label="Name *">
+              <NamingFieldsInfoPanel storageKey="aipm.naming-info-seen.mfr" kind="manufacturer" />
+              <Field label="Display Name *">
                 <input style={inputStyleLocal} value={mfrForm.name} onChange={(e) => setMfrForm({ ...mfrForm, name: e.target.value })} placeholder="e.g. Bobrick Washroom Equipment" autoFocus data-testid="input-mfr-name" />
               </Field>
+              <Field label="Legal Name">
+                <input style={inputStyleLocal} value={mfrForm.legalName} onChange={(e) => setMfrForm({ ...mfrForm, legalName: e.target.value })} placeholder="Full official name (e.g. Bobrick Washroom Equipment, Inc.)" data-testid="input-mfr-legal-name" />
+              </Field>
+              <div style={{ display: "grid", gridTemplateColumns: "180px 1fr", gap: 12 }}>
+                <Field label={`Short Code${modalMode === "add" ? " *" : ""}`}>
+                  <input style={{ ...inputStyleLocal, textTransform: "uppercase" }} value={mfrForm.shortCode} onChange={(e) => setMfrForm({ ...mfrForm, shortCode: e.target.value.toUpperCase().slice(0, 10) })} placeholder="e.g. BOB" maxLength={10} data-testid="input-mfr-short-code" />
+                </Field>
+                <Field label="Aliases">
+                  <AliasChipInput aliases={mfrForm.aliases} onChange={(a) => setMfrForm({ ...mfrForm, aliases: a })} testId="input-mfr-aliases" />
+                </Field>
+              </div>
               <Field label="Website">
                 <input style={inputStyleLocal} value={mfrForm.website} onChange={(e) => setMfrForm({ ...mfrForm, website: e.target.value })} placeholder="https://" data-testid="input-mfr-website" />
               </Field>
