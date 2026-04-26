@@ -1,0 +1,81 @@
+Do not run git pull, git push, git stash pop, or redeploy.
+
+We completed the recovery and the app is stable. Continue from the current main branch only.
+
+I need you to build the vendor/manufacturer selection behavior in the Estimating Module based on the audit findings.
+
+Goal:
+When the user is working inside a specific estimate scope/tab, vendor and manufacturer selection should prioritize relevant options for that scope and avoid showing unrelated vendors unless the user intentionally expands the search.
+
+Required behavior:
+
+1. Vendor selection priority order
+In any vendor picker used from the Estimating Module, sort vendors in this order:
+A. Vendors previously used for RFQs on this estimate + active scope
+B. Vendors tagged for the active scope
+C. Vendors linked/tagged to the selected manufacturer
+D. Other vendors only if the user enables “Show all vendors”
+
+Within each group, sort alphabetically by vendor name.
+
+2. Open RFQ vendor picker
+Update the Open RFQ ad-hoc picker so it does not show every vendor by default.
+Default view should show only:
+- vendors previously used for RFQs on this estimate/scope
+- vendors tagged for the active scope
+- vendors linked to the selected/related manufacturer, if applicable
+
+Add a “Show all vendors” toggle that allows users to search all vendors when needed.
+
+3. RFQ-used vendors first
+Use existing RFQ log data if possible to identify vendors previously used for this estimate/scope.
+If rfq_log does not currently store vendorId, do not create a risky migration yet. First implement the safest possible version using existing available fields, then report whether a future schema improvement should add vendorId to rfq_log.
+
+4. Scope-specific filtering
+If the active scope is Toilet Accessories, unrelated vendors should not show by default.
+For example, Bobrick/ASI/Bradley-related vendors should show where applicable, but toilet partition-only vendors should not appear unless “Show all vendors” is enabled.
+
+5. Search behavior
+Keep the existing vendor search field.
+Search should search within the current filtered list by default.
+When “Show all vendors” is enabled, search should search all vendors.
+
+6. Manufacturer field behavior
+Do not break the existing ManufacturerCombo.
+Keep the current behavior where approved manufacturers for the scope appear first.
+Keep the ability to type a new manufacturer and auto-save it to the manufacturer database.
+Do not apply the old stashed ManufacturerCombobox.tsx unless you first compare it and confirm it is needed.
+
+7. Per-manufacturer RFQ Recipient Picker
+Keep the existing scope eligibility filter.
+Add a simple search field if low risk.
+The picker should still pre-check eligible contacts as it does now.
+
+8. Group by Vendor
+Do not build the Group by Vendor toggle yet unless it is already simple and low-risk.
+For now, remove dead UI references or leave it hidden. Report what would be required to properly build it later.
+
+Important safety rules:
+- Do not run git pull.
+- Do not run git push.
+- Do not apply the stash.
+- Do not redeploy.
+- Do not reset or modify production.
+- Do not perform a risky database migration without asking first.
+- Keep changes limited to the Estimating Module and related vendor filtering utilities unless absolutely necessary.
+
+Before coding:
+Give me a short implementation plan with:
+1. Files you will edit
+2. Exact vendor ordering logic
+3. Whether rfq_log has enough data to identify previously used vendors
+4. Whether any database changes are required
+5. Risks
+
+After I approve, implement it in small steps and test:
+- TypeScript compile
+- Login still works
+- Estimating Module opens
+- Toilet Accessories scope only shows relevant vendors by default
+- Show all vendors reveals the full list
+- Search works in both filtered and all-vendor modes
