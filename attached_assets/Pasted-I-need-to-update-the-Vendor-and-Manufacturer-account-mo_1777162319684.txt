@@ -1,0 +1,77 @@
+I need to update the Vendor and Manufacturer account modules to support multiple naming conventions. Right now we only have a single name field, but vendors are referenced different ways in different contexts (legal name on contracts, short codes in RFQs, and various aliases in incoming emails).
+
+## What to build
+
+Add three name fields to BOTH the Vendor and Manufacturer account schemas:
+
+1. **legal_name** (text, required) — The full official company name. Example: "Pacific Building Specialties, Inc."
+
+2. **short_code** (text, required, max 10 characters) — The abbreviation our team uses day-to-day. Example: "PBS". This should be unique per vendor/manufacturer.
+
+3. **aliases** (array of text, optional) — A list of alternate names this vendor might appear as in incoming emails, bid invites, or quotes. Example: ["Pacific Bldg Specialties", "Pac Building", "PacBuilding Spec"]
+
+## Schema changes
+
+- Update the Drizzle ORM schema for both vendors and manufacturers tables.
+- Run the migration to add these columns.
+- Keep any existing "name" field for now and populate legal_name from it as a default — do NOT delete the old field yet, just in case other parts of the app reference it. We'll clean up later.
+
+## UI changes
+
+Update the vendor and manufacturer create/edit forms to:
+
+- Display all three fields with clear labels: "Legal Name", "Short Code", and "Aliases".
+- For the aliases field, use a tag-style input where each alias is its own chip/pill the user can add or remove (or a simple comma-separated text input if that's faster — your call, just make it usable).
+- Add an info panel at the top of the form (collapsible, default open the first time) with this exact content:
+
+---
+**📘 Naming Fields — Quick Guide**
+
+Each vendor has three name fields. They serve different jobs, so fill all three out:
+
+**Legal Name** — The full official company name.
+Example: Pacific Building Specialties, Inc.
+Used on formal documents like proposals, contracts, and POs.
+
+**Short Code** — The abbreviation your team uses day-to-day. Pick one and stick with it.
+Example: PBS
+Used automatically in RFQ subject lines, file names, dashboards, and dropdowns.
+
+**Aliases** — Every other way this vendor might show up in emails, bid invites, or quotes. Add as many as you need, separated by commas.
+Example: Pacific Bldg Specialties, Pac Building, PacBuilding Spec
+Used behind the scenes to match incoming emails and bid invites back to the right vendor — even when the sender spells the name differently.
+
+**Rule of thumb:**
+- Short Code = what *we* write
+- Aliases = what *they* might write
+
+Always include the legal name and short code in the aliases list too, so matching catches every variation.
+---
+
+Style this info panel using our existing Executive Suite design tokens (Playfair Display for the heading, Source Sans 3 for body, warm gold accent for the icon/border). Make it visually distinct from the form fields below it but not overwhelming.
+
+## Helper function
+
+Create a utility function called `getVendorDisplayName(vendor, context)` where context can be:
+- "rfq" → returns short_code
+- "formal" → returns legal_name
+- "display" → returns "{legal_name} ({short_code})"
+- "match" → returns an array of [legal_name, short_code, ...aliases] for use in matching incoming text
+
+Place this in a shared utils file so it can be imported anywhere we need to render or match a vendor name.
+
+## Validation
+
+- Short code must be unique across all vendors (and separately, unique across all manufacturers).
+- Short code should auto-uppercase on save.
+- Aliases should auto-trim whitespace on each entry.
+
+## What NOT to change
+
+- Do not modify any existing RFQ generation, email parsing, or BuildingConnected integration logic yet. We'll wire those up to use the new fields in a follow-up step. For now, just get the data structure and form working.
+
+Once this is built, show me:
+1. The updated schema file
+2. The updated form component
+3. The new utility file
+4. Confirmation that the migration ran successfully
