@@ -1,0 +1,77 @@
+Do not make code changes yet. Do not redeploy. Do not push. Do not pull. Do not apply the stash. Do not touch the database.
+
+We recovered the workspace to main at commit ee17c49 and the working tree is clean.
+
+Current issue:
+The login page looks correct, but login fails with:
+
+Failed to execute 'json' on 'Response': Unexpected token '<', '<!DOCTYPE ...' is not valid JSON
+
+I tested the backend:
+
+curl -i http://localhost:5000/api/auth/me
+
+Result:
+HTTP/1.1 401 Unauthorized
+Content-Type: application/json
+{"message":"Not authenticated"}
+
+So the backend is running.
+
+Then I tested:
+
+curl -i -X POST http://localhost:5000/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"Haley.Kruse@nationalbuildingspecialties.com","password":"test"}'
+
+Result:
+HTTP/1.1 200 OK
+Content-Type: text/html
+<!DOCTYPE html>...
+
+That means POST /api/auth/login is not being handled by the backend and is falling through to the Vite/React HTML page.
+
+Please perform a read-only auth route audit.
+
+Check:
+1. What exact endpoint the frontend login form posts to.
+2. Which file contains the login function.
+3. Whether the backend has a POST route for that exact endpoint.
+4. Whether the route is registered before the Vite/static fallback.
+5. Whether the correct login route is actually named something else, such as:
+   - /api/auth/signin
+   - /api/login
+   - /api/auth/password-login
+   - /api/firebase/login
+6. Whether the restored main branch has the login UI but not the matching backend login route.
+7. Whether production has a different environment variable, build, or route config that makes login work there.
+8. Whether this is caused by missing Firebase/auth environment variables in dev.
+9. Whether the frontend should be updated to call an existing route, or the backend needs a matching POST /api/auth/login route.
+
+Return a report only.
+
+Report format:
+
+A. Frontend login request
+- File:
+- Function:
+- Endpoint used:
+- Method:
+- Expected JSON response:
+
+B. Backend auth routes found
+Create a table:
+Route | Method | File | Registered? | Returns JSON? | Notes
+
+C. Why /api/auth/login returns HTML
+Explain exactly why the request is falling through to the React/Vite page.
+
+D. Safest fix options
+List options in order of safety:
+1. Update frontend to use existing backend route
+2. Add backend route matching current frontend call
+3. Fix route registration order
+4. Fix missing dev environment variable
+
+E. Recommended fix
+Give me the exact recommended fix, but do not apply it until I approve.
