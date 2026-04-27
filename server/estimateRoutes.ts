@@ -48,7 +48,7 @@ function handleEstimateImageUpload(req: Request, res: Response, next: Function) 
 
 // ── SCOPE KEYWORD MAPPING for auto-assigning scope to extracted items ──
 const SCOPE_KEYWORDS: Record<string, string[]> = {
-  accessories: ["grab bar", "towel bar", "towel ring", "robe hook", "soap dispenser", "paper towel", "hand dryer", "waste receptacle", "mirror", "shelf", "shower seat", "sanitary napkin", "seat cover dispenser", "toilet paper holder", "toilet paper dispenser", "toilet tissue dispenser", "toilet tissue holder", "tissue dispenser", "tissue holder", "napkin dispenser", "napkin disposal", "feminine hygiene", "feminine napkin", "paper towel dispenser", "hook strip", "mop holder", "diaper changing station", "baby changing", "changing station", "toilet accessory", "restroom accessory", "bath accessory"],
+  accessories: ["grab bar", "towel bar", "towel ring", "robe hook", "wall hook", "coat hook", "utility hook", "soap dispenser", "paper towel", "hand dryer", "waste receptacle", "mirror", "shelf", "shower seat", "sanitary napkin", "seat cover dispenser", "toilet paper holder", "toilet paper dispenser", "toilet tissue dispenser", "toilet tissue holder", "tissue dispenser", "tissue holder", "napkin dispenser", "napkin disposal", "feminine hygiene", "feminine napkin", "paper towel dispenser", "hook strip", "mop holder", "diaper changing station", "baby changing", "changing station", "toilet accessory", "restroom accessory", "bath accessory"],
   partitions: ["partition", "urinal screen", "privacy screen", "pilaster", "panel", "headrail", "overhead braced", "floor mounted", "ceiling hung", "compartment", "stall", "toilet partition", "shower partition"],
   fire_ext: ["fire extinguisher", "fire ext", "fec", "fire cabinet", "fire blanket", "extinguisher cabinet"],
   corner_guards: ["corner guard", "wall guard", "bumper guard", "chair rail", "wall protection", "door protection", "kick plate", "push plate", "pull plate", "crash rail"],
@@ -102,6 +102,8 @@ const SCOPE_TAG_CODES: Record<string, string[]> = {
     "wr",                                  // waste receptacle
     "bcs", "bcd", "dcs",                  // baby/diaper changing station
     "rh",                                  // robe hook
+    "wh",                                  // wall hook
+    "ch",                                  // coat hook
     "tb",                                  // towel bar
     "mir",                                 // mirror
   ],
