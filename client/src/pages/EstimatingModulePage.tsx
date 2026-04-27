@@ -4519,7 +4519,7 @@ ${html}
 
                 {catLineItems.length > 0 && (
                   <div className="overflow-x-auto -webkit-overflow-scrolling-touch">
-                    <table className="text-xs" style={{ width: "100%", minWidth: 1100 }}>
+                    <table className="text-xs" style={{ width: "100%", minWidth: 1200 }}>
                       <thead>
                         <tr style={{ background: "var(--bg3)", borderBottom: "1px solid var(--border-ds)" }}>
                           <th className="px-2 py-2 text-center" style={{ width: "3%" }}>
@@ -4529,14 +4529,14 @@ ${html}
                               style={{ accentColor: "var(--gold)", cursor: "pointer" }} />
                           </th>
                           <th className="text-left px-3 py-2 font-semibold" style={{ color: "var(--text-muted)", width: "10%" }}>Plan Callout</th>
-                          <th className="text-left px-2 py-2 font-semibold" style={{ color: "var(--text-muted)", width: "28%" }}>Description</th>
-                          <th className="text-left px-2 py-2 font-semibold" style={{ color: "var(--text-muted)", width: "12%" }}>Manufacturer</th>
-                          <th className="text-left px-2 py-2 font-semibold" style={{ color: "var(--text-muted)", width: "12%" }}>Model Number</th>
+                          <th className="text-left px-2 py-2 font-semibold" style={{ color: "var(--text-muted)", width: "24%" }}>Description</th>
+                          <th className="text-left px-2 py-2 font-semibold" style={{ color: "var(--text-muted)", width: "11%" }}>Manufacturer</th>
+                          <th className="text-left px-2 py-2 font-semibold" style={{ color: "var(--text-muted)", width: "11%" }}>Model Number</th>
                           <th className="text-right px-2 py-2 font-semibold" style={{ color: "var(--text-muted)", width: "6%" }}>Qty</th>
                           <th className="text-left px-2 py-2 font-semibold" style={{ color: "var(--text-muted)", width: "7%" }}>UOM</th>
-                          <th className="text-right px-2 py-2 font-semibold" style={{ color: "var(--text-muted)", width: "10%" }}>Unit Cost</th>
-                          <th className="text-right px-2 py-2 font-semibold" style={{ color: "var(--text-muted)", width: "10%" }}>Line Total</th>
-                          <th className="text-left px-2 py-2 font-semibold" style={{ color: "var(--text-muted)", width: "12%" }}>Quote</th>
+                          <th className="text-right px-2 py-2 font-semibold" style={{ color: "var(--text-muted)", width: "9%" }}>Unit Cost</th>
+                          <th className="text-right px-2 py-2 font-semibold" style={{ color: "var(--text-muted)", width: "9%" }}>Line Total</th>
+                          <th className="text-left px-2 py-2 font-semibold" style={{ color: "var(--text-muted)", width: "18%", minWidth: 180 }}>Quote</th>
                           <th className="text-center px-2 py-2 font-semibold" style={{ color: "var(--text-muted)", width: "4%" }}>Bkup</th>
                           <th className="px-2 py-2" style={{ width: "4%" }}></th>
                         </tr>
