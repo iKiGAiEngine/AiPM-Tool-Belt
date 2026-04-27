@@ -19,7 +19,7 @@ import {
 } from "lucide-react";
 import { exportEstimateToExcel } from "@/lib/exportEstimateExcel";
 import { MAX_UPLOAD_LABEL } from "@shared/uploadLimits";
-import nbsLogoUrl from "@assets/image_1777258417502.png";
+import nbsLogoUrl from "@assets/image_1777258527973.png";
 
 // ══════════════════════════════════════════════════
 // CONSTANTS
