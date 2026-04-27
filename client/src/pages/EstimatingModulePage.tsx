@@ -5578,24 +5578,21 @@ ${html}
                   ];
                   return (
                     <>
-                      {/* ============ HEADER ============ */}
-                      <div style={{ position: "relative", paddingBottom: 20, marginBottom: 20, borderBottom: `3px solid ${GOLD}` }}>
+                      {/* ============ HEADER (condensed banner row) ============ */}
+                      <div style={{ position: "relative", paddingBottom: 8, marginBottom: 14, borderBottom: `3px solid ${GOLD}` }}>
                         <div style={{ display: "grid", gridTemplateColumns: "0.85fr 1.6fr 1fr", gap: 16, alignItems: "center" }}>
-                          <div style={{ minWidth: 140, height: 54, display: "flex", alignItems: "center", justifyContent: "flex-start" }}>
-                            <img src={nbsLogoUrl} alt="National Building Specialties" style={{ maxHeight: 54, maxWidth: "100%", width: "auto", objectFit: "contain", display: "block" }} data-testid="img-nbs-logo-proposal" />
+                          <div style={{ height: 44, display: "flex", alignItems: "center", justifyContent: "flex-start" }}>
+                            <img src={nbsLogoUrl} alt="National Building Specialties" style={{ maxHeight: 44, maxWidth: "100%", width: "auto", objectFit: "contain", display: "block" }} data-testid="img-nbs-logo-proposal" />
                           </div>
                           <div style={{ textAlign: "center" }}>
-                            <div style={{ fontFamily: "'Playfair Display', serif", fontSize: 22, fontWeight: 700, letterSpacing: 0.5, textTransform: "uppercase", lineHeight: 1.1, color: INK }}>Proposal</div>
-                            <div style={{ width: 50, height: 1, background: INK, margin: "10px auto 0" }} />
+                            <div style={{ fontFamily: "'Playfair Display', serif", fontSize: 28, fontWeight: 700, letterSpacing: 0.5, textTransform: "uppercase", lineHeight: 1, color: INK }}>Proposal</div>
+                            <div style={{ marginTop: 4, fontFamily: "'Rajdhani', sans-serif", fontSize: 10, letterSpacing: 4, color: GOLD, fontWeight: 600, textTransform: "uppercase", lineHeight: 1 }}>Furnish Only · Division 10</div>
                           </div>
-                          <div style={{ textAlign: "right", fontFamily: "'Rajdhani', sans-serif", fontSize: 8, lineHeight: 1.5, color: INK_SOFT }}>
-                            <div><strong style={{ color: INK, fontWeight: 600 }}>4130 Flat Rock Dr, Suite 110</strong></div>
-                            <div>Riverside, CA 92505</div>
-                            <div>NationalBuildingSpecialties.com</div>
-                            <div style={{ marginTop: 5, paddingTop: 5, borderTop: `1px solid ${RULE_FAINT}`, fontSize: 7, letterSpacing: 0.5, color: INK_FAINT }}>CA LIC #1101865</div>
+                          <div style={{ textAlign: "right", fontFamily: "'Rajdhani', sans-serif", fontSize: 10, lineHeight: 1.35, color: INK_SOFT }}>
+                            <div><strong style={{ color: INK, fontWeight: 600 }}>4130 Flat Rock Dr, Suite 110</strong> · Riverside, CA 92505</div>
+                            <div>NationalBuildingSpecialties.com · <span style={{ color: INK_FAINT, letterSpacing: 0.5 }}>CA LIC #1101865</span></div>
                           </div>
                         </div>
-                        <div style={{ textAlign: "center", marginTop: 14, fontFamily: "'Rajdhani', sans-serif", fontSize: 9, letterSpacing: 5, color: GOLD, fontWeight: 600, textTransform: "uppercase" }}>Furnish Only · Division 10</div>
                       </div>
 
                       {/* ============ META GRID (6 fields) ============ */}
