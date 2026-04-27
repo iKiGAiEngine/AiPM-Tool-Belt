@@ -303,20 +303,25 @@ const MoneyInput: React.FC<MoneyInputProps> = ({
   value, onChange, className, style, inputClassName, size = "md", ariaLabel,
 }) => {
   const [focused, setFocused] = useState(false);
+  // While focused & actively typing, hold the literal user-typed string so
+  // partial input like "500." or "0." is preserved across re-renders.
+  // null = not actively editing → show the clean numeric value derived from props.
+  const [editing, setEditing] = useState<string | null>(null);
   const numeric = typeof value === "number" ? value : parseFloat(value || "0") || 0;
   const isZero = numeric === 0;
-  // Raw editing string: prefer the original value if it's a string (preserves
-  // a partial entry like "500." while typing); fall back to the parsed number.
-  const rawString = typeof value === "string" ? value : (isZero ? "" : String(numeric));
-  // Show cents only when there's an actual fractional component.
   const hasFraction = Math.abs(numeric - Math.trunc(numeric)) > 0.0049;
   const formatted = numeric.toLocaleString("en-US", {
     minimumFractionDigits: hasFraction ? 2 : 0,
     maximumFractionDigits: 2,
   });
-  const display = focused
-    ? rawString
-    : (isZero ? "$0" : `$${formatted}`);
+  // Clean focused-display: zero → empty so it never blocks fresh typing;
+  // whole dollars → no decimals; cents → exactly two decimals.
+  const cleanFocused = isZero
+    ? ""
+    : (hasFraction ? numeric.toFixed(2) : String(Math.trunc(numeric)));
+  const display = !focused
+    ? (isZero ? "$0" : `$${formatted}`)
+    : (editing !== null ? editing : cleanFocused);
   const fontClass =
     size === "xs" ? "text-xs"
     : size === "sm" ? "text-sm"
@@ -338,15 +343,24 @@ const MoneyInput: React.FC<MoneyInputProps> = ({
           if (firstDot !== -1) {
             v = v.slice(0, firstDot + 1) + v.slice(firstDot + 1).replace(/\./g, "");
           }
+          setEditing(v);
           onChange(v);
         }}
         onFocus={e => {
           setFocused(true);
-          // Select-all only when the field is effectively empty/zero, so a click
-          // into an existing value lets you position the cursor without wiping.
-          if (isZero) e.target.select();
+          setEditing(null);
+          // Defer select() until after React paints the focused-mode value,
+          // so the user's first keystroke cleanly replaces the whole amount
+          // instead of being inserted between digits of "0.00".
+          const target = e.target;
+          setTimeout(() => {
+            try { target.select(); } catch {}
+          }, 0);
         }}
-        onBlur={() => setFocused(false)}
+        onBlur={() => {
+          setFocused(false);
+          setEditing(null);
+        }}
         className={`flex-1 bg-transparent border-none outline-none text-right px-1.5 py-1 min-w-0 ${fontClass} ${inputClassName || ""}`}
         style={{ color: inputColor }}
       />
