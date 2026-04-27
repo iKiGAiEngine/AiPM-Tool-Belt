@@ -86,12 +86,27 @@ export function normalizeOpportunity(raw: Record<string, any>): BcOpportunity {
 
   const city = addr.city || "";
   const state = addr.state || "";
-  const street = addr.street
-    ? addr.street
-    : addr.streetName
-      ? [addr.streetNumber, addr.streetName].filter(Boolean).join(" ")
-      : addr.formattedAddress || addr.complete || "";
-  const formattedAddress = [street, city, state].filter(Boolean).join(", ");
+  const zip = addr.zip || addr.zipCode || addr.postalCode || addr.postal_code || "";
+  const country = addr.country || "";
+  const suite = addr.suite || addr.unit || "";
+  let street = "";
+  if (addr.street) {
+    street = String(addr.street);
+  } else if (addr.streetName || addr.streetNumber) {
+    street = [addr.streetNumber, addr.streetName].filter(Boolean).join(" ");
+  } else if (addr.address1 || addr.addressLine1 || addr.line1) {
+    street = String(addr.address1 || addr.addressLine1 || addr.line1);
+  }
+  const streetWithSuite = suite ? `${street} ${suite}`.trim() : street;
+  const cityStateZip = [city, [state, zip].filter(Boolean).join(" ").trim()].filter(Boolean).join(", ");
+  let formattedAddress = "";
+  if (streetWithSuite || cityStateZip) {
+    formattedAddress = [streetWithSuite, cityStateZip].filter(Boolean).join(", ");
+  } else if (addr.complete) {
+    formattedAddress = String(addr.complete);
+  } else if (addr.formattedAddress) {
+    formattedAddress = String(addr.formattedAddress);
+  }
 
   const gcCompanyName = deepGet(raw,
     "client.company.name",
@@ -192,12 +207,19 @@ export function normalizeOpportunity(raw: Record<string, any>): BcOpportunity {
   const expectedStart = deepGet(raw,
     "expectedStart",
     "expectedStartDate",
+    "estimatedStartDate",
+    "estStartDate",
     "startDate",
     "constructionStartDate",
     "attributes.expectedStart",
     "attributes.expectedStartDate",
+    "attributes.estimatedStartDate",
+    "attributes.estStartDate",
     "attributes.startDate",
     "project.expectedStart",
+    "project.expectedStartDate",
+    "project.estimatedStartDate",
+    "project.estStartDate",
     "project.startDate",
   );
 
@@ -205,12 +227,28 @@ export function normalizeOpportunity(raw: Record<string, any>): BcOpportunity {
     "expectedFinish",
     "expectedEndDate",
     "expectedFinishDate",
+    "expectedCompletionDate",
+    "estimatedFinishDate",
+    "estimatedEndDate",
+    "estimatedCompletionDate",
+    "estCompletionDate",
+    "estEndDate",
+    "estFinishDate",
     "endDate",
     "constructionEndDate",
     "attributes.expectedFinish",
     "attributes.expectedEndDate",
+    "attributes.expectedFinishDate",
+    "attributes.expectedCompletionDate",
     "attributes.endDate",
     "project.expectedFinish",
+    "project.expectedFinishDate",
+    "project.expectedEndDate",
+    "project.expectedCompletionDate",
+    "project.estCompletionDate",
+    "project.estEndDate",
+    "project.estimatedFinishDate",
+    "project.estimatedCompletionDate",
     "project.endDate",
   );
 
@@ -358,10 +396,18 @@ async function fetchFromEndpoint(
           if (first.client.lead) console.log(`[BC Sync] [${endpoint.label}] client.lead: ${JSON.stringify(first.client.lead).slice(0, 300)}`);
         }
         if (first.invitedBy) console.log(`[BC Sync] [${endpoint.label}] invitedBy keys: ${Object.keys(first.invitedBy).join(", ")}`);
-        if (first.address) console.log(`[BC Sync] [${endpoint.label}] address keys: ${Object.keys(first.address).join(", ")}`);
-        if (first.location) console.log(`[BC Sync] [${endpoint.label}] location keys: ${Object.keys(first.location).join(", ")}`);
+        if (first.address) console.log(`[BC Sync] [${endpoint.label}] address keys: ${Object.keys(first.address).join(", ")} | sample: ${JSON.stringify(first.address).slice(0, 300)}`);
+        if (first.location) console.log(`[BC Sync] [${endpoint.label}] location keys: ${Object.keys(first.location).join(", ")} | sample: ${JSON.stringify(first.location).slice(0, 300)}`);
+        if (first.project) console.log(`[BC Sync] [${endpoint.label}] project keys: ${Object.keys(first.project).join(", ")} | sample: ${JSON.stringify(first.project).slice(0, 400)}`);
+        const dateProbe: Record<string, any> = {};
+        for (const k of ["expectedStart","expectedStartDate","estimatedStartDate","estStartDate","startDate","expectedFinish","expectedFinishDate","expectedCompletionDate","estCompletionDate","estEndDate","endDate"]) {
+          if (first[k] != null) dateProbe[k] = first[k];
+          if (first.project && first.project[k] != null) dateProbe[`project.${k}`] = first.project[k];
+          if (first.attributes && first.attributes[k] != null) dateProbe[`attributes.${k}`] = first.attributes[k];
+        }
+        console.log(`[BC Sync] [${endpoint.label}] date fields probe: ${JSON.stringify(dateProbe)}`);
         const norm = normalizeOpportunity(first);
-        console.log(`[BC Sync] [${endpoint.label}] Normalized: name="${norm.projectName}", gc="${norm.gcCompanyName}", officeHint="${norm.gcOfficeHint}", city="${norm.location?.city}", state="${norm.location?.state}"`);
+        console.log(`[BC Sync] [${endpoint.label}] Normalized: name="${norm.projectName}", gc="${norm.gcCompanyName}", officeHint="${norm.gcOfficeHint}", city="${norm.location?.city}", state="${norm.location?.state}", formattedAddress="${norm.location?.formattedAddress}", expStart="${norm.expectedStart}", expFinish="${norm.expectedFinish}"`);
       } else {
         console.log(`[BC Sync] [${endpoint.label}] Empty results. Sample: ${JSON.stringify(data).slice(0, 500)}`);
       }
@@ -430,10 +476,11 @@ export function filterByGcAllowlist(opps: BcOpportunity[]): BcOpportunity[] {
 }
 
 function getLocationStr(opp: BcOpportunity): string {
+  if (opp.location?.formattedAddress) return opp.location.formattedAddress;
   const parts: string[] = [];
   if (opp.location?.city) parts.push(opp.location.city);
   if (opp.location?.state) parts.push(opp.location.state);
-  return parts.join(", ") || opp.location?.formattedAddress || "";
+  return parts.join(", ");
 }
 
 const GENERIC_COMPANY_WORDS = new Set([

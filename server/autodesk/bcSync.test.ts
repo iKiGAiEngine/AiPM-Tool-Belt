@@ -158,6 +158,59 @@ const s4 = normalizeOpportunity(scopeEdgeCases[3]);
 assert.deepStrictEqual(s4.scopes, ["42", "Plumbing"]);
 console.log("PASS: Scope edge cases — string, null, mixed array all handled");
 
+const fullAddressPayload = {
+  id: "addr1",
+  name: "Lincoln Way Project",
+  client: { company: { name: "Swinerton Builders" } },
+  location: {
+    streetNumber: "1919",
+    streetName: "Lincoln Way",
+    city: "Coeur d'Alene",
+    state: "ID",
+    zip: "83814",
+    country: "US",
+  },
+  project: {
+    expectedStartDate: "2026-07-07T00:00:00.000Z",
+    expectedFinishDate: "2027-07-27T00:00:00.000Z",
+  },
+};
+const fullAddr = normalizeOpportunity(fullAddressPayload);
+assert.strictEqual(fullAddr.location?.formattedAddress, "1919 Lincoln Way, Coeur d'Alene, ID 83814");
+assert.strictEqual(fullAddr.expectedStart, "2026-07-07T00:00:00.000Z");
+assert.strictEqual(fullAddr.expectedFinish, "2027-07-27T00:00:00.000Z");
+console.log("PASS: Full address with street/zip + project.expectedStartDate/expectedFinishDate extracted");
+
+const altDateNamesPayload = {
+  id: "dates1",
+  name: "Date Names Project",
+  client: { company: { name: "Swinerton Builders" } },
+  address: { city: "Boise", state: "ID" },
+  estStartDate: "2026-08-01",
+  estCompletionDate: "2027-02-15",
+};
+const altDates = normalizeOpportunity(altDateNamesPayload);
+assert.strictEqual(altDates.expectedStart, "2026-08-01");
+assert.strictEqual(altDates.expectedFinish, "2027-02-15");
+console.log("PASS: Alternate date field names (estStartDate / estCompletionDate) extracted");
+
+const projectStartPayload = {
+  id: "dates2",
+  name: "Project-Nested Dates",
+  client: { company: { name: "Swinerton Builders" } },
+  address: { city: "Reno", state: "NV" },
+  project: { expectedStart: "2026-09-01", expectedCompletionDate: "2027-03-01" },
+};
+const projectDates = normalizeOpportunity(projectStartPayload);
+assert.strictEqual(projectDates.expectedStart, "2026-09-01");
+assert.strictEqual(projectDates.expectedFinish, "2027-03-01");
+console.log("PASS: Project-nested dates (project.expectedStart / project.expectedCompletionDate) extracted");
+
+const v2WithDates = normalizeOpportunity(swinertonV2Payload);
+assert.strictEqual(v2WithDates.location?.formattedAddress, "5200 Illumina Way, San Diego, CA 92122");
+console.log("PASS: V2 payload formattedAddress now includes street + zip");
+
+
 assert.strictEqual(guessRegionFromLocation("San Diego, CA"), "SAN");
 assert.strictEqual(guessRegionFromLocation("Portland, OR"), "PDX");
 assert.strictEqual(guessRegionFromLocation("Denver, CO"), "DEN");
