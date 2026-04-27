@@ -256,6 +256,19 @@ export async function initializePermissions() {
       }
     }
 
+    // Idempotent: keep users.is_admin column in sync with role.
+    // Fixes accounts where role was set to 'admin' but the is_admin flag was never flipped,
+    // which previously hid the Admin Dashboard / shield button.
+    const isAdminSyncResult = await db.execute(sql`
+      UPDATE users
+      SET is_admin = (role = 'admin')
+      WHERE is_admin IS DISTINCT FROM (role = 'admin')
+      RETURNING id
+    `);
+    if (isAdminSyncResult.rows.length > 0) {
+      console.log(`[Permissions] Synced is_admin flag for ${isAdminSyncResult.rows.length} user(s) to match role`);
+    }
+
     console.log("[Permissions] Initialized user feature access");
   } catch (error: any) {
     console.error("[Permissions] Failed to initialize:", error.message);

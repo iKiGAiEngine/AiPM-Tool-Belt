@@ -80,7 +80,7 @@ export function registerAdminRoutes(app: Express) {
 
       const [updated] = await db
         .update(users)
-        .set({ role })
+        .set({ role, isAdmin: role === "admin" })
         .where(eq(users.id, userId))
         .returning();
 
@@ -325,6 +325,7 @@ export function registerAdminRoutes(app: Express) {
           return res.status(400).json({ message: "You cannot demote yourself" });
         }
         updateFields.role = role;
+        updateFields.isAdmin = role === "admin";
       }
       if (dashboardScope !== undefined) updateFields.dashboardScope = dashboardScope || "my_projects";
       if (dashboardLayout !== undefined) updateFields.dashboardLayout = dashboardLayout || "estimator";
