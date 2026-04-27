@@ -48,7 +48,7 @@ function handleEstimateImageUpload(req: Request, res: Response, next: Function) 
 
 // ── SCOPE KEYWORD MAPPING for auto-assigning scope to extracted items ──
 const SCOPE_KEYWORDS: Record<string, string[]> = {
-  accessories: ["grab bar", "towel bar", "towel ring", "robe hook", "soap dispenser", "paper towel", "hand dryer", "waste receptacle", "mirror", "shelf", "shower seat", "sanitary napkin", "seat cover dispenser", "toilet paper holder", "hook strip", "mop holder", "diaper changing station", "baby changing", "changing station", "toilet accessory", "restroom accessory"],
+  accessories: ["grab bar", "towel bar", "towel ring", "robe hook", "soap dispenser", "paper towel", "hand dryer", "waste receptacle", "mirror", "shelf", "shower seat", "sanitary napkin", "seat cover dispenser", "toilet paper holder", "toilet paper dispenser", "toilet tissue dispenser", "toilet tissue holder", "tissue dispenser", "tissue holder", "napkin dispenser", "napkin disposal", "feminine hygiene", "feminine napkin", "paper towel dispenser", "hook strip", "mop holder", "diaper changing station", "baby changing", "changing station", "toilet accessory", "restroom accessory", "bath accessory"],
   partitions: ["partition", "urinal screen", "privacy screen", "pilaster", "panel", "headrail", "overhead braced", "floor mounted", "ceiling hung", "compartment", "stall", "toilet partition", "shower partition"],
   fire_ext: ["fire extinguisher", "fire ext", "fec", "fire cabinet", "fire blanket", "extinguisher cabinet"],
   corner_guards: ["corner guard", "wall guard", "bumper guard", "chair rail", "wall protection", "door protection", "kick plate", "push plate", "pull plate", "crash rail"],
@@ -87,6 +87,37 @@ const CSI_TO_SCOPE: Record<string, string> = {
   "11 31": "appliances",
 };
 
+// Tag/symbol codes commonly used on plan schedules. Matched with word boundaries
+// so codes like "TPDC1", "TPDC-2", "TPDC_3" all hit but substrings inside other
+// words do not (e.g. "WR" won't match inside "WRENCH").
+const SCOPE_TAG_CODES: Record<string, string[]> = {
+  accessories: [
+    "tpd", "tpdc", "tph", "tpc",          // toilet paper dispenser/holder/combo
+    "snd", "sndc", "snr", "snrc",         // sanitary napkin dispenser/receptacle
+    "scd",                                 // seat cover dispenser
+    "ptd", "ptdc", "ctd",                 // paper towel dispenser / combo
+    "sd", "sdc",                          // soap dispenser
+    "hd",                                  // hand dryer
+    "gb",                                  // grab bar
+    "wr",                                  // waste receptacle
+    "bcs", "bcd", "dcs",                  // baby/diaper changing station
+    "rh",                                  // robe hook
+    "tb",                                  // towel bar
+    "mir",                                 // mirror
+  ],
+  partitions: ["tp", "tpt", "tc", "us"],   // toilet partition/compartment, urinal screen
+  fire_ext: ["fec", "fe"],                 // fire extinguisher cabinet
+  corner_guards: ["cg", "wg"],             // corner / wall guard
+  lockers: ["lk", "lkr"],
+  display_boards: ["mb", "wb", "tk", "bb"],// markerboard, whiteboard, tackboard, bulletin
+};
+
+function matchesTagCode(text: string, code: string): boolean {
+  // Word-boundary match that allows trailing digits / dashes (e.g. TPDC1, TPDC-2)
+  const re = new RegExp(`(^|[^a-z0-9])${code}([^a-z]|$)`, "i");
+  return re.test(text);
+}
+
 function suggestScope(description: string, mfr: string): { scopeId: string | null; confidence: number } {
   const text = `${description} ${mfr}`.toLowerCase();
   let best: string | null = null;
@@ -97,6 +128,13 @@ function suggestScope(description: string, mfr: string): { scopeId: string | nul
     for (const kw of keywords) {
       if (text.includes(kw)) {
         score += kw.split(" ").length * 20;
+      }
+    }
+    // Tag/symbol code boost (e.g. "TPDC1" → accessories)
+    const codes = SCOPE_TAG_CODES[scopeId] || [];
+    for (const code of codes) {
+      if (matchesTagCode(text, code)) {
+        score += 30;
       }
     }
     if (score > bestScore) {
