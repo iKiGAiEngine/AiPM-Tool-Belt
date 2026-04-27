@@ -1,0 +1,110 @@
+chunk-LPF6KSF2.js?v=fff12204:21609 Download the React DevTools for a better development experience: https://reactjs.org/link/react-devtools
+EstimatingModulePage.tsx:5679 Uncaught ReferenceError: React is not defined
+    at EstimatingModulePage.tsx:5679:40
+    at Array.map (<anonymous>)
+    at EstimatingModulePage.tsx:5678:47
+    at EstimatingModulePage.tsx:5698:29
+    at Array.map (<anonymous>)
+    at EstimatingModulePage.tsx:5614:74
+    at EstimatingModuleInner (EstimatingModulePage.tsx:5718:17)
+    at renderWithHooks (chunk-LPF6KSF2.js?v=fff12204:11596:26)
+    at updateFunctionComponent (chunk-LPF6KSF2.js?v=fff12204:14630:28)
+    at beginWork (chunk-LPF6KSF2.js?v=fff12204:15972:22)
+(anonymous) @ EstimatingModulePage.tsx:5679
+(anonymous) @ EstimatingModulePage.tsx:5678
+(anonymous) @ EstimatingModulePage.tsx:5698
+(anonymous) @ EstimatingModulePage.tsx:5614
+EstimatingModuleInner @ EstimatingModulePage.tsx:5718
+renderWithHooks @ chunk-LPF6KSF2.js?v=fff12204:11596
+updateFunctionComponent @ chunk-LPF6KSF2.js?v=fff12204:14630
+beginWork @ chunk-LPF6KSF2.js?v=fff12204:15972
+callCallback2 @ chunk-LPF6KSF2.js?v=fff12204:3680
+invokeGuardedCallbackDev @ chunk-LPF6KSF2.js?v=fff12204:3705
+invokeGuardedCallback @ chunk-LPF6KSF2.js?v=fff12204:3739
+beginWork$1 @ chunk-LPF6KSF2.js?v=fff12204:19818
+performUnitOfWork @ chunk-LPF6KSF2.js?v=fff12204:19251
+workLoopSync @ chunk-LPF6KSF2.js?v=fff12204:19190
+renderRootSync @ chunk-LPF6KSF2.js?v=fff12204:19169
+performSyncWorkOnRoot @ chunk-LPF6KSF2.js?v=fff12204:18927
+flushSyncCallbacks @ chunk-LPF6KSF2.js?v=fff12204:9166
+flushSync @ chunk-LPF6KSF2.js?v=fff12204:19012
+finishEventHandler @ chunk-LPF6KSF2.js?v=fff12204:3575
+batchedUpdates @ chunk-LPF6KSF2.js?v=fff12204:3588
+dispatchEventForPluginEventSystem @ chunk-LPF6KSF2.js?v=fff12204:7205
+dispatchEventWithEnableCapturePhaseSelectiveHydrationWithoutDiscreteEventReplay @ chunk-LPF6KSF2.js?v=fff12204:5484
+dispatchEvent @ chunk-LPF6KSF2.js?v=fff12204:5478
+dispatchDiscreteEvent @ chunk-LPF6KSF2.js?v=fff12204:5455
+EstimatingModulePage.tsx:5679 Uncaught ReferenceError: React is not defined
+    at EstimatingModulePage.tsx:5679:40
+    at Array.map (<anonymous>)
+    at EstimatingModulePage.tsx:5678:47
+    at EstimatingModulePage.tsx:5698:29
+    at Array.map (<anonymous>)
+    at EstimatingModulePage.tsx:5614:74
+    at EstimatingModuleInner (EstimatingModulePage.tsx:5718:17)
+    at renderWithHooks (chunk-LPF6KSF2.js?v=fff12204:11596:26)
+    at updateFunctionComponent (chunk-LPF6KSF2.js?v=fff12204:14630:28)
+    at beginWork (chunk-LPF6KSF2.js?v=fff12204:15972:22)
+(anonymous) @ EstimatingModulePage.tsx:5679
+(anonymous) @ EstimatingModulePage.tsx:5678
+(anonymous) @ EstimatingModulePage.tsx:5698
+(anonymous) @ EstimatingModulePage.tsx:5614
+EstimatingModuleInner @ EstimatingModulePage.tsx:5718
+renderWithHooks @ chunk-LPF6KSF2.js?v=fff12204:11596
+updateFunctionComponent @ chunk-LPF6KSF2.js?v=fff12204:14630
+beginWork @ chunk-LPF6KSF2.js?v=fff12204:15972
+callCallback2 @ chunk-LPF6KSF2.js?v=fff12204:3680
+invokeGuardedCallbackDev @ chunk-LPF6KSF2.js?v=fff12204:3705
+invokeGuardedCallback @ chunk-LPF6KSF2.js?v=fff12204:3739
+beginWork$1 @ chunk-LPF6KSF2.js?v=fff12204:19818
+performUnitOfWork @ chunk-LPF6KSF2.js?v=fff12204:19251
+workLoopSync @ chunk-LPF6KSF2.js?v=fff12204:19190
+renderRootSync @ chunk-LPF6KSF2.js?v=fff12204:19169
+recoverFromConcurrentError @ chunk-LPF6KSF2.js?v=fff12204:18786
+performSyncWorkOnRoot @ chunk-LPF6KSF2.js?v=fff12204:18932
+flushSyncCallbacks @ chunk-LPF6KSF2.js?v=fff12204:9166
+flushSync @ chunk-LPF6KSF2.js?v=fff12204:19012
+finishEventHandler @ chunk-LPF6KSF2.js?v=fff12204:3575
+batchedUpdates @ chunk-LPF6KSF2.js?v=fff12204:3588
+dispatchEventForPluginEventSystem @ chunk-LPF6KSF2.js?v=fff12204:7205
+dispatchEventWithEnableCapturePhaseSelectiveHydrationWithoutDiscreteEventReplay @ chunk-LPF6KSF2.js?v=fff12204:5484
+dispatchEvent @ chunk-LPF6KSF2.js?v=fff12204:5478
+dispatchDiscreteEvent @ chunk-LPF6KSF2.js?v=fff12204:5455
+chunk-LPF6KSF2.js?v=fff12204:14080 The above error occurred in the <EstimatingModuleInner> component:
+
+    at EstimatingModuleInner (https://f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.dev/src/pages/EstimatingModulePage.tsx?t=1777260421940:550:24)
+    at EstimatingModulePage (https://f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.dev/src/pages/EstimatingModulePage.tsx?t=1777260421940:16332:54)
+    at Route (https://f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/wouter.js?v=fff12204:322:16)
+    at Switch (https://f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/wouter.js?v=fff12204:378:17)
+    at Router
+    at div
+    at TestModeProvider (https://f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.dev/src/lib/testMode.tsx:25:36)
+    at AuthGate (https://f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.dev/src/App.tsx?t=1777260421940:312:62)
+    at AuthProvider (https://f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.dev/src/lib/auth.tsx:31:32)
+    at Provider (https://f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/chunk-6BRII5CC.js?v=fff12204:37:15)
+    at TooltipProvider (https://f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/@radix-ui_react-tooltip.js?v=fff12204:159:5)
+    at ThemeProvider (https://f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.dev/src/lib/theme.tsx:20:33)
+    at QueryClientProvider (https://f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/@tanstack_react-query.js?v=fff12204:2747:3)
+    at App
+    at ErrorBoundary (https://f7cd70f1-dedb-4f27-8c85-9633fe48f13e-00-j94ac2gudtkl.spock.replit.dev/src/components/ErrorBoundary.tsx:21:5)
+
+React will try to recreate this component tree from scratch using the error boundary you provided, ErrorBoundary.
+logCapturedError @ chunk-LPF6KSF2.js?v=fff12204:14080
+callback @ chunk-LPF6KSF2.js?v=fff12204:14126
+callCallback @ chunk-LPF6KSF2.js?v=fff12204:11296
+commitUpdateQueue @ chunk-LPF6KSF2.js?v=fff12204:11313
+commitLayoutEffectOnFiber @ chunk-LPF6KSF2.js?v=fff12204:17123
+commitLayoutMountEffects_complete @ chunk-LPF6KSF2.js?v=fff12204:18030
+commitLayoutEffects_begin @ chunk-LPF6KSF2.js?v=fff12204:18019
+commitLayoutEffects @ chunk-LPF6KSF2.js?v=fff12204:17970
+commitRootImpl @ chunk-LPF6KSF2.js?v=fff12204:19406
+commitRoot @ chunk-LPF6KSF2.js?v=fff12204:19330
+performSyncWorkOnRoot @ chunk-LPF6KSF2.js?v=fff12204:18948
+flushSyncCallbacks @ chunk-LPF6KSF2.js?v=fff12204:9166
+flushSync @ chunk-LPF6KSF2.js?v=fff12204:19012
+finishEventHandler @ chunk-LPF6KSF2.js?v=fff12204:3575
+batchedUpdates @ chunk-LPF6KSF2.js?v=fff12204:3588
+dispatchEventForPluginEventSystem @ chunk-LPF6KSF2.js?v=fff12204:7205
+dispatchEventWithEnableCapturePhaseSelectiveHydrationWithoutDiscreteEventReplay @ chunk-LPF6KSF2.js?v=fff12204:5484
+dispatchEvent @ chunk-LPF6KSF2.js?v=fff12204:5478
+dispatchDiscreteEvent @ chunk-LPF6KSF2.js?v=fff12204:5455

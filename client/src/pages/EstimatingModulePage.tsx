@@ -5676,7 +5676,7 @@ ${html}
                                   </thead>
                                   <tbody>
                                     {catItems.map(item => (
-                                      <React.Fragment key={item.id}>
+                                      <Fragment key={item.id}>
                                         <tr data-testid={`row-line-item-${item.id}`}>
                                           <td style={tdStyle}>{item.planCallout || ""}</td>
                                           <td style={descCellStyle}>{item.name}</td>
