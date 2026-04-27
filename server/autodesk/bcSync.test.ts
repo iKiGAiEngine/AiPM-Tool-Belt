@@ -181,6 +181,38 @@ assert.strictEqual(fullAddr.expectedStart, "2026-07-07T00:00:00.000Z");
 assert.strictEqual(fullAddr.expectedFinish, "2027-07-27T00:00:00.000Z");
 console.log("PASS: Full address with street/zip + project.expectedStartDate/expectedFinishDate extracted");
 
+const realBcPayload = {
+  id: "real1",
+  name: "Boot Barn Project",
+  client: { company: { name: "Swinerton Builders" } },
+  location: { city: "Springfield", state: "OR" },
+  expectedStartAt: "2026-05-27T17:00:00.000Z",
+  expectedFinishAt: "2026-07-22T17:00:00.000Z",
+  clientValues: {
+    expectedStartAt: "2026-05-27T17:00:00.000Z",
+    expectedFinishAt: "2026-07-22T17:00:00.000Z",
+  },
+};
+const realBc = normalizeOpportunity(realBcPayload);
+assert.strictEqual(realBc.expectedStart, "2026-05-27T17:00:00.000Z");
+assert.strictEqual(realBc.expectedFinish, "2026-07-22T17:00:00.000Z");
+console.log("PASS: Real BC API field names (expectedStartAt / expectedFinishAt) extracted");
+
+const clientValuesOnlyPayload = {
+  id: "cv1",
+  name: "Client Values Fallback",
+  client: { company: { name: "Swinerton Builders" } },
+  location: { city: "Boise", state: "ID" },
+  clientValues: {
+    expectedStartAt: "2026-06-01T00:00:00.000Z",
+    expectedFinishAt: "2026-12-15T00:00:00.000Z",
+  },
+};
+const cvOnly = normalizeOpportunity(clientValuesOnlyPayload);
+assert.strictEqual(cvOnly.expectedStart, "2026-06-01T00:00:00.000Z");
+assert.strictEqual(cvOnly.expectedFinish, "2026-12-15T00:00:00.000Z");
+console.log("PASS: clientValues.expectedStartAt / expectedFinishAt fallback works");
+
 const altDateNamesPayload = {
   id: "dates1",
   name: "Date Names Project",
