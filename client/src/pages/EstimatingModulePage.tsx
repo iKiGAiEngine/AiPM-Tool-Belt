@@ -282,6 +282,68 @@ const selectIfZero = (e: React.FocusEvent<HTMLInputElement>) => {
   }
 };
 
+// Dollar-amount input. Used everywhere we edit Unit Cost.
+//   • type="text" + inputMode="decimal" → no spinner arrows, mobile shows numeric keypad.
+//   • Shows empty (placeholder "0") when value is 0 — typing replaces cleanly, no leading 0.
+//   • On focus, selects existing contents so a single keystroke replaces them, but the
+//     value isn't wiped, so you can also click to position the cursor and edit in place.
+//   • Prepends a $ inside the field so it reads as money.
+type MoneyInputProps = {
+  value: number | string | null | undefined;
+  onChange: (raw: string) => void;
+  className?: string;
+  style?: React.CSSProperties;
+  inputClassName?: string;
+  size?: "xs" | "sm" | "md";
+  ariaLabel?: string;
+};
+const MoneyInput: React.FC<MoneyInputProps> = ({
+  value, onChange, className, style, inputClassName, size = "md", ariaLabel,
+}) => {
+  const numeric = typeof value === "number" ? value : parseFloat(value || "0") || 0;
+  const isZero = numeric === 0;
+  // When zero, show empty so the user types into a clean field. Otherwise show the
+  // raw value (no formatting) so cursor positioning during edit stays sane.
+  const display = isZero
+    ? ""
+    : (typeof value === "string" ? value : String(value));
+  const fontClass =
+    size === "xs" ? "text-xs"
+    : size === "sm" ? "text-sm"
+    : "text-sm";
+  const dollarColor = isZero ? "#ef4444" : "var(--text-muted)";
+  const inputColor = isZero ? "#ef4444" : "var(--text)";
+  return (
+    <div className={`flex items-center rounded ${className || ""}`} style={style}>
+      <span
+        aria-hidden="true"
+        className={`pl-1.5 pr-0.5 select-none ${fontClass}`}
+        style={{ color: dollarColor }}
+      >$</span>
+      <input
+        type="text"
+        inputMode="decimal"
+        autoComplete="off"
+        aria-label={ariaLabel || "Amount in dollars"}
+        value={display}
+        placeholder="0"
+        onChange={e => {
+          // Keep digits + a single decimal point; strip everything else.
+          let v = e.target.value.replace(/[^0-9.]/g, "");
+          const firstDot = v.indexOf(".");
+          if (firstDot !== -1) {
+            v = v.slice(0, firstDot + 1) + v.slice(firstDot + 1).replace(/\./g, "");
+          }
+          onChange(v);
+        }}
+        onFocus={e => e.target.select()}
+        className={`flex-1 bg-transparent border-none outline-none text-right pr-1.5 py-1 min-w-0 ${fontClass} ${inputClassName || ""}`}
+        style={{ color: inputColor }}
+      />
+    </div>
+  );
+};
+
 // ══════════════════════════════════════════════════
 // VERSION SNAPSHOT + DIFF (auto-summary + detail)
 // ══════════════════════════════════════════════════
@@ -4389,9 +4451,14 @@ ${html}
                         <div className="grid gap-2" style={{ gridTemplateColumns: "1fr 1fr" }}>
                           <label className="block">
                             <span className="text-[11px] font-semibold block mb-0.5" style={{ color: "var(--text-muted)" }}>Unit Cost ($)</span>
-                            <input type="number" step={0.01} value={newItemForm.unitCost} onChange={e => setNewItemForm(p => ({ ...p, unitCost: parseFloat(e.target.value) || 0 }))}
-                              className="w-full text-sm px-2 py-2 rounded text-right"
-                              style={{ background: "var(--bg2)", border: "1px solid var(--border-ds)", color: "var(--text)" }}  onFocus={selectIfZero}/>
+                            <MoneyInput
+                              value={newItemForm.unitCost}
+                              onChange={raw => setNewItemForm(p => ({ ...p, unitCost: raw === "" ? 0 : (parseFloat(raw) || 0) }))}
+                              size="sm"
+                              className="w-full"
+                              style={{ background: "var(--bg2)", border: "1px solid var(--border-ds)" }}
+                              ariaLabel="Unit cost in dollars"
+                            />
                           </label>
                           <label className="block">
                             <span className="text-[11px] font-semibold block mb-0.5" style={{ color: "var(--text-muted)" }}>Line Total</span>
@@ -4443,9 +4510,14 @@ ${html}
                           style={{ background: "var(--bg2)", border: "1px solid var(--border-ds)", color: "var(--text)" }}>
                           {["EA", "LF", "SF", "SET"].map(v => <option key={v} value={v}>{v}</option>)}
                         </select>
-                        <input type="number" step={0.01} value={newItemForm.unitCost} onChange={e => setNewItemForm(p => ({ ...p, unitCost: parseFloat(e.target.value) || 0 }))}
-                          className="text-xs px-2 py-1.5 rounded text-right"
-                          style={{ background: "var(--bg2)", border: "1px solid var(--border-ds)", color: "var(--text)" }}  onFocus={selectIfZero}/>
+                        <MoneyInput
+                          value={newItemForm.unitCost}
+                          onChange={raw => setNewItemForm(p => ({ ...p, unitCost: raw === "" ? 0 : (parseFloat(raw) || 0) }))}
+                          size="xs"
+                          className="px-0 py-0"
+                          style={{ background: "var(--bg2)", border: "1px solid var(--border-ds)" }}
+                          ariaLabel="Unit cost in dollars"
+                        />
                         <div className="text-xs px-2 py-1.5 rounded font-semibold flex items-center justify-end"
                           style={{ background: "var(--bg2)", border: "1px solid var(--border-ds)", color: newItemForm.qty * newItemForm.unitCost === 0 ? "var(--text-muted)" : "#22c55e" }}>
                           {fmt(newItemForm.qty * newItemForm.unitCost)}
@@ -4586,10 +4658,14 @@ ${html}
                             </label>
                             <label className="block">
                               <span className="text-[10px] font-semibold block mb-0.5" style={{ color: "var(--text-muted)" }}>Unit Cost</span>
-                              <input type="number" step={0.01} value={n(item.unitCost)}
-                                onChange={e => updateLineItem(item.id, "unitCost", e.target.value)}
-                                className="w-full text-sm px-2 py-1.5 rounded text-right"
-                                style={{ background: "var(--bg2)", border: "1px solid var(--border-ds)", color: n(item.unitCost) === 0 ? "#ef4444" : "var(--text)" }}  onFocus={selectIfZero}/>
+                              <MoneyInput
+                                value={item.unitCost}
+                                onChange={raw => updateLineItem(item.id, "unitCost", raw)}
+                                size="sm"
+                                className="w-full"
+                                style={{ background: "var(--bg2)", border: "1px solid var(--border-ds)" }}
+                                ariaLabel="Unit cost in dollars"
+                              />
                             </label>
                           </div>
 
@@ -4736,10 +4812,13 @@ ${html}
                                   </select>
                                 </td>
                                 <td className="px-2 py-1.5 text-right">
-                                  <input type="number" step={0.01} value={n(item.unitCost)}
-                                    onChange={e => updateLineItem(item.id, "unitCost", e.target.value)}
-                                    className="w-20 text-xs text-right bg-transparent border-none outline-none"
-                                    style={{ color: n(item.unitCost) === 0 ? "#ef4444" : "var(--text)" }}  onFocus={selectIfZero}/>
+                                  <MoneyInput
+                                    value={item.unitCost}
+                                    onChange={raw => updateLineItem(item.id, "unitCost", raw)}
+                                    size="xs"
+                                    className="w-24 ml-auto"
+                                    ariaLabel="Unit cost in dollars"
+                                  />
                                 </td>
                                 <td className="px-2 py-1.5 text-right font-semibold">
                                   <span style={{ color: extended === 0 ? "#ef4444" : "#22c55e" }}>{fmt(extended)}</span>
@@ -6854,8 +6933,14 @@ ${html}
                               className="w-14 text-xs px-1.5 py-0.5 rounded" style={{ background: "var(--bg3)", border: "1px solid var(--border-ds)", color: "var(--text)" }} />
                           </td>
                           <td className="px-2 py-1">
-                            <input type="number" value={row.unitCost || ""} onChange={e => updateReviewRow(row.id, "unitCost", e.target.value)}
-                              className="w-24 text-xs px-1.5 py-0.5 rounded text-right" style={{ background: "var(--bg3)", border: "1px solid var(--border-ds)", color: "var(--text)" }}  onFocus={selectIfZero}/>
+                            <MoneyInput
+                              value={row.unitCost}
+                              onChange={raw => updateReviewRow(row.id, "unitCost", raw)}
+                              size="xs"
+                              className="w-28"
+                              style={{ background: "var(--bg3)", border: "1px solid var(--border-ds)" }}
+                              ariaLabel="Unit cost in dollars"
+                            />
                           </td>
                           <td className="px-2 py-1">
                             <input type="number" value={row.extendedCost || ""} onChange={e => updateReviewRow(row.id, "extendedCost", e.target.value)}
