@@ -3089,7 +3089,7 @@ ${html}
                       color: active ? "#22c55e" : "var(--text-secondary)",
                       fontWeight: active ? 600 : 400,
                     }}>
-                    {s.icon} {s.label}
+                    {s.label}
                     <div className="text-xs mt-0.5" style={{ opacity: 0.7 }}>{s.csi}</div>
                     {(itemCount > 0 || hasSpec) && (
                       <div className="text-xs mt-0.5 flex gap-1 flex-wrap" style={{ color: active ? "#22c55e90" : "var(--text-muted)" }}>
@@ -4306,7 +4306,7 @@ ${html}
               <div className="rounded-lg overflow-hidden mb-4" style={{ background: "var(--bg-card)", border: "1px solid var(--border-ds)" }}>
                 <div className="flex items-center justify-between px-4 py-3" style={{ borderBottom: "1px solid var(--border-ds)" }}>
                   <span className="text-sm font-semibold">
-                    Line Items — {ALL_SCOPES.find(s => s.id === activeCat)?.icon} {ALL_SCOPES.find(s => s.id === activeCat)?.label}
+                    Line Items — {ALL_SCOPES.find(s => s.id === activeCat)?.label}
                     {calcData[activeCat]?.items > 0 && (
                       <span className="ml-2 font-bold" style={{ color: "#22c55e" }}>{fmt(calcData[activeCat].total)}</span>
                     )}
@@ -5378,7 +5378,7 @@ ${html}
                   style={{ background: "var(--bg3)", border: `1px solid ${hasAnyOverride ? "#f9731640" : "var(--border-ds)"}` }}>
                   <div className="flex justify-between items-center flex-wrap gap-2 mb-2">
                     <div>
-                      <span className="text-sm font-semibold">{c.icon} {c.label}</span>
+                      <span className="text-sm font-semibold">{c.label}</span>
                       <span className="text-xs ml-2" style={{ color: "var(--text-muted)" }}>{c.csi}</span>
                       {d.isComplete && <span className="ml-2 text-xs" style={{ color: "#22c55e" }}>✓</span>}
                     </div>
@@ -5494,7 +5494,7 @@ ${html}
 
               {CATEGORIES.filter(c => calcData[c.id]?.items > 0).map(c => (
                 <div key={c.id} className="flex justify-between py-2 text-sm" style={{ borderBottom: "1px solid var(--border-ds)15" }}>
-                  <span style={{ color: "var(--text-secondary)" }}>{c.icon} {c.label}</span>
+                  <span style={{ color: "var(--text-secondary)" }}>{c.label}</span>
                   <span className="font-semibold">{fmt(calcData[c.id].total)}</span>
                 </div>
               ))}
@@ -6908,7 +6908,7 @@ ${html}
               style={{ background: "var(--bg3)", border: "1px solid var(--border-ds)", color: "var(--text)" }}>
               <option value="">— Select scope —</option>
               {ALL_SCOPES.filter(s => s.id !== activeCat).map(s => (
-                <option key={s.id} value={s.id}>{s.icon} {s.label}</option>
+                <option key={s.id} value={s.id}>{s.label}</option>
               ))}
             </select>
             {transferTargetScope && (
