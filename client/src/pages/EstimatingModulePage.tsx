@@ -5585,8 +5585,8 @@ ${html}
                             <img src={nbsLogoUrl} alt="National Building Specialties" style={{ maxHeight: 44, maxWidth: "100%", width: "auto", objectFit: "contain", display: "block" }} data-testid="img-nbs-logo-proposal" />
                           </div>
                           <div style={{ textAlign: "center" }}>
-                            <div style={{ fontFamily: "'Playfair Display', serif", fontSize: 28, fontWeight: 700, letterSpacing: 0.5, textTransform: "uppercase", lineHeight: 1, color: INK }}>Proposal</div>
-                            <div style={{ marginTop: 4, fontFamily: "'Rajdhani', sans-serif", fontSize: 10, letterSpacing: 4, color: GOLD, fontWeight: 600, textTransform: "uppercase", lineHeight: 1 }}>Furnish Only · Division 10</div>
+                            <div style={{ fontFamily: "'Playfair Display', serif", fontSize: 24, fontWeight: 700, letterSpacing: 0.5, textTransform: "uppercase", lineHeight: 1, color: INK }}>Proposal</div>
+                            <div style={{ marginTop: 4, fontFamily: "'Rajdhani', sans-serif", fontSize: 9, letterSpacing: 3.5, color: GOLD, fontWeight: 600, textTransform: "uppercase", lineHeight: 1 }}>Furnish Only · Division 10</div>
                           </div>
                           <div style={{ textAlign: "right", fontFamily: "'Rajdhani', sans-serif", fontSize: 10, lineHeight: 1.35, color: INK_SOFT }}>
                             <div><strong style={{ color: INK, fontWeight: 600 }}>4130 Flat Rock Dr, Suite 110</strong> · Riverside, CA 92505</div>
