@@ -773,7 +773,7 @@ function EstimatingModuleInner() {
   const [pasteText, setPasteText] = useState("");
   const [aiParsing, setAiParsing] = useState(false);
   const [parsedQuote, setParsedQuote] = useState<any>(null);
-  const [newQuote, setNewQuote] = useState<{ vendor: string; note: string; freight: number; taxIncluded: boolean; pricingMode: string; lumpSumTotal: number; materialTotalCost: string; rfqLogId: number | null }>({ vendor: "", note: "", freight: 0, taxIncluded: false, pricingMode: "per_item", lumpSumTotal: 0, materialTotalCost: "", rfqLogId: null });
+  const [newQuote, setNewQuote] = useState<{ vendor: string; note: string; freight: number; taxIncluded: boolean; pricingMode: string; lumpSumTotal: number; materialTotalCost: string; rfqLogId: number | null }>({ vendor: "", note: "", freight: 0, taxIncluded: false, pricingMode: "lump_sum", lumpSumTotal: 0, materialTotalCost: "", rfqLogId: null });
   const [newQuoteFile, setNewQuoteFile] = useState<File | null>(null);
   const [extractingTotal, setExtractingTotal] = useState(false);
   const [aiExtractNote, setAiExtractNote] = useState<string | null>(null);
@@ -1465,7 +1465,7 @@ function EstimatingModuleInner() {
       });
       let q = await r.json();
       setQuotes(prev => [...prev, q]);
-      setNewQuote({ vendor: "", note: "", freight: 0, taxIncluded: false, pricingMode: "per_item", lumpSumTotal: 0, materialTotalCost: "", rfqLogId: null });
+      setNewQuote({ vendor: "", note: "", freight: 0, taxIncluded: false, pricingMode: "lump_sum", lumpSumTotal: 0, materialTotalCost: "", rfqLogId: null });
       setNewQuoteFile(null);
       setAiExtractNote(null);
       setShowNewQuote(false);
@@ -1746,7 +1746,7 @@ function EstimatingModuleInner() {
       const qr = await apiRequest("POST", `/api/estimates/${estimateId}/quotes`, {
         category: activeCat, vendor: parsedQuote.vendor || "Unknown",
         note: parsedQuote.note || null, freight: String(parsedQuote.freight || 0),
-        taxIncluded: parsedQuote.taxIncluded || false, pricingMode: parsedQuote.pricingMode || "per_item",
+        taxIncluded: parsedQuote.taxIncluded || false, pricingMode: parsedQuote.pricingMode || "lump_sum",
         lumpSumTotal: String(parsedQuote.lumpSumTotal || 0), hasBackup: true,
         materialTotalCost: parsedMtc,
       });
