@@ -1389,11 +1389,20 @@ function EstimatingModuleInner() {
   }, [estimateId, activeCat, newItemForm, markDirty]);
 
   const updateLineItem = useCallback(async (itemId: number, field: string, value: any) => {
-    setLineItems(prev => prev.map(i => i.id === itemId ? { ...i, [field]: value } : i));
+    // Normalize numeric-string fields so an empty input doesn't blow up Postgres.
+    let normalized: any = value;
+    if (field === "unitCost") {
+      // Required column (NOT NULL, default 0). Empty string → "0".
+      const str = value == null ? "" : String(value).trim();
+      normalized = str === "" ? "0" : str;
+    } else if (field === "escOverride") {
+      // Nullable column. Empty string → null (clears the override).
+      const str = value == null ? "" : String(value).trim();
+      normalized = str === "" ? null : str;
+    }
+    setLineItems(prev => prev.map(i => i.id === itemId ? { ...i, [field]: normalized } : i));
     try {
-      const payload: Record<string, any> = { [field]: value };
-      if (field === "unitCost" || field === "escOverride") payload[field] = value != null ? String(value) : null;
-      await apiRequest("PATCH", `/api/estimates/line-items/${itemId}`, payload);
+      await apiRequest("PATCH", `/api/estimates/line-items/${itemId}`, { [field]: normalized });
     } catch { toast({ title: "Error", description: "Could not update item.", variant: "destructive" }); }
   }, []);
 

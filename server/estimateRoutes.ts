@@ -676,8 +676,17 @@ export function registerEstimateRoutes(app: Express) {
       const updates: Record<string, any> = {};
       for (const f of allowed) {
         if (req.body[f] !== undefined) {
-          if (f === "unitCost" || f === "escOverride") {
-            updates[f] = req.body[f] != null ? String(req.body[f]) : null;
+          if (f === "unitCost") {
+            // unit_cost is NOT NULL with default 0 — coerce empty/null to "0"
+            // so the column never receives "" (which Postgres rejects as numeric).
+            const raw = req.body[f];
+            const str = raw == null ? "" : String(raw).trim();
+            updates[f] = str === "" ? "0" : str;
+          } else if (f === "escOverride") {
+            // esc_override is nullable — empty / null clears the override.
+            const raw = req.body[f];
+            const str = raw == null ? "" : String(raw).trim();
+            updates[f] = str === "" ? null : str;
           } else {
             updates[f] = req.body[f];
           }
