@@ -123,6 +123,92 @@ export function matchSwinertonOffice(
 }
 
 /**
+ * Special-case resolver for Swinerton SoCal sub-regions.
+ *
+ * Background: BC labels like "Swinerton Builders - SoCal - Target Markets"
+ * were sometimes being matched to a plain "LAX" or to the wrong LAX bucket.
+ * AiPM splits SoCal into 4 internal buckets:
+ *   - LAX - TM   (Target Markets)
+ *   - LAX - SPD  (Special Projects)
+ *   - LAX - OCLA (Orange County / new construction / residential)
+ *   - LAX - FS   (Facility Solutions)
+ *
+ * Behavior:
+ *   - Only fires when the combined text contains BOTH "swinerton" and "socal"
+ *     (so the existing general resolver still owns every other case).
+ *   - Uses word-boundary regex so short tokens (tm, fs, ti, spd) cannot match
+ *     inside unrelated words (e.g. "atmosphere", "estimating", "offsite").
+ *   - Priority order is fixed: TM > SPD > OCLA > FS.
+ *   - If SoCal is detected but no sub-region phrase is present, returns
+ *     confident=false with socalDetected=true so the caller can leave Region
+ *     blank and flag the entry for manual review (we never guess).
+ *
+ * The caller decides whether to fall through to the general resolver:
+ *   - socalDetected=false → fall through to existing matchSwinertonOffice
+ *   - socalDetected=true  → use this result as-is (matched OR manual review)
+ */
+export interface SwinertonSoCalResolution extends RegionMatchResult {
+  socalDetected: boolean;
+}
+
+const SWINERTON_RE = /\bswinerton\b/i;
+const SOCAL_RE = /\bso\s*cal\b|\bsocal\b|\bsouthern\s+california\b/i;
+
+const TM_RE = /\btarget\s*markets?\b|\btm\b/i;
+const SPD_RE =
+  /\bspecial\s+projects?\b|\bspd\b|\btenant\s+improvements?\b|\bti\b|\brenovations?\b|\bremodel(?:ing)?\b|\bbuild[\s-]?out\b/i;
+const OCLA_RE =
+  /\bocla\b|\borange\s+county\b|\bcore\s*(?:&|and)?\s*shell\b|\bground[\s-]?up\b|\bnew\s+construction\b|\bnew\s+build\b|\bresidential\b/i;
+const FS_RE = /\bfacility\s+solutions?\b|\bfs\b|\bfacility\b/i;
+
+export function resolveSwinertonSoCalSubregion(
+  textSources: (string | undefined | null)[],
+  regions: Region[],
+): SwinertonSoCalResolution {
+  const normalized = textSources
+    .filter((s): s is string => Boolean(s))
+    .map(s => String(s).toLowerCase())
+    .join(" | ");
+
+  if (!SWINERTON_RE.test(normalized) || !SOCAL_RE.test(normalized)) {
+    return { code: "", displayLabel: "", confident: false, socalDetected: false };
+  }
+
+  const buildResult = (code: string, name: string): SwinertonSoCalResolution => {
+    const region = regions.find(r => r.code === code && r.name === name);
+    if (region) {
+      return {
+        code: region.code,
+        displayLabel: formatRegionDisplay(region),
+        confident: true,
+        socalDetected: true,
+      };
+    }
+    return {
+      code,
+      displayLabel: `${code} - ${name}`,
+      confident: true,
+      socalDetected: true,
+    };
+  };
+
+  // Priority 1 — Target Markets
+  if (TM_RE.test(normalized)) return buildResult("LAX", "TM");
+
+  // Priority 2 — Special Projects
+  if (SPD_RE.test(normalized)) return buildResult("LAX", "SPD");
+
+  // Priority 3 — OCLA
+  if (OCLA_RE.test(normalized)) return buildResult("LAX", "OCLA");
+
+  // Priority 4 — Facility Solutions
+  if (FS_RE.test(normalized)) return buildResult("LAX", "FS");
+
+  // SoCal recognized but no sub-region clue — leave blank for manual review.
+  return { code: "", displayLabel: "", confident: false, socalDetected: true };
+}
+
+/**
  * For a non-Swinerton GC, find the matching EXT region by GC name.
  * Returns the EXT region if found, otherwise blank.
  */

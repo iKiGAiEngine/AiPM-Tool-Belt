@@ -10,7 +10,7 @@ import { generateProjectId, createProject, getActiveRegions } from "../scopeDict
 import { sendDraftNotificationEmail } from "../emailService";
 import { getActiveFolderTemplate, getActiveEstimateTemplate, getFolderTemplateFileBuffer, getEstimateTemplateFileBuffer } from "../templateStorage";
 import { matchRegionWithFallback } from "../regionMatcher";
-import { isSwinerton, matchSwinertonOffice, matchExtRegion } from "../swinertonOffices";
+import { isSwinerton, matchSwinertonOffice, matchExtRegion, resolveSwinertonSoCalSubregion } from "../swinertonOffices";
 import { findFuzzyDuplicates } from "../fuzzyDuplicates";
 import fs from "fs";
 import path from "path";
@@ -547,21 +547,43 @@ async function mapOpportunityToEntry(opp: BcOpportunity) {
   const allActiveRegions = await getActiveRegions();
 
   if (isSwinerton(opp.gcCompanyName || "")) {
-    // Swinerton: match purely by office name — no project address, no project-type keywords.
-    // IMPORTANT: try the full strings BEFORE individual segments so that compound names like
-    // "OCLA - Special Projects" trigger the blank rule before "OCLA" alone matches LAX-OCLA.
-    // Include fullCompanyName (gcCompanyName + gcOfficeHint combined) for maximum context.
-    const fullStrings = [opp.gcOfficeHint, opp.gcCompanyName, fullCompanyName]
-      .filter((s, i, a) => Boolean(s) && a.indexOf(s) === i) as string[];
-    for (const full of fullStrings) {
-      const r = matchSwinertonOffice(full, allActiveRegions);
-      if (r.confident) { regionResult = r; matchedSegment = full; break; }
-    }
-    // Fall back to individual segments only if full strings didn't produce a confident match
-    if (!regionResult.confident) {
-      for (const seg of officeCandidates) {
-        const r = matchSwinertonOffice(seg, allActiveRegions);
-        if (r.confident) { regionResult = r; matchedSegment = seg; break; }
+    // STEP 1 — Special Swinerton SoCal sub-region resolver.
+    // Fires only when the BC text contains BOTH "swinerton" and "socal".
+    // Owns the result for SoCal entries, including SoCal-without-clue
+    // (returns confident=false → flagged for manual review, NOT guessed).
+    // Note: gcContactName intentionally excluded so contact identity cannot
+    // override the BC office/client/company label for sub-region selection.
+    const socalSources = [
+      opp.gcCompanyName,
+      opp.gcOfficeHint,
+      opp.projectName,
+      (opp.scopes || []).join(" "),
+      opp.location?.formattedAddress,
+    ];
+    const socal = resolveSwinertonSoCalSubregion(socalSources, allActiveRegions);
+    if (socal.socalDetected) {
+      regionResult = { code: socal.code, displayLabel: socal.displayLabel, confident: socal.confident };
+      matchedSegment = socal.confident
+        ? `Swinerton SoCal → ${socal.displayLabel}`
+        : "Swinerton SoCal (no sub-region clue) — manual review";
+    } else {
+      // STEP 2 — General Swinerton office resolver.
+      // Match purely by office name — no project address, no project-type keywords.
+      // IMPORTANT: try the full strings BEFORE individual segments so that compound names like
+      // "OCLA - Special Projects" trigger the blank rule before "OCLA" alone matches LAX-OCLA.
+      // Include fullCompanyName (gcCompanyName + gcOfficeHint combined) for maximum context.
+      const fullStrings = [opp.gcOfficeHint, opp.gcCompanyName, fullCompanyName]
+        .filter((s, i, a) => Boolean(s) && a.indexOf(s) === i) as string[];
+      for (const full of fullStrings) {
+        const r = matchSwinertonOffice(full, allActiveRegions);
+        if (r.confident) { regionResult = r; matchedSegment = full; break; }
+      }
+      // Fall back to individual segments only if full strings didn't produce a confident match
+      if (!regionResult.confident) {
+        for (const seg of officeCandidates) {
+          const r = matchSwinertonOffice(seg, allActiveRegions);
+          if (r.confident) { regionResult = r; matchedSegment = seg; break; }
+        }
       }
     }
   } else {
@@ -1309,10 +1331,19 @@ export function registerBcSyncRoutes(app: Express) {
 
       const finalProjectName = (projectName || entry.projectName || "").slice(0, 500);
       let rawRegion = region || entry.region || "";
-      const newMatch = rawRegion.match(/^([A-Z]{2,5})\s*-\s*/);
+      // Match a full "CODE - Name" label (e.g. "LAX - TM") so we can preserve the
+      // sub-region label on the saved entry instead of collapsing it to just "LAX".
+      const fullDisplayMatch = rawRegion.match(/^([A-Z]{2,5})\s*-\s*(.+)$/);
       const codeMatch = rawRegion.match(/\(([A-Z]{2,5})\)/);
       const extMatch = rawRegion.match(/- External$/i);
-      const finalRegion = newMatch ? newMatch[1] : codeMatch ? codeMatch[1] : extMatch ? "EXT" : rawRegion.replace(/[^A-Za-z0-9]/g, "").slice(0, 10);
+      // finalRegion is the bare code (used for folder name + project record).
+      const finalRegion = fullDisplayMatch
+        ? fullDisplayMatch[1]
+        : codeMatch
+          ? codeMatch[1]
+          : extMatch
+            ? "EXT"
+            : rawRegion.replace(/[^A-Za-z0-9]/g, "").slice(0, 10);
       const finalDueDate = dueDate || entry.dueDate || "";
       const finalNbsEstimator = nbsEstimator !== undefined ? nbsEstimator : entry.nbsEstimator;
       const finalGcEstimateLead = gcEstimateLead !== undefined ? gcEstimateLead : entry.gcEstimateLead;
@@ -1335,6 +1366,25 @@ export function registerBcSyncRoutes(app: Express) {
       const validRegion = dbRegions.find(r => r.code.toUpperCase() === finalRegion.toUpperCase());
       if (!validRegion) {
         return res.status(400).json({ message: `Region "${finalRegion}" is not a recognized active region. Please select a valid region.` });
+      }
+
+      // Preserve the FULL display label (e.g. "LAX - TM") on the saved entry.
+      // Without this the SoCal sub-bucket (TM/SPD/OCLA/FS) was getting collapsed
+      // back to just "LAX" at approval time.
+      let finalRegionDisplay = finalRegion;
+      if (fullDisplayMatch) {
+        const subName = fullDisplayMatch[2].trim();
+        const exactDb = dbRegions.find(
+          r => r.code.toUpperCase() === fullDisplayMatch[1].toUpperCase()
+            && (r.name || "").toLowerCase() === subName.toLowerCase()
+        );
+        finalRegionDisplay = exactDb
+          ? `${exactDb.code} - ${exactDb.name}`
+          : `${fullDisplayMatch[1].toUpperCase()} - ${subName}`;
+      } else if (validRegion.name) {
+        // Bare code submitted ("LAX"), but DB row has a name — keep code-only to
+        // avoid guessing which sub-bucket the user meant.
+        finalRegionDisplay = validRegion.code;
       }
 
       const [recheck] = await db.select().from(proposalLogEntries).where(eq(proposalLogEntries.id, id));
@@ -1473,7 +1523,7 @@ export function registerBcSyncRoutes(app: Express) {
         estimateNumber,
         estimateStatus: "Estimating",
         projectName: finalProjectName,
-        region: finalRegion,
+        region: finalRegionDisplay,
         dueDate: finalDueDate,
         nbsEstimator: finalNbsEstimator,
         gcEstimateLead: finalGcEstimateLead,
