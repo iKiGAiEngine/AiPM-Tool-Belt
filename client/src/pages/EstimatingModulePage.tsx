@@ -5620,20 +5620,42 @@ ${html}
                               <span style={{ fontFamily: "'Rajdhani', sans-serif", fontWeight: 700, fontSize: 11, letterSpacing: 1.3, textTransform: "uppercase", color: INK }}>{c.label}</span>
                               <span style={{ fontFamily: "'Rajdhani', sans-serif", fontSize: 8.5, fontWeight: 500, letterSpacing: 1.5, color: GOLD }}>{c.csi}</span>
                             </div>
-                            {catItems.map(item => (
-                              <div key={item.id}>
-                                <div style={{ display: "flex", justifyContent: "space-between", padding: "2px 0 2px 12px", fontSize: 9.5 }}>
-                                  <span style={{ color: INK }}>{item.name}{item.model ? ` (${item.model})` : ""} — Qty: {item.qty}</span>
-                                  <span style={{ fontWeight: 500, color: INK, fontVariantNumeric: "tabular-nums" }}>
-                                    {showUnitPricing ? `${fmt(n(item.unitCost))}/ea = ` : ""}{fmt(n(item.unitCost) * item.qty)}
-                                  </span>
-                                </div>
-                                {item.note && <div style={{ padding: "1px 0 3px 24px", fontSize: 8.5, color: INK_FAINT, fontStyle: "italic" }}>▸ {item.note}</div>}
+                            {(() => {
+                              const showPx = showUnitPricing;
+                              const gridCols = showPx
+                                ? "70px minmax(0,1fr) 110px 50px 80px 90px"
+                                : "70px minmax(0,1fr) 110px 50px";
+                              return (
+                                <>
+                                  <div style={{ display: "grid", gridTemplateColumns: gridCols, columnGap: 10, padding: "3px 12px 4px", fontFamily: "'Rajdhani', sans-serif", fontSize: 8, fontWeight: 700, letterSpacing: 1.1, textTransform: "uppercase", color: INK_FAINT, borderBottom: `0.5px solid ${RULE_FAINT}` }} data-testid="row-line-items-header">
+                                    <span>Plan Callout</span>
+                                    <span>Description</span>
+                                    <span>Model Number</span>
+                                    <span style={{ textAlign: "right" }}>Qty</span>
+                                    {showPx && <span style={{ textAlign: "right" }}>Unit Cost</span>}
+                                    {showPx && <span style={{ textAlign: "right" }}>Total</span>}
+                                  </div>
+                                  {catItems.map(item => (
+                                    <div key={item.id}>
+                                      <div style={{ display: "grid", gridTemplateColumns: gridCols, columnGap: 10, padding: "3px 12px", fontSize: 9.5, color: INK, alignItems: "baseline" }} data-testid={`row-line-item-${item.id}`}>
+                                        <span style={{ wordBreak: "break-word" }}>{item.planCallout || ""}</span>
+                                        <span style={{ wordBreak: "break-word", lineHeight: 1.35 }}>{item.name}</span>
+                                        <span style={{ wordBreak: "break-word" }}>{item.model || ""}</span>
+                                        <span style={{ textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{item.qty || ""}</span>
+                                        {showPx && <span style={{ textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{fmt(n(item.unitCost))}</span>}
+                                        {showPx && <span style={{ textAlign: "right", fontVariantNumeric: "tabular-nums", fontWeight: 500 }}>{fmt(n(item.unitCost) * item.qty)}</span>}
+                                      </div>
+                                      {item.note && <div style={{ padding: "1px 12px 3px 82px", fontSize: 8.5, color: INK_FAINT, fontStyle: "italic" }}>▸ {item.note}</div>}
+                                    </div>
+                                  ))}
+                                </>
+                              );
+                            })()}
+                            {showUnitPricing && (
+                              <div style={{ display: "flex", justifyContent: "space-between", fontWeight: 700, fontSize: 10.5, paddingTop: 6, paddingLeft: 12, borderTop: `1px solid ${INK}`, marginTop: 4, fontFamily: "'Rajdhani', sans-serif", letterSpacing: 1, textTransform: "uppercase", color: INK }}>
+                                <span>{c.label} Subtotal</span><span style={{ fontVariantNumeric: "tabular-nums" }}>{fmt(d.total)}</span>
                               </div>
-                            ))}
-                            <div style={{ display: "flex", justifyContent: "space-between", fontWeight: 700, fontSize: 10.5, paddingTop: 6, paddingLeft: 12, borderTop: `1px solid ${INK}`, marginTop: 4, fontFamily: "'Rajdhani', sans-serif", letterSpacing: 1, textTransform: "uppercase", color: INK }}>
-                              <span>{c.label} Subtotal</span><span style={{ fontVariantNumeric: "tabular-nums" }}>{fmt(d.total)}</span>
-                            </div>
+                            )}
                           </div>
                         );
                       })}

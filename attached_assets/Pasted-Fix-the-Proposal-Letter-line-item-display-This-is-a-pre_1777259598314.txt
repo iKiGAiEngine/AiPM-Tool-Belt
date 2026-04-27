@@ -1,0 +1,97 @@
+Fix the Proposal Letter line item display.
+
+This is a precise implementation request. Do not redesign the full proposal letter. Only update the proposal line item table/list area.
+
+Current problem:
+The proposal line items are currently displaying as loose text like:
+Description - Qty: 143
+with a $0 amount aligned on the far right.
+
+Required change:
+Proposal line items must display in clean, uniform columns using the estimate line item data.
+
+Required columns:
+1. Plan Callout
+2. Description
+3. Model Number
+4. Quantity
+
+Do not show any dollar amount column unless the "Show unit pricing" checkbox is checked.
+
+Default unchecked state:
+- Do not show unit cost.
+- Do not show extended cost.
+- Do not show $0 on the far right.
+- Do not reserve empty space for dollar amounts.
+- The proposal should show only these four columns:
+  Plan Callout | Description | Model Number | Quantity
+
+Checked "Show unit pricing" state:
+When "Show unit pricing" is checked, add pricing columns to the right:
+  Plan Callout | Description | Model Number | Quantity | Unit Cost | Total
+Only show pricing columns in this checked state.
+
+Data mapping:
+Use the actual estimate line item fields for each row:
+- Plan Callout should come from the plan callout / planCallout field.
+- Description should come from the description field.
+- Model Number should come from the model number / modelNumber field.
+- Quantity should come from the quantity / qty field.
+- Unit Cost should come from the unit cost field only when unit pricing is checked.
+- Total should come from quantity × unit cost or the existing extended cost field only when unit pricing is checked.
+
+If a field is missing:
+- Plan Callout: show a blank cell, not "undefined".
+- Model Number: show a blank cell, not "undefined".
+- Quantity: show the numeric quantity if available; otherwise blank.
+- Description: show the available description text.
+
+Layout requirements:
+- Use a real table or CSS grid, not one combined text string.
+- Column widths must be consistent from row to row.
+- Header row should appear under each scope heading.
+- Scope heading, such as "TOILET ACCESSORIES", should remain above the table.
+- Scope total at the top right may remain if it represents the scope total, but do not show $0 per line item unless unit pricing is checked.
+- Text should not overlap.
+- Long descriptions should wrap cleanly inside the Description column.
+- Plan Callout, Model Number, and Quantity should stay aligned vertically across all rows.
+- Quantity should be right-aligned or centered consistently.
+- Keep the proposal clean and printable.
+
+Suggested default non-pricing table structure:
+
+Scope Heading: TOILET ACCESSORIES
+
+| PLAN CALLOUT | DESCRIPTION | MODEL NUMBER | QTY |
+|-------------|-------------|--------------|-----|
+| TA-1        | Paper Towel Dispenser | B-262 | 143 |
+| TA-2        | Waste Receptacle | B-3644 | 21 |
+
+Suggested pricing-enabled table structure:
+
+| PLAN CALLOUT | DESCRIPTION | MODEL NUMBER | QTY | UNIT COST | TOTAL |
+|-------------|-------------|--------------|-----|-----------|-------|
+| TA-1        | Paper Towel Dispenser | B-262 | 143 | $10.00 | $1,430.00 |
+
+Important:
+Do not combine description and quantity into one string anymore.
+Remove formats like:
+"Paper Towel Dispenser - Qty: 143"
+
+Replace them with separated columns:
+Plan Callout | Description | Model Number | Quantity
+
+Also remove the far-right "$0" line item amounts unless "Show unit pricing" is checked.
+
+Validation before finishing:
+1. Open the Proposal Letter preview.
+2. Confirm "Show unit pricing" is unchecked by default.
+3. Confirm no $0 values appear on the far right of line items when unchecked.
+4. Confirm line items display as four uniform columns:
+   Plan Callout, Description, Model Number, Quantity.
+5. Confirm quantity is not inside the description text.
+6. Check "Show unit pricing".
+7. Confirm Unit Cost and Total columns appear only after checking it.
+8. Uncheck "Show unit pricing".
+9. Confirm Unit Cost and Total columns disappear again.
+10. Confirm the scope heading and scope total still display correctly.
