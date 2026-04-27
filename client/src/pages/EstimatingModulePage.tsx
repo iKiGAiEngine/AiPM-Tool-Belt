@@ -5585,7 +5585,6 @@ ${html}
                             <img src={nbsLogoUrl} alt="National Building Specialties" style={{ maxHeight: 54, maxWidth: "100%", width: "auto", objectFit: "contain", display: "block" }} data-testid="img-nbs-logo-proposal" />
                           </div>
                           <div style={{ textAlign: "center" }}>
-                            <div style={{ fontFamily: "'Rajdhani', sans-serif", fontSize: 9, letterSpacing: 5, color: GOLD, fontWeight: 600, textTransform: "uppercase", marginBottom: 8 }}>Furnish Only · Division 10</div>
                             <div style={{ fontFamily: "'Playfair Display', serif", fontSize: 22, fontWeight: 700, letterSpacing: 0.5, textTransform: "uppercase", lineHeight: 1.1, color: INK }}>Proposal</div>
                             <div style={{ width: 50, height: 1, background: INK, margin: "10px auto 0" }} />
                           </div>
@@ -5596,6 +5595,7 @@ ${html}
                             <div style={{ marginTop: 5, paddingTop: 5, borderTop: `1px solid ${RULE_FAINT}`, fontSize: 7, letterSpacing: 0.5, color: INK_FAINT }}>CA LIC #1101865</div>
                           </div>
                         </div>
+                        <div style={{ textAlign: "center", marginTop: 14, fontFamily: "'Rajdhani', sans-serif", fontSize: 9, letterSpacing: 5, color: GOLD, fontWeight: 600, textTransform: "uppercase" }}>Furnish Only · Division 10</div>
                       </div>
 
                       {/* ============ META GRID (6 fields) ============ */}
