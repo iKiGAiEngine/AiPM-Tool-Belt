@@ -5690,7 +5690,7 @@ ${html}
                                             <td colSpan={6} style={{ padding: "0 8px 4px 8px", fontSize: 8.5, color: INK_FAINT, fontStyle: "italic", borderBottom: `0.5px solid ${RULE_FAINT}` }}>▸ {item.note}</td>
                                           </tr>
                                         )}
-                                      </React.Fragment>
+                                      </Fragment>
                                     ))}
                                   </tbody>
                                 </table>
