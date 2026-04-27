@@ -1,0 +1,169 @@
+We need a focused fix for BuildingConnected Region assignment in AiPM.
+
+Problem:
+Swinerton SoCal BuildingConnected invites are not reliably assigning to the correct internal AiPM LAX subregion.
+
+Important context:
+AiPM has Swinerton SoCal broken into these internal Region buckets:
+
+- LAX - FS
+- LAX - SPD
+- LAX - OCLA
+- LAX - TM
+
+The problem is that BuildingConnected may show labels like:
+
+“Swinerton Builders - SoCal - Target Markets”
+
+The current resolver appears to sometimes stop at “SoCal” and assigns plain “LAX” or the wrong LAX bucket. That is wrong because “SoCal” is only the parent clue. The third part of the BC label should determine the internal bucket.
+
+Expected behavior:
+- “Swinerton Builders - SoCal - Target Markets” → LAX - TM
+- “Swinerton Builders - SoCal - Special Projects” → LAX - SPD
+- “Swinerton Builders - SoCal - OCLA” → LAX - OCLA
+- “Swinerton Builders - SoCal - Facility Solutions” → LAX - FS
+- “Swinerton Builders - SoCal” with no subregion → do not guess. Assign plain LAX or leave blank and require manual review.
+
+Files to inspect first:
+- server/autodesk/bcSync.ts
+- client/src/pages/ProjectLogPage.tsx
+- shared/schema.ts
+
+Do not rewrite the whole sync. Make the smallest safe fix.
+
+Required investigation before editing:
+1. Find the existing function that resolves/matches regions during BC sync.
+2. Find where Draft Review stores and displays Region.
+3. Find where approval/import saves Region into the Proposal Log/project record.
+4. Confirm whether region values are stored as:
+   - code only, such as LAX
+   - display value, such as LAX - TM
+   - region id
+   - region name
+5. Confirm that approve/import does not collapse LAX - TM, LAX - SPD, LAX - OCLA, or LAX - FS back into plain LAX.
+
+Required implementation:
+Create or update a small helper in the BC sync flow.
+
+Suggested helper name:
+resolveSwinertonSoCalSubregion(textSources, regions)
+
+The helper should:
+1. Combine only relevant BC text sources into one normalized lowercase string:
+   - client/company display name
+   - office name
+   - opportunity name
+   - project name
+   - market name
+   - primaryMarket if available
+
+2. If the normalized string does not include both “swinerton” and “socal”, do not use this special Swinerton SoCal logic. Let the existing general region resolver continue.
+
+3. If it includes Swinerton + SoCal, check for specific subregion phrases in this exact priority order:
+
+Target Markets:
+- target markets
+- target market
+- tm
+
+Return: LAX - TM
+
+Special Projects:
+- special projects
+- special project
+- spd
+- tenant improvement
+- tenant improvements
+- ti
+- renovation
+- renovations
+- remodel
+- remodeling
+- build-out
+- buildout
+
+Return: LAX - SPD
+
+OCLA:
+- ocla
+- orange county
+- core & shell
+- core shell
+- ground-up
+- ground up
+- new construction
+- new build
+- residential
+
+Return: LAX - OCLA
+
+Facility Solutions:
+- facility solutions
+- facility solution
+- fs
+- facility
+
+Return: LAX - FS
+
+4. Important:
+Use exact phrase / word-boundary matching so “tm”, “fs”, and “ti” do not accidentally match inside unrelated words.
+
+5. If only “socal” is found and no subregion phrase is found:
+Return plain LAX only if the current system supports that.
+Otherwise leave Region blank and mark it for manual review.
+
+6. Do not use contact/person as a higher-priority source for Swinerton SoCal subregion assignment. Contact can be a fallback only after the BC office/client/company label fails.
+
+7. Do not overwrite a manually corrected Region on later BC sync updates.
+
+Acceptance tests:
+Add lightweight unit tests or clearly log/test with these examples:
+
+Input:
+“Swinerton Builders - SoCal - Target Markets”
+Expected:
+LAX - TM
+
+Input:
+“Swinerton Builders - SoCal - Special Projects”
+Expected:
+LAX - SPD
+
+Input:
+“Swinerton Builders - SoCal - OCLA”
+Expected:
+LAX - OCLA
+
+Input:
+“Swinerton Builders - SoCal - Facility Solutions”
+Expected:
+LAX - FS
+
+Input:
+“Swinerton Builders - SoCal”
+Expected:
+LAX or manual review, but not TM/SPD/OCLA/FS by guessing.
+
+Regression checks:
+- HNL - Hawaii still works.
+- SEA - Washington still works.
+- GEG - Spokane & Boise still works.
+- SAN - SD still works.
+- SFO - Nor Cal still works.
+- LGA - New York still works.
+- AUS still works.
+- CLT still works.
+- PDX still works.
+- DFW still works.
+
+Also verify these current bad/edge examples:
+- A Swinerton SoCal Target Markets invite should no longer save as plain LAX.
+- A project with `primaryMarket: Healthcare` should not automatically become TM unless the BC label or office clearly says Target Markets.
+- A manually selected Draft Review region should be preserved after approval/import.
+
+Report back:
+1. Exact file(s) changed.
+2. Existing region resolver behavior found.
+3. Why it was failing.
+4. What the new priority order is.
+5. Test results for the examples above.
