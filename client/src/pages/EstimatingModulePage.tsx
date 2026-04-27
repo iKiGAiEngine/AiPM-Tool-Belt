@@ -773,7 +773,7 @@ function EstimatingModuleInner() {
   const [pasteText, setPasteText] = useState("");
   const [aiParsing, setAiParsing] = useState(false);
   const [parsedQuote, setParsedQuote] = useState<any>(null);
-  const [newQuote, setNewQuote] = useState<{ vendor: string; note: string; freight: number; taxIncluded: boolean; pricingMode: string; lumpSumTotal: number; materialTotalCost: string; materialTotalCostSource: "manual" | "ai" | null; rfqLogId: number | null }>({ vendor: "", note: "", freight: 0, taxIncluded: true, pricingMode: "lump_sum", lumpSumTotal: 0, materialTotalCost: "", materialTotalCostSource: null, rfqLogId: null });
+  const [newQuote, setNewQuote] = useState<{ vendor: string; note: string; freight: number; taxIncluded: boolean; pricingMode: string; lumpSumTotal: number; materialTotalCost: string; rfqLogId: number | null }>({ vendor: "", note: "", freight: 0, taxIncluded: true, pricingMode: "lump_sum", lumpSumTotal: 0, materialTotalCost: "", rfqLogId: null });
   const [newQuoteFile, setNewQuoteFile] = useState<File | null>(null);
   const [extractingTotal, setExtractingTotal] = useState(false);
   const [aiExtractNote, setAiExtractNote] = useState<string | null>(null);
@@ -1465,7 +1465,7 @@ function EstimatingModuleInner() {
       });
       let q = await r.json();
       setQuotes(prev => [...prev, q]);
-      setNewQuote({ vendor: "", note: "", freight: 0, taxIncluded: true, pricingMode: "lump_sum", lumpSumTotal: 0, materialTotalCost: "", materialTotalCostSource: null, rfqLogId: null });
+      setNewQuote({ vendor: "", note: "", freight: 0, taxIncluded: true, pricingMode: "lump_sum", lumpSumTotal: 0, materialTotalCost: "", rfqLogId: null });
       setNewQuoteFile(null);
       setAiExtractNote(null);
       setShowNewQuote(false);
@@ -3927,28 +3927,31 @@ ${html}
                           placeholder="e.g. Base bid, Option 2…" className="text-xs px-2 py-1.5 rounded"
                           style={{ background: "var(--bg2)", border: "1px solid var(--border-ds)", color: "var(--text)" }} />
                       </div>
-                      <div className="flex flex-col gap-1">
-                        <label className="text-xs font-medium flex items-center gap-2" style={{ color: "var(--gold)" }}>
-                          <span>Total Material Cost ($)</span>
-                          {newQuote.materialTotalCostSource === "manual" && (
-                            <span data-testid="badge-quote-material-source-manual" className="text-[10px] font-normal px-1.5 py-0.5 rounded" style={{ background: "var(--bg2)", color: "var(--text-muted)", border: "1px solid var(--border-ds)" }}>Manual Quote Total</span>
-                          )}
-                          {newQuote.materialTotalCostSource === "ai" && (
-                            <span data-testid="badge-quote-material-source-ai" className="text-[10px] font-normal px-1.5 py-0.5 rounded" style={{ background: "rgba(201,168,76,0.15)", color: "var(--gold)", border: "1px solid var(--gold)40" }}>AI Quote Total</span>
-                          )}
-                        </label>
-                        <input
-                          data-testid="input-quote-material-total"
-                          type="number" min={0} step={100}
-                          value={newQuote.materialTotalCost}
-                          onChange={e => setNewQuote(p => ({ ...p, materialTotalCost: e.target.value, materialTotalCostSource: e.target.value ? "manual" : null }))}
-                          placeholder="0 — enter or AI-fill from quote file"
-                          className="text-xs px-2 py-1.5 rounded"
-                          style={{ background: "var(--bg2)", border: "1px solid var(--gold)40", color: "var(--gold)" }}  onFocus={selectIfZero}/>
-                        {aiExtractNote && (
-                          <span className="text-xs" style={{ color: aiExtractNote.startsWith("✓") ? "var(--gold)" : "var(--text-muted)" }}>{aiExtractNote}</span>
-                        )}
-                      </div>
+                      {(() => {
+                        const baseAmount = newQuote.pricingMode === "lump_sum"
+                          ? (newQuote.lumpSumTotal || 0)
+                          : (parseFloat(newQuote.materialTotalCost) || 0);
+                        const quoteTotal = baseAmount + (newQuote.freight || 0);
+                        const baseLabel = newQuote.pricingMode === "lump_sum" ? "Lump Sum" : "Material Subtotal";
+                        return (
+                          <div className="flex flex-col gap-1">
+                            <label className="text-xs font-medium" style={{ color: "var(--gold)" }}>Quote Total ($)</label>
+                            <div
+                              data-testid="display-quote-total"
+                              className="text-xs px-2 py-1.5 rounded font-semibold"
+                              style={{ background: "var(--bg2)", border: "1px solid var(--gold)40", color: "var(--gold)", minHeight: "30px", display: "flex", alignItems: "center" }}
+                            >
+                              ${quoteTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </div>
+                            <span className="text-xs" style={{ color: "var(--text-muted)" }}>
+                              = {baseLabel} + Freight
+                            </span>
+                            {aiExtractNote && (
+                              <span className="text-xs" style={{ color: aiExtractNote.startsWith("✓") ? "var(--gold)" : "var(--text-muted)" }}>{aiExtractNote}</span>
+                            )}
+                          </div>
+                        );
+                      })()}
                     </div>
                     <div className="grid grid-cols-3 gap-3 mb-3">
                       <div className="flex flex-col gap-1">
@@ -4011,7 +4014,7 @@ ${html}
                               const updates: Record<string, string> = {};
                               if (data.materialTotalCost != null) updates.materialTotalCost = String(data.materialTotalCost);
                               if (data.vendor) updates.vendor = data.vendor;
-                              if (Object.keys(updates).length > 0) setNewQuote(p => ({ ...p, ...updates, ...(data.materialTotalCost != null ? { materialTotalCostSource: "ai" as const } : {}) }));
+                              if (Object.keys(updates).length > 0) setNewQuote(p => ({ ...p, ...updates }));
                               if (data.materialTotalCost != null) {
                                 setAiExtractNote(`✓ AI found: $${Number(data.materialTotalCost).toLocaleString()}${data.vendor ? ` · ${data.vendor}` : ""}`);
                               } else {
