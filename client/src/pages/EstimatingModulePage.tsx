@@ -15,7 +15,7 @@ import {
   CheckSquare, Square, AlertTriangle, BarChart3, Send, RotateCcw,
   ClipboardList, Lock, Users, ChevronDown, ChevronUp, Copy,
   Upload, ClipboardPaste, ImageIcon, BookOpen, Loader2, FileSpreadsheet,
-  Paperclip, CheckCircle2, ExternalLink, RefreshCw, Info
+  Paperclip, CheckCircle2, ExternalLink, RefreshCw, Info, Pencil
 } from "lucide-react";
 import { exportEstimateToExcel } from "@/lib/exportEstimateExcel";
 import { MAX_UPLOAD_LABEL } from "@shared/uploadLimits";
@@ -777,6 +777,8 @@ function EstimatingModuleInner() {
   const [newQuoteFile, setNewQuoteFile] = useState<File | null>(null);
   const [extractingTotal, setExtractingTotal] = useState(false);
   const [aiExtractNote, setAiExtractNote] = useState<string | null>(null);
+  const [editingQuoteId, setEditingQuoteId] = useState<number | null>(null);
+  const [editDraft, setEditDraft] = useState<{ vendor: string; note: string; pricingMode: string; lumpSumTotal: string; freight: string; taxIncluded: boolean; materialTotalCost: string }>({ vendor: "", note: "", pricingMode: "lump_sum", lumpSumTotal: "", freight: "", taxIncluded: true, materialTotalCost: "" });
   const [showBreakoutPanel, setShowBreakoutPanel] = useState(false);
   const [showMarkupsBar, setShowMarkupsBar] = useState(false);
   const [newBreakoutGroup, setNewBreakoutGroup] = useState({ code: "", label: "", type: "building" });
@@ -1490,6 +1492,40 @@ function EstimatingModuleInner() {
       await apiRequest("PATCH", `/api/estimates/quotes/${qId}`, payload);
     } catch { toast({ title: "Error", description: "Could not update quote.", variant: "destructive" }); }
   }, []);
+
+  const startEditQuote = useCallback((q: Quote) => {
+    setEditingQuoteId(q.id);
+    setEditDraft({
+      vendor: q.vendor || "",
+      note: q.note || "",
+      pricingMode: q.pricingMode || "lump_sum",
+      lumpSumTotal: q.lumpSumTotal != null ? String(q.lumpSumTotal) : "",
+      freight: q.freight != null ? String(q.freight) : "",
+      taxIncluded: !!q.taxIncluded,
+      materialTotalCost: q.materialTotalCost != null ? String(q.materialTotalCost) : "",
+    });
+  }, []);
+
+  const saveQuoteEdit = useCallback(async (qId: number) => {
+    const mtc = editDraft.materialTotalCost !== "" ? parseFloat(editDraft.materialTotalCost) : null;
+    const payload = {
+      vendor: editDraft.vendor.trim(),
+      note: editDraft.note,
+      pricingMode: editDraft.pricingMode,
+      lumpSumTotal: editDraft.lumpSumTotal === "" ? "0" : editDraft.lumpSumTotal,
+      freight: editDraft.freight === "" ? "0" : editDraft.freight,
+      taxIncluded: editDraft.taxIncluded,
+      materialTotalCost: mtc != null && !isNaN(mtc) ? String(mtc) : null,
+    };
+    setQuotes(prev => prev.map(q => q.id === qId ? { ...q, ...payload } : q));
+    try {
+      await apiRequest("PATCH", `/api/estimates/quotes/${qId}`, payload);
+      setEditingQuoteId(null);
+      toast({ title: "Quote updated" });
+    } catch {
+      toast({ title: "Error", description: "Could not update quote.", variant: "destructive" });
+    }
+  }, [editDraft]);
 
   const deleteQuote = useCallback(async (qId: number) => {
     if (!window.confirm("Delete this quote? Items linked to it will be unlinked.")) return;
@@ -3637,8 +3673,75 @@ ${html}
                         border: "1px solid var(--text)",
                         color: "var(--text)",
                       };
+                      const isEditing = editingQuoteId === q.id;
+                      const editInputCls = "text-xs px-2 py-1 rounded h-7";
+                      const editInputStyle: React.CSSProperties = { background: "var(--bg2)", border: "1px solid var(--border-ds)", color: "var(--text)" };
                       return (
                     <div className="flex items-center gap-2 flex-wrap">
+                      {isEditing ? (
+                        <>
+                          <input
+                            data-testid={`input-edit-quote-vendor-${q.id}`}
+                            value={editDraft.vendor}
+                            onChange={e => setEditDraft(p => ({ ...p, vendor: e.target.value }))}
+                            placeholder="Vendor"
+                            className={editInputCls} style={{ ...editInputStyle, width: 140 }} />
+                          <input
+                            data-testid={`input-edit-quote-note-${q.id}`}
+                            value={editDraft.note}
+                            onChange={e => setEditDraft(p => ({ ...p, note: e.target.value }))}
+                            placeholder="Note (optional)"
+                            className={editInputCls} style={{ ...editInputStyle, width: 160 }} />
+                          <select
+                            data-testid={`select-edit-quote-mode-${q.id}`}
+                            value={editDraft.pricingMode}
+                            onChange={e => setEditDraft(p => ({ ...p, pricingMode: e.target.value }))}
+                            className={editInputCls} style={editInputStyle}>
+                            <option value="lump_sum">Lump Sum</option>
+                            <option value="per_item">Per Item</option>
+                          </select>
+                          {editDraft.pricingMode === "lump_sum" && (
+                            <input
+                              data-testid={`input-edit-quote-lump-${q.id}`}
+                              type="number" min={0} step={100}
+                              value={editDraft.lumpSumTotal}
+                              onChange={e => setEditDraft(p => ({ ...p, lumpSumTotal: e.target.value }))}
+                              placeholder="Lump Sum"
+                              className={editInputCls} style={{ ...editInputStyle, width: 110, color: "#f97316" }} onFocus={selectIfZero} />
+                          )}
+                          <input
+                            data-testid={`input-edit-quote-freight-${q.id}`}
+                            type="number" min={0} step={10}
+                            value={editDraft.freight}
+                            onChange={e => setEditDraft(p => ({ ...p, freight: e.target.value }))}
+                            placeholder="Freight"
+                            className={editInputCls} style={{ ...editInputStyle, width: 90, color: "#f97316" }} onFocus={selectIfZero} />
+                          <button
+                            data-testid={`toggle-edit-quote-tax-${q.id}`}
+                            onClick={() => setEditDraft(p => ({ ...p, taxIncluded: !p.taxIncluded }))}
+                            className={editInputCls + " whitespace-nowrap"}
+                            style={{ background: editDraft.taxIncluded ? "#22c55e15" : "var(--bg2)", border: `1px solid ${editDraft.taxIncluded ? "#22c55e40" : "var(--border-ds)"}`, color: editDraft.taxIncluded ? "#22c55e" : "var(--text-muted)" }}>
+                            {editDraft.taxIncluded ? "✓ Tax Incl" : "Tax Excl"}
+                          </button>
+                          <div className="flex items-center gap-1 ml-auto">
+                            <button
+                              data-testid={`button-save-quote-${q.id}`}
+                              onClick={() => saveQuoteEdit(q.id)}
+                              className="text-xs px-2 py-1 rounded font-semibold"
+                              style={{ background: "#22c55e", color: "#fff" }}>
+                              Save
+                            </button>
+                            <button
+                              data-testid={`button-cancel-edit-quote-${q.id}`}
+                              onClick={() => setEditingQuoteId(null)}
+                              className="text-xs px-2 py-1 rounded"
+                              style={{ background: "var(--bg2)", border: "1px solid var(--border-ds)", color: "var(--text-secondary)" }}>
+                              Cancel
+                            </button>
+                          </div>
+                        </>
+                      ) : (
+                        <>
                       <span className={chipBase} style={neutralChip} data-testid={`text-quote-vendor-${q.id}`}>{q.vendor}</span>
                       {q.note && <span className="text-xs" style={{ color: "var(--text-muted)" }}>({q.note})</span>}
                       {q.status === "processing" && <span className={chipBase + " gap-1"} style={{ background: "transparent", border: "1px solid #06b6d4", color: "#06b6d4" }}><Loader2 className="w-2.5 h-2.5 animate-spin" />Processing…</span>}
@@ -3694,8 +3797,14 @@ ${html}
                             <Zap className="w-3 h-3" /> Review
                           </button>
                         )}
-                        <input type="number" step={10} value={n(q.freight)} onChange={e => updateQuote(q.id, "freight", e.target.value)}
-                          placeholder="Freight $" className="w-20 text-xs px-1.5 py-0.5 rounded" style={{ background: "var(--bg3)", border: "1px solid var(--border-ds)", color: "#f97316" }}  onFocus={selectIfZero}/>
+                        <button
+                          data-testid={`button-edit-quote-${q.id}`}
+                          onClick={() => startEditQuote(q)}
+                          title="Edit quote"
+                          className="p-1 rounded hover:bg-purple-500/10"
+                          style={{ color: "var(--text-muted)" }}>
+                          <Pencil className="w-3 h-3" />
+                        </button>
                         {/* Backup file attachment */}
                         <input
                           id={`quote-backup-input-${q.id}`}
@@ -3750,6 +3859,8 @@ ${html}
                           <Trash2 className="w-3 h-3" style={{ color: "#ef4444" }} />
                         </button>
                       </div>
+                        </>
+                      )}
                     </div>
                       );
                     })()}
