@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import { exportEstimateToExcel } from "@/lib/exportEstimateExcel";
 import { MAX_UPLOAD_LABEL } from "@shared/uploadLimits";
+import nbsLogoUrl from "@assets/image_1777258417502.png";
 
 // ══════════════════════════════════════════════════
 // CONSTANTS
@@ -5580,8 +5581,8 @@ ${html}
                       {/* ============ HEADER ============ */}
                       <div style={{ position: "relative", paddingBottom: 20, marginBottom: 20, borderBottom: `3px solid ${GOLD}` }}>
                         <div style={{ display: "grid", gridTemplateColumns: "0.85fr 1.6fr 1fr", gap: 16, alignItems: "center" }}>
-                          <div style={{ minWidth: 140, height: 54, border: `1px dashed ${GOLD}`, background: "rgba(200,164,78,0.06)", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'Rajdhani', sans-serif", fontSize: 8, letterSpacing: 2, color: INK_FAINT, textTransform: "uppercase", fontWeight: 600 }}>
-                            [ NBS LOGO ]
+                          <div style={{ minWidth: 140, height: 54, display: "flex", alignItems: "center", justifyContent: "flex-start" }}>
+                            <img src={nbsLogoUrl} alt="National Building Specialties" style={{ maxHeight: 54, maxWidth: "100%", width: "auto", objectFit: "contain", display: "block" }} data-testid="img-nbs-logo-proposal" />
                           </div>
                           <div style={{ textAlign: "center" }}>
                             <div style={{ fontFamily: "'Rajdhani', sans-serif", fontSize: 9, letterSpacing: 5, color: GOLD, fontWeight: 600, textTransform: "uppercase", marginBottom: 8 }}>Furnish Only · Division 10</div>
