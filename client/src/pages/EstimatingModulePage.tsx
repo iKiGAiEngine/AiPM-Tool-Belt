@@ -1,4 +1,5 @@
-import { useState, useMemo, useCallback, useRef, useEffect, Fragment } from "react";
+import { useState, useMemo, useCallback, useRef, useEffect, useLayoutEffect, Fragment } from "react";
+import { createPortal } from "react-dom";
 import { useParams, useLocation } from "wouter";
 import { useQuery, useQueries, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
@@ -465,27 +466,58 @@ interface MfrComboProps {
   value: string;
   manufacturerId: number | null;
   allMfrs: Array<{ id: number; name: string }>;
-  approvedIds: Set<number>;
+  approvedMfrs?: Array<{ manufacturerId: number; isBasisOfDesign?: boolean }>;
+  scopeLabel?: string;
   onChange: (name: string, manufacturerId: number | null) => void;
   className?: string;
   style?: React.CSSProperties;
   placeholder?: string;
 }
 
-function ManufacturerCombo({ value, manufacturerId, allMfrs, approvedIds, onChange, className, style, placeholder }: MfrComboProps) {
+// Themed manufacturer combobox (replaces native <datalist>) — surfaces the
+// active scope's Approved Manufacturers in a dedicated section above the
+// rest of the global list. Renders the popover via portal + fixed positioning
+// so it escapes parent overflow:auto containers (e.g. the line items table).
+function ManufacturerCombo({ value, manufacturerId, allMfrs, approvedMfrs = [], scopeLabel, onChange, className, style, placeholder }: MfrComboProps) {
   const qc = useQueryClient();
   const { toast } = useToast();
   const [text, setText] = useState(value || "");
   const [busy, setBusy] = useState(false);
-  const listId = useMemo(() => `mfr-list-${Math.random().toString(36).slice(2, 9)}`, []);
+  const [open, setOpen] = useState(false);
+  const [rect, setRect] = useState<{ top: number; left: number; width: number } | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => { setText(value || ""); }, [value]);
 
-  const sortedOptions = useMemo(() => {
-    const approved = allMfrs.filter(m => approvedIds.has(m.id)).sort((a, b) => a.name.localeCompare(b.name));
-    const others = allMfrs.filter(m => !approvedIds.has(m.id)).sort((a, b) => a.name.localeCompare(b.name));
-    return [...approved, ...others];
-  }, [allMfrs, approvedIds]);
+  const approvedIds = useMemo(() => new Set(approvedMfrs.map(a => a.manufacturerId)), [approvedMfrs]);
+  const basisOfDesignIds = useMemo(
+    () => new Set(approvedMfrs.filter(a => a.isBasisOfDesign).map(a => a.manufacturerId)),
+    [approvedMfrs],
+  );
+
+  // Position the portalled popover under the input and keep it pinned on scroll/resize.
+  useLayoutEffect(() => {
+    if (!open) return;
+    const update = () => {
+      const r = inputRef.current?.getBoundingClientRect();
+      if (r) setRect({ top: r.bottom + 4, left: r.left, width: r.width });
+    };
+    update();
+    window.addEventListener("scroll", update, true);
+    window.addEventListener("resize", update);
+    return () => {
+      window.removeEventListener("scroll", update, true);
+      window.removeEventListener("resize", update);
+    };
+  }, [open]);
+
+  const { approved, others } = useMemo(() => {
+    const q = text.trim().toLowerCase();
+    const matches = (m: { id: number; name: string }) => !q || m.name.toLowerCase().includes(q);
+    const approved = allMfrs.filter(m => approvedIds.has(m.id) && matches(m)).sort((a, b) => a.name.localeCompare(b.name));
+    const others = allMfrs.filter(m => !approvedIds.has(m.id) && matches(m)).sort((a, b) => a.name.localeCompare(b.name));
+    return { approved, others };
+  }, [allMfrs, approvedIds, text]);
 
   const commit = async (raw: string) => {
     const trimmed = raw.trim();
@@ -513,24 +545,109 @@ function ManufacturerCombo({ value, manufacturerId, allMfrs, approvedIds, onChan
     }
   };
 
+  const pick = (m: { id: number; name: string }) => {
+    setText(m.name);
+    if (m.id !== manufacturerId || m.name !== value) onChange(m.name, m.id);
+    setOpen(false);
+  };
+
+  const totalShown = approved.length + others.length;
+  const trimmedQ = text.trim();
+
   return (
     <>
       <input
-        list={listId}
+        ref={inputRef}
         value={text}
-        onChange={e => setText(e.target.value)}
-        onBlur={e => commit(e.target.value)}
-        onKeyDown={e => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
+        onChange={e => { setText(e.target.value); setOpen(true); }}
+        onFocus={() => setOpen(true)}
+        onBlur={e => { setTimeout(() => setOpen(false), 150); commit(e.target.value); }}
+        onKeyDown={e => {
+          if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+          else if (e.key === "Escape") setOpen(false);
+        }}
         placeholder={busy ? "Saving…" : placeholder}
         className={className}
         style={style}
         disabled={busy}
+        autoComplete="off"
+        data-testid="input-mfr-combo"
       />
-      <datalist id={listId}>
-        {sortedOptions.map(m => (
-          <option key={m.id} value={m.name}>{approvedIds.has(m.id) ? "★ approved for this scope" : ""}</option>
-        ))}
-      </datalist>
+      {open && rect && createPortal(
+        <div
+          className="rounded shadow-lg"
+          style={{
+            position: "fixed",
+            top: rect.top,
+            left: rect.left,
+            width: Math.max(rect.width, 240),
+            zIndex: 1000,
+            background: "var(--bg-card)",
+            border: "1px solid var(--border-ds)",
+            maxHeight: 320,
+            display: "flex",
+            flexDirection: "column",
+          }}
+          data-testid="dropdown-mfr-suggestions"
+          onMouseDown={e => e.preventDefault()}
+        >
+          <div style={{ overflowY: "auto", flex: 1 }}>
+            {approved.length > 0 && (
+              <>
+                <div className="px-3 py-1 text-[10px] uppercase tracking-wider font-semibold"
+                  style={{ color: "var(--text-muted)", background: "var(--bg3)", borderBottom: "1px solid var(--border-ds)40" }}
+                  data-testid="header-mfr-approved-section">
+                  {scopeLabel ? `Approved for ${scopeLabel}` : "Approved for this scope"} · {approved.length}
+                </div>
+                {approved.map(m => (
+                  <button key={`appr-${m.id}`} type="button"
+                    onMouseDown={e => { e.preventDefault(); pick(m); }}
+                    className="w-full text-left px-3 py-2 text-xs flex items-center gap-2 hover:bg-[var(--bg3)]"
+                    style={{ borderBottom: "1px solid var(--border-ds)40", color: "var(--text)", minHeight: 36 }}
+                    data-testid={`option-mfr-approved-${m.id}`}>
+                    <span style={{ color: "var(--gold)", flexShrink: 0 }}>★</span>
+                    <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{m.name}</span>
+                    {basisOfDesignIds.has(m.id) && (
+                      <span style={{ fontSize: 9, fontWeight: 700, padding: "1px 5px", borderRadius: 3, background: "rgba(201,168,76,0.15)", color: "var(--gold)", flexShrink: 0 }}>BoD</span>
+                    )}
+                  </button>
+                ))}
+              </>
+            )}
+            {others.length > 0 && (
+              <>
+                <div className="px-3 py-1 text-[10px] uppercase tracking-wider font-semibold"
+                  style={{ color: "var(--text-muted)", background: "var(--bg3)", borderBottom: "1px solid var(--border-ds)40" }}
+                  data-testid="header-mfr-other-section">
+                  {approved.length > 0 ? "Other manufacturers" : "All manufacturers"} · {others.length}
+                </div>
+                {others.slice(0, 200).map(m => (
+                  <button key={`other-${m.id}`} type="button"
+                    onMouseDown={e => { e.preventDefault(); pick(m); }}
+                    className="w-full text-left px-3 py-2 text-xs hover:bg-[var(--bg3)]"
+                    style={{ borderBottom: "1px solid var(--border-ds)40", color: "var(--text)", minHeight: 36, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
+                    data-testid={`option-mfr-${m.id}`}>
+                    {m.name}
+                  </button>
+                ))}
+                {others.length > 200 && (
+                  <div className="px-3 py-1.5 text-[10px] italic" style={{ color: "var(--text-muted)" }}>
+                    Showing first 200 — keep typing to narrow.
+                  </div>
+                )}
+              </>
+            )}
+            {totalShown === 0 && (
+              <div className="px-3 py-3 text-xs" style={{ color: "var(--text-muted)" }} data-testid="text-mfr-no-matches">
+                {trimmedQ
+                  ? <>No matches — keep typing to add "<span style={{ color: "var(--text)" }}>{trimmedQ}</span>" as a new manufacturer.</>
+                  : "No manufacturers available."}
+              </div>
+            )}
+          </div>
+        </div>,
+        document.body,
+      )}
     </>
   );
 }
@@ -4103,7 +4220,8 @@ ${html}
                             value={newItemForm.mfr}
                             manufacturerId={newItemForm.manufacturerId}
                             allMfrs={allManufacturers}
-                            approvedIds={new Set(approvedMfrs.map(a => a.manufacturerId))}
+                            approvedMfrs={approvedMfrs}
+                            scopeLabel={ALL_SCOPES.find(s => s.id === activeCat)?.label || activeCat}
                             onChange={(name, id) => setNewItemForm(p => ({ ...p, mfr: name, manufacturerId: id }))}
                             placeholder="Pick or type…"
                             className="w-full text-sm px-2 py-2 rounded"
@@ -4171,7 +4289,8 @@ ${html}
                           value={newItemForm.mfr}
                           manufacturerId={newItemForm.manufacturerId}
                           allMfrs={allManufacturers}
-                          approvedIds={new Set(approvedMfrs.map(a => a.manufacturerId))}
+                          approvedMfrs={approvedMfrs}
+                          scopeLabel={ALL_SCOPES.find(s => s.id === activeCat)?.label || activeCat}
                           onChange={(name, id) => setNewItemForm(p => ({ ...p, mfr: name, manufacturerId: id }))}
                           placeholder="Pick or type…"
                           className="text-xs px-2 py-1.5 rounded"
@@ -4301,7 +4420,8 @@ ${html}
                               value={item.mfr || ""}
                               manufacturerId={item.manufacturerId}
                               allMfrs={allManufacturers}
-                              approvedIds={new Set(approvedMfrs.map(a => a.manufacturerId))}
+                              approvedMfrs={approvedMfrs}
+                            scopeLabel={ALL_SCOPES.find(s => s.id === activeCat)?.label || activeCat}
                               onChange={(name, id) => {
                                 setLineItems(prev => prev.map(i => i.id === item.id ? { ...i, mfr: name || null, manufacturerId: id } : i));
                                 apiRequest("PATCH", `/api/estimates/line-items/${item.id}`, { mfr: name || null, manufacturerId: id }).catch(() => toast({ title: "Error", description: "Could not update item.", variant: "destructive" }));
@@ -4451,7 +4571,8 @@ ${html}
                                     value={item.mfr || ""}
                                     manufacturerId={item.manufacturerId}
                                     allMfrs={allManufacturers}
-                                    approvedIds={new Set(approvedMfrs.map(a => a.manufacturerId))}
+                                    approvedMfrs={approvedMfrs}
+                            scopeLabel={ALL_SCOPES.find(s => s.id === activeCat)?.label || activeCat}
                                     onChange={(name, id) => {
                                       setLineItems(prev => prev.map(i => i.id === item.id ? { ...i, mfr: name || null, manufacturerId: id } : i));
                                       apiRequest("PATCH", `/api/estimates/line-items/${item.id}`, { mfr: name || null, manufacturerId: id }).catch(() => toast({ title: "Error", description: "Could not update item.", variant: "destructive" }));
