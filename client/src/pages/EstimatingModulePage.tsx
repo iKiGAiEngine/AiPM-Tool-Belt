@@ -3928,14 +3928,16 @@ ${html}
                           style={{ background: "var(--bg2)", border: "1px solid var(--border-ds)", color: "var(--text)" }} />
                       </div>
                       <div className="flex flex-col gap-1">
-                        <label className="text-xs font-medium" style={{ color: "#f97316" }}>Freight ($)</label>
-                        <input data-testid="input-quote-freight" type="number" min={0} step={10} value={newQuote.freight} onChange={e => setNewQuote(p => ({ ...p, freight: parseFloat(e.target.value) || 0 }))}
-                          placeholder="0" className="text-xs px-2 py-1.5 rounded"
-                          style={{ background: "var(--bg2)", border: "1px solid var(--border-ds)", color: "#f97316" }}  onFocus={selectIfZero}/>
+                        <label className="text-xs font-medium" style={{ color: "var(--text-muted)" }}>Tax</label>
+                        <button data-testid="toggle-quote-tax" onClick={() => setNewQuote(p => ({ ...p, taxIncluded: !p.taxIncluded }))}
+                          className="text-xs px-2 py-1.5 rounded text-left"
+                          style={{ background: newQuote.taxIncluded ? "#22c55e15" : "var(--bg2)", border: `1px solid ${newQuote.taxIncluded ? "#22c55e40" : "var(--border-ds)"}`, color: newQuote.taxIncluded ? "#22c55e" : "var(--text-muted)" }}>
+                          {newQuote.taxIncluded ? "✓ Tax Included" : "Tax Excluded"}
+                        </button>
                       </div>
                     </div>
-                    <div className="grid grid-cols-3 gap-3 mb-3">
-                      <div className="flex flex-col gap-1">
+                    <div className="flex flex-wrap gap-3 mb-3 items-end">
+                      <div className="flex flex-col gap-1" style={{ width: 160 }}>
                         <label className="text-xs font-medium" style={{ color: "var(--text-muted)" }}>Pricing Mode</label>
                         <select data-testid="select-quote-mode" value={newQuote.pricingMode} onChange={e => setNewQuote(p => ({ ...p, pricingMode: e.target.value }))}
                           className="text-xs px-2 py-1.5 rounded" style={{ background: "var(--bg2)", border: "1px solid var(--border-ds)", color: "var(--text)" }}>
@@ -3944,21 +3946,13 @@ ${html}
                         </select>
                       </div>
                       {newQuote.pricingMode === "lump_sum" && (
-                        <div className="flex flex-col gap-1">
+                        <div className="flex flex-col gap-1" style={{ width: 200 }}>
                           <label className="text-xs font-medium" style={{ color: "#f97316" }}>Lump Sum Total ($)</label>
                           <input data-testid="input-quote-lump-sum" type="number" min={0} step={100} value={newQuote.lumpSumTotal} onChange={e => setNewQuote(p => ({ ...p, lumpSumTotal: parseFloat(e.target.value) || 0 }))}
                             placeholder="0" className="text-xs px-2 py-1.5 rounded"
                             style={{ background: "var(--bg2)", border: "1px solid var(--border-ds)", color: "#f97316" }}  onFocus={selectIfZero}/>
                         </div>
                       )}
-                      <div className="flex flex-col gap-1">
-                        <label className="text-xs font-medium" style={{ color: "var(--text-muted)" }}>Tax</label>
-                        <button data-testid="toggle-quote-tax" onClick={() => setNewQuote(p => ({ ...p, taxIncluded: !p.taxIncluded }))}
-                          className="text-xs px-2 py-1.5 rounded text-left"
-                          style={{ background: newQuote.taxIncluded ? "#22c55e15" : "var(--bg2)", border: `1px solid ${newQuote.taxIncluded ? "#22c55e40" : "var(--border-ds)"}`, color: newQuote.taxIncluded ? "#22c55e" : "var(--text-muted)" }}>
-                          {newQuote.taxIncluded ? "✓ Tax Included" : "Tax Excluded"}
-                        </button>
-                      </div>
                     </div>
                     <div className="grid grid-cols-2 gap-3 mb-3">
                       <div className="flex flex-col gap-1">
@@ -3975,6 +3969,14 @@ ${html}
                           <span className="text-xs" style={{ color: aiExtractNote.startsWith("✓") ? "var(--gold)" : "var(--text-muted)" }}>{aiExtractNote}</span>
                         )}
                       </div>
+                      <div className="flex flex-col gap-1">
+                        <label className="text-xs font-medium" style={{ color: "#f97316" }}>Freight ($)</label>
+                        <input data-testid="input-quote-freight" type="number" min={0} step={10} value={newQuote.freight} onChange={e => setNewQuote(p => ({ ...p, freight: parseFloat(e.target.value) || 0 }))}
+                          placeholder="0" className="text-xs px-2 py-1.5 rounded"
+                          style={{ background: "var(--bg2)", border: "1px solid var(--border-ds)", color: "#f97316" }}  onFocus={selectIfZero}/>
+                      </div>
+                    </div>
+                    <div className="mb-3">
                       <div className="flex flex-col gap-1">
                         <label className="text-xs font-medium" style={{ color: "var(--text-muted)" }}>
                           Quote Attachment {extractingTotal && <span style={{ color: "var(--gold)" }}>⟳ extracting…</span>}
