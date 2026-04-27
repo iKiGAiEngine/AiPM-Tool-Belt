@@ -1528,8 +1528,8 @@ function EstimatingModuleInner() {
   }, [editDraft]);
 
   const deleteQuote = useCallback(async (qId: number) => {
-    if (!window.confirm("Delete this quote? Items linked to it will be unlinked.")) return;
-    setLineItems(prev => prev.map(i => i.quoteId === qId ? { ...i, quoteId: null } : i));
+    if (!window.confirm("Delete this quote? Items linked to it will be unlinked and their backup indicator will reset to Missing.")) return;
+    setLineItems(prev => prev.map(i => i.quoteId === qId ? { ...i, quoteId: null, hasBackup: false } : i));
     setQuotes(prev => prev.filter(q => q.id !== qId));
     try { await apiRequest("DELETE", `/api/estimates/quotes/${qId}`); }
     catch { toast({ title: "Error", description: "Could not delete quote.", variant: "destructive" }); }

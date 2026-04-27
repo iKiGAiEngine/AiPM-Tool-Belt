@@ -736,6 +736,12 @@ export function registerEstimateRoutes(app: Express) {
     try {
       const quoteId = parseInt(req.params.quoteId);
       if (isNaN(quoteId)) return res.status(400).json({ message: "Invalid quote id" });
+      // Reset hasBackup on any line items linked to this quote — the documented
+      // backup is going away with the quote, so the indicator should flip back
+      // to "missing backup" until a new quote/file is attached.
+      await db.update(estimateLineItems)
+        .set({ hasBackup: false })
+        .where(eq(estimateLineItems.quoteId, quoteId));
       await db.delete(estimateQuotes).where(eq(estimateQuotes.id, quoteId));
       res.json({ ok: true });
     } catch (err) {
