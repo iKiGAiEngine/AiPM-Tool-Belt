@@ -284,10 +284,12 @@ const selectIfZero = (e: React.FocusEvent<HTMLInputElement>) => {
 
 // Dollar-amount input. Used everywhere we edit Unit Cost.
 //   • type="text" + inputMode="decimal" → no spinner arrows, mobile shows numeric keypad.
-//   • Shows empty (placeholder "0") when value is 0 — typing replaces cleanly, no leading 0.
-//   • On focus, selects existing contents so a single keystroke replaces them, but the
-//     value isn't wiped, so you can also click to position the cursor and edit in place.
-//   • Prepends a $ inside the field so it reads as money.
+//   • Unfocused: shows "$30,050" (or "$35.81") — matches the Line Total look.
+//     Whole numbers render with no trailing ".00"; cents only show when there's a
+//     real fractional value (35.81, 500.50).
+//   • Focused: switches to the raw editable value (no commas, no "$") so typing
+//     and cursor positioning stay clean.
+//   • Zero unfocused → red "$0"; zero focused → empty field so you can just start typing.
 type MoneyInputProps = {
   value: number | string | null | undefined;
   onChange: (raw: string) => void;
@@ -300,35 +302,37 @@ type MoneyInputProps = {
 const MoneyInput: React.FC<MoneyInputProps> = ({
   value, onChange, className, style, inputClassName, size = "md", ariaLabel,
 }) => {
+  const [focused, setFocused] = useState(false);
   const numeric = typeof value === "number" ? value : parseFloat(value || "0") || 0;
   const isZero = numeric === 0;
-  // When zero, show empty so the user types into a clean field. Otherwise show the
-  // raw value (no formatting) so cursor positioning during edit stays sane.
-  const display = isZero
-    ? ""
-    : (typeof value === "string" ? value : String(value));
+  // Raw editing string: prefer the original value if it's a string (preserves
+  // a partial entry like "500." while typing); fall back to the parsed number.
+  const rawString = typeof value === "string" ? value : (isZero ? "" : String(numeric));
+  // Show cents only when there's an actual fractional component.
+  const hasFraction = Math.abs(numeric - Math.trunc(numeric)) > 0.0049;
+  const formatted = numeric.toLocaleString("en-US", {
+    minimumFractionDigits: hasFraction ? 2 : 0,
+    maximumFractionDigits: 2,
+  });
+  const display = focused
+    ? rawString
+    : (isZero ? "$0" : `$${formatted}`);
   const fontClass =
     size === "xs" ? "text-xs"
     : size === "sm" ? "text-sm"
     : "text-sm";
-  const dollarColor = isZero ? "#ef4444" : "var(--text-muted)";
   const inputColor = isZero ? "#ef4444" : "var(--text)";
   return (
     <div className={`flex items-center rounded ${className || ""}`} style={style}>
-      <span
-        aria-hidden="true"
-        className={`pl-1.5 pr-0.5 select-none ${fontClass}`}
-        style={{ color: dollarColor }}
-      >$</span>
       <input
         type="text"
         inputMode="decimal"
         autoComplete="off"
         aria-label={ariaLabel || "Amount in dollars"}
         value={display}
-        placeholder="0"
+        placeholder="$0"
         onChange={e => {
-          // Keep digits + a single decimal point; strip everything else.
+          // Strip $, commas, spaces, and any non-numeric chars; keep one decimal point.
           let v = e.target.value.replace(/[^0-9.]/g, "");
           const firstDot = v.indexOf(".");
           if (firstDot !== -1) {
@@ -336,8 +340,14 @@ const MoneyInput: React.FC<MoneyInputProps> = ({
           }
           onChange(v);
         }}
-        onFocus={e => e.target.select()}
-        className={`flex-1 bg-transparent border-none outline-none text-right pr-1.5 py-1 min-w-0 ${fontClass} ${inputClassName || ""}`}
+        onFocus={e => {
+          setFocused(true);
+          // Select-all only when the field is effectively empty/zero, so a click
+          // into an existing value lets you position the cursor without wiping.
+          if (isZero) e.target.select();
+        }}
+        onBlur={() => setFocused(false)}
+        className={`flex-1 bg-transparent border-none outline-none text-right px-1.5 py-1 min-w-0 ${fontClass} ${inputClassName || ""}`}
         style={{ color: inputColor }}
       />
     </div>
