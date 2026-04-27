@@ -5622,33 +5622,78 @@ ${html}
                             </div>
                             {(() => {
                               const showPx = showUnitPricing;
-                              const gridCols = showPx
-                                ? "70px minmax(0,1fr) 110px 50px 80px 90px"
-                                : "70px minmax(0,1fr) 110px 50px";
-                              return (
-                                <>
-                                  <div style={{ display: "grid", gridTemplateColumns: gridCols, columnGap: 10, padding: "3px 12px 4px", fontFamily: "'Rajdhani', sans-serif", fontSize: 8, fontWeight: 700, letterSpacing: 1.1, textTransform: "uppercase", color: INK_FAINT, borderBottom: `0.5px solid ${RULE_FAINT}` }} data-testid="row-line-items-header">
-                                    <span>Plan Callout</span>
-                                    <span>Description</span>
-                                    <span>Model Number</span>
-                                    <span style={{ textAlign: "right" }}>Qty</span>
-                                    {showPx && <span style={{ textAlign: "right" }}>Unit Cost</span>}
-                                    {showPx && <span style={{ textAlign: "right" }}>Total</span>}
-                                  </div>
-                                  {catItems.map(item => (
-                                    <div key={item.id}>
-                                      <div style={{ display: "grid", gridTemplateColumns: gridCols, columnGap: 10, padding: "3px 12px", fontSize: 9.5, color: INK, alignItems: "baseline" }} data-testid={`row-line-item-${item.id}`}>
-                                        <span style={{ wordBreak: "break-word" }}>{item.planCallout || ""}</span>
-                                        <span style={{ wordBreak: "break-word", lineHeight: 1.35 }}>{item.name}</span>
-                                        <span style={{ wordBreak: "break-word" }}>{item.model || ""}</span>
-                                        <span style={{ textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{item.qty || ""}</span>
-                                        {showPx && <span style={{ textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{fmt(n(item.unitCost))}</span>}
-                                        {showPx && <span style={{ textAlign: "right", fontVariantNumeric: "tabular-nums", fontWeight: 500 }}>{fmt(n(item.unitCost) * item.qty)}</span>}
-                                      </div>
-                                      {item.note && <div style={{ padding: "1px 12px 3px 82px", fontSize: 8.5, color: INK_FAINT, fontStyle: "italic" }}>▸ {item.note}</div>}
+
+                              // ─── NON-PRICING LAYOUT (unchanged from prior version) ───
+                              if (!showPx) {
+                                const gridCols = "70px minmax(0,1fr) 110px 50px";
+                                return (
+                                  <>
+                                    <div style={{ display: "grid", gridTemplateColumns: gridCols, columnGap: 10, padding: "3px 12px 4px", fontFamily: "'Rajdhani', sans-serif", fontSize: 8, fontWeight: 700, letterSpacing: 1.1, textTransform: "uppercase", color: INK_FAINT, borderBottom: `0.5px solid ${RULE_FAINT}` }} data-testid="row-line-items-header">
+                                      <span>Plan Callout</span>
+                                      <span>Description</span>
+                                      <span>Model Number</span>
+                                      <span style={{ textAlign: "right" }}>Qty</span>
                                     </div>
-                                  ))}
-                                </>
+                                    {catItems.map(item => (
+                                      <div key={item.id}>
+                                        <div style={{ display: "grid", gridTemplateColumns: gridCols, columnGap: 10, padding: "3px 12px", fontSize: 9.5, color: INK, alignItems: "baseline" }} data-testid={`row-line-item-${item.id}`}>
+                                          <span style={{ wordBreak: "break-word" }}>{item.planCallout || ""}</span>
+                                          <span style={{ wordBreak: "break-word", lineHeight: 1.35 }}>{item.name}</span>
+                                          <span style={{ wordBreak: "break-word" }}>{item.model || ""}</span>
+                                          <span style={{ textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{item.qty || ""}</span>
+                                        </div>
+                                        {item.note && <div style={{ padding: "1px 12px 3px 82px", fontSize: 8.5, color: INK_FAINT, fontStyle: "italic" }}>▸ {item.note}</div>}
+                                      </div>
+                                    ))}
+                                  </>
+                                );
+                              }
+
+                              // ─── PRICING LAYOUT (fixed-width <table>, percent column widths) ───
+                              const thStyle = { fontFamily: "'Rajdhani', sans-serif", fontSize: 8, fontWeight: 700, letterSpacing: 1, textTransform: "uppercase" as const, color: INK_FAINT, borderBottom: `1px solid ${RULE_FAINT}`, padding: "6px 8px", textAlign: "left" as const, verticalAlign: "bottom" as const };
+                              const tdStyle = { fontSize: 9.5, color: INK, lineHeight: 1.35, padding: "6px 8px", borderBottom: `0.5px solid ${RULE_FAINT}`, verticalAlign: "top" as const };
+                              const descCellStyle = { ...tdStyle, whiteSpace: "normal" as const, wordBreak: "normal" as const, overflowWrap: "normal" as const };
+                              const numCellStyle = { ...tdStyle, textAlign: "right" as const, fontVariantNumeric: "tabular-nums" };
+                              return (
+                                <table style={{ width: "100%", tableLayout: "fixed", borderCollapse: "collapse" }} data-testid="table-proposal-line-items-pricing">
+                                  <colgroup>
+                                    <col style={{ width: "11%" }} />
+                                    <col style={{ width: "36%" }} />
+                                    <col style={{ width: "21%" }} />
+                                    <col style={{ width: "8%" }} />
+                                    <col style={{ width: "12%" }} />
+                                    <col style={{ width: "12%" }} />
+                                  </colgroup>
+                                  <thead>
+                                    <tr>
+                                      <th style={thStyle}>Plan Callout</th>
+                                      <th style={thStyle}>Description</th>
+                                      <th style={thStyle}>Model Number</th>
+                                      <th style={{ ...thStyle, textAlign: "right" }}>Qty</th>
+                                      <th style={{ ...thStyle, textAlign: "right" }}>Unit Cost</th>
+                                      <th style={{ ...thStyle, textAlign: "right" }}>Total</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    {catItems.map(item => (
+                                      <React.Fragment key={item.id}>
+                                        <tr data-testid={`row-line-item-${item.id}`}>
+                                          <td style={tdStyle}>{item.planCallout || ""}</td>
+                                          <td style={descCellStyle}>{item.name}</td>
+                                          <td style={tdStyle}>{item.model || ""}</td>
+                                          <td style={numCellStyle}>{item.qty || ""}</td>
+                                          <td style={numCellStyle}>{fmt(n(item.unitCost))}</td>
+                                          <td style={{ ...numCellStyle, fontWeight: 500 }}>{fmt(n(item.unitCost) * item.qty)}</td>
+                                        </tr>
+                                        {item.note && (
+                                          <tr>
+                                            <td colSpan={6} style={{ padding: "0 8px 4px 8px", fontSize: 8.5, color: INK_FAINT, fontStyle: "italic", borderBottom: `0.5px solid ${RULE_FAINT}` }}>▸ {item.note}</td>
+                                          </tr>
+                                        )}
+                                      </React.Fragment>
+                                    ))}
+                                  </tbody>
+                                </table>
                               );
                             })()}
                             {showUnitPricing && (

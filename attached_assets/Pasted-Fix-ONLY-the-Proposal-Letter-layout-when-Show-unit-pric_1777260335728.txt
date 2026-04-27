@@ -1,0 +1,118 @@
+Fix ONLY the Proposal Letter layout when "Show unit pricing" is checked.
+
+Do not change the default non-unit-price proposal layout.
+
+Current required behavior:
+1. When "Show unit pricing" is unchecked:
+- Leave the existing layout exactly as it is today.
+- Do not change column widths.
+- Do not change spacing.
+- Do not change font sizes.
+- Do not change how line items are displayed.
+- Do not convert the non-pricing layout into a table.
+- Do not add headers.
+- Do not remove or alter the existing non-pricing format.
+
+2. When "Show unit pricing" is checked:
+- Replace only the checked/pricing layout with a clean table.
+- The pricing layout must display these columns:
+  Plan Callout | Description | Model Number | Qty | Unit Cost | Total
+
+Current problem in checked/pricing mode:
+- The Description column collapses.
+- Description wraps one letter per line.
+- Headers overlap.
+- Description and Model Number are smashed together.
+- Unit Cost and Total columns appear, but the rest of the layout becomes unreadable.
+
+Required checked/pricing layout:
+Use a real table or CSS grid with fixed, explicit column widths.
+
+Pricing table column widths:
+- Plan Callout: 11%
+- Description: 36%
+- Model Number: 21%
+- Qty: 8%
+- Unit Cost: 12%
+- Total: 12%
+
+Table styling for checked/pricing mode only:
+- Table width: 100%
+- Table layout: fixed if using table
+- Header row visible
+- Header labels:
+  PLAN CALLOUT
+  DESCRIPTION
+  MODEL NUMBER
+  QTY
+  UNIT COST
+  TOTAL
+- Header font size: 7px to 8px
+- Header letter spacing: 1px
+- Header text-transform: uppercase
+- Header color: muted gray
+- Header padding: 6px 8px
+- Header bottom border: light gray
+
+Body row styling for checked/pricing mode only:
+- Font size: 9px to 10px
+- Line height: 1.35
+- Padding: 6px 8px
+- Border bottom: very light gray
+- Vertical align: top
+
+Description column rules for checked/pricing mode only:
+- Description must be the widest readable column.
+- Description must wrap by words, not letters.
+- Apply:
+  white-space: normal;
+  word-break: normal;
+  overflow-wrap: normal;
+  line-height: 1.35;
+- Remove or override any pricing-mode CSS that causes:
+  word-break: break-all;
+  overflow-wrap: anywhere;
+  one-letter-per-line wrapping;
+  too-narrow description width.
+
+Pricing columns:
+- Unit Cost and Total must be right-aligned.
+- Currency should be formatted correctly.
+- Unit Cost and Total should only appear when "Show unit pricing" is checked.
+- Do not show pricing columns or $0 values when unchecked.
+
+Data mapping in checked/pricing mode:
+- Plan Callout = planCallout or plan_callout
+- Description = description
+- Model Number = modelNumber or model_number
+- Qty = quantity or qty
+- Unit Cost = unitCost or unit_cost
+- Total = extendedCost or quantity * unitCost
+
+Important:
+The non-unit-price version is already acceptable. Do not modify it.
+Only create/fix the alternate rendering path used when showUnitPricing is true.
+
+Implementation direction:
+Find the Proposal Letter component or section that renders line items.
+Locate the conditional logic tied to "Show unit pricing" or showUnitPricing.
+Keep the existing false/unselected branch exactly as-is.
+Only modify the true/selected branch.
+
+If there is currently no separate branch:
+- Add a conditional render.
+- When showUnitPricing is false, return the existing current layout unchanged.
+- When showUnitPricing is true, render the new fixed pricing table.
+
+Validation before finishing:
+1. Open Proposal Letter preview.
+2. Confirm "Show unit pricing" is unchecked.
+3. Confirm the unchecked/non-pricing layout looks exactly the same as before.
+4. Check "Show unit pricing."
+5. Confirm the checked/pricing layout changes to a clean table with:
+   Plan Callout | Description | Model Number | Qty | Unit Cost | Total
+6. Confirm Description no longer wraps one letter per line.
+7. Confirm Description and Model Number headers do not overlap.
+8. Confirm Unit Cost and Total are visible, right-aligned, and readable.
+9. Uncheck "Show unit pricing" again.
+10. Confirm the layout returns to the original non-pricing version unchanged.
