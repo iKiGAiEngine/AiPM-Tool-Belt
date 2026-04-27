@@ -667,8 +667,22 @@ function EstimatingModuleInner() {
   const { hasFeature } = useFeatureAccess();
   const isMobile = useIsMobile();
 
-  // ── Stage navigation ──
-  const [stage, setStage] = useState<"intake" | "lineItems" | "calculations" | "output">("intake");
+  // ── Stage navigation (persisted per-estimate in localStorage so a hard reload returns to the same tab) ──
+  const STAGE_STORAGE_KEY = proposalLogIdStr ? `aipm:estimating:stage:${proposalLogIdStr}` : null;
+  const [stage, setStage] = useState<"intake" | "lineItems" | "calculations" | "output">(() => {
+    if (typeof window === "undefined" || !STAGE_STORAGE_KEY) return "intake";
+    try {
+      const saved = window.localStorage.getItem(STAGE_STORAGE_KEY);
+      if (saved === "intake" || saved === "lineItems" || saved === "calculations" || saved === "output") {
+        return saved;
+      }
+    } catch { /* ignore storage errors */ }
+    return "intake";
+  });
+  useEffect(() => {
+    if (typeof window === "undefined" || !STAGE_STORAGE_KEY) return;
+    try { window.localStorage.setItem(STAGE_STORAGE_KEY, stage); } catch { /* ignore */ }
+  }, [stage, STAGE_STORAGE_KEY]);
   // Activity tracker is wired further down once estimateId is known.
   const [activeCat, setActiveCat] = useState<string>("");
 
