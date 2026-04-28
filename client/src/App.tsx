@@ -66,6 +66,14 @@ function SettingsRoute({ component: Component }: { component: React.ComponentTyp
   return <Component />;
 }
 
+function BcSyncRoute({ component: Component }: { component: React.ComponentType }) {
+  const { isAdmin, isLoading } = useAuth();
+  const { hasFeature, isLoading: featuresLoading } = useFeatureAccess();
+  if (isLoading || featuresLoading) return null;
+  if (!isAdmin && !hasFeature("bc-sync")) return <HomePage />;
+  return <Component />;
+}
+
 function Router() {
   return (
     <Switch>
@@ -76,7 +84,7 @@ function Router() {
       <Route path="/settings">{() => <SettingsRoute component={CentralSettingsPage} />}</Route>
       <Route path="/project-start" component={ProjectStartPage} />
       <Route path="/projects/:id" component={ProjectDetailPage} />
-      <Route path="/tools/bc-sync-table">{() => <AdminRoute component={ProjectLogPage} />}</Route>
+      <Route path="/tools/bc-sync-table">{() => <BcSyncRoute component={ProjectLogPage} />}</Route>
       <Route path="/project-log">{() => { window.location.replace("/tools/bc-sync-table"); return null; }}</Route>
       <Route path="/schedule-converter" component={ScheduleConverterPage} />
       <Route path="/spec-extractor" component={SpecExtractorPage} />
