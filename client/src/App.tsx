@@ -40,7 +40,8 @@ import NotFound from "@/pages/not-found";
 const PUBLIC_PATHS = ["/forgot-password", "/reset-password"];
 
 function AdminRoute({ component: Component }: { component: React.ComponentType }) {
-  const { isAdmin } = useAuth();
+  const { isAdmin, isLoading } = useAuth();
+  if (isLoading) return null;
   if (!isAdmin) return <HomePage />;
   return <Component />;
 }
