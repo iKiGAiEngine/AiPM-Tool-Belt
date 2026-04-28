@@ -1,0 +1,53 @@
+We need to make sure BuildingConnected NDA invites do not get skipped.
+
+Primary goal:
+If an NDA-protected BuildingConnected invite has a visible project/RFP name, AiPM must create a Draft row so the project is on our radar.
+
+Do not require full project details for NDA invites.
+
+Known NDA example:
+Project/RFP name visible:
+“Mass Timber Residential High Rise - Confidential Client: Specialties”
+
+Restricted fields:
+- Location: Hidden until NDA signed
+- Project description: Hidden until NDA signed
+- Files/project details: restricted until NDA signed
+
+Available fields may include:
+- Project/RFP name
+- GC/company
+- GC lead/contact
+- Bid due date
+- Scope/trade
+- BC link/opportunity ID
+
+Required behavior:
+1. During BC sync, do not skip or reject an invite just because location, description, files, address, region, or square footage are missing/restricted.
+2. If a BC invite has at least:
+   - project/opportunity/RFP title, and
+   - bcOpportunityId or direct BC link
+   create a Draft row.
+3. If the invite appears NDA-restricted, set:
+   - isDraft = true
+   - sourceType = “bc”
+   - ndaRequired = true, if field exists
+   - bcAccessStatus = “nda_required”, if field exists
+   - notes = “NDA required. Some project details are hidden until NDA is accepted in BuildingConnected.”
+4. Store the visible project/RFP title as the Project Name.
+5. Store any available due date, GC lead, company, and scope, but do not require them.
+6. If region cannot be safely determined because the project location is hidden, leave Region blank or “Review Required.”
+7. Do not assign region from the GC office address with high confidence when the project location is hidden.
+8. In the Drafts tab, show the NDA invite with a clear “NDA Required” badge or note.
+9. The user should be able to open the exact BC invite from AiPM.
+10. After the NDA is accepted and BC Sync is run again, update the existing draft using bcOpportunityId/bcInviteId instead of creating a duplicate.
+
+Acceptance criteria:
+- “Mass Timber Residential High Rise - Confidential Client: Specialties” appears in Drafts even if location and description are hidden.
+- Missing/restricted location does not cause auto-rejection.
+- Missing/restricted description does not cause auto-rejection.
+- Missing region does not cause auto-rejection.
+- Missing files/plans/specs do not cause auto-rejection.
+- Missing square footage does not cause auto-rejection.
+- The draft can exist with only project name + BC ID/link.
+- Normal non-NDA BC sync behavior is unchanged.

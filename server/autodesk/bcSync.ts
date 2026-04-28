@@ -496,6 +496,24 @@ function getLocationStr(opp: BcOpportunity): string {
   return parts.join(", ");
 }
 
+/**
+ * Detects whether a BuildingConnected invite appears to be NDA-restricted.
+ * Two independent signals:
+ *   1. The project name itself flags confidentiality (e.g. "Confidential Client", "NDA").
+ *   2. The project location is entirely hidden (no formatted address, city, or state)
+ *      — typical for invites whose location is restricted until NDA is signed.
+ */
+export function looksLikeNdaInvite(opp: BcOpportunity): boolean {
+  const name = (opp.projectName || "").toLowerCase();
+  const nameSignal = /\b(confidential|nda|undisclosed)\b/.test(name);
+  const noLocation = !opp.location?.formattedAddress
+    && !opp.location?.city
+    && !opp.location?.state;
+  return nameSignal || noLocation;
+}
+
+export const NDA_NOTE = "NDA required. Some project details are hidden until NDA is accepted in BuildingConnected.";
+
 const GENERIC_COMPANY_WORDS = new Set([
   "builders", "builder", "construction", "constructors", "contractor", "contractors",
   "group", "inc", "llc", "ltd", "co", "corp", "company", "enterprises",
@@ -526,6 +544,7 @@ function extractOfficeSegments(name: string | undefined): string[] {
 
 async function mapOpportunityToEntry(opp: BcOpportunity) {
   const locationStr = getLocationStr(opp);
+  const isNda = looksLikeNdaInvite(opp);
 
   // Collect all office segments from BOTH the GC company name and the office hint.
   // Most-specific segment (last in the string) comes first in the array.
@@ -533,7 +552,7 @@ async function mapOpportunityToEntry(opp: BcOpportunity) {
   const companySegments = extractOfficeSegments(opp.gcCompanyName);
 
   // Diagnostic: log raw fields so we can discover any unknown BC API field names
-  console.log(`[BC Sync] Raw office data for "${opp.projectName}": gcCompanyName="${opp.gcCompanyName}" gcOfficeHint="${opp.gcOfficeHint}" → hintSegs=[${hintSegments.join("|")}] companySegs=[${companySegments.join("|")}] location="${locationStr}"`);
+  console.log(`[BC Sync] Raw office data for "${opp.projectName}": gcCompanyName="${opp.gcCompanyName}" gcOfficeHint="${opp.gcOfficeHint}" → hintSegs=[${hintSegments.join("|")}] companySegs=[${companySegments.join("|")}] location="${locationStr}" nda=${isNda}`);
 
   // Ordered candidates: hint segments first (most authoritative), then company segments
   // Per business rule: Swinerton OFFICE determines region, not project address.
@@ -546,7 +565,13 @@ async function mapOpportunityToEntry(opp: BcOpportunity) {
 
   const allActiveRegions = await getActiveRegions();
 
-  if (isSwinerton(opp.gcCompanyName || "")) {
+  if (isNda) {
+    // NDA-restricted invite: project location is hidden. Per spec, do NOT assign a
+    // region from the GC office address with high confidence — leave Region blank
+    // so a human reviews it after the NDA is accepted. We still record the GC name
+    // and other visible fields below.
+    console.log(`[BC Sync] NDA invite detected for "${projectName}" — skipping region inference, leaving Region blank for review.`);
+  } else if (isSwinerton(opp.gcCompanyName || "")) {
     // STEP 1 — Special Swinerton SoCal sub-region resolver.
     // Fires only when the BC text contains BOTH "swinerton" and "socal".
     // Owns the result for SoCal entries, including SoCal-without-clue
@@ -667,6 +692,9 @@ async function mapOpportunityToEntry(opp: BcOpportunity) {
     isDraft: true,
     estimateStatus: "Draft",
     isTest: false,
+    ndaRequired: isNda,
+    bcAccessStatus: isNda ? "nda_required" : null,
+    notes: isNda ? NDA_NOTE : "",
   };
 }
 
@@ -719,6 +747,16 @@ async function detectFieldChanges(existing: typeof proposalLogEntries.$inferSele
   }
   if (existing.squareFeet !== mapped.squareFeet && mapped.squareFeet) {
     changes.push(`squareFeet: ${existing.squareFeet || "none"} → ${mapped.squareFeet}`);
+  }
+
+  // NDA status transition (e.g. NDA accepted in BC → invite is no longer restricted)
+  const wasNda = !!existing.ndaRequired;
+  if (wasNda !== mapped.ndaRequired) {
+    changes.push(`ndaRequired: ${wasNda ? "yes" : "no"} → ${mapped.ndaRequired ? "yes" : "no"}`);
+  }
+  // When NDA is cleared, region may now be inferable — surface that as a change too.
+  if (wasNda && !mapped.ndaRequired && mapped.region && mapped.region !== existing.region) {
+    changes.push(`region: ${existing.region || "none"} → ${mapped.region}`);
   }
 
   const existingScopes = existing.scopeList ? JSON.parse(existing.scopeList) as string[] : [];
@@ -1003,6 +1041,12 @@ export function registerBcSyncRoutes(app: Express) {
                 ...(opp.scopes || []),
               ]);
 
+              // When NDA is cleared (was true → now false), refresh region from
+              // the newly available info; otherwise preserve any human edits.
+              const wasNda = !!existingEntry.ndaRequired;
+              const ndaCleared = wasNda && !mapped.ndaRequired;
+              const newRegion = ndaCleared && mapped.region ? mapped.region : existingEntry.region;
+
               await db.update(proposalLogEntries).set({
                 dueDate: mapped.dueDate || existingEntry.dueDate,
                 gcEstimateLead: mapped.gcEstimateLead || existingEntry.gcEstimateLead,
@@ -1011,6 +1055,9 @@ export function registerBcSyncRoutes(app: Express) {
                 projectAddress: mapped.projectAddress || existingEntry.projectAddress,
                 squareFeet: mapped.squareFeet || existingEntry.squareFeet,
                 scopeList: JSON.stringify([...mergedScopes]),
+                region: newRegion,
+                ndaRequired: mapped.ndaRequired,
+                bcAccessStatus: mapped.bcAccessStatus,
                 bcUpdateFlag: true,
                 bcChangeLog: JSON.stringify(existingChangeLog),
               }).where(eq(proposalLogEntries.id, existingEntry.id));

@@ -38,6 +38,8 @@ interface ProposalLogEntry {
   bcLink: string | null;
   screenshotPath: string | null;
   sourceType: string | null;
+  ndaRequired: boolean | null;
+  bcAccessStatus: string | null;
   isTest: boolean | null;
   isDraft: boolean | null;
   bcProjectId: string | null;
@@ -1035,6 +1037,15 @@ export default function ProjectLogPage() {
                                     <FileEdit className="w-3 h-3 mr-1" />
                                     DRAFT
                                   </Badge>
+                                  {(entry.ndaRequired || entry.bcAccessStatus === "nda_required") && (
+                                    <Badge
+                                      className="text-[10px] bg-purple-500/20 text-purple-300 border-purple-500/30 cursor-default"
+                                      title="This BuildingConnected invite is NDA-protected. Some project details (location, description, files) are hidden until the NDA is accepted."
+                                      data-testid={`badge-nda-${entry.id}`}
+                                    >
+                                      🔒 NDA Required
+                                    </Badge>
+                                  )}
                                   {entry.duplicateOverrideNote?.startsWith("__dup:") && (
                                     <Badge className="text-[10px] bg-orange-500/20 text-orange-400 border-orange-500/30 cursor-default" title="Possible duplicate detected — resolve when approving" data-testid={`badge-dup-warning-${entry.id}`}>
                                       ⚠ May Be Duplicate

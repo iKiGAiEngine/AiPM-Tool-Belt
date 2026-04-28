@@ -940,6 +940,8 @@ export const proposalLogEntries = pgTable("proposal_log_entries", {
   squareFeet: varchar("square_feet", { length: 50 }),
   notes: text("notes").default(""),
   bcLink: varchar("bc_link", { length: 1000 }),
+  ndaRequired: boolean("nda_required").default(false),
+  bcAccessStatus: varchar("bc_access_status", { length: 30 }),
   isTest: boolean("is_test").default(false),
   syncedToLocal: boolean("synced_to_local").default(false),
   isDraft: boolean("is_draft").default(false),

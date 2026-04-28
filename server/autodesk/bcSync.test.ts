@@ -1,5 +1,5 @@
 import assert from "assert";
-import { normalizeOpportunity, filterByGcAllowlist, guessRegionFromLocation } from "./bcSync.js";
+import { normalizeOpportunity, filterByGcAllowlist, guessRegionFromLocation, looksLikeNdaInvite } from "./bcSync.js";
 
 const swinertonV2Payload = {
   id: "6627779ac415eba5996c5723",
@@ -243,21 +243,68 @@ assert.strictEqual(v2WithDates.location?.formattedAddress, "5200 Illumina Way, S
 console.log("PASS: V2 payload formattedAddress now includes street + zip");
 
 
-assert.strictEqual(guessRegionFromLocation("San Diego, CA"), "SAN");
-assert.strictEqual(guessRegionFromLocation("Portland, OR"), "PDX");
-assert.strictEqual(guessRegionFromLocation("Denver, CO"), "DEN");
-assert.strictEqual(guessRegionFromLocation("Los Angeles, CA"), "LAX");
-assert.strictEqual(guessRegionFromLocation("LA"), "LAX");
-assert.strictEqual(guessRegionFromLocation("Seattle, WA"), "SEA");
-assert.strictEqual(guessRegionFromLocation("San Francisco, CA"), "SFO");
-assert.strictEqual(guessRegionFromLocation("Irvine, CA"), "LAX");
-assert.strictEqual(guessRegionFromLocation("Santa Ana, CA"), "LAX");
-assert.strictEqual(guessRegionFromLocation("Foley, AL"), "ATL");
-assert.strictEqual(guessRegionFromLocation("Greenville, SC"), "CLT");
-assert.strictEqual(guessRegionFromLocation("Colton, CA"), "LAX");
-assert.strictEqual(guessRegionFromLocation("Inglewood, CA"), "LAX");
-assert.strictEqual(guessRegionFromLocation("Eugene, OR"), "PDX");
-assert.strictEqual(guessRegionFromLocation("Temecula, CA"), "LAX");
-console.log("PASS: Region mapping — all key cities resolve correctly, including LA shorthand and new cities");
+async function runRegionMappingTests() {
+  assert.strictEqual(await guessRegionFromLocation("San Diego, CA"), "SAN");
+  assert.strictEqual(await guessRegionFromLocation("Portland, OR"), "PDX");
+  assert.strictEqual(await guessRegionFromLocation("Denver, CO"), "DEN");
+  assert.strictEqual(await guessRegionFromLocation("Los Angeles, CA"), "LAX");
+  assert.strictEqual(await guessRegionFromLocation("LA"), "LAX");
+  assert.strictEqual(await guessRegionFromLocation("Seattle, WA"), "SEA");
+  assert.strictEqual(await guessRegionFromLocation("San Francisco, CA"), "SFO");
+  assert.strictEqual(await guessRegionFromLocation("Irvine, CA"), "LAX");
+  assert.strictEqual(await guessRegionFromLocation("Santa Ana, CA"), "LAX");
+  assert.strictEqual(await guessRegionFromLocation("Foley, AL"), "ATL");
+  assert.strictEqual(await guessRegionFromLocation("Greenville, SC"), "CLT");
+  assert.strictEqual(await guessRegionFromLocation("Colton, CA"), "LAX");
+  assert.strictEqual(await guessRegionFromLocation("Inglewood, CA"), "LAX");
+  assert.strictEqual(await guessRegionFromLocation("Eugene, OR"), "PDX");
+  assert.strictEqual(await guessRegionFromLocation("Temecula, CA"), "LAX");
+  console.log("PASS: Region mapping — all key cities resolve correctly, including LA shorthand and new cities");
+}
+await runRegionMappingTests();
+
+// ─── NDA invite detection ─────────────────────────────────────────────────
+const ndaByName = normalizeOpportunity({
+  id: "nda1",
+  name: "Mass Timber Residential High Rise - Confidential Client: Specialties",
+  client: { company: { name: "Swinerton Builders" } },
+  bidsDueAt: "2026-05-01T00:00:00.000Z",
+  invitedAt: "2026-04-15T00:00:00.000Z",
+  trades: ["Specialties"],
+});
+assert.strictEqual(ndaByName.projectName, "Mass Timber Residential High Rise - Confidential Client: Specialties");
+assert.strictEqual(ndaByName.gcCompanyName, "Swinerton Builders");
+assert.strictEqual(looksLikeNdaInvite(ndaByName), true, "should flag NDA when project name contains 'Confidential'");
+console.log("PASS: NDA detection — name with 'Confidential Client' is flagged");
+
+const ndaByMissingLocation = normalizeOpportunity({
+  id: "nda2",
+  name: "Restricted Healthcare Project",
+  client: { company: { name: "Swinerton Builders" } },
+  bidsDueAt: "2026-06-01T00:00:00.000Z",
+  trades: ["Specialties"],
+  // no address / location at all
+});
+assert.strictEqual(looksLikeNdaInvite(ndaByMissingLocation), true, "should flag NDA when location is entirely missing");
+console.log("PASS: NDA detection — invite with no location is flagged");
+
+const ndaByExplicitNda = normalizeOpportunity({
+  id: "nda3",
+  name: "Project Phoenix (NDA)",
+  client: { company: { name: "Swinerton Builders" } },
+  address: { city: "Phoenix", state: "AZ" },
+  bidsDueAt: "2026-07-01T00:00:00.000Z",
+});
+assert.strictEqual(looksLikeNdaInvite(ndaByExplicitNda), true, "should flag NDA when name contains 'NDA'");
+console.log("PASS: NDA detection — name with '(NDA)' is flagged");
+
+const normalInvite = normalizeOpportunity(swinertonV2Payload);
+assert.strictEqual(looksLikeNdaInvite(normalInvite), false, "normal invite with full location must NOT be flagged");
+console.log("PASS: NDA detection — normal invite with full location is not flagged");
+
+// NDA invite still passes the GC allowlist (Swinerton GC visible)
+const ndaFiltered = filterByGcAllowlist([ndaByName, ndaByMissingLocation, ndaByExplicitNda]);
+assert.strictEqual(ndaFiltered.length, 3, "NDA invites with visible Swinerton GC must pass the allowlist");
+console.log("PASS: NDA invites with visible Swinerton GC pass the allowlist filter (not auto-skipped)");
 
 console.log("\nAll tests passed!");
