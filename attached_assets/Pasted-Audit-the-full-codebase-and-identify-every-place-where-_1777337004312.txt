@@ -1,0 +1,88 @@
+Audit the full codebase and identify every place where AI, LLMs, OCR, document extraction, embedding, classification, summarization, or automated interpretation is being used.
+
+I need a clear, executive-friendly report for a meeting with a Data Analytics and AI leader. Do not make code changes yet. This is discovery only.
+
+Please inspect the entire project and report back with:
+
+1. Every AI-related file, route, function, service, component, environment variable, and dependency.
+2. The exact AI provider or model being used, if identifiable.
+   - Example: OpenAI, GPT-4o, GPT-4o-mini, Claude, Gemini, Tesseract, OCR library, embeddings model, etc.
+3. What each AI feature does in plain English.
+   - Example: reads project specs, extracts line items, classifies scope, summarizes documents, parses vendor quotes, etc.
+4. What user action triggers the AI.
+   - Example: file upload, button click, route call, background job, form submission, API endpoint.
+5. What data is sent into the AI process.
+   - Include whether the data comes from PDFs, specs, plans, uploaded files, vendor quotes, proposal log data, estimate line items, project records, or user-entered notes.
+6. What data is returned from the AI.
+   - Include extracted fields, JSON structures, summaries, classifications, generated text, confidence scores, or parsed line items.
+7. Whether the AI output is automatically saved, shown for human review, or used to make any system decision.
+8. Whether any financial, confidential, client, vendor, employee, banking, HR, payroll, or CMiC data is included.
+9. Whether any AI call sends data to an external third-party API.
+10. Any security or data-retention concerns visible from the code.
+11. Any places where AI is referenced in UI copy but no actual AI call exists.
+12. Any AI-related dead code, unused files, mock logic, placeholder routes, or partially built features.
+13. Any environment variables required for AI features, such as OPENAI_API_KEY or similar.
+14. Any logs that may accidentally store AI prompts, uploaded document text, extracted data, or sensitive information.
+15. Any files uploaded for AI processing and where those files are stored.
+
+Please organize the response in this format:
+
+A. Executive Summary
+- Short plain-English summary of where AI is currently used.
+- Clarify whether AI is limited to document/spec/quote extraction or used more broadly.
+- Clarify whether AI is making final business decisions or only assisting humans.
+
+B. AI Usage Inventory Table
+Columns:
+- Feature Name
+- File / Route / Function
+- Trigger
+- AI Provider / Model
+- Data Sent
+- Data Returned
+- Saved Automatically?
+- Human Review Required?
+- Risk Level: Low / Medium / High
+- Notes
+
+C. Data Flow Explanation
+For each AI feature, explain:
+- User action
+- Backend route/service
+- AI call
+- Response handling
+- Database/file storage
+- UI display
+
+D. Security and Privacy Notes
+List any visible concerns, including:
+- External API usage
+- Prompt logging
+- File storage
+- Sensitive data exposure
+- Missing access controls
+- Missing redaction
+- Missing retention policy
+- NDA/confidential project concerns
+
+E. Recommended Meeting Language
+Give me 5 to 8 plain-English sentences I can use to explain AI usage accurately to a non-developer executive.
+
+F. Recommended Next Steps
+Give me practical next steps to make the AI usage safer and easier to explain, including:
+- AI usage map
+- redaction rules
+- access control
+- upload limits
+- file retention policy
+- logging cleanup
+- human review gates
+- approved provider/hosting path
+
+Important:
+- Do not change any files.
+- Do not refactor anything.
+- Do not delete anything.
+- Do not add new features.
+- Report exact file paths and function names wherever possible.
+- Be specific and do not guess. If something is unclear, mark it as “needs verification.”
