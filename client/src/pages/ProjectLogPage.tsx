@@ -193,6 +193,7 @@ export default function ProjectLogPage() {
     const bc = params.get("bc");
     if (bc === "connected") {
       toast({ title: "BuildingConnected linked", description: "Your account is now connected." });
+      queryClient.invalidateQueries({ queryKey: ["/api/autodesk/status"] });
       window.history.replaceState({}, "", window.location.pathname);
     } else if (bc === "error") {
       toast({ title: "Connection failed", description: "Could not connect to BuildingConnected. Please try again.", variant: "destructive" });
