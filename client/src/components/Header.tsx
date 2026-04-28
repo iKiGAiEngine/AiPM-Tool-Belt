@@ -161,8 +161,8 @@ function ChangePasswordDialog({ open, onClose }: { open: boolean; onClose: () =>
 export function Header() {
   const [location, navigate] = useLocation();
   const { isTestMode, toggleTestMode } = useTestMode();
-  const { user, isAdmin, canAccessAdminDashboard, logout } = useAuth();
-  const { hasFeature } = useFeatureAccess();
+  const { user, isAdmin, canAccessAdminDashboard, isLoading: authLoading, logout } = useAuth();
+  const { hasFeature, isLoading: featuresLoading } = useFeatureAccess();
   const canSettingsRegions = hasFeature("settings-regions");
   const canSettingsFull = hasFeature("central-settings");
   const isHome = location === "/";
@@ -184,6 +184,8 @@ export function Header() {
     if (!allProjects) return [];
     return allProjects.filter(p => p.status === "processing");
   }, [allProjects]);
+
+  const settingsReady = !authLoading && !featuresLoading;
 
   return (
     <>
@@ -254,7 +256,7 @@ export function Header() {
               />
             </label>
           )}
-          {(isAdmin || canSettingsFull || canSettingsRegions) && (
+          {settingsReady && (isAdmin || canSettingsFull || canSettingsRegions) && (
             <Link href="/settings">
               <Button variant="ghost" size="icon" title={isAdmin || canSettingsFull ? "Settings" : "Regions"} data-testid="link-settings">
                 <Settings className="h-4 w-4" />
