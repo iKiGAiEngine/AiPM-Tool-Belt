@@ -172,14 +172,15 @@ export default function ProjectLogPage() {
   useEffect(() => {
     if (typeof window === "undefined") return;
     const params = new URLSearchParams(window.location.search);
-    if (params.get("openSync") === "1" && isAdmin && bcStatus?.connected) {
+    const canBcSync = isAdmin || hasFeature("bc-sync");
+    if (params.get("openSync") === "1" && canBcSync && bcStatus?.connected) {
       setShowBcSync(true);
       params.delete("openSync");
       const newSearch = params.toString();
       const newUrl = window.location.pathname + (newSearch ? `?${newSearch}` : "") + window.location.hash;
       window.history.replaceState({}, "", newUrl);
     }
-  }, [isAdmin, bcStatus?.connected]);
+  }, [isAdmin, hasFeature, bcStatus?.connected]);
 
   const { data: dbRegions = [] } = useQuery<{ id: number; code: string; name: string | null; isActive: boolean }[]>({
     queryKey: ["/api/regions", "active"],

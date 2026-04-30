@@ -2070,8 +2070,20 @@ async function checkGoogleSheet(){
       if(importBtn && currentUser.role==='admin') importBtn.style.display='';
     }
   }catch(e){console.warn('Sheet URL check failed:',e);}
+  checkBcSyncAccess();
+}
+
+async function checkBcSyncAccess(){
   const bcBtn=document.getElementById('btn-bc-sync');
-  if(bcBtn && currentUser && currentUser.role==='admin') bcBtn.style.display='';
+  if(!bcBtn || !currentUser) return;
+  try{
+    const res=await fetch('/api/user/features',{credentials:'include'});
+    if(!res.ok) return;
+    const features=await res.json();
+    const list=Array.isArray(features)?features:[];
+    const hasBcSync=list.some(f=>(typeof f==='string'?f:f&&f.feature)==='bc-sync');
+    if(hasBcSync) bcBtn.style.display='';
+  }catch(e){console.warn('BC sync access check failed:',e);}
 }
 
 function bcSyncFromProposalLog(){
