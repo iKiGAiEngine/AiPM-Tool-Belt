@@ -10,7 +10,13 @@ const APS_AUTH_BASE = "https://developer.api.autodesk.com/authentication/v2";
 const APS_TOKEN_URL = `${APS_AUTH_BASE}/token`;
 const STATE_TTL_MS = 10 * 60 * 1000;
 
-function getRedirectUri(): string {
+function getRedirectUri(req?: Request): string {
+  const hostHeader = req?.get("host");
+  if (hostHeader) {
+    const proto = (req?.get("x-forwarded-proto") || req?.protocol || "https").split(",")[0].trim();
+    return `${proto}://${hostHeader}/auth/autodesk/callback`;
+  }
+
   const raw = process.env.APS_REDIRECT_DOMAIN || process.env.REPLIT_DEV_DOMAIN || process.env.REPLIT_DOMAINS || "";
   const domain = raw.split(",")[0].trim();
   return `https://${domain}/auth/autodesk/callback`;
@@ -41,7 +47,7 @@ export function registerAutodeskRoutes(app: Express) {
       createdAt: Date.now(),
     };
 
-    const redirectUri = getRedirectUri();
+    const redirectUri = getRedirectUri(req);
     const scope = "data:read";
 
     const authUrl = new URL(`${APS_AUTH_BASE}/authorize`);
@@ -91,7 +97,7 @@ export function registerAutodeskRoutes(app: Express) {
         return res.redirect("/tools/bc-sync-table?bc=error");
       }
 
-      const redirectUri = getRedirectUri();
+      const redirectUri = getRedirectUri(req);
 
       const tokenRes = await fetch(APS_TOKEN_URL, {
         method: "POST",
