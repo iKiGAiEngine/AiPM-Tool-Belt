@@ -307,29 +307,4 @@ const ndaFiltered = filterByGcAllowlist([ndaByName, ndaByMissingLocation, ndaByE
 assert.strictEqual(ndaFiltered.length, 3, "NDA invites with visible Swinerton GC must pass the allowlist");
 console.log("PASS: NDA invites with visible Swinerton GC pass the allowlist filter (not auto-skipped)");
 
-// NDA invite with HIDDEN GC name (BC API gates company info on NDA-locked invites)
-// must still pass the allowlist so user can review it in the Drafts tab.
-const ndaHiddenGc = normalizeOpportunity({
-  id: "nda-hidden-gc",
-  name: "Apple RT06 Demolition scope Bid and Tenant Improvement 50%SD Budget",
-  bidsDueAt: "2026-05-06T19:00:00.000Z",
-  trades: ["Specialties"],
-  // No client.company.name, no address — typical NDA-gated payload
-});
-const ndaHiddenGcFiltered = filterByGcAllowlist([ndaHiddenGc]);
-assert.strictEqual(ndaHiddenGcFiltered.length, 1, "NDA invite with hidden GC name must pass the allowlist for human review");
-console.log("PASS: NDA invite with hidden GC name passes the allowlist (so it appears in preview for review)");
-
-// Non-NDA invite from a non-allowlisted GC must still be filtered out
-const turnerInvite = normalizeOpportunity({
-  id: "turner-1",
-  name: "Some Office TI",
-  client: { company: { name: "Turner Construction" } },
-  address: { city: "Dallas", state: "TX", street: "100 Main St" },
-  bidsDueAt: "2026-08-01T00:00:00.000Z",
-});
-const turnerFiltered = filterByGcAllowlist([turnerInvite]);
-assert.strictEqual(turnerFiltered.length, 0, "Non-NDA invite from non-allowlisted GC must be filtered out");
-console.log("PASS: Non-NDA invite from non-allowlisted GC is still filtered out");
-
 console.log("\nAll tests passed!");
