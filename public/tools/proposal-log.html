@@ -800,6 +800,7 @@ th.col-drop-after::after{content:'';position:absolute;right:0;top:0;bottom:0;wid
         <button class="btn-preset" id="btn-socal" onclick="toggleSoCal()" title="Filter: LAX, SAN, and sub-regions" data-testid="button-socal-filter">SoCal Bids</button>
       </div>
       <div class="toolbar-actions-wrap" style="position:relative;display:flex;align-items:center;gap:6px;">
+        <button class="btn-icon-sm" id="btn-bc-sync" onclick="bcSyncFromProposalLog()" title="Sync from BuildingConnected" style="display:none;border-color:rgba(59,130,246,.45);color:#3b82f6;" data-testid="button-bc-sync">&#8635; BC Sync</button>
         <button class="btn-icon-sm" id="btn-more-toggle" onclick="toggleMoreMenu()" title="More options">&#9776; More</button>
         <div class="more-menu" id="more-menu">
           <select class="fs" id="f-market" style="width:100%"><option value="">All Markets</option></select>
@@ -2069,6 +2070,12 @@ async function checkGoogleSheet(){
       if(importBtn && currentUser.role==='admin') importBtn.style.display='';
     }
   }catch(e){console.warn('Sheet URL check failed:',e);}
+  const bcBtn=document.getElementById('btn-bc-sync');
+  if(bcBtn && currentUser && currentUser.role==='admin') bcBtn.style.display='';
+}
+
+function bcSyncFromProposalLog(){
+  window.location.href='/tools/bc-sync-table?openSync=1';
 }
 
 async function forceSync(){
