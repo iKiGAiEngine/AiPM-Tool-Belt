@@ -484,7 +484,12 @@ async function fetchBcOpportunities(accessToken: string, since?: Date, isFirstSy
 export function filterByGcAllowlist(opps: BcOpportunity[]): BcOpportunity[] {
   return opps.filter(opp => {
     const gcName = (opp.gcCompanyName || "").toLowerCase();
-    return GC_ALLOWLIST.some(gc => gcName.includes(gc));
+    if (GC_ALLOWLIST.some(gc => gcName.includes(gc))) return true;
+    // NDA-locked invites often hide the GC company name in the API response.
+    // Let them through so the user can review (and reject if non-Swinerton)
+    // in the Drafts tab — they will be flagged with the "🔒 NDA Required" badge.
+    if (looksLikeNdaInvite(opp)) return true;
+    return false;
   });
 }
 
